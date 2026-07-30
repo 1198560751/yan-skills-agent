@@ -7,9 +7,11 @@ Agent skills by [Yan](https://github.com/yan-labs), battle-tested in daily use. 
 ## 安装 / Install
 
 ```bash
-npx skills add yan-labs/yan-skills@gt -g
-npx skills add yan-labs/yan-skills@autopilot -g
-npx skills add yan-labs/yan-skills@rankup -g
+# 交互式选择
+npx skills add yan-labs/yan-skills
+
+# 全局安装仓库内全部 Skills
+npx skills add yan-labs/yan-skills -g --all
 ```
 
 ## Skills
@@ -38,6 +40,18 @@ npx skills add yan-labs/yan-skills@rankup -g
 
 依赖：按具体数据通道和编排场景选用 Chrome、curl 或其他配套 skills。
 
+### [`backlink`](backlink/) — 自动化目录提交与外链发布工作流
+
+通过 Mac Mini 上的 `bb-browser` 批量处理免费目录提交，并覆盖 IndexNow、Awesome List、公开引用仓库、结果复核与链接属性验证。
+
+依赖：Mac Mini SSH、Node.js 18+、`bb-browser`。
+
+### [`backlink-analyzer`](backlink-analyzer/) — 外链质量、风险与竞争缺口分析
+
+分析 referring domains、链接质量、锚文本、毒性风险、竞品链接交集和外链建设机会，附带报告、评分与外联模板。
+
+来源：[aaron-he-zhu/seo-geo-claude-skills](https://github.com/aaron-he-zhu/seo-geo-claude-skills)，Apache-2.0；许可证保留在 Skill 目录内。
+
 ## License
 
-MIT © Yan
+除另有标注的第三方 Skill 外，仓库内容采用 MIT License。`backlink-analyzer` 保留其上游 Apache-2.0 许可证与归属说明。
