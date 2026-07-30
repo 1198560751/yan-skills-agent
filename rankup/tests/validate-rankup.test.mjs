@@ -43,7 +43,7 @@ test("release validator accepts the complete installed Skill", async () => {
   await withSkillCopy(async (skillRoot) => {
     const result = validate(skillRoot);
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /rankup 2\.0\.0 validation passed/);
+    assert.match(result.stdout, /rankup 2\.0\.1 validation passed/);
   });
 });
 
@@ -84,6 +84,31 @@ test("release validator requires the secret prohibition in SKILL.md", async () =
     const result = validate(skillRoot);
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /missing required content in SKILL\.md/);
+  });
+});
+
+test("release validator requires both individual backlink install commands", async () => {
+  await withSkillCopy(async (skillRoot) => {
+    const integrationPath = path.join(
+      skillRoot,
+      "references",
+      "integrations.md",
+    );
+    const original = await readFile(integrationPath, "utf8");
+    await writeFile(
+      integrationPath,
+      original.replace(
+        "npx skills add yan-labs/yan-skills --skill backlink-analyzer -g -y",
+        "npx skills add yan-labs/yan-skills -g --all",
+      ),
+    );
+
+    const result = validate(skillRoot);
+    assert.notEqual(result.status, 0);
+    assert.match(
+      result.stderr,
+      /missing required content in references\/integrations\.md/,
+    );
   });
 });
 

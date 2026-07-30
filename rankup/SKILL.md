@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也在用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引或网站增长时使用。
 metadata:
-  version: "2.0.0"
+  version: "2.0.1"
 ---
 
 # Rankup 2.0
@@ -63,6 +63,7 @@ node "<rankup-skill-dir>/scripts/check-version.mjs" \
 | 支付、订阅、账单、Stripe | [`integrations.md`](references/integrations.md)、[`project-memory.md`](references/project-memory.md) | stripe-best-practices |
 | SEO、GSC、排名、关键词、CTR、索引、内容 | [`seo-growth.md`](references/seo-growth.md)、[`project-memory.md`](references/project-memory.md) | GT、SEO 或研究能力 |
 | 外链、分发、竞品引用域 | [`integrations.md`](references/integrations.md)、[`seo-growth.md`](references/seo-growth.md) | backlink-analyzer、backlink |
+| 复盘、经验沉淀、自我进化、规则升级 | [`evolution.md`](references/evolution.md)、[`project-memory.md`](references/project-memory.md) | 必要时使用独立 checker |
 | 已有项目下一步、迭代、排障 | [`project-memory.md`](references/project-memory.md) 加任务相关参考 | 按缺口选择 |
 
 找不到合适能力时，先按 [`integrations.md`](references/integrations.md) 使用 find-skills 搜索，不要先在 `rankup` 中复制一个新的专项 Skill。
@@ -139,6 +140,8 @@ pnpm dlx shadcn@latest init \
 5. 说明完成内容、验证证据、仍存在的风险和需要用户处理的外部事项。
 
 ## 经验回流与版本升级
+
+详细的失败分类、证据阶梯、适应性重试、规则晋升和淘汰流程见 [`references/evolution.md`](references/evolution.md)。
 
 - 只对当前项目成立的事实、数字和排障过程写入项目 `.rankup/`。
 - 换一个项目仍成立且经过验证的规则，才可回流本 Skill 的相关参考文件。

@@ -13,6 +13,12 @@ npx skills add yan-labs/yan-skills -g --all
 # 更新全局安装的 rankup
 npx skills update rankup -g -y
 
+# 只安装外链执行 Skill
+npx skills add yan-labs/yan-skills --skill backlink -g -y
+
+# 只安装外链分析 Skill
+npx skills add yan-labs/yan-skills --skill backlink-analyzer -g -y
+
 # Cloudflare 资源、绑定、迁移、密钥和部署
 npx skills add cloudflare/skills --skill wrangler -g -y
 

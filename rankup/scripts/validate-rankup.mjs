@@ -5,13 +5,14 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.0.0";
+const expectedVersion = "2.0.1";
 const requiredReferences = [
   "lifecycle.md",
   "cloudflare-stack.md",
   "project-memory.md",
   "integrations.md",
   "seo-growth.md",
+  "evolution.md",
 ];
 
 const requiredContent = {
@@ -30,6 +31,15 @@ const requiredContent = {
     "npx skills add stripe/ai --skill stripe-best-practices -g -y",
     "npx skills add vercel-labs/skills --skill find-skills -g -y",
     "npx skills add yan-labs/yan-skills -g --all",
+    "npx skills add yan-labs/yan-skills --skill backlink -g -y",
+    "npx skills add yan-labs/yan-skills --skill backlink-analyzer -g -y",
+  ],
+  "references/evolution.md": [
+    "失败分类",
+    "证据阶梯",
+    "Maker–Checker",
+    "通用规则晋升门",
+    "no-promotion",
   ],
 };
 

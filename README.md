@@ -40,11 +40,11 @@ npx skills update rankup -g -y
 
 依赖：无。
 
-### [`rankup`](rankup/) `2.0.0` — 网站全生命周期总控
+### [`rankup`](rankup/) `2.0.1` — 网站全生命周期总控
 
 从机会调研、产品设计和 TanStack Start Monorepo 初始化开始，协调 Cloudflare Workers、D1、R2、Wrangler、Stripe、SEO、内容、外链、上线验证与长期迭代。已有网站也可以从当前阶段接入，不会强制重建。
 
-每个网站在仓库内使用 `.rankup/` 保存项目事实、架构、决策、基线、实验、发布和日志；密钥文件只记录名称、用途、环境和 Secret 系统位置，真实密钥永远不写入 Git。`skill.json` 与 `.rankup/skill-state.json` 用于记录发布版本、项目启用时间和自动更新状态。
+每个网站在仓库内使用 `.rankup/` 保存项目事实、架构、决策、基线、实验、发布和日志；密钥文件只记录名称、用途、环境和 Secret 系统位置，真实密钥永远不写入 Git。`skill.json` 与 `.rankup/skill-state.json` 用于记录发布版本、项目启用时间和自动更新状态。自我进化协议负责失败分类、证据分级、适应性重试和通用规则晋升。
 
 依赖：按任务安装 Wrangler、Cloudflare Workers、Stripe、GT、backlink 或其他专项 Skills。
 
