@@ -9,6 +9,7 @@ Agent skills by [Yan](https://github.com/yan-labs), battle-tested in daily use. 
 ```bash
 npx skills add yan-labs/yan-skills@gt -g
 npx skills add yan-labs/yan-skills@autopilot -g
+npx skills add yan-labs/yan-skills@rankup -g
 ```
 
 ## Skills
@@ -30,6 +31,12 @@ npx skills add yan-labs/yan-skills@autopilot -g
 接收一句模糊指令，自动调查、分类、拆解为阶段计划、选 skill、定完成判定，然后无人值守执行到底 —— 包括自动部署、自动 E2E 测试、自动代码 review，不跳过任何阶段。
 
 依赖：无。
+
+### [`rankup`](rankup/) — 数据驱动的 SEO 优化工作流与经验库
+
+从 GSC、Google Suggest、SERP 和真实性能数据出发，完成关键词判断、技术体检、页面落地、上线验证与经验沉淀。支持多项目 `.rankup/` 知识目录和 `rankup init` 全面接入流程。
+
+依赖：按具体数据通道和编排场景选用 Chrome、curl 或其他配套 skills。
 
 ## License
 
