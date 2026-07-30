@@ -5,6 +5,20 @@ description: Google Trends 查询 + SEO 选词工作流引擎。四个基础查�
 
 # gt — Google Trends 查询与 SEO 选词工作流
 
+## 安装与更新
+
+来源：[Skills.sh](https://skills.sh/yan-labs/yan-skills)
+
+```bash
+# 首次全局安装，或更新失败时重新安装
+npx skills add yan-labs/yan-skills --skill gt -g -y
+
+# 将已安装的全局 Skill 更新到最新版
+npx skills update gt -g -y
+```
+
+若使用项目级安装，去掉安装命令中的 `-g`；项目级更新使用 `npx skills update gt -p -y`。
+
 两层能力：**基础查询**（四个子命令）和**工作流**（把查询串成决策）。用户问单点问题走基础查询；用户给的是模糊方向、要选词选市场时，走工作流。
 
 ## 基础查询

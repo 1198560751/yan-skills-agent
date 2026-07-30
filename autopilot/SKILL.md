@@ -14,6 +14,20 @@ description: |
 
 # Autopilot
 
+## 安装与更新
+
+来源：[Skills.sh](https://skills.sh/yan-labs/yan-skills)
+
+```bash
+# 首次全局安装，或更新失败时重新安装
+npx skills add yan-labs/yan-skills --skill autopilot -g -y
+
+# 将已安装的全局 Skill 更新到最新版
+npx skills update autopilot -g -y
+```
+
+若使用项目级安装，去掉安装命令中的 `-g`；项目级更新使用 `npx skills update autopilot -p -y`。
+
 接收一句话，自动拆解成结构化执行计划，然后以无人值守模式完整执行到底。
 
 用户调用 autopilot 意味着：**授权 AI 完全自主地完成整套流程**——

@@ -5,6 +5,20 @@ description: 数据驱动的网站 SEO 优化工作流 + 经验沉淀库(活技�
 
 # rankup — SEO 优化工作流与经验库
 
+## 安装与更新
+
+来源：[Skills.sh](https://skills.sh/yan-labs/yan-skills)
+
+```bash
+# 首次全局安装，或更新失败时重新安装
+npx skills add yan-labs/yan-skills --skill rankup -g -y
+
+# 将已安装的全局 Skill 更新到最新版
+npx skills update rankup -g -y
+```
+
+若使用项目级安装，去掉安装命令中的 `-g`；项目级更新使用 `npx skills update rankup -p -y`。本 Skill 会按【自更新协议】写入验证经验；更新仓库版本前，先提交或备份尚未同步到仓库的本地经验，避免被新版覆盖。
+
 > **活技能**:这不是静态文档。每次用它做完一轮优化,必须执行底部的【自更新协议】把新经验写回来。凭数据说话,不凭直觉。
 
 ## 一、数据通道地图(2026-07 实测)
