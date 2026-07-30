@@ -12,6 +12,12 @@ npx skills add yan-labs/yan-skills
 
 # 全局安装仓库内全部 Skills
 npx skills add yan-labs/yan-skills -g --all
+
+# 只安装 rankup
+npx skills add yan-labs/yan-skills --skill rankup -g -y
+
+# 更新已安装的 rankup
+npx skills update rankup -g -y
 ```
 
 ## Skills
@@ -34,11 +40,13 @@ npx skills add yan-labs/yan-skills -g --all
 
 依赖：无。
 
-### [`rankup`](rankup/) — 数据驱动的 SEO 优化工作流与经验库
+### [`rankup`](rankup/) `2.0.0` — 网站全生命周期总控
 
-从 GSC、Google Suggest、SERP 和真实性能数据出发，完成关键词判断、技术体检、页面落地、上线验证与经验沉淀。支持多项目 `.rankup/` 知识目录和 `rankup init` 全面接入流程。
+从机会调研、产品设计和 TanStack Start Monorepo 初始化开始，协调 Cloudflare Workers、D1、R2、Wrangler、Stripe、SEO、内容、外链、上线验证与长期迭代。已有网站也可以从当前阶段接入，不会强制重建。
 
-依赖：按具体数据通道和编排场景选用 Chrome、curl 或其他配套 skills。
+每个网站在仓库内使用 `.rankup/` 保存项目事实、架构、决策、基线、实验、发布和日志；密钥文件只记录名称、用途、环境和 Secret 系统位置，真实密钥永远不写入 Git。`skill.json` 与 `.rankup/skill-state.json` 用于记录发布版本、项目启用时间和自动更新状态。
+
+依赖：按任务安装 Wrangler、Cloudflare Workers、Stripe、GT、backlink 或其他专项 Skills。
 
 ### [`backlink`](backlink/) — 自动化目录提交与外链发布工作流
 

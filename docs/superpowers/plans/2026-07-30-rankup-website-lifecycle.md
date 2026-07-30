@@ -453,7 +453,7 @@ git commit -m "refactor(rankup): preserve SEO guidance as reference"
 - Modify: `rankup/SKILL.md`
 
 **Interfaces:**
-- Frontmatter version is `2.0.0`.
+- Frontmatter `metadata.version` is `2.0.0`, matching the Skill schema.
 - The description triggers website lifecycle, Cloudflare deployment, SEO/growth, payment integration, and long-term site iteration without claiming unrelated software work.
 - The entrypoint routes to all five reference files and the version-check script.
 
@@ -464,8 +464,9 @@ Use frontmatter fields:
 ```yaml
 ---
 name: rankup
-version: "2.0.0"
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers/D1/R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也在用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引或网站增长时使用。
+metadata:
+  version: "2.0.0"
 ---
 ```
 
