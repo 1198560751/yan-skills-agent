@@ -40,6 +40,12 @@ npx skills update rankup -g -y
 
 依赖：无。
 
+### [`skill-link-check`](skill-link-check/) — Skill 源目录与运行时链接审计
+
+检查项目级和全局 `.agents/skills` / `.claude/skills` 是否遵守“前者保存真实源文件、后者使用父级或逐项符号链接镜像”的约定。输出孤儿目录、缺失链接、重复目录、断链和错误目标，并给出需人工复核的修复命令；支持 JSON 证据和明确项目路径，适合接入 `/goal` checker，但不会自动修改被审计目录。
+
+依赖：Python 3.10+。
+
 ### [`rankup`](rankup/) `2.0.1` — 网站全生命周期总控
 
 从机会调研、产品设计和 TanStack Start Monorepo 初始化开始，协调 Cloudflare Workers、D1、R2、Wrangler、Stripe、SEO、内容、外链、上线验证与长期迭代。已有网站也可以从当前阶段接入，不会强制重建。
