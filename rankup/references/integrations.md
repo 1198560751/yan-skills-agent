@@ -19,6 +19,9 @@ npx skills add yan-labs/yan-skills --skill backlink -g -y
 # 只安装外链分析 Skill
 npx skills add yan-labs/yan-skills --skill backlink-analyzer -g -y
 
+# 从登录态后台批量取数（虚拟滚动表格、Blob 出沙箱、下载查重与合并守卫）
+npx skills add yan-labs/yan-skills --skill browser-harvest -g -y
+
 # Cloudflare 资源、绑定、迁移、密钥和部署
 npx skills add cloudflare/skills --skill wrangler -g -y
 

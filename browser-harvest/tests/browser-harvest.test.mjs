@@ -1,0 +1,341 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const skillRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
+const collectScript = path.join(skillRoot, "scripts", "harvest-collect.sh");
+const mergeScript = path.join(skillRoot, "scripts", "harvest-merge.mjs");
+
+async function withTempDir(run) {
+  const root = await mkdtemp(path.join(tmpdir(), "browser-harvest-test-"));
+  try {
+    return await run(root);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// harvest-collect.sh
+// ─────────────────────────────────────────────────────────────────────────
+
+// 「文件不够」这一支要空转 60 轮 × sleep 3 = 3 分钟。测试只需要验证退出码和
+// 提示语,不需要真的等,所以给它一个立刻返回的 sleep 垫片。垫片只改测试环境的
+// PATH,脚本本身一个字没动 —— 轮询次数、计数逻辑、退出码全部照原样跑完。
+async function fastSleepEnv(root) {
+  const bin = path.join(root, "bin");
+  await mkdir(bin, { recursive: true });
+  const shim = path.join(bin, "sleep");
+  await writeFile(shim, "#!/bin/sh\nexit 0\n");
+  await chmod(shim, 0o755);
+  return { ...process.env, PATH: `${bin}:${process.env.PATH}` };
+}
+
+function runCollect(expected, dest, downloads, env = process.env) {
+  return spawnSync("bash", [collectScript, String(expected), dest, downloads], {
+    encoding: "utf8",
+    env,
+  });
+}
+
+async function seedDownloads(root, names) {
+  const downloads = path.join(root, "Downloads");
+  await mkdir(downloads, { recursive: true });
+  for (const name of names) {
+    await writeFile(path.join(downloads, name), "1\talpha\t1\t2\t3\t4\n");
+  }
+  return downloads;
+}
+
+test("collect 等不齐文件时拒绝复制", async () => {
+  await withTempDir(async (root) => {
+    const downloads = await seedDownloads(root, ["harvest_20260101_s_a.tsv"]);
+    const dest = path.join(root, "dest");
+
+    const result = runCollect(2, dest, downloads, await fastSleepEnv(root));
+
+    assert.equal(result.status, 1, "少一个数据源必须失败,不能静默复制");
+    assert.match(result.stderr, /只等到 1\/2/);
+    // 宁可什么都不复制,也不要让下游合并出一份"看起来正常"的残缺数据。
+    assert.deepEqual(await readdir(dest).catch(() => []), []);
+  });
+});
+
+test("collect 拦截浏览器 (1) 重名产物", async () => {
+  await withTempDir(async (root) => {
+    const downloads = await seedDownloads(root, [
+      "harvest_20260101_s_a.tsv",
+      "harvest_20260101_s_a (1).tsv",
+    ]);
+    const dest = path.join(root, "dest");
+
+    const result = runCollect(2, dest, downloads);
+
+    assert.equal(result.status, 1, "重名产物内容可能与正本不同,必须拦下");
+    assert.match(result.stderr, /重名产物/);
+    assert.match(result.stderr, /\(1\)\.tsv/);
+    assert.deepEqual(await readdir(dest).catch(() => []), []);
+  });
+});
+
+test("collect 拦截无扩展名残片", async () => {
+  await withTempDir(async (root) => {
+    const downloads = await seedDownloads(root, [
+      "harvest_20260101_s_a.tsv",
+      "harvest_20260101_s_b.tsv",
+      // 浏览器对同名下载的另一种处理:直接把扩展名去掉。
+      // 数量已经达标,只有单独的残片检测才能发现它。
+      "harvest_20260101_s_b",
+    ]);
+    const dest = path.join(root, "dest");
+
+    const result = runCollect(2, dest, downloads);
+
+    assert.equal(result.status, 1, "残片必须拦下,否则 *.tsv 通配会漏读它");
+    assert.match(result.stderr, /harvest_20260101_s_b$/m);
+    assert.deepEqual(await readdir(dest).catch(() => []), []);
+  });
+});
+
+test("collect 干净路径:等齐、无重名,复制并报数", async () => {
+  await withTempDir(async (root) => {
+    const downloads = await seedDownloads(root, [
+      "harvest_20260101_s_a.tsv",
+      "harvest_20260101_s_b.tsv",
+    ]);
+    const dest = path.join(root, "dest");
+
+    const result = runCollect(2, dest, downloads);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /✓ 已收拢 2 个文件/);
+    assert.deepEqual((await readdir(dest)).sort(), [
+      "harvest_20260101_s_a.tsv",
+      "harvest_20260101_s_b.tsv",
+    ]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// harvest-merge.mjs
+// ─────────────────────────────────────────────────────────────────────────
+
+function runMerge(args) {
+  return spawnSync(process.execPath, [mergeScript, ...args], {
+    encoding: "utf8",
+  });
+}
+
+test("merge 拒绝浏览器重复下载文件", async () => {
+  await withTempDir(async (root) => {
+    const dir = path.join(root, "in");
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, "harvest_20260101_s_a.tsv"),
+      "1\talpha\t1\t2\t3\t4\n",
+    );
+    await writeFile(
+      path.join(dir, "harvest_20260101_s_a (1).tsv"),
+      "1\talpha\t9\t9\t9\t9\n",
+    );
+
+    const result = runMerge([dir, "--out", path.join(root, "out")]);
+
+    assert.equal(result.status, 1, "同名两份内容不同,静默合并 = 数据污染");
+    assert.match(result.stderr, /重复下载文件/);
+    assert.match(result.stderr, /\(1\)\.tsv/);
+  });
+});
+
+test("merge 拒绝同一目标的多份文件", async () => {
+  await withTempDir(async (root) => {
+    const dir = path.join(root, "in");
+    await mkdir(dir, { recursive: true });
+    // 第二道守卫:剥掉 (n) 之后同名。`(n)` 不在末尾时第一道守卫看不见它,
+    // 这条才是它独立存在的理由 —— 没有它,两份内容不同的文件会被静默合并。
+    await writeFile(
+      path.join(dir, "harvest_20260101_s_a.tsv"),
+      "1\talpha\t1\t2\t3\t4\n",
+    );
+    await writeFile(
+      path.join(dir, "harvest_20260101_s (1)_a.tsv"),
+      "1\talpha\t9\t9\t9\t9\n",
+    );
+
+    const result = runMerge([dir, "--out", path.join(root, "out")]);
+
+    assert.equal(result.status, 1, "无法判定哪份是新的时,必须停下让人处理");
+    assert.match(result.stderr, /同一目标出现多份文件/);
+  });
+});
+
+test("merge 丢掉主键是数值/百分比/徽章/占位符的脏行", async () => {
+  await withTempDir(async (root) => {
+    const dir = path.join(root, "in");
+    await mkdir(dir, { recursive: true });
+    // keyCol 默认 1(第二列)。列错位时,数值/百分比/徽章会顶到主键位上,
+    // 于是"12.3K"这种东西被当成名称写进最终报告 —— 全程不报错。
+    await writeFile(
+      path.join(dir, "harvest_20260101_s_a.tsv"),
+      [
+        "1\tblue topaz\t12.3K\t45%\t8\tabc",
+        "2\t12.3K\tblue topaz\t45%\t8\tabc",
+        "3\t45%\tblue topaz\t12.3K\t8\tabc",
+        "4\tNEW\tblue topaz\t12.3K\t8\tabc",
+        "5\t-\tblue topaz\t12.3K\t8\tabc",
+        "6\t1,234\tblue topaz\t12.3K\t8\tabc",
+      ].join("\n"),
+    );
+
+    const out = path.join(root, "out");
+    const result = runMerge([dir, "--out", out]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.parsed, 1, "只有主键像名字的那一行该留下");
+    assert.equal(report.dropped, 5);
+
+    // 只看主键列:脏值出现在其它列是正常的(它们本来就是数值/百分比)。
+    const csv = await readFile(`${out}.csv`, "utf8");
+    const keys = csv
+      .split("\n")
+      .slice(1)
+      .filter(Boolean)
+      .map((line) => line.match(/^"((?:[^"]|"")*)"/)[1]);
+    assert.deepEqual(keys, ["blue topaz"]);
+  });
+});
+
+test("merge 去重时保留另一来源独有的字段", async () => {
+  await withTempDir(async (root) => {
+    const dir = path.join(root, "in");
+    await mkdir(dir, { recursive: true });
+    // 实测过的 bug:直接覆盖会让"字段更少"的那条抹掉独有列(比如落地页 URL),
+    // 报表头号条目因此缩水两个数量级,而报告本身毫无异常。
+    await writeFile(
+      path.join(dir, "harvest_20260101_s_alpha.tsv"),
+      "1\twidget\tfromA\t-\t\ttail\n",
+    );
+    await writeFile(
+      path.join(dir, "harvest_20260101_s_beta.tsv"),
+      "1\twidget\t-\tfromB2\tfromB3\ttail\n",
+    );
+
+    const out = path.join(root, "out");
+    const result = runMerge([dir, "--out", out]);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).unique, 1);
+
+    const csv = await readFile(`${out}.csv`, "utf8");
+    assert.match(csv, /fromA/, "先到的非空值不该被覆盖");
+    assert.match(csv, /fromB2/, "先到的 '-' 占位必须被后到的真值补上");
+    assert.match(csv, /fromB3/, "先到的空列必须被后到的真值补上");
+    assert.match(csv, /s_alpha;s_beta|s_beta;s_alpha/, "来源必须双记");
+  });
+});
+
+test("merge 没有输入时失败而不是产出空文件", async () => {
+  await withTempDir(async (root) => {
+    const result = runMerge([
+      path.join(root, "nope"),
+      "--out",
+      path.join(root, "out"),
+    ]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /没有找到任何 \.tsv 输入/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// 项目中立性:Skill 里不得出现任何可归属到具体项目、账号或本机环境的内容。
+// 模式与 rankup/scripts/validate-rankup.mjs 的 projectLeakPatterns 保持一致。
+// ─────────────────────────────────────────────────────────────────────────
+
+const projectLeakPatterns = [
+  ["project identifier", /\b(?:bettercallsaul|birthstonemeaning|crystalhealing|sbti)\b/gi],
+  ["absolute host path", /\/Users\/[A-Za-z0-9._-]+\//g],
+  ["hardcoded local proxy", /\b127\.0\.0\.1:\d{2,5}\b/g],
+  ["credential store location", /\.claude\.json\b/g],
+  ["shared account portal", /\b(?:dash|sim)\.3ue\.co\b/gi],
+];
+
+// 本文件按职责必须含上述模式的字面量(它就是守卫本体),扫描时排除。
+// 除此之外 browser-harvest/ 下任何文件都不得豁免。
+const leakScanExcludes = new Set(["tests/browser-harvest.test.mjs"]);
+
+async function collectSkillFiles(directory = skillRoot) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const absolute = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await collectSkillFiles(absolute)));
+    } else {
+      files.push(absolute);
+    }
+  }
+  return files;
+}
+
+test("Skill 内容保持项目中立", async () => {
+  const files = await collectSkillFiles();
+  assert.ok(files.length >= 4, "扫描必须真的看到文件,空扫等于没测");
+
+  const findings = [];
+  for (const absolute of files) {
+    const relative = path.relative(skillRoot, absolute);
+    if (leakScanExcludes.has(relative)) continue;
+    const text = await readFile(absolute, "utf8");
+    for (const [label, pattern] of projectLeakPatterns) {
+      for (const match of text.matchAll(pattern)) {
+        findings.push(`${relative}: ${label} → ${match[0]}`);
+      }
+    }
+  }
+
+  assert.deepEqual(findings, [], `发现项目泄漏:\n${findings.join("\n")}`);
+});
+
+test("SKILL.md frontmatter 的 name 等于目录名", async () => {
+  const text = await readFile(path.join(skillRoot, "SKILL.md"), "utf8");
+  const frontmatter = text.match(/^---\n([\s\S]*?)\n---/);
+  assert.ok(frontmatter, "SKILL.md 必须有 frontmatter");
+  const name = frontmatter[1].match(/^name:\s*(.+)$/m)?.[1].trim();
+  assert.equal(name, path.basename(skillRoot));
+  const description = frontmatter[1].match(/^description:\s*(.+)$/m)?.[1].trim();
+  assert.ok(
+    description && description.length > 80,
+    "description 必须写足触发词,太短会 undertrigger",
+  );
+});
+
+test("脚本入口都存在且被 SKILL.md 引用", async () => {
+  const text = await readFile(path.join(skillRoot, "SKILL.md"), "utf8");
+  for (const script of [
+    "harvest.browser.js",
+    "harvest-collect.sh",
+    "harvest-merge.mjs",
+  ]) {
+    await readFile(path.join(skillRoot, "scripts", script), "utf8");
+    assert.ok(
+      text.includes(`scripts/${script}`),
+      `SKILL.md 必须链接 scripts/${script}`,
+    );
+  }
+});

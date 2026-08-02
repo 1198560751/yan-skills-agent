@@ -68,7 +68,7 @@ node scripts/link-skills.mjs --check
 
 依赖：Python 3.10+。
 
-### [`rankup`](rankup/) `2.6.0` — 网站全生命周期总控
+### [`rankup`](rankup/) `2.7.0` — 网站全生命周期总控
 
 从机会调研、产品设计和 TanStack Start Monorepo 初始化开始，协调 Cloudflare Workers、D1、R2、Wrangler、Stripe、SEO、内容、外链、上线验证与长期迭代。已有网站也可以从当前阶段接入，不会强制重建。
 
@@ -91,6 +91,19 @@ node scripts/link-skills.mjs --check
 分析 referring domains、链接质量、锚文本、毒性风险、竞品链接交集和外链建设机会，附带报告、评分与外联模板。
 
 来源：[aaron-he-zhu/seo-geo-claude-skills](https://github.com/aaron-he-zhu/seo-geo-claude-skills)，Apache-2.0；许可证保留在 Skill 目录内。
+
+### [`browser-harvest`](browser-harvest/) — 从登录态后台批量取数
+
+很多值钱的数据在 SaaS 后台里：没有 API，或者 API 单独收费，或者导出按行扣点数。本 Skill 解决"界面看得见、脚本拿不到"这段路，沉淀的是四个必踩的坑与它们的解法：
+
+- **虚拟滚动表格没有 `<table>`**：现代数据网格只渲染可视区、且常是列式 div。只能按坐标重建行；锚点必须选内容主列（用行号列实测 100 行漏 23 行），扫描必须限定在滚动容器内（全 document 扫一次 2s，改 TreeWalker 后 6ms）
+- **数据出不了页面沙箱**：返回值约 1KB 截断、剪贴板报 `Document is not focused` 还会卡死执行通道 —— `Blob + <a download>` 是唯一稳的高带宽出口
+- **执行通道超时 ≠ 任务失败**：超时的是传输，页面里还在跑。长循环一律 fire-and-forget + 轮询，误判重跑会产生重复文件
+- **后台标签不 mount 虚拟表格**：只发生在从未前台化过的新标签；渲染过一次之后即使在后台也能继续抓，但定时器节流约 2.4×
+
+外加一组"输出看着正常、数据其实错了"的守卫：文件名带日期与作用域（浏览器同名下载不覆盖而是另存，实测产生过两份内容不同的文件）、下载等齐再收拢（早一步复制会静默丢掉整个数据源）、合并按字段形态识别而非列号、去重时保留独有字段（实测这个 bug 让头号条目缩水两个数量级且毫无提示）。
+
+依赖：Node.js 18+、bash，以及一个能连接**用户真实浏览器**的工具通道（隔离的预览浏览器没有登录态）。后台入口、账号与登录态属于使用者，不随 Skill 分发。
 
 ## License
 
