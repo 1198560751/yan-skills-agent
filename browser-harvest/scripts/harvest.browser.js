@@ -181,6 +181,49 @@
       return `crawling ${targets.length}`;
     },
 
+    /**
+     * 取 URL 列：**从 href/title 属性读，不要从文本读。**
+     *
+     * 长 URL 在单元格里会换行成两行并加省略号，于是：
+     *  - 文本是截断的（`…/blogs/tarot-car d-meanings-list/the-hieropha…` 这种）；
+     *  - 换行让该单元格跨两个 Y 分桶，坐标法会把这一行拆散，
+     *    再被 minCells 过滤掉 —— **整类行会静默消失**。
+     *    实测：某报表 100 行里 78 行是长 URL，坐标法只回收到 18 行，且毫无报错。
+     * 属性里存的是完整 URL，一次就能全拿到。
+     *
+     * @param urlPattern 用来认目标 URL 的正则
+     * @param maxDx 数值列与链接右边缘的最大水平距离外的都不算（同 Y 才配对）
+     */
+    grabLinks(urlPattern, { yTol = 22 } = {}) {
+      const num = (s) => {
+        const m = (s || '').trim().match(/^([\d.]+)([KM]?)$/);
+        return m ? parseFloat(m[1]) * (m[2] === 'M' ? 1e6 : m[2] === 'K' ? 1e3 : 1) : 0;
+      };
+      const leaves = [];
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+      let el;
+      while ((el = walker.nextNode())) {
+        if (el.children.length) continue;
+        const t = el.textContent && el.textContent.trim();
+        if (!t) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0) continue;
+        leaves.push({ y: r.top + r.height / 2, x: r.left, t });
+      }
+      const links = [...document.querySelectorAll('a[href],[title]')].filter((e) =>
+        urlPattern.test(e.getAttribute('title') || e.getAttribute('href') || '')
+      );
+      const out = {};
+      links.forEach((e) => {
+        const r = e.getBoundingClientRect();
+        const y = r.top + r.height / 2;
+        const url = e.getAttribute('title') || e.getAttribute('href');
+        const v = leaves.filter((l) => Math.abs(l.y - y) < yTol && l.x > r.right).map((l) => num(l.t)).filter((n) => n > 0)[0] || 0;
+        if (v > 0 && (!out[url] || out[url] < v)) out[url] = v;
+      });
+      return out;
+    },
+
     /** 分片取数，绕开执行工具返回值的长度截断 */
     dump(i = 0, j = 20) {
       return Object.values(this.any).slice(i, j).join('\n');
