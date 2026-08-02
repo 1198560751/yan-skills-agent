@@ -72,7 +72,7 @@ node scripts/link-skills.mjs --check
 
 从机会调研、产品设计和 TanStack Start Monorepo 初始化开始，协调 Cloudflare Workers、D1、R2、Wrangler、Stripe、SEO、内容、外链、上线验证与长期迭代。已有网站也可以从当前阶段接入，不会强制重建。
 
-三层归属互不混淆：**Skill** 只带剥离站点后仍成立的通用方法与规则（由 `scripts/validate-rankup.mjs` 断言，出现站点名、绝对路径、本机代理或凭据位置即构建失败）；**项目** 的事实、数字、裁决与可复用脚本留在各自 `<project>/.rankup/`；**本机** 的 `~/.rankup/registry.md` 是跨项目资产索引，由 `rankup/scripts/registry.mjs scan` 扫描生成，含项目路径故不进任何仓库。
+三层归属互不混淆：**Skill** 只带剥离站点后仍成立的通用方法与规则（由 `scripts/validate-rankup.mjs` 断言，出现站点名、绝对路径、本机代理或凭据位置即构建失败）；**项目** 的事实、数字、裁决与可复用脚本留在各自 `<project>/.rankup/`；**本机** 的 `rankup/registry.md` 是跨项目资产索引，由 `rankup/scripts/registry.mjs scan` 扫描生成；它含项目路径，故被 gitignore 排除并由构建断言拦住 `git add -f`。
 
 每个网站在仓库内使用 `.rankup/` 保存项目事实、架构、决策、基线、实验、发布和日志；密钥文件只记录名称、用途、环境和 Secret 系统位置，真实密钥永远不写入 Git。`skill.json` 与 `.rankup/skill-state.json` 用于记录发布版本、项目启用时间和自动更新状态。自我进化协议负责失败分类、证据分级、适应性重试和通用规则晋升。
 

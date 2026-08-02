@@ -87,7 +87,7 @@ node "<rankup-skill-dir>/scripts/registry.mjs" scan --roots <存放项目的目�
 node "<rankup-skill-dir>/scripts/registry.mjs" list
 ```
 
-- **位置**：`~/.rankup/registry.md`，本机全局。它必须写出项目名与绝对路径才有用，而本 Skill 要保持项目中立且要开源，因此**名单不进本 Skill，也不进任何项目仓库**。Skill 只带协议与脚本。
+- **位置**：Skill 目录下的 `registry.md`，挨着 `SKILL.md`，用的时候一眼看得到（可用 `RANKUP_REGISTRY_PATH` 改道）。它必须写出项目名与绝对路径才有用，因此被 `rankup/.gitignore` 排除，并由 `scripts/validate-rankup.mjs` **断言绝不能被 git 追踪**——`.gitignore` 只是约定，一个 `git add -f` 就能绕过。名单也因此被豁免参与项目中立扫描，而这条豁免的唯一依据就是那条断言。
 - **扫描根目录**：来自 `--roots`、环境变量 `RANKUP_PROJECT_ROOTS`，或 `~/.rankup/config.json` 的 `projectRoots`。绝不写死在脚本里。
 - **生成而非手写**：每次 `scan` 整表重建，读到的永远是磁盘当前事实。手工维护的索引必然过期，这是已验证的反模式。
 - **启动时读它**：本 Skill 激活后若发现当前任务需要某类可复用操作，先查名单看别的项目有没有现成的，有就去对应路径取，不要重写一遍。

@@ -1,0 +1,3 @@
+# 跨项目资产登记表:含项目名与绝对路径,只在本机生成,绝不提交。
+# 由 scripts/registry.mjs 生成,validate-rankup.mjs 断言它不被 git 追踪。
+registry.md

@@ -6,9 +6,9 @@
 //   node scripts/registry.mjs scan --roots <存放项目的目录> [更多目录...]
 //   node scripts/registry.mjs list
 //
-// 名单写在 ~/.rankup/registry.md,**本机全局、不进任何 Git 仓库**:
-// 它必须写出项目名与绝对路径才有用,而 Skill 要保持项目中立且要开源,两者放一起
-// 就等于把全部项目路径公开。因此 Skill 只带协议与本脚本,名单留在本机。
+// 名单写在 Skill 目录下的 registry.md,**绝不进 Git**:它必须写出项目名与绝对路径
+// 才有用,而 Skill 要保持项目中立且要开源。rankup/.gitignore 排除它,
+// validate-rankup.mjs 再断言它未被追踪,连 `git add -f` 也会当场构建失败。
 //
 // 名单是扫描生成的,不靠手工维护——手写的索引一定会过期(这是本 Skill 经验库里
 // 反复验证过的结论),所以每次 scan 都整表重建,读到的永远是磁盘上的当前事实。
@@ -16,9 +16,16 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+// 名单默认就放在 Skill 目录里,挨着 SKILL.md,用的时候一眼看得到。
+// 它含项目名与绝对路径,因此被 rankup/.gitignore 排除,并由 validate-rankup.mjs
+// 断言"绝不能被 git 追踪"——豁免它参与项目中立扫描的前提,正是这条断言成立。
+const skillDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const userRankup = path.join(homedir(), ".rankup");
-const registryPath = path.join(userRankup, "registry.md");
+const registryPath = process.env.RANKUP_REGISTRY_PATH
+  ? path.resolve(process.env.RANKUP_REGISTRY_PATH)
+  : path.join(skillDir, "registry.md");
 const configPath = path.join(userRankup, "config.json");
 
 async function exists(target) {
@@ -147,7 +154,8 @@ function render(projects, roots, stamp) {
     "# 跨项目资产登记表",
     "",
     "> 由 `rankup/scripts/registry.mjs scan` 扫描生成，**不要手工编辑**——下次扫描会整表重建。",
-    "> 本文件是本机全局的，不进任何 Git 仓库：它含项目名与绝对路径，而 Skill 要保持项目中立且要开源。",
+    "> 本文件不进任何 Git 仓库：它含项目名与绝对路径，而 Skill 要保持项目中立且要开源。",
+    "> 已被 `rankup/.gitignore` 排除，并由 `validate-rankup.mjs` 断言绝不能被 git 追踪。",
     "> 在别的项目里看到可复用的脚本或经验，直接去对应路径取，不要重写一遍。",
     "",
     `扫描根目录：${roots.join("、") || "（未配置）"}`,
@@ -206,7 +214,7 @@ if (command === "scan") {
     process.exit(1);
   }
   const projects = await scanRoots(roots);
-  await mkdir(userRankup, { recursive: true });
+  await mkdir(path.dirname(registryPath), { recursive: true });
   await writeFile(registryPath, render(projects, roots, new Date().toISOString().slice(0, 10)), "utf8");
   const scriptCount = projects.reduce((total, project) => total + project.scripts.length, 0);
   console.log(`已登记 ${projects.length} 个项目、${scriptCount} 个可复用脚本 -> ${registryPath}`);

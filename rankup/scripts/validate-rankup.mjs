@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 
+import { execFile } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const expectedVersion = "2.2.0";
@@ -26,7 +30,7 @@ const requiredContent = {
     "沉淀义务与是否调用本 Skill 无关",
     "本 Skill 必须保持项目中立与机器中立",
     "## 跨项目资产登记表",
-    "~/.rankup/registry.md",
+    "断言绝不能被 git 追踪",
   ],
   "references/project-memory.md": [
     "## 沉淀义务",
@@ -87,7 +91,34 @@ const projectLeakPatterns = [
 const leakScanExcludes = new Set([
   "scripts/validate-rankup.mjs",
   "tests/validate-rankup.test.mjs",
+  // 跨项目登记表按定义就含项目名与绝对路径。豁免它参与项目中立扫描是安全的,
+  // 但**唯一**的依据是下面 assertRegistryUntracked 证明它绝不会进 git;
+  // 那条断言若被删掉,这一行豁免立刻变成一个泄漏口子。
+  "registry.md",
 ]);
+
+// .gitignore 只是约定,一个 `git add -f` 就能绕过。把"名单绝不被追踪"变成断言。
+// 非 git 环境(已安装副本)下无从判断,跳过而不是误报。
+async function assertRegistryUntracked(errors) {
+  try {
+    await execFileAsync("git", ["-C", skillRoot, "rev-parse", "--git-dir"]);
+  } catch {
+    return;
+  }
+  const { stdout } = await execFileAsync("git", [
+    "-C",
+    skillRoot,
+    "ls-files",
+    "--",
+    "registry.md",
+  ]);
+  if (stdout.trim().length > 0) {
+    errors.push(
+      "registry.md 已被 git 追踪 — 它含项目名与绝对路径,绝不能提交;" +
+        "执行 git rm --cached rankup/registry.md 并确认 rankup/.gitignore 生效",
+    );
+  }
+}
 
 async function read(relativePath) {
   return readFile(path.join(skillRoot, relativePath), "utf8");
@@ -204,6 +235,8 @@ async function validate() {
       }
     }
   }
+
+  await assertRegistryUntracked(errors);
 
   for (const requiredFile of [
     "scripts/check-version.mjs",

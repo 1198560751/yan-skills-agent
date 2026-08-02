@@ -9,18 +9,24 @@ import { fileURLToPath } from "node:url";
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const registryScript = path.join(skillRoot, "scripts", "registry.mjs");
 
-// scan 会写 ~/.rankup/registry.md,测试必须换掉 HOME,否则会覆盖使用者的真实名单。
+// 名单默认写在 Skill 目录里,测试必须用 RANKUP_REGISTRY_PATH 改道,
+// 否则会覆盖使用者本机的真实名单。
 function runScan(roots, home) {
   return spawnSync(process.execPath, [registryScript, "scan"], {
     encoding: "utf8",
-    env: { ...process.env, HOME: home, RANKUP_PROJECT_ROOTS: roots.join(path.delimiter) },
+    env: {
+      ...process.env,
+      HOME: home,
+      RANKUP_REGISTRY_PATH: path.join(home, "registry.md"),
+      RANKUP_PROJECT_ROOTS: roots.join(path.delimiter),
+    },
   });
 }
 
 function runList(home) {
   return spawnSync(process.execPath, [registryScript, "list"], {
     encoding: "utf8",
-    env: { ...process.env, HOME: home },
+    env: { ...process.env, HOME: home, RANKUP_REGISTRY_PATH: path.join(home, "registry.md") },
   });
 }
 
@@ -102,7 +108,12 @@ test("未配置扫描根目录时明确报错而不是静默生成空表", async
   await withWorkspace(async ({ home }) => {
     const result = spawnSync(process.execPath, [registryScript, "scan"], {
       encoding: "utf8",
-      env: { ...process.env, HOME: home, RANKUP_PROJECT_ROOTS: "" },
+      env: {
+        ...process.env,
+        HOME: home,
+        RANKUP_REGISTRY_PATH: path.join(home, "registry.md"),
+        RANKUP_PROJECT_ROOTS: "",
+      },
     });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /未指定扫描根目录/);
