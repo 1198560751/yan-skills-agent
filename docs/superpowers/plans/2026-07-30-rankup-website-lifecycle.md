@@ -616,7 +616,7 @@ Create an explicit `mktemp -d` directory and run:
 
 ```bash
 cd "$TEMP_PROJECT"
-npx skills add /Users/kcsx/Project/kcsx/yan-skills --skill rankup -y --copy
+npx skills add <本仓库的本地路径> --skill rankup -y --copy
 ```
 
 Expected: the temporary project receives `rankup/SKILL.md`, `skill.json`, five reference files, both scripts, and tests or the CLI’s documented installation layout equivalents.
