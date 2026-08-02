@@ -68,9 +68,11 @@ node scripts/link-skills.mjs --check
 
 依赖：Python 3.10+。
 
-### [`rankup`](rankup/) `2.2.0` — 网站全生命周期总控
+### [`rankup`](rankup/) `2.3.0` — 网站全生命周期总控
 
 从机会调研、产品设计和 TanStack Start Monorepo 初始化开始，协调 Cloudflare Workers、D1、R2、Wrangler、Stripe、SEO、内容、外链、上线验证与长期迭代。已有网站也可以从当前阶段接入，不会强制重建。
+
+两个入口降低心智负担：`rankup init` 把新项目或已做很久但还没接入的项目一次性接进来（摸清现状 → 建 `.rankup/` → 补基线与体检 → 出计划）；`rankup review` 定期回顾（对账、合并重复经验、淘汰过时结论、把通用规则提炼回流、体检脚本新鲜度、刷新跨项目名单）。
 
 三层归属互不混淆：**Skill** 只带剥离站点后仍成立的通用方法与规则（由 `scripts/validate-rankup.mjs` 断言，出现站点名、绝对路径、本机代理或凭据位置即构建失败）；**项目** 的事实、数字、裁决与可复用脚本留在各自 `<project>/.rankup/`；**本机** 的 `rankup/registry.md` 是跨项目资产索引，由 `rankup/scripts/registry.mjs scan` 扫描生成；它含项目路径，故被 gitignore 排除并由构建断言拦住 `git add -f`。
 
