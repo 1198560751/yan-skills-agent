@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.1.1";
+const expectedVersion = "2.2.0";
 const requiredReferences = [
   "lifecycle.md",
   "cloudflare-stack.md",
@@ -25,10 +25,13 @@ const requiredContent = {
     "三方对账门禁",
     "沉淀义务与是否调用本 Skill 无关",
     "本 Skill 必须保持项目中立与机器中立",
+    "## 跨项目资产登记表",
+    "~/.rankup/registry.md",
   ],
   "references/project-memory.md": [
     "## 沉淀义务",
     "## 可复用操作脚本",
+    "## 三层归属",
     "roadmap.md",
     "iterations.md",
     "experience.md",
@@ -204,7 +207,9 @@ async function validate() {
 
   for (const requiredFile of [
     "scripts/check-version.mjs",
+    "scripts/registry.mjs",
     "tests/check-version.test.mjs",
+    "tests/registry.test.mjs",
   ]) {
     try {
       await read(requiredFile);

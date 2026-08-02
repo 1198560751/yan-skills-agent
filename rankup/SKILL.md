@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也在用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引或网站增长时使用。
 metadata:
-  version: "2.1.1"
+  version: "2.2.0"
 ---
 
 # Rankup 2.0
@@ -55,7 +55,7 @@ node "<rankup-skill-dir>/scripts/check-version.mjs" \
 2. 读取项目 `.rankup/INDEX.md` 和 `.rankup/skill-state.json`；目录不存在时按 [`references/project-memory.md`](references/project-memory.md) 初始化。
 3. 读取 `.rankup/PROJECT.md` 及当前任务相关文件，不要无差别加载整个日志目录。
 4. **三方对账门禁**：在回答“接下来做什么”或宣称任何进度之前，必须交叉核对三个来源——`git log --oneline -25`、真实路由/页面清单、线上 `sitemap.xml` 的全量 `<loc>`。`.rankup/plan.md` 的勾选框、仓库根的 `progress.md`、autopilot 状态文件都是**滞后指标**，读到“未开始”要先去代码里验证。三方结果与记录不一致时，先回写 `.rankup/` 再继续，不能只在回复里口头更正。Cloudflare、GSC、Stripe、索引、外链等外部状态一律以当前查询结果为准，知识库只当线索不当证据。
-5. 判断任务处于哪个生命周期阶段，只读取需要的参考文件和专项 Skill。
+5. 判断任务处于哪个生命周期阶段，只读取需要的参考文件和专项 Skill。若本轮需要某类可复用操作（导数据、查词、抓 SERP 等），先查跨项目资产登记表看别的项目有没有现成脚本，有就取用，不要重写。
 6. 实施请求范围内的工作，执行与风险相称的测试，并验证真实目标环境。
 7. 更新 `.rankup/` 中的事实、决策、计划、发布或日志；同步 `INDEX.md` 的更新时间和导航。
 
@@ -74,6 +74,25 @@ node "<rankup-skill-dir>/scripts/check-version.mjs" \
 5. **维护**：脚本失败时**修脚本**，不是绕过它手工再点一遍。页面改版属于正常损耗，修完更新已验证日期。失败原因写进脚本头部注释，下次少走一遍。
 
 脚本与它依赖的登录态、property ID、账号配置都属于项目侧，只放 `<project>/.rankup/`，不进本 Skill。本 Skill 只描述方法，不携带任何具体站点的操作参数。
+
+## 跨项目资产登记表
+
+各项目的 `.rankup/` 互不可见，默认是信息孤岛：A 项目已经写好的 GSC 导出脚本，在 B 项目里不会有人知道。登记表把这些资产索引到一处。
+
+```bash
+# 重建名单(扫描各项目 .rankup/,整表覆盖)
+node "<rankup-skill-dir>/scripts/registry.mjs" scan --roots <存放项目的目录>
+
+# 查看名单
+node "<rankup-skill-dir>/scripts/registry.mjs" list
+```
+
+- **位置**：`~/.rankup/registry.md`，本机全局。它必须写出项目名与绝对路径才有用，而本 Skill 要保持项目中立且要开源，因此**名单不进本 Skill，也不进任何项目仓库**。Skill 只带协议与脚本。
+- **扫描根目录**：来自 `--roots`、环境变量 `RANKUP_PROJECT_ROOTS`，或 `~/.rankup/config.json` 的 `projectRoots`。绝不写死在脚本里。
+- **生成而非手写**：每次 `scan` 整表重建，读到的永远是磁盘当前事实。手工维护的索引必然过期，这是已验证的反模式。
+- **启动时读它**：本 Skill 激活后若发现当前任务需要某类可复用操作，先查名单看别的项目有没有现成的，有就去对应路径取，不要重写一遍。
+- **只索引不复制**：名单不搬运内容。取用别的项目的脚本时连同参数约定一起看；登录态、property ID、账号配置不跨项目照抄。
+- **回流信号**：某个脚本被第二个项目用上，说明它足够通用，考虑把**做法**提炼成规则回流本 Skill（仍然不带任何项目信息）。
 
 ## 任务路由
 
