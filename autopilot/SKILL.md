@@ -14,6 +14,14 @@ description: |
 
 # Autopilot
 
+接收一句话，自动拆解成结构化执行计划，然后以无人值守模式完整执行到底。
+
+用户调用 autopilot 意味着：**授权 AI 完全自主地完成整套流程**——
+调查、实现、部署、E2E 验证、代码 review、二次部署、二次验证、收尾。
+不需要中途确认，不允许跳过任何阶段，不允许半途而废。
+
+---
+
 ## 安装与更新
 
 来源：[Skills.sh](https://skills.sh/yan-labs/yan-skills)
@@ -200,6 +208,47 @@ ScheduleWakeup({
     如果想不出任何不同的做法 → 不要重试，直接中止并报告：
     "连续 N 次以相同方式失败，无法找到新的修复路径。"
     这比空转烧 token 有价值得多。
+
+    失败签名 = phase + 客观 gate + 观察到的失败 + 失败边界。
+    只有四项全同才累加重复计数；失败点向下游移动是 progressive discovery，
+    重置该签名计数但全局预算继续累计。详见 `references/execution-budget.md`。
+  </principle>
+
+  <principle id="evidence-ladder">
+    <name>Evidence Ladder — 说清楚你的"验证"到底证明了什么</name>
+    每条实质性结论都必须带证据等级：
+    L0 假设/读代码 → L1 单测 → L2 集成测试/fixture/构造流程
+    → L3 目标环境上的原始事故身份或显式等价身份 → L4 部署后真实复发观测。
+
+    铁律：绝不能把 L0–L2 说成"历史根因已证实"。
+    加了兜底之后跑通了，只说明兜底生效，不说明原路径坏在哪。
+    fixture-only 的 L2 通过永远不能关闭一个用户报告的缺陷。
+
+    根因用词必须精确：confirmed root cause / supported mechanism /
+    defensive hardening / bounded unknown。详见 `references/evidence-and-verification.md`。
+  </principle>
+
+  <principle id="single-writer">
+    <name>Single Writer — "只有我在改这个仓库"是必须被证明的假设</name>
+    同一台机器上经常有多个 agent、多个 worktree 共享同一个 git 仓库。
+    任何时刻只允许一个 maker 写同一个工作树、一个 landing owner 做
+    commit/push/发布。写入前必须持有 git-common-dir 的原子租约；
+    证明不了本机独占就停止。
+
+    staging 只用精确文件清单，绝不 `git add -A` / `git add .`；
+    绝不 stash / checkout / reset / 覆盖别人的改动；绝不 force push。
+    push 后必须 fetch 并用 `git merge-base --is-ancestor` 回读远端 ancestry——
+    本地 commit 不算交付。详见 `references/concurrency-and-landing.md`。
+  </principle>
+
+  <principle id="bounded-increment">
+    <name>Bounded Increment — 每轮只推进一个有界增量</name>
+    一轮迭代 = 读 checkpoint → 校验归属与租约 → 提出一个假设或一个 phase delta
+    → 执行一个带客观 gate 的 maker 或 checker 动作 → 记录结果和最强证据
+    → 选择一个有界的下一步或停止。
+
+    不允许把"调查全部 + 实现 + 部署 + review"塞进一个增量。
+    只读的事实收集可以并行（输出互不依赖时），写入永远单 maker。
   </principle>
 
 </core-principles>
@@ -247,6 +296,32 @@ autopilot 运行在不同产品上时，使用不同的 loop 命令：
 
 用户调用 autopilot 本身就是确认——不需要中途展示计划等"go"。
 如果用户明确说"先让我看看计划"，才暂停展示。默认直接执行。
+
+### Reference 导航（按 phase 加载，不要在开始时全部加载）
+
+| 时机 | 加载 |
+| --- | --- |
+| 任务形态模板与调查清单 | `references/phase-library.md` 中对应那一节 |
+| goal / loop / checkpoint / 预算 / 失败记账 | `references/execution-budget.md` |
+| 工单归属、认领、批次、终态、续跑租约 | `references/ownership-and-tracker.md` |
+| maker 编辑 / commit / rebase / push / 发布 | `references/concurrency-and-landing.md` |
+| 测试设计 / E2E / 根因表述 / 关闭判定 | `references/evidence-and-verification.md` |
+| 交付、复盘、规则晋升、最终审计 | `references/learning-and-audit.md` |
+
+### 必须停止的红旗
+
+- 候选工单是 draft、`in-progress`、有预约/有效外来租约/接管，或已有开工证据；
+- 认领回读未成功却已经开始改代码；
+- 一批只共享标签/模块/症状，没有共享精确根因和同一条验证链；
+- 出现第二个 maker 或第二个 landing owner，或本机租约回读不一致；
+- 想用 mock/fixture 关闭用户报告的缺陷，或用兜底成功宣称历史根因已证实；
+- goal 没有 proof/constraints/cap，或 checkpoint 没有有界的下一步动作；
+- 同一失败签名重复三次而策略没有真正改变，或 A→B→A 无新证据来回摆；
+- staging 含任务外路径、远端回读不含交付 SHA，或出现任何 force-push 倾向；
+- 学习规则没有证据/eval/独立 checker 就要改权威规则文件。
+
+命中红旗时：**先写最终 checkpoint，再停止**。不得靠延长 turn、重复等待或
+"最后再看一眼"绕过刹车。
 
 ---
 
@@ -297,6 +372,26 @@ autopilot 运行在不同产品上时，使用不同的 loop 命令：
 
 根据分类出的类型，从 `references/phase-library.md` 的 `<scope-checklist>` 拿到
 该类型的调查清单，快速执行。产出是对范围、受影响区域和关键发现的简短摘要。
+
+用户报告的缺陷还必须在这一步记录**精确事故身份**（规范化来源 URL/ID、产物 ID、
+会话/任务 ID、目标环境与修复 watermark、期望 vs 实际）。
+拿不到就明确标为 bounded unknown——fixture 可以验接线，但不能关闭该缺陷。
+
+### 1c. 工单归属门（有关联工单时，先认领再动手）
+
+多个 agent 和人共享同一个工单系统，**"没人在做这个"必须被证明**：
+
+- 可选资格：OPEN、非 draft、无 `in-progress`、无预约/有效外来租约/接管信号、
+  无分支/PR/协调评论证明已开工。歧义时 fail closed，跳过的候选保持**零 mutation**。
+- **已有 assignee 只是弱意图**，不是自动排除条件；但认领前必须重读工单并
+  **整体替换** assignee 集合，绝不在过期 assignee 上追加。
+- 认领顺序：重读 → 替换 assignee → 加 `in-progress` → 写结构化认领评论 →
+  从工单系统读**权威** `createdAt` 回填并回读校验。
+  **第二次回读成功之前，禁止任何导向实现的编辑、commit、部署或 E2E。**
+- 一批最多 4 项，且必须共享一个精确因果边界 + 一个实现 + 一条验证链。
+  "都是 Bug""标签相同""模块相邻""恰好改同一个文件"都不够——发散就只做优先级最高的那一个。
+
+完整契约（含续跑租约、终态不变量、可执行性分类）见 `references/ownership-and-tracker.md`。
 
 ---
 
@@ -414,6 +509,17 @@ mandatory phase。它必须进入 loop-goal，不能等报告时才临时想起�
   E2E 是唯一能从用户视角证明"真的修好了"的环节。
   即使你 100% 确信修复是正确的，也必须跑——确信本身就是风险。
   历史上多次发生"本地全绿、部署后炸"的事故。
+
+  E2E 判定必须以运行时证据链为准（新链路自己的日志 marker / 数据行 / 指标），
+  不能只看表面成功——带静默 fallback 的链路坏掉时功能照常响应，只有日志能暴露。
+  三条配套规则：
+  1. 外部凭证的权限面（网关 key 的模型/接口 allowlist、API key 的 scope、配额）
+     是独立于代码的配置面：代码+部署完成不代表凭证就绪；改了调用目标就必须同任务
+     核对所有环境的凭证权限，test 验过不代表 prod 凭证同样就绪。
+  2. 空 catch / 无日志的 catch 包外部调用是缺陷不是风格问题：它把配置漂移变成
+     不可见的降级。发现时必须补 queryable 日志 marker。
+  3. 验证一条链路前先给它加打点——打点本身经常当场暴露此前静默存在的故障
+     （真实案例：一个网关调用 401 了六周，加耗时日志的当天被发现）。
 </phase-justification>
 
 <phase-justification id="review">
@@ -428,6 +534,36 @@ mandatory phase。它必须进入 loop-goal，不能等报告时才临时想起�
   第二轮部署+验证确保 review 修改没有破坏任何东西。
   跳过 = 把未经验证的 review 修改直接当作最终产出。
 </phase-justification>
+
+### 2d-1. Lane 选择（决定阶段顺序）
+
+按**运行时消费方**选 lane，不按文件名选。拿不准时 fail closed 到 `deployed-required`。
+
+```text
+local-only（所有改动消费方都在本地可完整执行的边界内，后端/契约/env/迁移/运行时 prompt 全未变）：
+investigate → design(feature 时) → implement → local-verify → e2e-1(本地完整旅程)
+→ deploy-1(仅推送) → review → 按影响分类决定 e2e-2 / deploy-2 → deliver
+
+deployed-required（任何后端/混合消费方、API 契约、迁移、env/secret/部署配置、
+运行时加载的 prompt/skill、认证回调、SSR/edge、远端专属行为，或任何不确定）：
+investigate → design(feature 时) → implement → local-verify → deploy-1(推送+部署)
+→ e2e-1(目标环境) → review → 按影响分类决定 deploy-2 / e2e-2 → deliver
+```
+
+### 2d-2. Review 后影响分类（决定 deploy-2 / e2e-2 的形态）
+
+review 后按 diff 实际影响面分类，**不是无脑重跑一整轮**，也**不是随便跳过**：
+
+| diff 分类 | deploy-2 / e2e-2 |
+| --- | --- |
+| `no-diff`（review 无改动） | 两者 N/A，复用已 review 的 SHA |
+| `docs/skill/evals-only` | 跑一个点名的替代 gate（结构校验/eval），最终推送，不等部署 |
+| `test-only` | 重跑受影响测试分区，最终推送，不等部署 |
+| 前端代码 diff（local-only lane） | 重跑本地 check + 针对性测试 + 独立本地 E2E，然后最终推送 |
+| 任何后端/运行时/不确定的 diff | 升级为 deployed-required：最终推送 → 部署 → 跑受影响的 E2E |
+
+分类结论和依据写进 progress.md。落地仍由同一个 landing owner 执行，
+代码修改路由回 maker——checker 不 commit、不 push。
 
 ### 2e. 组装阶段
 
@@ -453,18 +589,40 @@ mandatory phase。它必须进入 loop-goal，不能等报告时才临时想起�
 ## Loop Goal
 [loop-goal 内容]
 
+## Budgets
+| iterations | repair cycles | elapsed | tokens | external cost |
+|-----------|---------------|---------|--------|---------------|
+| 0/10      | 0/6           | 0/240m  | 0/…    | 0/0           |
+
 ## Phase Status
-| Order | Phase ID | Skill | Status | Evidence |
-|-------|----------|-------|--------|----------|
-| 1     | ...      | ...   | ⏳     |          |
-| 2     | ...      | ...   | ⏳     |          |
-| ...   | ...      | ...   | ⏳     |          |
+| Order | Phase ID | Skill | Maker/Checker | Objective Gate | Status | Evidence (含 L0-L4 等级) |
+|-------|----------|-------|---------------|----------------|--------|--------------------------|
+| 1     | ...      | ...   | ...           | ...            | ⏳     |                          |
+
+## Acceptance Ledger
+(有多个目标项/工单时，逐项独立验收——不允许整批一起关)
+
+| 项 | 事故身份 | 证据等级 | 精确/等价论证 | 客观证据 | 关闭判定 |
+|----|---------|---------|--------------|---------|---------|
+
+## Delivery Ledger
+(每个交付 SHA 出现且只出现一次，附其精确 diff 路径；本地 commit 不算交付)
+
+| Delivery SHA | 精确文件清单 | 远端 ancestry 回读 |
+|-------------|-------------|-------------------|
 
 ## Failure Log
 (每次失败记录在这里——不是用来回顾的流水账，而是用来防止重蹈覆辙的行动记忆)
+失败签名 = phase + 客观 gate + 观察到的失败 + 失败边界；四项全同才累加计数。
+一次性 shell 引号/拼写/harness 瞬态错误是 orchestration diagnostic，不计 repair cycle。
 
-| Iteration | Phase | Failure Type | What Was Tried | Why It Failed | What Changed Next |
-|-----------|-------|-------------|----------------|---------------|-------------------|
+| Iteration | Failure Signature | Failure Type | What Was Tried | Why It Failed | What Changed Next | Repeat |
+|-----------|-------------------|-------------|----------------|---------------|-------------------|--------|
+
+## Telemetry
+(每轮只记汇总，不粘贴 agent 完整输出)
+spawned/reused/closed agent 数 | maker/checker 数 | routine/critical 路由与升级原因 |
+wait 与状态检查次数 | context compaction 次数
 
 ## Lessons Learned
 (跨迭代积累的可复用经验，每条一句话)
@@ -479,13 +637,27 @@ mandatory phase。它必须进入 loop-goal，不能等报告时才临时想起�
 每次失败立即更新 Failure Log。
 跨迭代发现的可复用经验记入 Lessons Learned。
 
-### 2g. 定义 Loop 目标
+### 2g. 定义 Loop 目标（Goal 合同）
 
-从所有阶段的 `<done-when>` 合成一句可判定的 loop 目标：
-- 涵盖所有子问题
-- 可客观判定（引用具体的 gate 信号）
-- 包含所有 mandatory 阶段的预期产出
-- 包含最终交付状态（提交/部署/关闭 issue 等）
+从所有阶段的 `<done-when>` 合成一个可判定的 loop 目标。
+**一个任务只保留一个 active goal**，phase、重试、subagent 都不另建 goal。
+objective 控制在 1-3 句、600 字符以内，必须含五部分：
+
+1. **Measurable end state** —— 精确的产品/工单终态
+2. **Proof** —— 点名的客观 gate 和要求的证据等级（L2 还是 L3）
+3. **Constraints** —— 归属、隐私、分支、成本、环境、发布边界
+4. **Caps** —— 迭代数 / 修复回合 / 耗时 / token / 批准的外部花费
+5. **Stop phrase** —— 逐字附在 objective 末尾：
+   `Stop after <max-iterations> iterations or <max-repair-cycles> repair cycles, whichever comes first.`
+
+**stop phrase 必须写进 goal 文本本身**：独立 checker 只读 goal 文本，
+上限不进 goal，就等于对 checker 而言这个 loop 根本没有刹车。
+
+默认预算：iterations 10 / repair cycles 6 / elapsed 240min / 外部花费 0（除非批准）。
+运行中不得未经授权抬高任何上限。
+
+phase 表、通用规则、验收矩阵写进 `progress.md`，**不复制进 objective**——
+goal 是终点声明，不是第二份计划文件。完整预算契约见 `references/execution-budget.md`。
 
 ---
 
@@ -565,8 +737,11 @@ loop-goal = <loop-goal> 定义的完成判定
   </rule>
 
   <rule id="model">
-    subagent 默认用 Sonnet（model="sonnet"）控制成本。
-    只有需要深度推理的关键决策阶段才考虑用更强模型。
+    根据当前宿主平台选择可用的原生 subagent 模型，不把某个外部 CLI 当作审查前提。
+    在 Codex 环境，默认派 Codex subagent；涉及 implement、E2E、review 或 quality audit
+    的阶段必须使用 `model="gpt-5.6-terra"` + `reasoning_effort="high"`（或当前
+    平台等价的高思考配置）。Claude 环境可按其可用模型选择，但不得因 Claude CLI
+    不可用而跳过独立审查。
   </rule>
 
   <rule id="maker-checker-separation">
@@ -586,6 +761,25 @@ loop-goal = <loop-goal> 定义的完成判定
   <rule id="skill-first">
     每阶段开始前先确认要用的 skill，通过 skill 完成，不裸手做。
     using-superpowers 在每轮开始时必须调用一次。
+    专项 skill 每个任务只发现和加载一次，把选择写进 progress.md 供后续 phase 复用。
+  </rule>
+
+  <rule id="agent-budget">
+    按"不同 agent 数"计预算，修复回合优先复用原 agent（同一 agent 多轮不重复计数）：
+    有界文档/research/verify-only = 2；单子系统代码变更 = 3；
+    跨系统或多仓库代码变更 = 4（最多两个互不相交的 maker）。
+    需要超预算时先 close 已完成 agent，并在 progress.md 记录缺失能力、
+    为什么不能复用、新增角色和客观结束条件——"想再确认一次"不是理由。
+    maker 返回可修 finding 时把窄修复发回同一个 maker，checker 只复判不接管实现。
+  </rule>
+
+  <rule id="wait-budget">
+    只有下一步被该结果阻塞时才等待，否则立刻推进不重叠的工作。
+    每个委派结果最多一次 90-120 秒阻塞等待，超时后不立即发起第二次。
+    完成其它工作后最多再做一次状态检查；仍无进展就缩小 brief 复用/中断原 agent，
+    或 close 掉由主线程完成。禁止连续 wait / 列举轮询 / 短周期 polling。
+    CI/部署等待走另一套节流（首次延后 5 分钟，核心服务 3-5 分钟一次，
+    旁支 5-10 分钟一次，失败才拉日志），不与本预算混用。
   </rule>
 
 </subagent-rules>
@@ -729,7 +923,32 @@ autopilot 不硬编码项目规则——它在 Step 1 调查阶段读取项目�
 
 只有上述四步全部通过，才允许输出 `✓ PHASE cleanup COMPLETE` 并进入最终报告。
 
-### 4c. 收尾报告
+### 4c. 复盘与规则晋升（每个任务强制，包括干净跑通的任务）
+
+复盘记录：什么证据改变了计划、哪个 gate 抓到真实缺陷、结论是任务专属还是可泛化、
+是否已有规则覆盖、晋升是否成立。**不要为了凑数强行晋升**——
+`no-promotion` + 一个理由是合法且必需的结果。
+
+晋升到持久化规则（skill / 项目规则文件）必须同时满足：真实任务的直接隐私安全证据、
+可泛化、有客观 gate、加了会在规则前失败规则后通过的 eval、
+独立 checker 校验过范围与非重复、且规则+eval+文档落在**同一个交付 commit**。
+按职责指定唯一真相源并**替换**它，不要在入口文件追加平行规则。
+完整晋升门见 `references/learning-and-audit.md`。
+
+### 4d. 最终审计序列（声称完成之前逐项执行）
+
+1. 每个计划内 phase 已完成或有理由充分的 N/A；
+2. 每个目标项/工单有独立的事故身份、证据、评论和终态决定（用一次权威快照读取）；
+3. 每个交付 SHA 都是目标远端分支的 ancestor，且被 Delivery Ledger 归因；
+4. 每个交付 commit 的 diff 都落在精确文件清单内、清单每个文件都被覆盖、
+   没有残留的任务自有未提交 diff 或未推送 commit；
+5. 至少一条学习决定走完晋升门、被带理由拒绝，或被标为 run-specific；
+6. 改了 skill 就跑结构校验；
+7. 所有非 goal 审计通过之后，才把 goal 标记完成并终态回读。
+
+**绝不把 subagent 的一句 "done" 当作审计证据。**
+
+### 4e. 收尾报告
 
 执行完成后输出简洁总结：
 

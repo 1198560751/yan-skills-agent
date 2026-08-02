@@ -1,0 +1,4 @@
+interface:
+  display_name: "Backlink Operator"
+  short_description: "Discover, qualify, fill, and verify backlinks"
+  default_prompt: "Use $backlink to discover and qualify backlink opportunities, prepare safe fills, and verify outcomes."
