@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.3.0";
+const expectedVersion = "2.4.0";
 const requiredReferences = [
   "lifecycle.md",
   "cloudflare-stack.md",
@@ -32,6 +32,7 @@ const requiredContent = {
     "## 跨项目资产登记表",
     "### `rankup init`",
     "### `rankup review`",
+    "scripts/sessions.mjs",
     "断言绝不能被 git 追踪",
   ],
   "references/project-memory.md": [
@@ -244,9 +245,11 @@ async function validate() {
     "scripts/check-version.mjs",
     "scripts/registry.mjs",
     "scripts/review.mjs",
+    "scripts/sessions.mjs",
     "tests/check-version.test.mjs",
     "tests/registry.test.mjs",
     "tests/review.test.mjs",
+    "tests/sessions.test.mjs",
   ]) {
     try {
       await read(requiredFile);

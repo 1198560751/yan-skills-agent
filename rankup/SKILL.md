@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也在用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引或网站增长时使用。
 metadata:
-  version: "2.3.0"
+  version: "2.4.0"
 ---
 
 # Rankup 2.0
@@ -119,7 +119,26 @@ node "<rankup-skill-dir>/scripts/registry.mjs" list
 node "<rankup-skill-dir>/scripts/review.mjs" --project-root . --days 30
 ```
 
-脚本只读不改，给出：缺失文件、超期未更新的记录、脚本体检（有无已验证日期、是否参数化）、经验库信号（重复条目、候选回流 Skill 的条目）。在此之上完成：
+脚本只读不改，给出：缺失文件、超期未更新的记录、脚本体检（有无已验证日期、是否参数化）、经验库信号（重复条目、候选回流 Skill 的条目）。
+
+再挖会话记录——**最有价值的经验往往还留在对话里，从没进过 `.rankup/`**：
+
+```bash
+# 先看有哪些会话
+node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14
+
+# 输出浓缩对话（只留人说的话与结论，丢掉工具调用与系统注入）
+node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --dump
+```
+
+覆盖当前项目的 Claude Code 与 Codex 会话，按记录里的 `cwd` 归属，worktree 与含空格的路径都能认。读浓缩稿时找四类东西：
+
+- **用户的纠正**——「不对，应该是……」后面那句通常就是一条该沉淀的规则。
+- **验证过的结论**——附了证据的判断；只有猜测没有验证的不要收。
+- **踩过的坑与其根因**——尤其是排查花了很久的，写清判据让下次一眼认出。
+- **已经推翻旧记录的事实**——`.rankup/` 里的对应条目要**修订**，不是并列再写一条。
+
+在此之上完成：
 
 1. **对账**：`plan.md` 的勾选是滞后指标，与 `git log`、路由清单、线上 `sitemap.xml` 三方交叉；不一致先回写再继续。
 2. **筛信号**：`experience.md` 里合并重复、删除已过时、修订被证伪的条目——**修订原条目，不并列保留冲突结论**。未验证的猜测直接删。
