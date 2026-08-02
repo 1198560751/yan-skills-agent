@@ -20,6 +20,28 @@ npx skills add yan-labs/yan-skills --skill rankup -g -y
 npx skills update rankup -g -y
 ```
 
+## 本地开发 / Local development
+
+如果你要修改这些 Skill 本身，建议把全局技能目录直接链接到本仓库，让全局只存在一份真源：
+
+```bash
+git clone https://github.com/yan-labs/yan-skills.git
+cd yan-skills
+
+# 建立或修复链接（把被替换掉的实体目录先备份，不直接删除）
+node scripts/link-skills.mjs
+
+# 只检查是否有漂移，发现问题退出 1，适合放进 CI 或定期巡检
+node scripts/link-skills.mjs --check
+```
+
+链接建立之后，仓库里的改动即时生效，**不要再对这些 Skill 运行 `npx skills update`** —— 那会把符号链接换回实体目录副本，双份维护随之回归。
+
+两道保护：
+
+- `rankup` 的自动更新会检测仓库根的 `.skill-source` 标记，识别出自己正从源码运行时拒绝执行更新（`blocked / source-checkout`），因此定时检查不会覆盖你的本地改动。该标记位于仓库根，`skills add/update` 只复制单个 Skill 子目录，所以它永远不会随安装副本分发，也不会误伤项目级安装。
+- 万一链接仍被替换掉，重跑 `node scripts/link-skills.mjs` 即可恢复。
+
 ## Skills
 
 ### [`gt`](gt/) — Google Trends 查询 + SEO 选词工作流
@@ -46,7 +68,7 @@ npx skills update rankup -g -y
 
 依赖：Python 3.10+。
 
-### [`rankup`](rankup/) `2.0.1` — 网站全生命周期总控
+### [`rankup`](rankup/) `2.1.1` — 网站全生命周期总控
 
 从机会调研、产品设计和 TanStack Start Monorepo 初始化开始，协调 Cloudflare Workers、D1、R2、Wrangler、Stripe、SEO、内容、外链、上线验证与长期迭代。已有网站也可以从当前阶段接入，不会强制重建。
 
@@ -54,11 +76,11 @@ npx skills update rankup -g -y
 
 依赖：按任务安装 Wrangler、Cloudflare Workers、Stripe、GT、backlink 或其他专项 Skills。
 
-### [`backlink`](backlink/) — 自动化目录提交与外链发布工作流
+### [`backlink`](backlink/) — 外链发现、资格判定与证据化验证
 
-通过 Mac Mini 上的 `bb-browser` 批量处理免费目录提交，并覆盖 IndexNow、Awesome List、公开引用仓库、结果复核与链接属性验证。
+以 OpenCLI 复用已授权的浏览器会话，覆盖竞品外链发现、机会资格判定、递归评论者域名采集、安全填表与提交守卫、台账记录，以及「已提交 / 已上线 / follow 或 nofollow / 已收录」的逐级证据核验。目录宣传不等于可传递权重的外链，最终公开页必须核对 URL、重定向与 `rel`。
 
-依赖：Mac Mini SSH、Node.js 18+、`bb-browser`。
+依赖：Node.js 18+、OpenCLI 及使用者自己的授权数据源；第三方面板入口通过 `TOOLS_SHARE_DASHBOARD_URL` 提供，不随 Skill 分发。
 
 ### [`backlink-analyzer`](backlink-analyzer/) — 外链质量、风险与竞争缺口分析
 

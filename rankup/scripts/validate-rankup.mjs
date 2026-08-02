@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.1.0";
+const expectedVersion = "2.1.1";
 const requiredReferences = [
   "lifecycle.md",
   "cloudflare-stack.md",

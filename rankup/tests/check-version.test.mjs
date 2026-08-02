@@ -93,6 +93,7 @@ test("checkForUpdate creates project state without exposing secrets", async () =
       scope: "global",
       now,
       fetchManifest: async () => localManifest,
+      sourceCheckout: async () => false,
       dirtySkillCheckout: async () => false,
     });
 
@@ -129,6 +130,7 @@ test("checkForUpdate reports a newer version without applying it", async () => {
       runUpdate: async () => {
         updateCalls += 1;
       },
+      sourceCheckout: async () => false,
       dirtySkillCheckout: async () => false,
     });
 
@@ -148,6 +150,7 @@ test("checkForUpdate reconciles state after an external Skill update", async () 
       scope: "global",
       now: firstRun,
       fetchManifest: async () => ({ ...localManifest, version: "1.9.0" }),
+      sourceCheckout: async () => false,
       dirtySkillCheckout: async () => false,
     });
 
@@ -159,6 +162,7 @@ test("checkForUpdate reconciles state after an external Skill update", async () 
       now: secondRun,
       force: true,
       fetchManifest: async () => localManifest,
+      sourceCheckout: async () => false,
       dirtySkillCheckout: async () => false,
     });
 
@@ -185,6 +189,7 @@ test("external update clears a cached blocked outcome without fetching", async (
       now: firstRun,
       apply: true,
       fetchManifest: async () => ({ ...localManifest, version: "2.1.0" }),
+      sourceCheckout: async () => false,
       dirtySkillCheckout: async () => true,
     });
 
@@ -198,6 +203,7 @@ test("external update clears a cached blocked outcome without fetching", async (
         fetchCalls += 1;
         return { ...localManifest, version: "2.1.0" };
       },
+      sourceCheckout: async () => false,
       dirtySkillCheckout: async () => false,
     });
 
@@ -233,6 +239,7 @@ test("checkForUpdate applies the update for the recorded scope", async () => {
         ...localManifest,
         version: "2.1.0",
       }),
+      sourceCheckout: async () => false,
       dirtySkillCheckout: async () => false,
     });
 
@@ -252,6 +259,62 @@ test("checkForUpdate applies the update for the recorded scope", async () => {
   });
 });
 
+// 全局技能目录符号链接到本仓库时,自更新会用远端副本覆盖真源、并把链接换回实体目录。
+// 源码检出必须整体拒绝自更新,且不依赖"工作区是否干净"——提交之后工作区就是干净的。
+test("checkForUpdate blocks a source checkout even when it is clean", async () => {
+  await withTempProject(async (projectRoot) => {
+    let updateCalls = 0;
+    const result = await checkForUpdate({
+      projectRoot,
+      manifest: localManifest,
+      scope: "global",
+      now: new Date("2026-08-02T12:00:00.000Z"),
+      apply: true,
+      fetchManifest: async () => ({ ...localManifest, version: "9.9.9" }),
+      runUpdate: async () => {
+        updateCalls += 1;
+      },
+      sourceCheckout: async () => true,
+      dirtySkillCheckout: async () => false,
+    });
+
+    assert.equal(result.status, "blocked");
+    assert.equal(result.reason, "source-checkout");
+    assert.equal(updateCalls, 0, "源码检出绝不能执行更新命令");
+
+    const state = JSON.parse(
+      await readFile(
+        path.join(projectRoot, ".rankup", "skill-state.json"),
+        "utf8",
+      ),
+    );
+    assert.equal(state.lastReason, "source-checkout");
+  });
+});
+
+test("checkForUpdate still updates an installed copy that is not a source checkout", async () => {
+  await withTempProject(async (projectRoot) => {
+    let updateCalls = 0;
+    const result = await checkForUpdate({
+      projectRoot,
+      manifest: localManifest,
+      scope: "global",
+      now: new Date("2026-08-02T12:00:00.000Z"),
+      apply: true,
+      fetchManifest: async () => ({ ...localManifest, version: "9.9.9" }),
+      runUpdate: async () => {
+        updateCalls += 1;
+      },
+      readInstalledManifest: async () => ({ ...localManifest, version: "9.9.9" }),
+      sourceCheckout: async () => false,
+      dirtySkillCheckout: async () => false,
+    });
+
+    assert.equal(result.status, "updated");
+    assert.equal(updateCalls, 1, "普通安装副本必须仍然可以自更新");
+  });
+});
+
 test("checkForUpdate blocks a dirty source checkout", async () => {
   await withTempProject(async (projectRoot) => {
     let updateCalls = 0;
@@ -265,6 +328,7 @@ test("checkForUpdate blocks a dirty source checkout", async () => {
       runUpdate: async () => {
         updateCalls += 1;
       },
+      sourceCheckout: async () => false,
       dirtySkillCheckout: async () => true,
     });
 
@@ -305,6 +369,7 @@ test("checkForUpdate uses a cached newer version and applies without fetching", 
         fetchCalls += 1;
         throw new Error("network must be rate-limited");
       },
+      sourceCheckout: async () => false,
       dirtySkillCheckout: async () => false,
       runUpdate: async (args, options) => updateCalls.push({ args, options }),
       readInstalledManifest: async () => ({
@@ -344,6 +409,7 @@ test("checkForUpdate auto-detects project scope and uses the project cwd", async
       apply: true,
       executingSkillDirectory,
       fetchManifest: async () => ({ ...localManifest, version: "2.1.0" }),
+      sourceCheckout: async () => false,
       dirtySkillCheckout: async () => false,
       runUpdate: async (args, options) => calls.push({ args, options }),
       readInstalledManifest: async (target) => {
@@ -397,6 +463,7 @@ test("checkForUpdate preserves update command failures in project state", async 
       now: new Date("2026-07-30T12:00:00.000Z"),
       apply: true,
       fetchManifest: async () => ({ ...localManifest, version: "2.1.0" }),
+      sourceCheckout: async () => false,
       dirtySkillCheckout: async () => false,
       runUpdate: async () => {
         throw new Error("failed");
@@ -425,6 +492,7 @@ test("checkForUpdate accepts an installed version newer than the checked version
       now: new Date("2026-07-30T12:00:00.000Z"),
       apply: true,
       fetchManifest: async () => ({ ...localManifest, version: "2.1.0" }),
+      sourceCheckout: async () => false,
       dirtySkillCheckout: async () => false,
       runUpdate: async () => {},
       readInstalledManifest: async () => ({

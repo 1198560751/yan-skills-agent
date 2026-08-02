@@ -334,6 +334,28 @@ export async function runTrustedSkills(
   }
 }
 
+// 从源码仓库运行时,这份 Skill 目录本身就是真源(通常还被全局技能目录符号链接过来)。
+// 此时执行 `skills update` 会把远端副本写回来,既覆盖未发布的改动,也会把符号链接
+// 换成实体目录,重新变回双份维护。源码检出一律拒绝自更新,由 git 负责同步。
+//
+// 判定依据是仓库根的 `.skill-source` 标记文件:`skills add/update` 只复制单个 Skill
+// 子目录,该标记位于仓库根,永远不会随安装副本分发。因此它能可靠区分源码与安装副本,
+// 且不会误伤项目级(`-p`)安装——那种安装的 Skill 虽然也在 git 仓库里,但仓库根没有标记。
+async function isSourceCheckout(directory = skillDirectory) {
+  try {
+    const { stdout } = await execFileAsync("git", [
+      "-C",
+      directory,
+      "rev-parse",
+      "--show-toplevel",
+    ]);
+    await lstat(path.join(stdout.trim(), ".skill-source"));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function isDirtySkillCheckout(directory = skillDirectory) {
   let repositoryRoot;
   try {
@@ -370,6 +392,7 @@ export async function checkForUpdate({
   runUpdate = runTrustedSkills,
   readInstalledManifest = readCurrentInstalledManifest,
   dirtySkillCheckout = isDirtySkillCheckout,
+  sourceCheckout = isSourceCheckout,
   executingSkillDirectory = skillDirectory,
 }) {
   const resolvedRoot = await realpath(path.resolve(projectRoot));
@@ -435,6 +458,10 @@ export async function checkForUpdate({
 
   if (!apply) {
     return finish("update-available");
+  }
+
+  if (await sourceCheckout(resolvedSkillDirectory)) {
+    return finish("blocked", "source-checkout");
   }
 
   if (await dirtySkillCheckout(resolvedSkillDirectory)) {
@@ -542,9 +569,19 @@ async function main() {
   }
 }
 
-const isMain =
-  process.argv[1] !== undefined &&
-  pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
-if (isMain) {
+// argv[1] 保留调用时写的路径,而 import.meta.url 已经过符号链接解析。
+// 全局技能目录符号链接到源码仓库时,两者不相等,main() 会被静默跳过并退出 0——
+// 版本检查看起来跑过了,实际什么都没做。两边都取真实路径再比较。
+async function invokedAsScript() {
+  if (process.argv[1] === undefined) return false;
+  try {
+    const resolved = await realpath(path.resolve(process.argv[1]));
+    return pathToFileURL(resolved).href === import.meta.url;
+  } catch {
+    return false;
+  }
+}
+
+if (await invokedAsScript()) {
   await main();
 }
