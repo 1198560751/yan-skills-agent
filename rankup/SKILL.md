@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也在用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引或网站增长时使用。
 metadata:
-  version: "2.4.0"
+  version: "2.5.0"
 ---
 
 # Rankup 2.0
@@ -124,12 +124,19 @@ node "<rankup-skill-dir>/scripts/review.mjs" --project-root . --days 30
 再挖会话记录——**最有价值的经验往往还留在对话里，从没进过 `.rankup/`**：
 
 ```bash
-# 先看有哪些会话
-node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14
+# 先看有哪些会话、各自还有多少没读
+node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --new-only
 
 # 输出浓缩对话（只留人说的话与结论，丢掉工具调用与系统注入）
-node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --dump
+node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --new-only --dump
+
+# 全部消化完之后，才落水位线
+node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 ```
+
+**默认加 `--new-only`。** 水位线按字节偏移记在 `.rankup/review-state.json`：上次 review 读到哪，这次就从哪接着读；同一个会话后续续聊也只读新增那段。不加的话每次 review 都会把同样的对话重读一遍，纯属浪费。
+
+`--mark` 是**独立一步，必须等信号真的提取完再执行**。中途失败或输出被预算截断时不落水位，下次仍会重读那一段——宁可重读，不可漏读。
 
 覆盖当前项目的 Claude Code 与 Codex 会话，按记录里的 `cwd` 归属，worktree 与含空格的路径都能认。读浓缩稿时找四类东西：
 

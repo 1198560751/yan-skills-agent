@@ -3,6 +3,8 @@
 //
 //   node scripts/sessions.mjs --project-root <项目目录> [--days 14]          列出会话
 //   node scripts/sessions.mjs --project-root <项目目录> --days 7 --dump      输出浓缩对话
+//   node scripts/sessions.mjs --project-root <项目目录> --new-only --dump    只看上次 review 之后的新增
+//   node scripts/sessions.mjs --project-root <项目目录> --mark               记下已消费位置
 //
 // 只读。会话里已经发生过的纠正、裁决与验证结论,往往还没进 .rankup/——
 // 它们是经验沉淀的原始素材,也是判断某条旧记录是否已被推翻的依据。
@@ -10,7 +12,7 @@
 // 浓缩规则:只保留人说的话与助手的自然语言结论,丢掉工具调用、工具输出、
 // 推理块与系统提示。原始 jsonl 单个会话可达数 MB,直接读会淹没上下文。
 
-import { readdir, readFile, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import { homedir } from "node:os";
@@ -20,12 +22,44 @@ const claudeProjects = path.join(homedir(), ".claude", "projects");
 const codexSessions = path.join(homedir(), ".codex", "sessions");
 const DEFAULT_DUMP_BUDGET = 200_000;
 
+// 会话 jsonl 只追加,所以"读到哪了"用字节偏移记录最准:同一个会话后续续聊时,
+// 下次只读新增的那一段,既不重复消耗上下文,也不会漏掉后来补上的内容。
+// 按 mtime 或整文件哈希都做不到这一点——续聊会让整个文件重新变成"新的"。
+const REVIEW_STATE = "review-state.json";
+
+async function readReviewState(projectRoot) {
+  try {
+    const text = await readFile(path.join(projectRoot, ".rankup", REVIEW_STATE), "utf8");
+    const state = JSON.parse(text);
+    return state && typeof state.sessions === "object" ? state : { sessions: {} };
+  } catch {
+    return { sessions: {} };
+  }
+}
+
+async function writeReviewState(projectRoot, sessions, now) {
+  const dir = path.join(projectRoot, ".rankup");
+  await mkdir(dir, { recursive: true });
+  const previous = await readReviewState(projectRoot);
+  const merged = { ...previous.sessions };
+  for (const session of sessions) merged[session.file] = { bytes: session.size };
+  const state = {
+    schemaVersion: 1,
+    lastReviewAt: new Date(now).toISOString(),
+    sessions: merged,
+  };
+  await writeFile(path.join(dir, REVIEW_STATE), `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  return Object.keys(merged).length;
+}
+
 function parseArgs(argv) {
   const options = {
     projectRoot: process.cwd(),
     days: 14,
     dump: false,
     budget: DEFAULT_DUMP_BUDGET,
+    newOnly: false,
+    mark: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -33,6 +67,8 @@ function parseArgs(argv) {
     else if (arg === "--days") options.days = Number(argv[++index]);
     else if (arg === "--budget") options.budget = Number(argv[++index]);
     else if (arg === "--dump") options.dump = true;
+    else if (arg === "--new-only") options.newOnly = true;
+    else if (arg === "--mark") options.mark = true;
     else throw new TypeError(`未知参数: ${arg}`);
   }
   if (!Number.isFinite(options.days) || options.days <= 0) throw new TypeError("--days 必须是正数");
@@ -186,7 +222,9 @@ function isNoise(text) {
 async function dumpSession(session, budget) {
   const chunks = [];
   let used = 0;
-  const stream = createReadStream(session.file, { encoding: "utf8" });
+  // 从上次消费的偏移接着读。若该偏移落在某行中间,那半行 JSON.parse 会失败并被跳过,
+  // 只损失一条记录,不会错位——这正是选择行式 jsonl 时可以接受的代价。
+  const stream = createReadStream(session.file, { encoding: "utf8", start: session.consumed ?? 0 });
   const reader = createInterface({ input: stream, crlfDelay: Infinity });
   try {
     for await (const line of reader) {
@@ -221,31 +259,58 @@ try {
 }
 
 const cutoff = Date.now() - options.days * 86_400_000;
-const sessions = [
+const all = [
   ...(await findClaudeSessions(options.projectRoot, cutoff)),
   ...(await findCodexSessions(options.projectRoot, cutoff)),
 ].sort((a, b) => a.mtime - b.mtime);
 
+const reviewState = await readReviewState(options.projectRoot);
+for (const session of all) {
+  const consumed = reviewState.sessions?.[session.file]?.bytes ?? 0;
+  // 记录的字节数可能大于当前文件(会话被清理重建),此时从头读更安全。
+  session.consumed = consumed <= session.size ? consumed : 0;
+  session.fresh = session.size - session.consumed;
+}
+
+// --new-only 只保留有新增内容的会话:上次 review 已经消费过的部分不再重读。
+const sessions = options.newOnly ? all.filter((session) => session.fresh > 0) : all;
+
 if (sessions.length === 0) {
-  console.log(`最近 ${options.days} 天内没有属于 ${options.projectRoot} 的会话记录。`);
+  const scope = options.newOnly ? "自上次 review 以来没有新增会话" : `最近 ${options.days} 天内没有属于 ${options.projectRoot} 的会话记录`;
+  console.log(`${scope}。`);
+  if (options.mark) {
+    await writeReviewState(options.projectRoot, all, Date.now());
+    console.log("水位线已更新。");
+  }
   process.exit(0);
 }
 
 if (!options.dump) {
-  console.log(`# 最近 ${options.days} 天的会话 — ${options.projectRoot}\n`);
-  console.log("| 来源 | 最近活动 | 大小 | 文件 |");
-  console.log("|---|---|---|---|");
+  const scope = options.newOnly ? "自上次 review 以来新增的会话" : `最近 ${options.days} 天的会话`;
+  console.log(`# ${scope} — ${options.projectRoot}\n`);
+  console.log("| 来源 | 最近活动 | 待读 | 总大小 | 文件 |");
+  console.log("|---|---|---|---|---|");
   for (const session of sessions) {
     const when = new Date(session.mtime).toISOString().slice(0, 16).replace("T", " ");
-    const size = `${Math.round(session.size / 1024)} KB`;
-    console.log(`| ${session.source} | ${when} | ${size} | \`${session.file}\` |`);
+    console.log(
+      `| ${session.source} | ${when} | ${Math.round(session.fresh / 1024)} KB | ${Math.round(session.size / 1024)} KB | \`${session.file}\` |`,
+    );
   }
-  console.log(`\n共 ${sessions.length} 个会话。加 --dump 输出浓缩对话供提取信号。`);
+  const freshTotal = sessions.reduce((sum, session) => sum + session.fresh, 0);
+  console.log(`\n共 ${sessions.length} 个会话，待读 ${Math.round(freshTotal / 1024)} KB。加 --dump 输出浓缩对话供提取信号。`);
 } else {
   const perSession = Math.max(10_000, Math.floor(options.budget / sessions.length));
   for (const session of sessions) {
     const when = new Date(session.mtime).toISOString().slice(0, 16).replace("T", " ");
-    console.log(`\n## ${session.source} — ${when}\n`);
+    const resumed = session.consumed > 0 ? "（接上次续读）" : "";
+    console.log(`\n## ${session.source} — ${when} ${resumed}\n`);
     console.log(await dumpSession(session, perSession));
   }
+}
+
+// 水位线只在 review 真正消费完之后才落,所以 --mark 是独立一步:
+// 中途失败或输出被截断时不留下"已读完"的假象,下次仍会重读那一段。
+if (options.mark) {
+  const count = await writeReviewState(options.projectRoot, all, Date.now());
+  console.error(`\n水位线已更新：${count} 个会话记录在案。`);
 }

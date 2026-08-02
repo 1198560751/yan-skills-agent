@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -143,6 +143,47 @@ test("没有匹配会话时给出明确说明而不是空输出", async () => {
     const result = runSessions(home, "/tmp/projects/empty");
     assert.equal(result.status, 0);
     assert.match(result.stdout, /没有属于/);
+  });
+});
+
+test("水位线让下一次 review 不重读已消费的内容", async () => {
+  await withHome(async ({ base, home }) => {
+    const root = path.join(base, "proj");
+    await mkdir(root, { recursive: true });
+    const dir = path.join(home, ".claude", "projects", "p");
+    await mkdir(dir, { recursive: true });
+    const file = path.join(dir, "s.jsonl");
+    const line = (role, text) => JSON.stringify(claudeTurn(root, role, text)) + "\n";
+
+    await writeFile(file, line("user", "第一轮的纠正"));
+    assert.match(runSessions(home, root, ["--new-only", "--dump"]).stdout, /第一轮的纠正/);
+
+    // 落水位:review 真正消费完之后才记,所以 --mark 是独立一步。
+    runSessions(home, root, ["--mark"]);
+    assert.match(runSessions(home, root, ["--new-only", "--dump"]).stdout, /没有新增会话/);
+
+    // 同一个会话续聊后,只读新增的那一段,不重复消耗上下文。
+    await appendFile(file, line("user", "第二轮的纠正"));
+    const resumed = runSessions(home, root, ["--new-only", "--dump"]).stdout;
+    assert.match(resumed, /第二轮的纠正/);
+    assert.doesNotMatch(resumed, /第一轮的纠正/);
+  });
+});
+
+test("会话被清理重建导致水位线超出文件长度时从头读", async () => {
+  await withHome(async ({ base, home }) => {
+    const root = path.join(base, "proj2");
+    await mkdir(path.join(root, ".rankup"), { recursive: true });
+    const dir = path.join(home, ".claude", "projects", "q");
+    await mkdir(dir, { recursive: true });
+    const file = path.join(dir, "s.jsonl");
+    await writeFile(file, JSON.stringify(claudeTurn(root, "user", "短内容")) + "\n");
+    // 伪造一个远大于当前文件的水位,模拟会话被清空重建。
+    await writeFile(
+      path.join(root, ".rankup", "review-state.json"),
+      JSON.stringify({ schemaVersion: 1, sessions: { [file]: { bytes: 999_999 } } }),
+    );
+    assert.match(runSessions(home, root, ["--new-only", "--dump"]).stdout, /短内容/);
   });
 });
 

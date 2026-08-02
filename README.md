@@ -68,7 +68,7 @@ node scripts/link-skills.mjs --check
 
 依赖：Python 3.10+。
 
-### [`rankup`](rankup/) `2.4.0` — 网站全生命周期总控
+### [`rankup`](rankup/) `2.5.0` — 网站全生命周期总控
 
 从机会调研、产品设计和 TanStack Start Monorepo 初始化开始，协调 Cloudflare Workers、D1、R2、Wrangler、Stripe、SEO、内容、外链、上线验证与长期迭代。已有网站也可以从当前阶段接入，不会强制重建。
 
