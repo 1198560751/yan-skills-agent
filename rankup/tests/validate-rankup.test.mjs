@@ -43,7 +43,42 @@ test("release validator accepts the complete installed Skill", async () => {
   await withSkillCopy(async (skillRoot) => {
     const result = validate(skillRoot);
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /rankup 2\.0\.1 validation passed/);
+    // 版本从 skill.json 读取,避免每次发版都要手改断言而漏改。
+    const { version } = JSON.parse(
+      await readFile(path.join(skillRoot, "skill.json"), "utf8"),
+    );
+    assert.equal(result.stdout.trim(), `rankup ${version} validation passed`);
+  });
+});
+
+// Skill 必须保持项目中立:项目可归属内容属于 <project>/.rankup/。
+// 每种泄漏形态都单独负向测试,否则闸门可能只是看起来存在。
+for (const [label, leak] of [
+  ["project identifier", "实证:bettercallsaul 的首页转化率。"],
+  ["absolute host path", "脚本位于 /Users/someone/Project/site/run.mjs。"],
+  ["hardcoded local proxy", "代理走 127.0.0.1:7890。"],
+  ["shared account portal", "入口 https://dash.3ue.co/zh-Hans/#/page/m/home。"],
+]) {
+  test(`release validator rejects a ${label} leak`, async () => {
+    await withSkillCopy(async (skillRoot) => {
+      const target = path.join(skillRoot, "references", "lifecycle.md");
+      await writeFile(target, `${await readFile(target, "utf8")}\n${leak}\n`);
+      const result = validate(skillRoot);
+      assert.equal(result.status, 1, "泄漏内容必须让验证失败");
+      assert.match(result.stderr, new RegExp(label));
+    });
+  });
+}
+
+test("release validator ignores leak patterns inside its own source", async () => {
+  await withSkillCopy(async (skillRoot) => {
+    const validator = path.join(skillRoot, "scripts", "validate-rankup.mjs");
+    const text = await readFile(validator, "utf8");
+    assert.ok(
+      text.includes("bettercallsaul"),
+      "验证脚本自身含有模式字面量,本测试才有意义",
+    );
+    assert.equal(validate(skillRoot).status, 0, "守卫不得自我告警");
   });
 });
 

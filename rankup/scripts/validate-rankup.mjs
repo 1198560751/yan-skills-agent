@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.0.1";
+const expectedVersion = "2.1.0";
 const requiredReferences = [
   "lifecycle.md",
   "cloudflare-stack.md",
@@ -21,6 +21,17 @@ const requiredContent = {
     "npx skills update rankup -g -y",
     ".rankup/skill-state.json",
     "严禁在 Skill、`.rankup/`、Git、测试或回复中保存真实密钥",
+    "## 可复用操作必须落成脚本",
+    "三方对账门禁",
+    "沉淀义务与是否调用本 Skill 无关",
+    "本 Skill 必须保持项目中立与机器中立",
+  ],
+  "references/project-memory.md": [
+    "## 沉淀义务",
+    "## 可复用操作脚本",
+    "roadmap.md",
+    "iterations.md",
+    "experience.md",
   ],
   "references/cloudflare-stack.md": [
     "pnpm dlx shadcn@latest init --preset b1D0eCA4 --template start --monorepo --rtl --pointer",
@@ -56,6 +67,24 @@ const secretPatterns = [
     /\bAuthorization\s*:\s*Bearer\s+[A-Za-z0-9._~+/=-]{12,}\b/gi,
   ],
 ];
+
+// Skill 必须保持项目中立与机器中立:任何可归属到某个具体项目、账号或本机环境的内容
+// 都属于 <project>/.rankup/,不进本 Skill。经验条目只保留"剥离站点后仍成立"的规则,
+// 证据出处、流量数字、凭据位置一律留在项目侧。
+const projectLeakPatterns = [
+  ["project identifier", /\b(?:bettercallsaul|birthstonemeaning|crystalhealing|sbti\.support)\b/gi],
+  ["absolute host path", /\/Users\/[A-Za-z0-9._-]+\//g],
+  ["hardcoded local proxy", /\b127\.0\.0\.1:\d{2,5}\b/g],
+  ["credential store location", /\.claude\.json\b/g],
+  ["shared account portal", /\bdash\.3ue\.co\b/gi],
+];
+
+// 这两个文件按职责必须包含上述模式的字面量(守卫本体与它的负向测试夹具),
+// 扫描时排除,否则守卫永远自我告警。除此之外任何文件都不得豁免。
+const leakScanExcludes = new Set([
+  "scripts/validate-rankup.mjs",
+  "tests/validate-rankup.test.mjs",
+]);
 
 async function read(relativePath) {
   return readFile(path.join(skillRoot, relativePath), "utf8");
@@ -152,11 +181,22 @@ async function validate() {
     })),
   );
   for (const { file, text } of contents) {
+    const relativePath = path.relative(skillRoot, file);
     for (const [label, pattern] of secretPatterns) {
       pattern.lastIndex = 0;
       if (pattern.test(text)) {
+        errors.push(`${label} pattern found in ${relativePath}`);
+      }
+    }
+    if (leakScanExcludes.has(relativePath)) {
+      continue;
+    }
+    for (const [label, pattern] of projectLeakPatterns) {
+      pattern.lastIndex = 0;
+      const match = pattern.exec(text);
+      if (match) {
         errors.push(
-          `${label} pattern found in ${path.relative(skillRoot, file)}`,
+          `${label} "${match[0]}" found in ${relativePath} — 项目可归属内容属于 <project>/.rankup/,不进 Skill`,
         );
       }
     }
