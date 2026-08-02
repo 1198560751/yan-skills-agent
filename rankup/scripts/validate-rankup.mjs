@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.5.0";
+const expectedVersion = "2.6.0";
 const requiredReferences = [
   "lifecycle.md",
   "cloudflare-stack.md",
@@ -84,7 +84,7 @@ const secretPatterns = [
 // 都属于 <project>/.rankup/,不进本 Skill。经验条目只保留"剥离站点后仍成立"的规则,
 // 证据出处、流量数字、凭据位置一律留在项目侧。
 const projectLeakPatterns = [
-  ["project identifier", /\b(?:bettercallsaul|birthstonemeaning|crystalhealing|sbti\.support)\b/gi],
+  ["project identifier", /\b(?:bettercallsaul|birthstonemeaning|crystalhealing|sbti)\b/gi],
   ["absolute host path", /\/Users\/[A-Za-z0-9._-]+\//g],
   ["hardcoded local proxy", /\b127\.0\.0\.1:\d{2,5}\b/g],
   ["credential store location", /\.claude\.json\b/g],
