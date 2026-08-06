@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也在用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引或网站增长时使用。
 metadata:
-  version: "2.7.0"
+  version: "2.12.0"
 ---
 
 # Rankup 2.0
@@ -74,6 +74,60 @@ node "<rankup-skill-dir>/scripts/check-version.mjs" \
 5. **维护**：脚本失败时**修脚本**，不是绕过它手工再点一遍。页面改版属于正常损耗，修完更新已验证日期。失败原因写进脚本头部注释，下次少走一遍。
 
 脚本与它依赖的登录态、property ID、账号配置都属于项目侧，只放 `<project>/.rankup/`，不进本 Skill。本 Skill 只描述方法，不携带任何具体站点的操作参数。
+
+## 导出物落盘 SOP（强制）
+
+**从浏览器、后台或第三方工具导出的任何数据文件，绝不允许留在浏览器默认下载目录。**
+
+这不是整洁问题。默认下载目录是所有下载共用的垃圾场：文件会被随手清空、会被同名下载覆盖成
+`xxx (1)`、跨轮次跨项目混在一起无法区分，而这些文件往往是**扣了额度或花了几十分钟才拿到、
+且无法凭记忆重建**的一次性产物。丢了就得重抓。
+
+### 首选：本地接收端，根本不走下载目录
+
+页面 JS 没有文件系统，`<a download>` 只能落到浏览器默认目录 —— 这一步无法从页面内改道。
+但可以**绕开整条下载链路**：在本机起一个只监听 `127.0.0.1` 的接收服务，
+让页面把数据 `fetch(..., {method:'POST'})` 过去，服务端直接写进项目目录。
+
+这是**首选方案**，因为它一次性消掉四个问题：不需要等文件落齐、不需要归并重名副本、
+不受下载目录权限影响、也不占用对话上下文。实测被采集页面的 CSP 通常不拦截到
+`127.0.0.1` 的请求（先用一个 `/ping` 端点验证连通再开跑）。
+
+服务端要点：只绑 `127.0.0.1`；开 CORS（页面在 https 源上，属于跨源）；
+对路径参数做白名单字符校验防目录穿越；落盘同时写 manifest 并回报行数。
+
+**为什么这条要排在下载法前面**：浏览器默认下载目录在部分系统上受隐私保护，
+终端与脚本可能**根本读不到**（实测 shell 与 Node 同时 `EPERM`），
+而这种权限状态可能在任务中途才生效。届时所有已下载的数据都拿不回来。
+接收端方案不依赖那个目录，因此不会中途失效。
+
+### 退路：仍然走下载目录时
+
+若无法起本地服务，则落盘必须由**项目侧的一个脚本**在抓取结束后立刻完成，
+而不是靠事后想起来手工搬。
+
+### 强制规则
+
+1. **落到项目里**。每个项目在 `.rankup/` 之外维护自己的数据目录（例如
+   `data/<主题>/raw/`、`data/<主题>/out/`），原始导出物与派生产物分开放。
+2. **抓完立刻搬，不允许攒**。每一轮抓取结束就跑落盘脚本，中间不插入别的抓取。
+   攒到最后搬的后果是无法分辨哪个文件属于哪一轮。
+3. **搬走而非复制**。源文件必须从下载目录删除 —— 留一份在那里，问题就还在。
+4. **规范文件名**，且必须自带足以区分轮次的信息：
+   `<主题>__<类型>__<切片/参数>__<日期>.<扩展名>`。用参数拼名字，不要用「导出(3)」这种。
+5. **等齐再搬**。Blob/异步下载的最后一个文件常晚几秒落盘，提前搬会**静默丢文件**
+   而下游报告看起来完全正常。判据是「文件数达标 **且** 连续两次采样各文件大小不变」。
+6. **归并重名副本**。浏览器对同名下载不覆盖，而是另存为 `xxx (1)`、`xxx (2)`，甚至丢掉扩展名，
+   **且这些副本内容可能不同**（重试过的目标必然产生多份）。同一逻辑切片只保留数据行最多的那份，
+   其余删除，不要让通配符把两份内容不同的文件都算进结果。
+7. **落盘即校验并记 manifest**：每个文件的数据行数、字节数、落盘日期写进同目录的
+   `manifest.json`。**行数为 0 的文件必须报错退出**，不能进入下一轮 —— 空文件是抓取失败的信号，
+   静默通过会让最终报告缺一整块而无人察觉。
+8. **脚本参数化**：主题、类型、期望文件数、超时都从命令行传，不写死。
+
+落盘脚本本身属于可复用操作，按上一节固化进 `<project>/.rankup/scripts/` 并登记到 `INDEX.md`。
+具体的表格采集技巧、反爬约束与踩坑清单见
+[`references/integrations.md`](references/integrations.md) 的「登录态后台批量取数」一节。
 
 ## 跨项目资产登记表
 
@@ -164,6 +218,7 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | 支付、订阅、账单、Stripe | [`integrations.md`](references/integrations.md)、[`project-memory.md`](references/project-memory.md) | stripe-best-practices |
 | SEO、GSC、排名、关键词、CTR、索引、内容 | [`seo-growth.md`](references/seo-growth.md)、[`project-memory.md`](references/project-memory.md) | GT、SEO 或研究能力 |
 | 从登录态后台批量取数（没有 API / API 收费 / 导出扣点数） | [`integrations.md`](references/integrations.md) | browser-harvest |
+| 能力只有聊天网页形态（要登录、按条扣费、无 API），需反复提问并取回全文 | [`integrations.md`](references/integrations.md) 的「网页版 AI Chatbot 取答」 | `scripts/chatbot-drive.browser.js` |
 | 外链、分发、竞品引用域 | [`integrations.md`](references/integrations.md)、[`seo-growth.md`](references/seo-growth.md) | backlink-analyzer、backlink |
 | 复盘、经验沉淀、自我进化、规则升级 | [`evolution.md`](references/evolution.md)、[`project-memory.md`](references/project-memory.md) | 必要时使用独立 checker |
 | 已有项目下一步、迭代、排障 | [`project-memory.md`](references/project-memory.md) 加任务相关参考 | 按缺口选择 |
