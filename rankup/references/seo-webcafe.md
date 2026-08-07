@@ -98,6 +98,21 @@ curl -s "https://seo.web.cafe/referring/api/site?domain=stripe.com" \
 也就是说：**这是一道真实存在、服务端会校验的门槛，任何工具的任何端点都要带对**，
 包括「不计配额」的 `/referring/*` 三个端点也不例外。已验证的性质：
 
+> **令牌怎么拿：抓工具页 HTML 即可，不需要人工从开发者工具复制。**
+>
+> 令牌**明文嵌在该工具页面的 HTML 里**，请求头名也在同一份 HTML 里。所以脚本只要带着
+> 会话 cookie `GET /<工具>/`，用 `/[0-9]{13}\.[0-9a-f]{64}/` 取值、
+> 用 `/X-[A-Z]{2,8}-Token/` 取头名，就能自助拿到，**每个工具的令牌互不通用，要各取各的**。
+>
+> 这条最初被写成「让用户从 Network 面板复制」，实测后修正。差别很大：前者每跑一次脚本
+> 都要人工介入，后者可以完全无人值守。
+>
+> **边界仍然不变**：这是读取服务端签发给**你自己已登录会话**的令牌，属于正常自动化；
+> 而推导令牌的**生成/签名算法**等于绕过访问控制，不做。两者不要混为一谈。
+>
+> 同理可用于零配额普查：`GET` 各工具页 HTML，正则抽 `["'`]api/[a-z0-9_-]+` 就能拿到
+> 该工具的全部端点清单，**完全不消耗配额**。先普查再决定测哪几个，比逐个点界面省得多。
+
 - 从任意一次真实浏览器会话里复制出来的值，可以**跨端点、跨参数重复使用多次**
   （同一个 `X-REF-Token` 连续查了两个不同域名和一个月份榜单都成功）；
 - 具体过期时间未知，没有专门去测生命周期上限；
@@ -189,15 +204,33 @@ Web.Cafe OAuth（`GET /api/oauth/me` 是全局登录态查询端点）**没有�
   得拆混淆过的前端代码，这已经越过"记录观察到的契约"，滑向绕过访问控制，不建议做。
   正当路径是"从自己的浏览器会话复制令牌喂给脚本"，不是"让脚本自己伪造令牌"。
 
-## 未查清的部分
+## 补录（登录 VIP 会话，配额充足时重测）
 
-- `/translate/api/domain`、`/domain/api/name`（配额耗尽后）、`/history/api/timeline`
-  （配额耗尽后）、`/worth/api/estimate`（配额耗尽后）、`/backlink/api/evaluate`
-  （配额耗尽后）、`/review/api/analyze`（配额耗尽后）、`/adsense/api/audit`
-  （配额耗尽后）、`/serp/api/serp`（配额耗尽后）：这些端点的**成功响应体结构**没有拿到——
-  实测时访客配额已经在前几个工具（主要是 `/translate/` 和 `/mine/` 的 `domain` 子调用）
-  耗尽，后续工具第一次提交就直接吃到 429 配额错误。端点路径、方法、请求体字段是从这次
-  429 响应里的请求本身读到的，是准确的；但成功时的响应字段形状需要等配额刷新或登录后
-  另开一次会话补录。
-- `/adsense/api/audit` 的请求体字段名是从表单只有一个域名输入框推断的（大概率是
-  `{domain: "..."}` 或 `{url: "..."}` 这类单字段），配额耗尽导致没能截到真实 `postData`。
+首轮以访客身份测，配额中途耗尽，多个端点只拿到请求契约没拿到成功响应。
+换成已登录会话（VIP 每日 500 次）重测后补齐如下，**以下均为实测 200 响应的顶层字段**：
+
+| 端点 | 方法 | 请求头 | 请求体 | 响应顶层字段 |
+|---|---|---|---|---|
+| `/serp/api/serp` | POST | `X-SR-Token` | `{keyword, gl}` | `keyword, gl, kd, results, related, paa, fromCache` |
+| `/serp/api/page` | POST | `X-SR-Token` | `{url, keyword}` | `url, finalUrl, title, score, grade, focus, rTitle, rH1, rUrl, density, wordCount, elapsedMs, bytes, fulfillment, rendering, framework` |
+| `/review/api/analyze` | POST | `X-RV-Token` | `{url, keyword}` | `url, finalUrl, domain, isHomepage, inferred, page, site` |
+| `/backlink/api/evaluate` | POST | `X-BL-Token` | `{input}` | `domain, userPrice, linkType, linkTypeLabel, quality, fair, verdict, live, market, dataSource, fromCache, noData` |
+| `/referring/api/summary` | GET | `X-REF-Token` | — | `months, totals, fluidity, latest` |
+| `/worth/api/estimate` | POST | `X-WT-Token` | `{input, model}` | **未取到**（见下） |
+| `/history/api/analyze` | POST | `X-HIS-Token` | `{domain}` | **不是 JSON，是 SSE 流**（见下） |
+
+### 两个必须记住的契约细节
+
+1. **字段名是 `input` 而不是 `domain`/`url`。** `/worth/`、`/backlink/`、`/adsense/`
+   三个工具的请求体都是 `{input: "域名或网址"}`。用 `domain` 或 `url` 会拿到
+   `400 {"error":"请输入有效的域名或网址…","code":"param"}` —— 这个报错读起来像「值不合法」，
+   实际是「字段名不对导致读到 undefined」，**极容易被误判成输入格式问题而反复调值**。
+   判据：换字段名之前先确认报错是不是恒定的，值怎么改都不变就说明是字段名问题。
+2. **`/history/api/analyze` 返回 SSE 流不是 JSON**：`event: delta\ndata: {"text":"…"}` 逐块推送。
+   按 JSON 解析必然失败。凡是「AI 生成结论」类的端点都要先确认响应类型再写解析。
+
+### 仍未取到的
+
+- `/worth/api/estimate` 与 `/adsense/api/audit` 的成功响应字段：请求契约已确认
+  （都是 `{input}`，worth 另带 `model`），但抓响应时被本地权限策略拦下，未强行绕过。
+- `/translate/api/domain`、`/domain/api/name`、`/mine/api/*` 的成功响应结构。
