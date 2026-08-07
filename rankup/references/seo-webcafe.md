@@ -70,6 +70,38 @@
 `email` 邮箱提取、`traffic` 流量分析、`level` 进阶说明、`gsc` 模拟器）**没有对应端点**，
 见下方「纯前端」小节，不要再去探。
 
+## 怎么用：一个脚本，零配置
+
+```bash
+# 零配额普查：每个工具的请求头名 + 全部端点，什么都不消耗
+node <rankup-skill-dir>/scripts/seo-webcafe.mjs endpoints
+
+# 单次查询
+node scripts/seo-webcafe.mjs kd       --keyword "markdown to pdf" --gl us
+node scripts/seo-webcafe.mjs audit    --url https://example.com/ --keyword "your keyword"
+node scripts/seo-webcafe.mjs serp     --keyword "your keyword"
+node scripts/seo-webcafe.mjs backlink --input example.com
+node scripts/seo-webcafe.mjs worth    --input example.com
+node scripts/seo-webcafe.mjs history  --input example.com     # SSE，脚本已拼回整段文本
+
+# 批量：每行一组 key=value，自动按保险丝间隔
+node scripts/seo-webcafe.mjs kd --batch words.txt --out kd.json
+
+# 纯客户端工具清单（无后端，别去探）
+node scripts/seo-webcafe.mjs tools
+```
+
+**不需要任何配置就能跑。** 令牌由脚本自己从工具页 HTML 取；不带 Cookie 时配额停在
+匿名档 10 次/日，够做一次小范围核验。要提额再 `export SEO_WEBCAFE_COOKIE='...'`
+（登录 100/日、VIP 500/日）；`kd` 命令另需 `SEO_WEBCAFE_TOKEN`。
+
+配额打完时脚本会如实打出 `HTTP 429 今日游客额度已用完`，不会静默失败或返回空结果。
+
+> 早期版本拆成了 `seo-webcafe-kd.mjs` / `-audit.mjs` / `-referring.mjs` 三个脚本，
+> 已被本脚本取代并删除。拆分是错的：这些工具的调用形状完全一致（抓页面取令牌 → POST
+> 到 `/<工具>/api/<动作>`），差异只在端点名和请求体字段，拆开等于把同一段取令牌逻辑
+> 抄三遍，而新增一个工具要新建一个文件。现在只需要往脚本里的 `TOOLS` 表加一行。
+
 ## 认证与配额
 
 这里有**两层独立的门槛**，容易混淆，务必分开看：
@@ -100,14 +132,21 @@ curl -s "https://seo.web.cafe/referring/api/site?domain=stripe.com" \
 
 > **令牌怎么拿：抓工具页 HTML 即可，不需要人工从开发者工具复制。**
 >
-> 令牌**明文嵌在该工具页面的 HTML 里**，请求头名也在同一份 HTML 里。所以脚本只要带着
-> 会话 cookie `GET /<工具>/`，用 `/[0-9]{13}\.[0-9a-f]{64}/` 取值、
-> 用 `/X-[A-Z]{2,8}-Token/` 取头名，就能自助拿到，**每个工具的令牌互不通用，要各取各的**。
+> 令牌**明文嵌在该工具页面的 HTML 里**，请求头名也在同一份 HTML 里。脚本 `GET /<工具>/`
+> 之后，用 `/[0-9]{13}\.[0-9a-f]{64}/` 取值、用 `/X-[A-Z]{2,8}-Token/` 取头名即可，
+> **每个工具的令牌互不通用，要各取各的**。
 >
-> 这条最初被写成「让用户从 Network 面板复制」，实测后修正。差别很大：前者每跑一次脚本
-> 都要人工介入，后者可以完全无人值守。
+> **而且连 Cookie 都不需要。** 实测：完全匿名 `curl` 抓 `/backlink/` 拿到令牌，
+> 直接 POST `/backlink/api/evaluate` 返回 200 完整 JSON。Cookie 的作用只有提额
+> （匿名 10/日 → 登录 100/日 → VIP 500/日）。
 >
-> **边界仍然不变**：这是读取服务端签发给**你自己已登录会话**的令牌，属于正常自动化；
+> 这条经历了两次修正，值得记：先被写成「让用户从 Network 面板复制」，
+> 再被改成「脚本带会话 cookie 自取」，最后实测发现**匿名就能拿**。
+> 每修一次，脚本的可用性都上一个台阶——从「每次要人工介入」到「要先配 Cookie」
+> 再到「零配置开箱即用」。**判据：凡是写下「需要凭据」的结论，都该反过来验一次
+> 不带凭据会怎样**，很多门槛是想象出来的。
+>
+> **边界仍然不变**：这是读取服务端主动下发给当前访问者的令牌，属于正常自动化；
 > 而推导令牌的**生成/签名算法**等于绕过访问控制，不做。两者不要混为一谈。
 >
 > 同理可用于零配额普查：`GET` 各工具页 HTML，正则抽 `["'`]api/[a-z0-9_-]+` 就能拿到
