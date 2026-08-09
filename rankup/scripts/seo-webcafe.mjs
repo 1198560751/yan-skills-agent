@@ -29,6 +29,13 @@ import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const BASE = "https://seo.web.cafe";
+/**
+ * **必须显式带 User-Agent。** 实测不带这个头，任何请求都直接 403 Forbidden，
+ * 而且返回的是 HTML 错误页不是 JSON，脚本里表现为「解析失败」而非「被拒绝」，
+ * 极难定位。此前能跑是因为运行时恰好带了默认值，属于运气不是设计。
+ */
+const UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
 const TOKEN_RE = /[0-9]{13}\.[0-9a-f]{64}/;
 const HEADER_RE = /X-[A-Z]{2,8}-Token/;
 
@@ -51,6 +58,36 @@ const TOOLS = {
   adsense: { tool: "adsense", path: "/adsense/api/audit", body: (a) => ({ input: req(a.input, "--input") }), desc: "AdSense 过审预检" },
   history: { tool: "history", path: "/history/api/analyze", body: (a) => ({ domain: req(a.input, "--input") }), sse: true, desc: "域名前世，返回 SSE 流" },
   referring: { tool: "referring", path: "/referring/api/summary", method: "GET", desc: "Stripe 引荐流量榜（不计配额）" },
+  /**
+   * SEO Agent：站内十余个工具的对话入口，会自行调用它们查真实数据再给结论。
+   *
+   * **和其余工具不同，它强制要求登录**：匿名调用返回
+   * `401 {"code":"login"}`，而不是像别的工具那样先放行再扣访客配额。
+   * 所以这条命令必须提供 SEO_WEBCAFE_COOKIE，没有替代路径。
+   */
+  chat: {
+    tool: "chat",
+    path: "/chat/api/chat",
+    body: (a) => ({
+      messages: [{ role: "user", content: req(a.ask, "--ask") }],
+    }),
+    needsLogin: true,
+    /**
+     * **返回的是 SSE 流，不是 JSON。** `content-type: text/event-stream`，
+     * 直接 JSON.parse 会失败并静默得到 null —— 脚本看起来"成功"但内容是空的，
+     * 这是最坏的一种失败，因为不报错。
+     *
+     * 实测事件结构（2026-08-09，登录 VIP 会话）：
+     *   event: session  data: {sessionId, created, title}
+     *   event: delta    data: {text}                        逐块正文，要按序拼接
+     *   event: done     data: {toolCalls, rounds, charged, sessionId}
+     *
+     * `done` 里的 toolCalls / rounds / charged 必须报出来：不知道它调了哪些
+     * 站内工具就拿到结论，等于把一个黑箱当权威。
+     */
+    chatSse: true,
+    desc: "SEO Agent 对话（**必须登录**，匿名 401；返回 SSE 流）",
+  },
 };
 
 /** 纯客户端工具，没有后端，别去探。 */
@@ -89,7 +126,7 @@ function cookie() {
 }
 function authHeaders() {
   const c = cookie();
-  return c ? { cookie: c } : {};
+  return c ? { "user-agent": UA, cookie: c } : { "user-agent": UA };
 }
 
 /** 抓工具页 HTML，自助取该工具的令牌与请求头名。这一步不消耗查询配额。 */
@@ -117,12 +154,23 @@ async function callOfficial(spec, a) {
   const t = process.env.SEO_WEBCAFE_TOKEN;
   if (!t) die("缺少环境变量 SEO_WEBCAFE_TOKEN（wc_mcp_ 开头，在 /kd/docs 自助生成）。");
   const qs = new URLSearchParams(spec.query(a)).toString();
-  const r = await fetch(`${BASE}${spec.path}?${qs}`, { headers: { Authorization: `Bearer ${t}` } });
+  const r = await fetch(`${BASE}${spec.path}?${qs}`, {
+    headers: { Authorization: `Bearer ${t}`, "user-agent": UA },
+  });
   const txt = await r.text();
   return { status: r.status, data: safeJson(txt), raw: txt };
 }
 
 async function callSession(spec, a) {
+  if (spec.needsLogin && !cookie()) {
+    die(
+      "这条命令必须登录，匿名会被服务端拒绝（401 code=login）。\n" +
+        "其余工具匿名可用，只有 SEO Agent 例外。\n" +
+        "登录 https://seo.web.cafe 后从开发者工具复制整个 Cookie 请求头，然后\n" +
+        "  export SEO_WEBCAFE_COOKIE='...'\n" +
+        "本脚本不会代替你登录。"
+    );
+  }
   const auth = await toolAuth(spec.tool);
   const method = spec.method || "POST";
   const opt = { method, headers: { ...auth, ...authHeaders() } };
@@ -132,6 +180,7 @@ async function callSession(spec, a) {
   }
   const r = await fetch(`${BASE}${spec.path}`, opt);
   const txt = await r.text();
+  if (spec.chatSse) return { status: r.status, data: parseChatSse(txt), raw: txt };
   if (spec.sse) return { status: r.status, data: { text: parseSse(txt) }, raw: txt };
   return { status: r.status, data: safeJson(txt), raw: txt };
 }
@@ -147,6 +196,39 @@ function parseSse(t) {
     .filter((l) => l.startsWith("data:"))
     .map((l) => { try { return JSON.parse(l.slice(5).trim()).text ?? ""; } catch { return ""; } })
     .join("");
+}
+
+/**
+ * 解析 SEO Agent 的 SSE 流。
+ *
+ * 与 `parseSse` 分开写，因为这条流有多种事件类型且尾部的 `done` 带元数据。
+ * **拼不出正文时必须报错而不是返回空串** —— 静默的空结果会被当成"这个站没问题"。
+ */
+function parseChatSse(raw) {
+  const out = { text: "", sessionId: null, title: null, toolCalls: null, rounds: null, charged: null };
+  let sawEvent = false;
+  for (const block of raw.split(/\n\n/)) {
+    const ev = (block.match(/^event:\s*(\S+)/m) || [])[1];
+    const dm = block.match(/^data:\s*(.+)$/m);
+    if (!ev || !dm) continue;
+    sawEvent = true;
+    let d;
+    try { d = JSON.parse(dm[1]); } catch { continue; }
+    if (ev === "delta" && typeof d.text === "string") out.text += d.text;
+    else if (ev === "session") { out.sessionId = d.sessionId ?? out.sessionId; out.title = d.title ?? out.title; }
+    else if (ev === "done") {
+      out.toolCalls = d.toolCalls ?? null;
+      out.rounds = d.rounds ?? null;
+      out.charged = d.charged ?? null;
+      out.sessionId = d.sessionId ?? out.sessionId;
+    } else if (ev === "error") out.error = d.error ?? d.message ?? JSON.stringify(d);
+  }
+  if (!sawEvent) {
+    out.error = "响应里没有任何 SSE 事件。多半是站点改了返回格式，或者请求根本没走到 Agent。";
+  } else if (!out.text && !out.error) {
+    out.error = "SSE 事件解析到了，但一个 delta 都没有，正文为空。不要把这当作\"没问题\"。";
+  }
+  return out;
 }
 
 /** 零配额普查：抓每个工具页 HTML，抽出它引用的全部 api 路径。 */
@@ -174,6 +256,11 @@ function summarize(name, data) {
   if (name === "audit") return `得分 ${data.score} ${data.grade} · 失败项 ${(data.categories || []).flatMap((c) => c.checks).filter((c) => c.status === "fail").length}`;
   if (name === "backlink") return `${data.domain} · 质量 ${data.quality?.score ?? "—"}/${data.quality?.level ?? "—"} · 判定 ${data.verdict?.label ?? data.verdict?.text ?? JSON.stringify(data.verdict ?? "—").slice(0, 60)}`;
   if (name === "serp") return `top${(data.results || []).length} · KD ${data.kd ?? "—"}`;
+  if (name === "chat") {
+    if (data.error) return `解析失败：${data.error}`;
+    const tc = Array.isArray(data.toolCalls) ? data.toolCalls.join(",") : (data.toolCalls ?? "—");
+    return `${data.text.length} 字 · 调用工具 [${tc}] · ${data.rounds ?? "—"} 轮 · 扣 ${data.charged ?? "—"} 积分`;
+  }
   if (data.error) return `错误 ${data.code}：${data.error}`;
   return Object.keys(data).slice(0, 8).join(", ");
 }
@@ -203,7 +290,11 @@ ${Object.entries(TOOLS).map(([k, v]) => `  ${k.padEnd(11)} ${v.desc}`).join("\n"
                       要提额就登录后从开发者工具复制整个 Cookie 请求头。脚本不代你登录。
   SEO_WEBCAFE_TOKEN   仅 kd 命令使用的 wc_mcp_ 公开 API 令牌，在 /kd/docs 自助生成。
 
+chat 命令示例:
+  node seo-webcafe.mjs chat --ask "帮我看看 https://example.com 这个站还有哪些 SEO 问题"
+
 配额：访客 10/日、登录 100/日、VIP 500/日，三端共用；另有每分钟 10 次保险丝。
+**chat 强制登录**，匿名 401；其余命令匿名可用。
 /referring/* 不计入配额。7 天内重复查询命中缓存但仍计数。`;
 
 async function main() {
