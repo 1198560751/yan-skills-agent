@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也在用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引或网站增长时使用。
 metadata:
-  version: "2.15.0"
+  version: "2.16.0"
 ---
 
 # Rankup 2.0
