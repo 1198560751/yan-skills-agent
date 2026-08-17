@@ -24,6 +24,44 @@ Everything else tested to date **failed** a gate — the per-platform detail is 
 "Verified platform notes" further down, and the failures are worth reading
 before you re-test one of them.
 
+### Reject by family, not by instance
+
+Four whole classes are settled. Testing another member of any of them is wasted
+time — a campaign that tested 20 candidates and published **zero** spent most of
+its effort re-discovering these.
+
+- **Etherpad and its mirrors** — the pad page ships
+  `<meta name="robots" content="noindex, nofollow">`. Verified on three
+  independent instances including one run by a major foundation, so this is the
+  upstream default template, not one operator's policy. **Test the pad URL
+  (`/p/<name>`), not the homepage** — the homepage carries no robots tag at all,
+  so checking it produces a false pass.
+- **Encrypted paste tools** (PrivateBin, ZeroBin, 0bin and relatives) — rejected
+  by *architecture*, not policy: the decryption key lives in the URL fragment and
+  never reaches the server, so no crawler can read the content no matter what
+  `rel` or `robots` say. Skip the entire class.
+- **Code-paste engines** (pastebin.com, dpaste.com, ideone.com, distro-run
+  pastebins) — the paste body renders inside `<pre>` with syntax highlighting
+  and URLs are **not** auto-linked. Gate 1, every time. They are also a poor
+  content fit: prose in a code box looks like what it is.
+- **Demo instances of self-hosted software** — `noindex` and/or scheduled
+  wipes. Already noted below; it keeps recurring, so treat "demo." in the
+  hostname as a rejection on sight.
+
+### Liveness first: this genre dies faster than it changes
+
+Anonymous paste hosts attract the worst abuse on the internet, and operators
+increasingly respond by **shutting down rather than moderating**. Two candidates
+that were plausible on paper were found fully offline — one after a CSAM
+incident, one disabled by its registrar over malware hosting.
+
+Equally, several platforms famous for open anonymous access have quietly closed
+it: anonymous gist creation was removed, one wiki farm now gates both creation
+and editing behind an account, a landmark early wiki has been frozen for over a
+decade, and a well-known code playground offers no anonymous save. **The "the old
+internet was more open" instinct is stale.** Check liveness and current
+anonymous-access status before anything else; it is the cheapest gate of all.
+
 ### Maintenance obligation
 
 This registry only stays valuable if every campaign feeds it. After any
@@ -187,6 +225,16 @@ arrival. This is the payoff for checking the cheap gates first.
 - **A microblog platform with a public feed** — reads as anonymous, but posting
   is gated behind Join.
 - **txti.es** — retired; the site says so on its homepage.
+- **A plain shared-textarea notepad** — `noindex, nofollow` site-wide, and the
+  content is a raw textarea value rather than rendered prose.
+- **A hosted paste service behind a consultancy's domain** — saving raises a
+  blocking full-site Terms & Conditions modal that a human must accept. Out of
+  scope to click on someone's behalf; and its paste rendering would have failed
+  gate 1 anyway.
+
+Whole families rejected in one go — Etherpad mirrors, encrypted pastes, code-paste
+engines, demo instances — are covered under "Reject by family" above rather than
+listed instance by instance.
 
 ### The listicles are not a shortcut
 
@@ -197,9 +245,16 @@ that plainly require registration are described as not requiring it. Treat these
 articles as a source of *names to test*, never as findings. Every claim about a
 platform in this file was observed in a live DOM.
 
-Budget accordingly: across the platforms tested here, roughly **one in fifteen**
-cleared all five gates. That ratio is the realistic planning number, and it is
-why the cheap gates matter so much.
+Budget accordingly, and budget pessimistically. Across everything tested to
+date the rate is **worse than one in fifteen**: a later campaign tested twenty
+fresh candidates and published **zero**. Assume a sweep produces nothing, and
+treat the three registry rows as the durable asset rather than expecting the
+list to keep growing.
+
+The corollary is that **a well-documented rejection is close to as valuable as a
+success** — it is what stops the next campaign paying the same cost. Record the
+gate each candidate failed, and promote it to a family-level rule the moment two
+members of a class fail the same way.
 
 ## Editor APIs beat native setters
 
