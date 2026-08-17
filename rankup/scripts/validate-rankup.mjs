@@ -100,28 +100,49 @@ const leakScanExcludes = new Set([
   // 但**唯一**的依据是下面 assertRegistryUntracked 证明它绝不会进 git;
   // 那条断言若被删掉,这一行豁免立刻变成一个泄漏口子。
   "registry.md",
+  // `.env` 按定义就是真实令牌本身。豁免它参与扫描的**唯一**依据同样是
+  // assertRegistryUntracked 证明它绝不进 git。
+  ".env",
 ]);
 
-// .gitignore 只是约定,一个 `git add -f` 就能绕过。把"名单绝不被追踪"变成断言。
+// .gitignore 只是约定,一个 `git add -f` 就能绕过。把"绝不被追踪"变成断言。
 // 非 git 环境(已安装副本)下无从判断,跳过而不是误报。
+//
+// 两个文件走同一条防线,但泄漏的是不同东西:
+//   registry.md — 项目名与绝对路径
+//   .env        — 第三方工具账号的真实令牌(SKILL.md「令牌统一放 .env」那一节)
+// 后者一旦提交,令牌就进了公开仓库的历史,改密码都追不回来。
+const MUST_STAY_UNTRACKED = [
+  {
+    file: "registry.md",
+    why: "它含项目名与绝对路径",
+  },
+  {
+    file: ".env",
+    why: "它含第三方工具账号的真实令牌",
+  },
+];
+
 async function assertRegistryUntracked(errors) {
   try {
     await execFileAsync("git", ["-C", skillRoot, "rev-parse", "--git-dir"]);
   } catch {
     return;
   }
-  const { stdout } = await execFileAsync("git", [
-    "-C",
-    skillRoot,
-    "ls-files",
-    "--",
-    "registry.md",
-  ]);
-  if (stdout.trim().length > 0) {
-    errors.push(
-      "registry.md 已被 git 追踪 — 它含项目名与绝对路径,绝不能提交;" +
-        "执行 git rm --cached rankup/registry.md 并确认 rankup/.gitignore 生效",
-    );
+  for (const { file, why } of MUST_STAY_UNTRACKED) {
+    const { stdout } = await execFileAsync("git", [
+      "-C",
+      skillRoot,
+      "ls-files",
+      "--",
+      file,
+    ]);
+    if (stdout.trim().length > 0) {
+      errors.push(
+        `${file} 已被 git 追踪 — ${why},绝不能提交;` +
+          `执行 git rm --cached rankup/${file} 并确认 rankup/.gitignore 生效`,
+      );
+    }
   }
 }
 
