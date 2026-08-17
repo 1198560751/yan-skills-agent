@@ -142,6 +142,41 @@ dispatch `change` and `input`. This avoids the native file chooser entirely.
 Character counters and `maxlength` silently truncate or reject. One 300-character
 description failed a 255-character field with no visible error.
 
+### Validate the *shape* of a probe result, not one field of it
+
+A qualification pass over N targets returned "candidate" for 69 of 70. The
+number was suspiciously good, and it was: 68 of those probes had returned
+
+```json
+{"error": {"code": "attach_failed", "message": "..."}}
+```
+
+— valid JSON, but with none of the probe's fields. The classifier read
+`if (p.fieldCount === 0) return 'no-form'`, and `undefined === 0` is false, so
+every failed probe fell through to the final `return 'candidate'`. The output
+was a clean, plausible, entirely fictional qualification table.
+
+**Write the check as "are all expected keys present", never as "does this field
+equal a sentinel value".** The second form silently assumes the field exists,
+and the failure path is precisely the case where it doesn't:
+
+```js
+const REQUIRED = ['url', 'title', 'captcha', 'fieldCount']
+const wellFormed = p => !!p && REQUIRED.every(k => k in p)
+```
+
+Then give every batch script a **failure-rate gate**: if more than ~20% of a run
+came back malformed, exit non-zero and refuse to hand over the results. Without
+it, a broken session produces a table that downstream steps consume as fact.
+
+### A result that is much better than the historical rate is a measurement bug
+
+Both of the above were caught by the same instinct rather than by the code: the
+pass rate did not match what this kind of work has ever produced. When a batch
+suddenly reports an unusually high success rate, suspect the measurement before
+celebrating. Re-running a fixed version against a small sample and confirming
+the distribution matches history is a cheap check and worth doing every time.
+
 ## Never run two agents against one browser session
 
 If a subagent is driving a browser session, **do not drive the same session

@@ -285,6 +285,15 @@ give false negatives, how reciprocal-badge flows are inherently two-pass, the
 browser-automation traps, and what to expect from mining a competitor's
 backlinks.
 
+When the ask is "somewhere I can post without registering", read
+[instant-publish.md](references/instant-publish.md) **first**. Directory
+submission does not satisfy that request and burning a campaign discovering this
+is the common failure. That reference carries the rule for telling the two
+classes apart, per-platform verified behaviour including which ones emit no
+anchor at all, the editor-API traps that make a filled form submit empty, and
+why campaign results must be reported by observed `rel` rather than by
+"published successfully".
+
 ## Output contract
 
 Report:
