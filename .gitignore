@@ -1,2 +1,6 @@
 __pycache__/
 *.py[cod]
+
+# 令牌只放各 Skill 根目录的 .env，绝不入库（rankup 的 validate 会断言这一点）
+.env
+*/.env

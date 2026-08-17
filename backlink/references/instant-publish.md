@@ -4,6 +4,42 @@ The recurring request is "find me places that take a link without an account".
 Directory submission almost never satisfies it. This reference is the class that
 does, plus the verified behaviour of each platform tested so far.
 
+## The registry: platforms verified to publish
+
+**This table is the asset. Start here, publish first, hunt second.** Every row
+was observed in a live DOM, not inferred. Re-verify before a campaign — these
+services change silently — but do not re-discover them from scratch.
+
+| Platform | Account? | Anchor | `robots` | `rel` | How to publish |
+|---|---|---|---|---|---|
+| **telegra.ph** (`graph.org` mirror) | none | yes | `index, follow` | **dofollow** | Pure HTTP API, no browser. `createAccount` → `createPage` |
+| **write.as** | none | yes | none present → indexable | nofollow | Browser, plain textarea |
+| **rentry.co** | none | yes | **`noindex`** | dofollow | Browser, CodeMirror `.setValue()` |
+
+Value order follows the gates below: telegra.ph is the only one clearing all of
+them, write.as is a real indexable mention, rentry.co is a stable shareable page
+whose `noindex` cancels most ranking value.
+
+Everything else tested to date **failed** a gate — the per-platform detail is in
+"Verified platform notes" further down, and the failures are worth reading
+before you re-test one of them.
+
+### Maintenance obligation
+
+This registry only stays valuable if every campaign feeds it. After any
+publishing round, **before reporting results**:
+
+1. **Add every newly verified platform as a row here**, with all five columns
+   filled from live observation. A platform tested and rejected goes into the
+   rejection list below with the gate it failed — a rejection you can cite is
+   worth almost as much as a success, because it stops the next campaign from
+   re-testing it.
+2. **Correct rows that turned out wrong.** Revise the row; never leave two
+   conflicting claims side by side.
+3. **Keep the published URLs out of this file.** Those are per-site records and
+   belong in that project's ledger. What generalises is the *channel*, not the
+   page you put on it.
+
 ## The rule that finds them
 
 Before hunting, ask one question about a candidate site:
