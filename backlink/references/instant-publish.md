@@ -15,7 +15,7 @@ services change silently — but do not re-discover them from scratch.
 | **telegra.ph** (`graph.org` mirror) | none | yes | `index, follow` | **body `nofollow`; byline dofollow** | Pure HTTP API, no browser. `createAccount` → `createPage`, **POST not GET** |
 | **write.as** | none | yes | none present → indexable | nofollow | Browser, plain textarea |
 | **rentry.co** | none | yes | **`noindex`** | dofollow | Browser, CodeMirror `.setValue()` |
-| **Atabook-powered guestbooks** (one engine, many host sites) | none | yes | **`noindex, nofollow`** | `ugc` | Browser. Rich-text editor's Link button emits a real server-rendered `<a>` |
+| **Atabook-powered guestbooks** (one engine, many host sites) | none | yes | **per board** — several verified with no robots meta at all (indexable); others `noindex, nofollow` | `noopener noreferrer ugc` | Browser required (Turnstile). Put the link in the message body as `[URL=…]text[/URL]` — no need to drive the editor |
 | **Self-hosted blog comment forms** (plain anti-spam plugin, no hosted-platform widget) | none | yes | varies by host | `nofollow ugc` | Browser. Expect moderation — see field-notes |
 
 **All three are publish targets. There is no shortlist here — use every row.**
@@ -92,6 +92,39 @@ in bulk rather than one at a time:
   visitor, so an active guestbook is itself a directory of other guestbook
   owners. Discovery compounds; also check the host platform's tag or category
   browse pages.
+
+**The engine decides how to post; the board owner decides whether you can.**
+This qualifier matters more than it sounds, because it is tempting to verify one
+board and treat the whole engine as settled. On the engine measured here, each
+owner independently controls:
+
+- **An anti-bot question** (`question-<id>` field). It is posed to humans, so
+  skip those boards rather than answering — 2 of 7 had one.
+- **The `robots` tag.** Several boards carry no robots meta at all and are
+  therefore indexable; another on the same engine served `noindex, nofollow`.
+  A single-board sample produced exactly the wrong generalisation here.
+
+So probe per board and branch on the result; only the *mechanics* generalise.
+
+Mechanics worth knowing for this class:
+
+- The link goes in the **message body as BBCode** (`[URL=…]text[/URL]`), which
+  the server renders into a real anchor. You do not need to drive the rich-text
+  editor's Link button — writing the BBCode straight into the textarea produces
+  identical output.
+- **A hidden field with a name like a password, `tabindex="-1"` and autocomplete
+  off is a honeypot.** Never fill it.
+- **The bot check is instantiated on submit, not on load.** Before you click,
+  there is no challenge widget, no iframe, and no response field anywhere in the
+  DOM. Code that waits for a token *before* submitting therefore times out every
+  time and reports "blocked" — when in fact nothing was ever asked. Click
+  submit first, then observe what appears. If an interactive challenge shows up,
+  stop and record a rejection; a passive check that clears itself in an ordinary
+  browser needs no action.
+- A plain HTTP POST to these forms returns **200 and silently does nothing** —
+  no error, page renders normally, nothing saved. Anything gated by a passive
+  bot check must go through a real browser, and the verification step is what
+  catches this, not the response code.
 
 Two cautions learned the hard way:
 
