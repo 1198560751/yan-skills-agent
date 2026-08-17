@@ -177,6 +177,61 @@ suddenly reports an unusually high success rate, suspect the measurement before
 celebrating. Re-running a fixed version against a small sample and confirming
 the distribution matches history is a cheap check and worth doing every time.
 
+## Blog comments: the submitting session is the worst place to verify
+
+Comment forms are the most available no-registration channel there is, and the
+verification trap is severe enough to invalidate a whole campaign report.
+
+- **Seeing your own link after submitting proves nothing.** The common blog
+  engine redirects to `?unapproved=<id>&moderation-hash=<hash>#comment-<id>`,
+  and that page renders the pending comment **to its author only**. Worse, the
+  submission sets an author cookie, so the *same browser session* keeps showing
+  the pending comment on the clean URL afterwards. A verifier that just asks
+  "is my link on the page?" reports `published` for something no crawler and no
+  reader can see. Observed doing exactly this.
+- **Judge by the landed URL first**: `unapproved=` or `moderation-hash` in the
+  query string means moderation, full stop, regardless of what renders.
+- **Confirm public visibility through a channel that has none of your cookies**
+  — a reader proxy, a different machine, or a fresh anonymous context. Anything
+  else is measuring your own session.
+- Guest comment links come back as `rel="nofollow ugc"` or `"ugc external
+  nofollow"` on the main engine's default. Publish anyway; just log it.
+
+Two architectural blockers decide most of the target list before any of that:
+
+- **The hosted-blog platform's comment widget is a cross-origin iframe.** It is
+  invisible to `document.forms` and to frame enumeration, so form-probing tools
+  report "no comment form" on posts that plainly have one. Roughly half of a
+  49-post sweep died here.
+- **The big hosted-WordPress commenting system** leaves only hidden fields plus
+  an anti-spam honeypot in the classic markup; the real UI is rendered by script
+  elsewhere. It failed 6 of 6 tested.
+
+Self-hosted installs with a plain anti-spam plugin are the class that actually
+works. Searching with both hosted platforms excluded is therefore the productive
+footprint — filtering them out afterwards wastes most of the sweep.
+
+## `form.elements[name]` may hand you a collection, not an element
+
+When more than one field shares a name — which anti-spam honeypots deliberately
+arrange — `form.elements[name]` returns a node list. Setting `.value` on it
+throws nothing, changes nothing, and the form submits empty. This is the same
+failure signature as the rich-editor trap: **the field reads back fine and
+submits blank.**
+
+Resolve fields with `querySelectorAll('[name="x"]')` and pick the one that is
+actually visible (non-zero box), which also skips the honeypot — filling a
+honeypot is self-identifying as a bot. Then **assert the body field is non-empty
+before submitting**: posting an empty comment burns the target and leaves litter
+on someone's site.
+
+## Poll for the element, never sleep a fixed interval
+
+An ad-heavy blog can take well over ten seconds to attach its comment form. A
+fixed delay that expires early produces a null result that reads exactly like
+"this page has no form" — a false negative that silently shrinks the target
+list. Poll for the specific thing you need, with a bounded retry count.
+
 ## Never run two agents against one browser session
 
 If a subagent is driving a browser session, **do not drive the same session
