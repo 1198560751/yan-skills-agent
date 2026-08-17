@@ -21,11 +21,30 @@ first category. Search the second.
 
 ## What actually matters, in order
 
-Five gates. A platform has to clear **all five**, and they fail in this order of
-frequency, so check them in this order. Gates 0 and 3 are both readable before
-you write a single word of content, which makes them the cheapest way to reject
-a platform — check them first and you will throw most candidates out in under a
-minute each.
+Two of these gates are hard fails and three are a value ranking. Keeping them
+separate matters, because collapsing them throws away usable targets.
+
+**Hard fail — the link does not exist or does not reach you:**
+gate 0 (page expires), gate 1 (no anchor rendered), gate 2 (not publicly
+readable), and link rewriting (a monetised redirect points at the redirector,
+not at you). Nothing recovers these.
+
+**Ranking, not rejection:** gate 3 (`robots`) and gate 4 (`rel`).
+
+- **`nofollow` is worth publishing to.** Since 2019 the major engine treats it
+  as a hint rather than a directive, and it still carries referral traffic and
+  profile diversity. Record the `rel` honestly and publish anyway; do not
+  discard a target for this alone. A practitioner-side rule of thumb worth
+  respecting: if it is a real link on a real page, it counts.
+- **`noindex` is a bigger discount than `nofollow`, and they are not the same
+  thing.** `nofollow` weakens what one link passes; `noindex` keeps the *hosting
+  page* out of the index entirely, so there is far less for a crawler to
+  attribute. A bare `noindex` still defaults to `follow`, so the link is
+  crawlable — non-zero, but rank the target well below an indexable one.
+
+Check the gates in the order below: they fail in that order of frequency, and
+gates 0 and 3 are readable before you write a single word of content, so
+checking those first throws most candidates out in under a minute each.
 
 0. **Does the page persist?** Several paste hosts cap free retention at days or
    weeks and sell permanence as the paid tier. An expiring page is not a
