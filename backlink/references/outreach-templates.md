@@ -1,5 +1,9 @@
 # Outreach Templates
 
+> 本文来自 `aaron-he-zhu/seo-geo-claude-skills`（Apache-2.0），原属独立的
+> `backlink-analyzer` Skill，2026-08-16 并入 `backlink`。许可证副本见
+> `LICENSE-analysis-templates-Apache-2.0`。
+
 Copy-start templates for link building. Personalize every email, lead with the recipient's value, keep the first note to 100-150 words, make one clear ask, use a real domain email, and never attach files in the first email.
 
 ## Operating Rules

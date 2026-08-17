@@ -17,6 +17,7 @@ const requiredReferences = [
   "integrations.md",
   "seo-growth.md",
   "evolution.md",
+  "trends.md",
 ];
 
 const requiredContent = {
@@ -55,7 +56,6 @@ const requiredContent = {
     "npx skills add vercel-labs/skills --skill find-skills -g -y",
     "npx skills add yan-labs/yan-skills -g --all",
     "npx skills add yan-labs/yan-skills --skill backlink -g -y",
-    "npx skills add yan-labs/yan-skills --skill backlink-analyzer -g -y",
   ],
   "references/evolution.md": [
     "失败分类",

@@ -33,7 +33,7 @@
       "expected_output": "Performs profile analysis inside the single backlink Skill, distinguishes observed fields from third-party estimates, prioritizes opportunities, and makes no destructive or external changes.",
       "files": [],
       "assertions": [
-        "Does not call backlink-analyzer as a second maintained workflow.",
+        "Does not propose splitting analysis back out into a second maintained Skill.",
         "Analyzes referring-domain relevance, toxic patterns, anchors, targets, and competitor gaps.",
         "Treats authority and traffic estimates as directional and time-sensitive.",
         "Does not disavow links or contact site owners."

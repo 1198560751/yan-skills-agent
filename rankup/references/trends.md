@@ -1,27 +1,13 @@
----
-name: gt
-description: Google Trends 查询 + 关键词难度估算 + SEO 选词工作流引擎。五个基础查询：关键词热度对比曲线、地区热度分布、相关飙升查询、每日热搜榜、关键词难度与 SERP 盘面分析（哥飞版 KD）。三套工作流：小语种/小国市场竞争力探测、模糊关键词多角度扩词并收敛成可做站的 SEO 词、新兴趋势捕捉。用户提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、关键词趋势、trending、"XX 和 YY 哪个更火"、"XX 搜索量怎么样"、"今天美国/日本在搜什么"、"这个词能不能做站"、"哪个市场/国家有机会"、"帮我选 SEO 关键词"、"这个方向值不值得做"、选词、选品调研、市场探测、关键词难度、KD、难度、竞争度、SERP 分析、"这个词难不难做"、"能不能排上去"、"做这个词要多少外链" 时使用本 skill。即使用户只说 /gt 或只给了一个模糊的产品词/方向，也应触发。不要自己手写 pytrends 代码或直接调 opencli——本 skill 的脚本已处理好 venv、urllib3 兼容性和路由。
----
 
-# gt — Google Trends 查询 + 关键词难度估算 + SEO 选词工作流
+# 趋势查询、关键词难度与选词工作流
 
-三层能力：**基础查询**（五个子命令）、**工作流**（把查询串成决策）、**KD 难度估算**（竞争侧收口）。
+> 本文原为独立的 `gt` Skill，2026-08-16 并入 `rankup`。
+> 两层能力：**基础查询**（趋势四个子命令 + KD）和**工作流**（把查询串成选词决策）。
+> 用户问单点问题走基础查询；用户给的是模糊方向、要选词选市场时，走工作流。
 
-## 安装与更新
-
-来源：[Skills.sh](https://skills.sh/yan-labs/yan-skills)
-
-```bash
-# 首次全局安装，或更新失败时重新安装
-npx skills add yan-labs/yan-skills --skill gt -g -y
-
-# 将已安装的全局 Skill 更新到最新版
-npx skills update gt -g -y
-```
-
-若使用项目级安装，去掉安装命令中的 `-g`；项目级更新使用 `npx skills update gt -p -y`。
-
-两层能力：**基础查询**（四个子命令）和**工作流**（把查询串成决策）。用户问单点问题走基础查询；用户给的是模糊方向、要选词选市场时，走工作流。
+**触发面注意**：合并前 `gt` 有自己的触发词（谷歌趋势、热搜、"这两个词哪个火"）。
+现在这些请求要经由 `rankup` 才能到达本文，`rankup` 的 description 已补上这批词。
+纯查热度、跟建站无关的问题也照样加载 `rankup` 再读这一篇。
 
 ## 核心概念
 
@@ -39,11 +25,11 @@ npx skills update gt -g -y
 | 地区分布 / "哪个国家搜得多" | `region` | pytrends |
 | 相关词 / 飙升查询 / "大家搜 XX 时还搜什么" | `related` | pytrends |
 | 今日热搜 / "美国现在在搜什么" | `hot` | opencli |
-| 关键词难度 / SERP 盘面 / "这个词能排上去吗" | `kd` | Web.Cafe KD API |
+| 关键词难度 / SERP 盘面 / "这个词能排上去吗" | `seo-webcafe.mjs kd` | Web.Cafe KD API |
 
 ### Trends 查询（compare / region / related / hot）
 
-脚本位于本 skill 目录下的 `scripts/gt.py`（以下示例用 `$GT` 代指，实际执行时替换为 skill 的 base directory + `/scripts/gt.py`）：
+脚本位于 `scripts/gt.py`（以下示例用 `$GT` 代指，实际执行时替换为本 Skill base directory + `/scripts/gt.py`）：
 
 ```bash
 python3 $GT <子命令> [关键词...] [选项]
@@ -67,24 +53,35 @@ python3 $GT hot --region JP --limit 10
 
 ### KD 难度估算
 
-脚本位于 `scripts/kd.py`（以下用 `$KD` 代指）：
+KD **不再有独立脚本**。合并时发现 `gt/scripts/kd.py` 与 `scripts/seo-webcafe.mjs`
+打的是同一个端点（`https://seo.web.cafe/kd/api/v1/kd`）、用的是同一种令牌
+（`wc_mcp_` 开头，`gt` 那边叫 `KD_TOKEN`，这边叫 `SEO_WEBCAFE_TOKEN`），
+只是两套实现、两个变量名。删掉重复的那份，KD 统一走：
 
 ```bash
-python3 $KD <keyword> [--gl US] [--force] [--format markdown|json|raw]
-
-# 默认输出：本地渲染的 markdown 报告
-python3 $KD "ai photo editor"
-python3 $KD "remove background" --gl JP
-
-# JSON 原始数据（适合程序化处理）
-python3 $KD "pdf to excel" --format json
-
-# API 原始 markdown（自包含报告，适合存档）
-python3 $KD "ai logo maker" --format raw
-
-# 跳过 7 天缓存强制重算
-python3 $KD "ai photo editor" --force
+node scripts/seo-webcafe.mjs kd --keyword "ai photo editor"
+node scripts/seo-webcafe.mjs kd --keyword "remove background" --gl JP
 ```
+
+令牌两种给法，`export SEO_WEBCAFE_TOKEN=...`，或写进本 Skill 目录的 `.env`
+（`KD_TOKEN=` 亦可，两个键名都认）。`.env` 兜底是合并时特意加的：
+`gt` 那边只要装一次 `.env` 就一直能用，若合并后只认环境变量，等于要求每次 export，
+是无声的体验倒退。
+
+> **⚠️ 2026-08-16 实测：从 `gt/.env` 带过来的那个令牌已失效。**
+> 直接用 `curl` 打同一个端点、同样的 `Authorization: Bearer` 头也是 401
+> （`code: auth`），所以**不是**合并导致的，也不是两套实现不兼容——
+> 就是令牌本身过期了。到 https://seo.web.cafe/kd/docs 重新生成后替换
+> `rankup/.env` 里的值即可。**在换掉之前，KD 这条路是不通的**，
+> 下面所有依赖 `kd` 的工作流步骤同样跑不了。
+
+用法与其余 seo.web.cafe 工具的差异见 [`seo-webcafe.md`](seo-webcafe.md)。
+
+原 `kd.py` 里只有一处是那边独有的算术，抄录在此，免得随脚本一起丢掉——
+**KDROI 的外链成本用阶梯定价**：前 10 条 $100/条，第 11–50 条每条在前一条基础上
++1%，第 51–200 条 +1.5%，第 200 条以后 +2%。KDROI 本身是
+`(日搜索量 × $0.1 × 365 / 外链成本 - 1) × 100%`，假设每次点击 $0.1 收入、
+且能拿到全部点击——**乐观估算，只用于横向对比选词，不是收入预测**。
 
 **KD 输出包含：**
 - **难度分** (0-100) + 中文等级（极易/容易/中等/困难/极难）
@@ -142,7 +139,7 @@ python3 $KD "ai photo editor" --force
 - **7 天缓存**：重复查同一词秒回但仍计额度；需强制重算用 `--force`。
 - **仅支持英文关键词**（API 分析的是 Google 英语 SERP）；查非英语市场用 `--gl` 切国家但词仍是英文。
 - **结果是选词参考，不是排名保证**。
-- 令牌存在脚本默认值中，也可通过 `--token` 或 `KD_TOKEN` 环境变量覆盖。令牌获取/重置: https://seo.web.cafe/kd
+- 令牌从环境变量或 `rankup/.env` 读，**脚本里没有任何默认令牌**（原 `gt/SKILL.md` 写「令牌存在脚本默认值中」是错的，实现从来不是这样）。令牌获取/重置: https://seo.web.cafe/kd
 
 ## 工作流
 
@@ -154,7 +151,7 @@ python3 $KD "ai photo editor" --force
 2. **趋势健康度**：对每个候选国 `compare <词> --geo <国> --time 5y` → 只留上升或平稳的市场，衰退的淘汰；顺便记录季节性。
 3. **语言决策**：同一国家内 `compare "本地语词" "英语词" --geo <国>` → 哪个赢就做哪种语言的内容。不要想当然——实测中印尼用户搜 "remove background"（英语）反而压过 "hapus background"（本地语）。
 4. **挖本地搜法**：`related <词> --geo <国>` → rising 词往往是当地真实长尾，回填候选词表。
-5. **竞争侧收口**：对幸存的候选词 `kd <词> --gl <国>` → 查难度分 + 搜索量 + SERP 盘面。重点看：
+5. **竞争侧收口**：对幸存的候选词 `seo-webcafe.mjs kd --keyword <词> --gl <国>` → 查难度分 + 搜索量 + SERP 盘面。重点看：
    - `score` < 40 且 `keywordVolume` > 1000 = 高价值蓝海
    - 有新站信号（< 18 个月新域名排进前十）= 赛道对新站友好
    - `linkBudget.quality.mid` 决定外链建设预算
@@ -178,7 +175,7 @@ python3 $KD "ai photo editor" --force
 
 **第三步：用 KD 验证难度（收敛竞争侧）。**
 
-对通过趋势筛选的词逐个 `kd <词>`（注意每分钟 ≤10 次限流，间隔 ≥6 秒）：
+对通过趋势筛选的词逐个 `seo-webcafe.mjs kd --keyword <词>`（注意每分钟 ≤10 次限流，间隔 ≥6 秒）：
 
 1. 淘汰 `score` > 70 且无新站信号的词（红海，个人站/小团队不碰）。
 2. 标注有新站信号的词（即使 score 偏高，新站已证明可入场）。
@@ -203,7 +200,7 @@ python3 $KD "ai photo editor" --force
 
 - `related` 的 **rising 列表是最强信号源**：+several-thousand-% 的词 = 正在起飞的需求。
 - 疑似新词 `compare <新词> <类目老词> --time 12m` → 判断是昙花一现还是持续爬坡（连续 3 个月以上抬升才算数）。
-- 对确认上升的词 `kd <词>` → 如果 `keywordTrend.ratio ≥ 1` 且 `score` < 50，这是最佳时机窗口。
+- 对确认上升的词 `seo-webcafe.mjs kd --keyword <词>` → 如果 `keywordTrend.ratio ≥ 1` 且 `score` < 50，这是最佳时机窗口。
 - `hot` 只用于时效性话题，不作为选词依据。
 
 ## 输出处理

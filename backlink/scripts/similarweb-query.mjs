@@ -25,6 +25,15 @@ if (!dashboardUrl) {
     'TOOLS_SHARE_DASHBOARD_URL is not set. Point it at your authorized third-party SEO dashboard before running this script.',
   );
 }
+// 面板点开之后跳转到的应用域名,同样属于账号配置,不随 Skill 分发。
+// 它与入口面板不是同一个 host,所以不能从 dashboardUrl 推导出来。
+const appOrigin = (process.env.TOOLS_SHARE_APP_ORIGIN || '').replace(/\/+$/, '');
+if (!appOrigin) {
+  throw new Error(
+    'TOOLS_SHARE_APP_ORIGIN is not set. Point it at the origin the dashboard launches into (e.g. https://app.example.com).',
+  );
+}
+const appHost = new URL(appOrigin).hostname;
 
 function normalizeDomain(value) {
   const candidate = value.includes('://') ? new URL(value).hostname : value.split('/')[0];
@@ -127,13 +136,13 @@ try {
   })()`);
   await poll(
     'the launched Similarweb application',
-    `location.hostname === 'sim.3ue.co' &&
+    `location.hostname === ${JSON.stringify(appHost)} &&
       document.body?.innerText?.includes('网站分析')`,
   );
 
   const reportUrl = report === 'similar-sites'
-    ? `https://sim.3ue.co/#/digitalsuite/websiteanalysis/overview/competitive-landscape/*/999/3m?key=${encodeURIComponent(domain)}`
-    : `https://sim.3ue.co/#/digitalsuite/websiteanalysis/overview/website-performance/*/999/28d?webSource=Total&key=${encodeURIComponent(domain)}`;
+    ? `${appOrigin}/#/digitalsuite/websiteanalysis/overview/competitive-landscape/*/999/3m?key=${encodeURIComponent(domain)}`
+    : `${appOrigin}/#/digitalsuite/websiteanalysis/overview/website-performance/*/999/28d?webSource=Total&key=${encodeURIComponent(domain)}`;
   await opencli(['browser', session, 'open', reportUrl], {
     env: { OPENCLI_WINDOW: windowMode },
     timeoutMs: 60_000,

@@ -26,7 +26,8 @@
  */
 
 import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const BASE = "https://seo.web.cafe";
 /**
@@ -150,9 +151,32 @@ async function toolAuth(tool) {
   return auth;
 }
 
+// gt 合并进来之前,KD 令牌是放在 Skill 目录的 .env 里的(键名 KD_TOKEN),
+// 只装一次就一直能用。合并后若只认环境变量,等于要求用户每次 export,
+// 是无声的体验倒退,所以这里保留 .env 兜底,两个键名都认。
+function officialToken() {
+  const fromEnv = process.env.SEO_WEBCAFE_TOKEN || process.env.KD_TOKEN;
+  if (fromEnv) return fromEnv.trim();
+  const envFile = join(dirname(dirname(fileURLToPath(import.meta.url))), ".env");
+  try {
+    for (const line of readFileSync(envFile, "utf8").split("\n")) {
+      const m = line.match(/^\s*(SEO_WEBCAFE_TOKEN|KD_TOKEN)\s*=\s*(.+?)\s*$/);
+      if (m) return m[2].replace(/^["']|["']$/g, "");
+    }
+  } catch {
+    /* 没有 .env 是正常情况,继续走下面的报错 */
+  }
+  return null;
+}
+
 async function callOfficial(spec, a) {
-  const t = process.env.SEO_WEBCAFE_TOKEN;
-  if (!t) die("缺少环境变量 SEO_WEBCAFE_TOKEN（wc_mcp_ 开头，在 /kd/docs 自助生成）。");
+  const t = officialToken();
+  if (!t) {
+    die(
+      "缺少 KD 令牌(wc_mcp_ 开头,在 https://seo.web.cafe/kd/docs 自助生成)。\n" +
+        "两种给法:export SEO_WEBCAFE_TOKEN=...,或写进本 Skill 目录的 .env(KD_TOKEN= 亦可)。",
+    );
+  }
   const qs = new URLSearchParams(spec.query(a)).toString();
   const r = await fetch(`${BASE}${spec.path}?${qs}`, {
     headers: { Authorization: `Bearer ${t}`, "user-agent": UA },

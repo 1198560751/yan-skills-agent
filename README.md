@@ -44,18 +44,6 @@ node scripts/link-skills.mjs --check
 
 ## Skills
 
-### [`gt`](gt/) — Google Trends 查询 + SEO 选词工作流
-
-四个基础查询：关键词热度对比曲线、地区热度分布、相关飙升查询、每日热搜榜。脚本自带 venv 自举，处理好了 pytrends 的 urllib3 兼容坑和限流提示。
-
-真正的价值在三套内置工作流：
-
-- **W1 小语种市场探测**：全球扫描 over-index 国家 → 趋势健康度筛选 → 本地语 vs 英语内容决策 → 挖当地真实搜法
-- **W2 模糊词 → 可做站的 SEO 词**：多角度扩词（痛点/对比/场景/问句）→ Google Trends 验证收敛 → 输出可执行决策表
-- **W3 新兴趋势捕捉**：rising 词雷达 + 新词 vs 类目老词对比，区分起飞和昙花一现
-
-依赖：python3（`hot` 子命令额外需要 [opencli](https://github.com/jackwener/opencli)，可选）。
-
 ### [`autopilot`](autopilot/) — 一句话到无人值守执行完毕
 
 接收一句模糊指令，自动调查、分类、拆解为阶段计划、选 skill、定完成判定，然后无人值守执行到底 —— 包括自动部署、自动 E2E 测试、自动代码 review，不跳过任何阶段。
@@ -70,6 +58,9 @@ node scripts/link-skills.mjs --check
 
 ### [`rankup`](rankup/) `2.7.0` — 网站全生命周期总控
 
+`gt`（Google Trends 查询 + 选词工作流）于 2026-08-16 并入本 Skill 并删除：四个趋势子命令（热度对比、地区分布、相关飙升、每日热搜）与三套工作流（小语种市场探测、模糊词收敛成可做站的词、新兴趋势捕捉）现在是 [`references/trends.md`](rankup/references/trends.md) 加 `scripts/gt.py`。合并时发现 `gt/scripts/kd.py` 与本 Skill 已有的 `scripts/seo-webcafe.mjs` 打的是同一个 KD 端点、用的是同一种 `wc_mcp_` 令牌，只是两套实现两个变量名，因此删掉重复的那份，KD 统一走 `seo-webcafe.mjs kd`。**代价照例说明**：`gt` 原本的触发面（谷歌趋势、热搜、"这两个词哪个火"）现在要经由 `rankup` 才能到达，description 已补上这批词。
+
+
 从机会调研、产品设计和 TanStack Start Monorepo 初始化开始，协调 Cloudflare Workers、D1、R2、Wrangler、Stripe、SEO、内容、外链、上线验证与长期迭代。已有网站也可以从当前阶段接入，不会强制重建。
 
 两个入口降低心智负担：`rankup init` 把新项目或已做很久但还没接入的项目一次性接进来（摸清现状 → 建 `.rankup/` → 补基线与体检 → 出计划）；`rankup review` 定期回顾（对账、合并重复经验、淘汰过时结论、把通用规则提炼回流、体检脚本新鲜度、刷新跨项目名单）。
@@ -78,33 +69,23 @@ node scripts/link-skills.mjs --check
 
 每个网站在仓库内使用 `.rankup/` 保存项目事实、架构、决策、基线、实验、发布和日志；密钥文件只记录名称、用途、环境和 Secret 系统位置，真实密钥永远不写入 Git。`skill.json` 与 `.rankup/skill-state.json` 用于记录发布版本、项目启用时间和自动更新状态。自我进化协议负责失败分类、证据分级、适应性重试和通用规则晋升。
 
-依赖：按任务安装 Wrangler、Cloudflare Workers、Stripe、GT、backlink 或其他专项 Skills。
+依赖：按任务安装 Wrangler、Cloudflare Workers、Stripe、backlink 或其他专项 Skills。
 
 ### [`backlink`](backlink/) — 外链发现、资格判定与证据化验证
 
 以 OpenCLI 复用已授权的浏览器会话，覆盖竞品外链发现、机会资格判定、递归评论者域名采集、安全填表与提交守卫、台账记录，以及「已提交 / 已上线 / follow 或 nofollow / 已收录」的逐级证据核验。目录宣传不等于可传递权重的外链，最终公开页必须核对 URL、重定向与 `rel`。
 
-依赖：Node.js 18+、OpenCLI 及使用者自己的授权数据源；第三方面板入口通过 `TOOLS_SHARE_DASHBOARD_URL` 提供，不随 Skill 分发。
+同时覆盖外链画像分析（质量评分、毒性判定、锚文本分布、竞品交集、外联模板）与登录态后台批量取数——这两块原是独立 Skill，见下。
 
-### [`backlink-analyzer`](backlink-analyzer/) — 外链质量、风险与竞争缺口分析
+依赖：Node.js 18+、OpenCLI 及使用者自己的授权数据源；第三方面板入口通过 `TOOLS_SHARE_DASHBOARD_URL` 与 `TOOLS_SHARE_APP_ORIGIN` 提供，不随 Skill 分发。
 
-分析 referring domains、链接质量、锚文本、毒性风险、竞品链接交集和外链建设机会，附带报告、评分与外联模板。
+### 已并入 `backlink` 的两个 Skill（2026-08-16）
 
-来源：[aaron-he-zhu/seo-geo-claude-skills](https://github.com/aaron-he-zhu/seo-geo-claude-skills)，Apache-2.0；许可证保留在 Skill 目录内。
+原先的 `backlink-analyzer` 与 `browser-harvest` 已合并进 `backlink` 并删除，从三个减到一个：
 
-### [`browser-harvest`](browser-harvest/) — 从登录态后台批量取数
-
-很多值钱的数据在 SaaS 后台里：没有 API，或者 API 单独收费，或者导出按行扣点数。本 Skill 解决"界面看得见、脚本拿不到"这段路，沉淀的是四个必踩的坑与它们的解法：
-
-- **虚拟滚动表格没有 `<table>`**：现代数据网格只渲染可视区、且常是列式 div。只能按坐标重建行；锚点必须选内容主列（用行号列实测 100 行漏 23 行），扫描必须限定在滚动容器内（全 document 扫一次 2s，改 TreeWalker 后 6ms）
-- **数据出不了页面沙箱**：返回值约 1KB 截断、剪贴板报 `Document is not focused` 还会卡死执行通道 —— `Blob + <a download>` 是唯一稳的高带宽出口
-- **执行通道超时 ≠ 任务失败**：超时的是传输，页面里还在跑。长循环一律 fire-and-forget + 轮询，误判重跑会产生重复文件
-- **后台标签不 mount 虚拟表格**：只发生在从未前台化过的新标签；渲染过一次之后即使在后台也能继续抓，但定时器节流约 2.4×
-
-外加一组"输出看着正常、数据其实错了"的守卫：文件名带日期与作用域（浏览器同名下载不覆盖而是另存，实测产生过两份内容不同的文件）、下载等齐再收拢（早一步复制会静默丢掉整个数据源）、合并按字段形态识别而非列号、去重时保留独有字段（实测这个 bug 让头号条目缩水两个数量级且毫无提示）。
-
-依赖：Node.js 18+、bash，以及一个能连接**用户真实浏览器**的工具通道（隔离的预览浏览器没有登录态）。后台入口、账号与登录态属于使用者，不随 Skill 分发。
+- **`backlink-analyzer`**（外链质量、毒性与竞争缺口分析）本身是一套纯提示词模板，没有脚本也没有浏览器通道——能描述外链画像，却拿不到画像。现为 `backlink/references/` 下的 `link-quality-rubric.md`、`analysis-templates.md`、`outreach-templates.md`，保留上游 [aaron-he-zhu/seo-geo-claude-skills](https://github.com/aaron-he-zhu/seo-geo-claude-skills) 的 Apache-2.0 许可证与归属。
+- **`browser-harvest`**（从登录态后台批量取数）现为 `backlink/references/harvest.md` 加三个 `scripts/harvest-*`。它沉淀的是四个必踩的坑——虚拟滚动表格没有 `<table>`、数据出不了页面沙箱、执行通道超时不等于任务失败、后台标签不 mount 且定时器会被密集节流——以及一组「输出看着正常、数据其实错了」的守卫。**注意合并的代价**：这套知识本身是通用的（广告平台、电商后台都适用），现在却挂在一个以外链命名的 Skill 下；做与外链无关的后台取数时，仍然加载 `backlink` 再读那一篇。
 
 ## License
 
-除另有标注的第三方 Skill 外，仓库内容采用 MIT License。`backlink-analyzer` 保留其上游 Apache-2.0 许可证与归属说明。
+除另有标注的第三方内容外，仓库内容采用 MIT License。`backlink/references/` 下三份分析模板来自上游 Apache-2.0 项目，许可证副本与归属说明保留在同目录的 `LICENSE-analysis-templates-Apache-2.0`。

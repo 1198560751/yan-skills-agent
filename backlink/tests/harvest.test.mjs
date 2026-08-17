@@ -22,7 +22,7 @@ const collectScript = path.join(skillRoot, "scripts", "harvest-collect.sh");
 const mergeScript = path.join(skillRoot, "scripts", "harvest-merge.mjs");
 
 async function withTempDir(run) {
-  const root = await mkdtemp(path.join(tmpdir(), "browser-harvest-test-"));
+  const root = await mkdtemp(path.join(tmpdir(), "backlink-harvest-test-"));
   try {
     return await run(root);
   } finally {
@@ -276,8 +276,8 @@ const projectLeakPatterns = [
 ];
 
 // 本文件按职责必须含上述模式的字面量(它就是守卫本体),扫描时排除。
-// 除此之外 browser-harvest/ 下任何文件都不得豁免。
-const leakScanExcludes = new Set(["tests/browser-harvest.test.mjs"]);
+// 除此之外 backlink/ 下任何文件都不得豁免。
+const leakScanExcludes = new Set(["tests/harvest.test.mjs"]);
 
 async function collectSkillFiles(directory = skillRoot) {
   const entries = await readdir(directory, { withFileTypes: true });

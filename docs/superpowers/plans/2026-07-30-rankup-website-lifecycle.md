@@ -4,6 +4,12 @@
 
 **Goal:** Release `rankup` `2.0.0` as a Cloudflare-first website lifecycle orchestrator with project memory, Skill dependency routing, and verifiable automatic update support.
 
+> **Update 2026-08-16 (this is a 2026-07-30 record; the body is left as written):**
+> `backlink-analyzer`, `browser-harvest`, and `gt` have been merged into `backlink`
+> and `rankup` respectively, and deleted. The dependency-routing conclusions still
+> hold; there are simply three fewer Skills carrying them. See `README.md` and each
+> `SKILL.md` for the current state.
+
 **Architecture:** Keep `rankup/SKILL.md` as the compact routing and safety entrypoint, and move detailed lifecycle, Cloudflare, project-memory, integrations, and existing SEO guidance into focused files under `rankup/references/`. Publish static version metadata in `rankup/skill.json`; use a dependency-free Node script to compare that manifest with GitHub, maintain `<project>/.rankup/skill-state.json`, and apply the native Skills CLI update command when requested.
 
 **Tech Stack:** Markdown Skill instructions, JSON manifests, Node.js ESM with built-in modules, Node test runner, Skills CLI, Wrangler, TanStack Start, Cloudflare Workers/D1/R2/KV/Queues/Workflows/Durable Objects.

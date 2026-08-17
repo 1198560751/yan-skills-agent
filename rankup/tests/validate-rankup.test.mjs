@@ -122,7 +122,7 @@ test("release validator requires the secret prohibition in SKILL.md", async () =
   });
 });
 
-test("release validator requires both individual backlink install commands", async () => {
+test("release validator requires the individual backlink install command", async () => {
   await withSkillCopy(async (skillRoot) => {
     const integrationPath = path.join(
       skillRoot,
@@ -133,7 +133,7 @@ test("release validator requires both individual backlink install commands", asy
     await writeFile(
       integrationPath,
       original.replace(
-        "npx skills add yan-labs/yan-skills --skill backlink-analyzer -g -y",
+        "npx skills add yan-labs/yan-skills --skill backlink -g -y",
         "npx skills add yan-labs/yan-skills -g --all",
       ),
     );

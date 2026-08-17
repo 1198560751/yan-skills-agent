@@ -13,14 +13,8 @@ npx skills add yan-labs/yan-skills -g --all
 # 更新全局安装的 rankup
 npx skills update rankup -g -y
 
-# 只安装外链执行 Skill
+# 外链执行、外链分析，以及登录态后台批量取数（三者已合并为一个 Skill）
 npx skills add yan-labs/yan-skills --skill backlink -g -y
-
-# 只安装外链分析 Skill
-npx skills add yan-labs/yan-skills --skill backlink-analyzer -g -y
-
-# 从登录态后台批量取数（虚拟滚动表格、Blob 出沙箱、下载查重与合并守卫）
-npx skills add yan-labs/yan-skills --skill browser-harvest -g -y
 
 # Cloudflare 资源、绑定、迁移、密钥和部署
 npx skills add cloudflare/skills --skill wrangler -g -y
@@ -44,8 +38,8 @@ npx skills add vercel-labs/skills --skill find-skills -g -y
 | Cloudflare 登录、资源查询、bindings、D1 migrations、R2、Worker Secrets、日志 tail、发布与回滚 | `wrangler` | 任何 Cloudflare 控制面或 CLI 操作 | `infrastructure.md`、`secrets.md` 元数据、`releases.md`、日志 |
 | Worker 代码、运行时 API、资源限制、性能、安全和代码审查 | `workers-best-practices` | 编写或审查 Worker、SSR 服务端和 bindings 使用方式 | `architecture.md`、`audit.md`、决策 |
 | 支付、订阅、Checkout、Billing、Webhook 或 Stripe 数据模型 | `stripe-best-practices` | 仅当支付或计费明确进入任务范围 | `integrations.md`、`secrets.md` 元数据、`releases.md` |
-| 趋势方向、关键词热度、区域或时间变化证据 | `gt` | 机会调研、内容选题和关键词复核 | `keywords.md`、`baseline.md`、实验 |
-| 外链盘点、质量评估、差距和风险 | `backlink-analyzer` | 任何外链执行之前，以及周期性复查时 | `audit.md`、`baseline.md`、计划 |
+| 趋势方向、关键词热度、区域或时间变化证据 | 本 Skill 的 [`trends.md`](trends.md) 加 `scripts/gt.py` | 机会调研、内容选题和关键词复核 | `keywords.md`、`baseline.md`、实验 |
+| 外链盘点、质量评估、差距和风险 | `backlink`（`references/link-quality-rubric.md`） | 任何外链执行之前，以及周期性复查时 | `audit.md`、`baseline.md`、计划 |
 | 已批准的外链获取、提交和结果验证 | `backlink` | 分析完成、目标和风险经用户确认后 | `plan.md`、日志、实验 |
 | 当前列表没有覆盖某项明确能力 | `find-skills` | 先描述能力缺口，再搜索候选 Skill | `decisions.md`、`integrations.md` |
 
@@ -77,8 +71,8 @@ npx skills add vercel-labs/skills --skill find-skills -g -y
 
 ## 趋势、SEO 与外链路由
 
-- 使用 `gt` 补充趋势证据，但不要把单一趋势曲线当作需求或排名结论。
-- 先用 `backlink-analyzer` 建立现状、质量、差距和风险证据。
+- 使用 [`trends.md`](trends.md) 的趋势查询补充证据，但不要把单一趋势曲线当作需求或排名结论。
+- 先用 `backlink` 的分析参考（`link-quality-rubric.md`、`analysis-templates.md`）建立现状、质量、差距和风险证据。
 - 只有目标已获批准时才使用 `backlink` 执行获取或提交；完成后验证链接是否存在、属性是否符合预期、页面是否可访问。
 - 将关键词、外链和结果证据分别写入对应项目文件，避免把一次观察提升为通用规律。
 
@@ -95,7 +89,7 @@ npx skills add vercel-labs/skills --skill find-skills -g -y
 ## 登录态后台批量取数
 
 适用于「没有 API / API 收费 / 导出扣点数」的场景：SEO 工具、广告后台、分析平台的表格。
-细节能力交给 `browser-harvest`，本节只记跨工具通用、且已验证的约束。
+细节能力交给 `backlink` 的 [`references/harvest.md`](../../backlink/references/harvest.md)，本节只记跨工具通用、且已验证的约束。
 
 落盘要求见 [`SKILL.md`](../SKILL.md) 的「导出物落盘 SOP（强制）」，那是硬性前置条件。
 

@@ -1,14 +1,29 @@
 ---
 name: backlink
-description: OpenCLI-first backlink discovery, profile analysis, opportunity qualification, safe browser-assisted form filling, and evidence-based verification. Use for backlinks, external links, competitor link research, blog-comment opportunities, directory submissions, Similarweb/Semrush/Ahrefs discovery, Search Console verification, anchor analysis, toxic-link review, or Chinese requests such as 反链、外链、找外链、发外链、评论外链.
+description: OpenCLI-first backlink discovery, profile analysis, opportunity qualification, safe browser-assisted form filling, evidence-based verification, and bulk data harvesting from logged-in dashboards. Use for backlinks, external links, competitor link research, blog-comment opportunities, directory submissions, Similarweb/Semrush/Ahrefs discovery, Search Console verification, anchor analysis, toxic-link review, disavow review, outreach templates, scraping SaaS report tables that have no API, or Chinese requests such as 反链、外链、找外链、发外链、评论外链、外链分析、抓后台数据、导出报表.
 ---
 
 # Backlink
 
-Maintain one business Skill for the complete backlink lifecycle. Do not delegate
-to `backlink-analyzer` or create another browser-extension Skill. OpenCLI and its
+Maintain one business Skill for the complete backlink lifecycle. Do not split it
+back apart, and do not create another browser-extension Skill. OpenCLI and its
 Chrome extension are the connector underneath this Skill, not separate business
 workflows.
+
+Two former Skills were merged into this one on 2026-08-16 and deleted:
+
+- `backlink-analyzer` — profile analysis, the toxicity rubric, and outreach
+  templates. It shipped as prompt templates with no scripts and no browser
+  access, so it could describe a link profile but never obtain one. Its content
+  now lives in the three analysis references below, under its original
+  Apache-2.0 license (see `references/LICENSE-analysis-templates-Apache-2.0`;
+  upstream is `aaron-he-zhu/seo-geo-claude-skills`).
+- `browser-harvest` — pulling report tables out of logged-in dashboards.
+  See [harvest.md](references/harvest.md). Note the scope trade of the merge:
+  that knowledge is general-purpose (ad platforms, e-commerce backends, any
+  no-API SaaS report), but it now triggers under a backlink-named Skill. When a
+  harvesting task has nothing to do with links, load this Skill anyway and read
+  that one reference.
 
 ## Install and Update
 
@@ -24,20 +39,28 @@ npx skills update backlink -g -y
 
 For a project-level install, omit `-g`; update a project installation with `npx skills update backlink -p -y`.
 
-Submit a website to 180+ free directory sites using bb-browser automation on the
-Mac Mini. The user's local browser is never touched.
-
 ## Operating model
 
 `$backlink → scripts and policy → OpenCLI → authorized Chrome session → website`
+
+Every script here shells out to the `opencli` binary, which drives the owner's
+own Chrome through the OpenCLI extension. There is no separate automation
+runtime: no bb-browser, no Playwright, no headless instance, and nothing that
+runs on a remote machine by default. It is the owner's logged-in local Chrome,
+which is exactly why the session reuse works and exactly why the safety policy
+below matters.
 
 OpenCLI is preferred because it can reuse the owner's authenticated Chrome
 sessions and expose page/network data without coordinate-based clicking. Use an
 existing OpenCLI adapter first. When no adapter exists, use a named browser
 session and DOM/network inspection.
 
-All browser calls default to `--window background`. Never request foreground
-mode unless the user explicitly wants to watch the operation. Avoid clicking
+Default every session to background mode. The flag sits **between the session
+name and the subcommand** — `opencli browser <session> --window background
+<command>`. Before it and after it both fail, one with `unknown command` and one
+with `unknown option`, so a misplaced flag reads like a broken install rather
+than a syntax error. Never request foreground mode unless the user explicitly
+wants to watch the operation. Avoid clicking
 launchers that open a new window: inspect the target and open it directly in the
 background session when possible. If a site cannot be operated without stealing
 focus, stop and report that constraint.
@@ -98,12 +121,17 @@ through the environment and never ships with this Skill:
 
 ```bash
 export TOOLS_SHARE_DASHBOARD_URL="https://<your-authorized-dashboard>"
+export TOOLS_SHARE_APP_ORIGIN="https://<origin-the-dashboard-launches-into>"
 
 node scripts/similarweb-query.mjs \
   --domain example.com \
   --report performance \
   --out .backlink/similarweb-example.com.json
 ```
+
+Both variables are account configuration and neither ships with this Skill. The
+launched application sits on a different host from the dashboard entry point, so
+the second one cannot be derived from the first.
 
 `--report` accepts `performance` or `similar-sites`. The script opens the
 authorized dashboard, launches Similarweb, waits for the slow app startup,
@@ -169,6 +197,43 @@ Do not disavow links, contact site owners, or change production sites unless the
 user separately asks. Treat third-party authority and traffic estimates as
 directional, time-sensitive measurements.
 
+Three references carry the analysis detail, merged from the former
+`backlink-analyzer` Skill:
+
+- [link-quality-rubric.md](references/link-quality-rubric.md) — the scoring
+  matrix, toxic-link criteria, benchmarks, and disavow guidance.
+- [analysis-templates.md](references/analysis-templates.md) — compact output
+  templates for the profile overview, quality breakdown, toxicity list,
+  competitor comparison, opportunity list, and change tracking.
+- [outreach-templates.md](references/outreach-templates.md) — outreach
+  frameworks, subject lines, response benchmarks, and follow-up sequences.
+  Sending anything still requires the user's explicit approval per message.
+
+These templates assume you already have the data. They do not fetch it: get the
+rows from an authorized export, the Ahrefs/Semrush tools, or the harvest
+workflow below, then fill the template. A report built from templates alone,
+with no observed rows behind it, is fabrication.
+
+### Harvest
+
+Use when the numbers you need are visible in a logged-in dashboard that has no
+API, charges for the API, or bills per exported row. Read
+[harvest.md](references/harvest.md) before writing any scraping loop — it
+documents failures that produce **plausible, silently wrong output**: virtual
+scroll tables that are not `<table>` and drop rows without erroring, long URLs
+that make whole rows vanish, execution-channel timeouts that look like failure
+while the page loop is still running, and Chrome's intensive throttling that
+stretches a four-second loop into twenty-five minutes.
+
+```bash
+sh scripts/harvest-collect.sh          # wait for downloads to settle, then collect
+node scripts/harvest-merge.mjs         # merge by field shape, refuse duplicate files
+```
+
+`scripts/harvest.browser.js` is the in-page collector. Its output arrives via a
+Blob download rather than a return value, because the execution channel
+truncates at roughly 1 KB.
+
 ### Verify
 
 Use exact evidence for each state:
@@ -205,6 +270,13 @@ verify the exact live URL and anchor where possible.
 For BacklinkDirs-specific eligibility, read
 [backlinkdirs.md](references/backlinkdirs.md). For ready-to-copy user prompts,
 read [prompts.md](references/prompts.md).
+
+Before a first submission campaign, read
+[field-notes.md](references/field-notes.md): what actually blocks submissions
+(personal-contact requirements outrank CAPTCHAs), why landing-page CAPTCHA scans
+give false negatives, how reciprocal-badge flows are inherently two-pass, the
+browser-automation traps, and what to expect from mining a competitor's
+backlinks.
 
 ## Output contract
 

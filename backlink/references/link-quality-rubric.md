@@ -1,5 +1,9 @@
 # Link Quality Rubric
 
+> 本文来自 `aaron-he-zhu/seo-geo-claude-skills`（Apache-2.0），原属独立的
+> `backlink-analyzer` Skill，2026-08-16 并入 `backlink`。许可证副本见
+> `LICENSE-analysis-templates-Apache-2.0`。
+
 Use this reference to score individual backlinks, audit link profiles, find competitive link gaps, and prepare disavow files without mistaking weak links for toxic links.
 
 ## 1. Individual Link Quality Score
