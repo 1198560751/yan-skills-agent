@@ -16,9 +16,11 @@ services change silently — but do not re-discover them from scratch.
 | **write.as** | none | yes | none present → indexable | nofollow | Browser, plain textarea |
 | **rentry.co** | none | yes | **`noindex`** | dofollow | Browser, CodeMirror `.setValue()` |
 
-Value order: telegra.ph is the best of the three because its pages are indexable
-and it is the only one that needs no browser at all, but be exact about what it
-gives you — every in-body anchor is `nofollow`, and the single dofollow link per
+**All three are publish targets. There is no shortlist here — use every row.**
+Notes below are for the ledger, not for choosing between them.
+
+telegra.ph is the cheapest by far because its pages are indexable and it needs
+no browser at all, but be exact about what it gives you — every in-body anchor is `nofollow`, and the single dofollow link per
 page is the **byline**, built from the `author_url` you pass at publish time.
 Point `author_url` at the URL you actually want that dofollow to reach.
 write.as is a real indexable mention; rentry.co's `noindex` cancels most of its
@@ -103,32 +105,61 @@ Before hunting, ask one question about a candidate site:
 Campaigns that fail to find "no-registration" targets are usually searching the
 first category. Search the second.
 
+## Default policy: if it publishes, publish to it
+
+**Publish to everything that will accept a page. Do not filter by `rel`, by
+`robots`, by the host's topic, or by how good the platform looks.** Record what
+you observe; never let the observation stop a publish.
+
+The reasoning is about which error is expensive. A site with no traffic loses
+nothing by holding a `nofollow` link on an unrelated blog, and gains an audit
+trail plus the occasional referral. What it cannot afford is a campaign that
+spends its whole budget grading candidates and publishes to three of them.
+**Selectivity is a luxury of sites that already rank.** Early on, coverage beats
+quality-per-link, and the only real constraints are the four hard fails below —
+each of which means there is no link at all, not a weak one.
+
+Two consequences worth stating, because they cut against the instinct:
+
+- **Topic fit does not gate publishing.** The host does not need to be a tool
+  site, a tech site, or related to the subject in any way. Personal blogs, hobby
+  pages, guestbooks on a fan site — all fine.
+- **Ugly platforms still count.** Low traffic, dated design, and an obscure
+  domain are not rejection reasons. Only genuine spam neighbourhoods and
+  malware/adult surfaces are, and those are covered by the safety policy.
+
+Quality still governs **what you write** — one real, self-contained page per
+host, never the same body twice. That is a content rule, not a targeting rule,
+and it exists because near-duplicate pages get purged in waves.
+
 ## What actually matters, in order
 
-Two of these gates are hard fails and three are a value ranking. Keeping them
-separate matters, because collapsing them throws away usable targets.
+Two of these gates are hard fails and three are recorded but never block.
+Keeping them separate matters, because collapsing them throws away usable
+targets.
 
 **Hard fail — the link does not exist or does not reach you:**
 gate 0 (page expires), gate 1 (no anchor rendered), gate 2 (not publicly
 readable), and link rewriting (a monetised redirect points at the redirector,
 not at you). Nothing recovers these.
 
-**Ranking, not rejection:** gate 3 (`robots`) and gate 4 (`rel`).
+**Recorded, never a reason to skip:** gate 3 (`robots`) and gate 4 (`rel`).
+Log what you see and publish regardless. The distinction below is for reading
+the ledger afterwards, not for deciding where to post.
 
-- **`nofollow` is worth publishing to.** Since 2019 the major engine treats it
-  as a hint rather than a directive, and it still carries referral traffic and
-  profile diversity. Record the `rel` honestly and publish anyway; do not
-  discard a target for this alone. A practitioner-side rule of thumb worth
-  respecting: if it is a real link on a real page, it counts.
-- **`noindex` is a bigger discount than `nofollow`, and they are not the same
-  thing.** `nofollow` weakens what one link passes; `noindex` keeps the *hosting
-  page* out of the index entirely, so there is far less for a crawler to
-  attribute. A bare `noindex` still defaults to `follow`, so the link is
-  crawlable — non-zero, but rank the target well below an indexable one.
+- **`nofollow`.** Since 2019 the major engine treats it as a hint rather than a
+  directive, and it still carries referral traffic and profile diversity. A
+  practitioner rule of thumb worth respecting: if it is a real link on a real
+  page, it counts.
+- **`noindex` is not the same thing, and is a bigger discount.** `nofollow`
+  weakens what one link passes; `noindex` keeps the *hosting page* out of the
+  index entirely, so there is far less for a crawler to attribute. A bare
+  `noindex` still defaults to `follow`, so the link remains crawlable. Note it
+  in the ledger; still publish.
 
 Check the gates in the order below: they fail in that order of frequency, and
-gates 0 and 3 are readable before you write a single word of content, so
-checking those first throws most candidates out in under a minute each.
+gate 0 is readable before you write a single word of content, so checking it
+first throws dead candidates out in under a minute each.
 
 0. **Does the page persist?** Several paste hosts cap free retention at days or
    weeks and sell permanence as the paid tier. An expiring page is not a
@@ -152,8 +183,11 @@ A platform that renders anchors, is public, is indexable, **and** is dofollow is
 rare. Most anonymous-publish hosts fail gate 1 or gate 3, and both failures look
 like success if you only check `rel`.
 
-Report campaign results by *observed `rel` on an indexable page*, never by
-"published successfully". Those two numbers differ by a large factor.
+Report both numbers: how many pages published, and the observed `rel`/`robots`
+distribution across them. Publishing is the target; the distribution is the
+audit trail. Reporting only "published successfully" hides whether the links
+exist at all — that is what gates 0-2 are for — while reporting only dofollow
+counts understates work that was correctly done.
 
 ## Verified platform notes
 
