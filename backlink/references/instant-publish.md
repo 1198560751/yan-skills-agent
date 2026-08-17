@@ -15,6 +15,8 @@ services change silently — but do not re-discover them from scratch.
 | **telegra.ph** (`graph.org` mirror) | none | yes | `index, follow` | **body `nofollow`; byline dofollow** | Pure HTTP API, no browser. `createAccount` → `createPage`, **POST not GET** |
 | **write.as** | none | yes | none present → indexable | nofollow | Browser, plain textarea |
 | **rentry.co** | none | yes | **`noindex`** | dofollow | Browser, CodeMirror `.setValue()` |
+| **Atabook-powered guestbooks** (one engine, many host sites) | none | yes | **`noindex, nofollow`** | `ugc` | Browser. Rich-text editor's Link button emits a real server-rendered `<a>` |
+| **Self-hosted blog comment forms** (plain anti-spam plugin, no hosted-platform widget) | none | yes | varies by host | `nofollow ugc` | Browser. Expect moderation — see field-notes |
 
 **All three are publish targets. There is no shortlist here — use every row.**
 Notes below are for the ledger, not for choosing between them.
@@ -59,6 +61,48 @@ its effort re-discovering these.
 - **Demo instances of self-hosted software** — `noindex` and/or scheduled
   wipes. Already noted below; it keeps recurring, so treat "demo." in the
   hostname as a rejection on sight.
+- **The large hosted wiki farm** — every member serves a bot-check interstitial
+  before any content renders. Confirmed on two independent wikis, so it is
+  platform-wide; do not retest individual members.
+- **Guestbook engines that mint a short-lived anti-spam token** — one widely
+  embedded engine rejects the POST with a control-value error after a
+  multi-step scripted session, whether fields are set through native setters or
+  real click-and-type events. The token expires faster than a stepwise session
+  completes. It is an informal CAPTCHA; treat the engine as closed unless
+  fill-and-submit can be done in one fast pass.
+- **Wikis in general, for anonymous edits** — the well-known trope wiki, the
+  wiki-farm sites, and most hosted wiki software now require an account for all
+  edits. Anonymous IP editing is largely extinct on anything with traffic; do
+  not budget a campaign around it.
+- **Vendor demo boxes** (shoutbox/tagboard products) — the only postable
+  instance is on the vendor's own marketing page, which carries no third-party
+  value. Find real embeds on real sites or skip the class.
+
+### Guestbooks are the most productive class currently known
+
+The classic `/guestbook` page still exists in quantity on personal sites, fan
+pages and small-business sites, and it is the one class where "no account, no
+CAPTCHA, posts immediately" is still normal. Two things make it worth working
+in bulk rather than one at a time:
+
+- **One engine covers many hosts.** Identify the engine once, and every site
+  running it behaves identically — the same editor, the same link handling. A
+  single verified engine is worth more than ten individually verified pages.
+- **They cross-link.** Guestbook entries typically render a "site" link for each
+  visitor, so an active guestbook is itself a directory of other guestbook
+  owners. Discovery compounds; also check the host platform's tag or category
+  browse pages.
+
+Two cautions learned the hard way:
+
+- **Hand-built guestbooks frequently do not auto-link.** A post can succeed,
+  be publicly visible, and still put your URL in a plain text node. Check the
+  rendered DOM of your own entry, not merely that the submission "worked."
+- **Read the existing entries before posting.** One widely embedded comment
+  widget was technically open and capable of a followed link, and its live
+  stream was saturated with illegal and link-farm spam. That is a safety
+  rejection independent of any SEO consideration, and it is only visible if you
+  look at the neighbourhood.
 
 ### Liveness first: this genre dies faster than it changes
 
