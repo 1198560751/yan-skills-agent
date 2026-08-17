@@ -266,6 +266,13 @@ verify the exact live URL and anchor where possible.
   observing it for the exact URL.
 - Do not automatically resubmit an unconfirmed target.
 - Keep raw cookies, tokens, authorization headers, and credentials out of logs.
+- Prefer a documented HTTP endpoint over an MCP server whenever both exist and
+  serve the same data from the same quota: the MCP adds a connection and a
+  process without adding capability, and a failure there is harder to tell apart
+  from the service being down. Keep using MCP where it is the only authorized
+  channel — paid data sources such as Ahrefs and Semrush have no direct HTTP
+  endpoint here, and dropping them removes capability rather than relocating it.
+  Never retire a working path before the replacement has run successfully once.
 
 For BacklinkDirs-specific eligibility, read
 [backlinkdirs.md](references/backlinkdirs.md). For ready-to-copy user prompts,
