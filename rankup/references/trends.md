@@ -68,6 +68,10 @@ node scripts/seo-webcafe.mjs kd --keyword "remove background" --gl JP
 `gt` 那边只要装一次 `.env` 就一直能用，若合并后只认环境变量，等于要求每次 export，
 是无声的体验倒退。
 
+**KD 不走 MCP。** `seo.web.cafe` 有 `/kd/mcp` 端点，但它与 HTTP API 同额度、同数据，
+多一层连接只多一个故障点。完整契约（参数、额度、错误码、下结论该看哪些字段）见
+[`seo-webcafe.md`](seo-webcafe.md) 的「`/kd/` 是完全独立的另一套认证」一节。
+
 > **2026-08-16 记录**：从 `gt/.env` 带过来的旧令牌已失效（`curl` 直打同一端点
 > 同样 401 `code: auth`，与合并无关），站主当天在 https://seo.web.cafe/kd/docs
 > 重新生成并换入 `rankup/.env`，实测通过：
@@ -125,7 +129,7 @@ node scripts/seo-webcafe.mjs kd --keyword "remove background" --gl JP
 - 首次运行 compare/region/related 会自动建 venv（~/.cache/gt-skill/venv），约 30 秒。
 
 ### KD 侧
-- **每日额度 100 次**（Web.Cafe 登录用户），网页/MCP/API 三端共用，VIP 500 次。
+- **每日额度 100 次**（Web.Cafe 登录用户），网页/MCP/API 三端共用（我们只用 API，但额度是合并计的），VIP 500 次。
 - **每分钟 ≤10 次**保险丝，批量查询间隔 ≥6 秒。
 - **7 天缓存**：重复查同一词秒回但仍计额度；需强制重算用 `--force`。
 - **仅支持英文关键词**（API 分析的是 Google 英语 SERP）；查非英语市场用 `--gl` 切国家但词仍是英文。

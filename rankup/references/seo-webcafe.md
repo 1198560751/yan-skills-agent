@@ -241,11 +241,58 @@ HTTP 状态码 429（注意和上面第一层的 403 `code:"token"` 是不同的
 实测**不计入这个配额池**（多次调用 `used` 都没有变化，也没吃到 429），这一点已经
 用真实请求核实，不是猜测。
 
-### `/kd/` 是完全独立的另一套认证
+### `/kd/` 是完全独立的另一套认证，且**只走 HTTP，不走 MCP**
 
-`/kd/` 是唯一有文档化公开 API 的工具，和上面两层门槛都不是一回事：
-`GET /kd/api/v1/kd?keyword=&gl=&hl=&force=&format=`，`Authorization: Bearer wc_mcp_...`，
-10 请求/分钟的突发熔断，7 天结果缓存。此次未重测，按已有结论使用。
+`/kd/` 是唯一有文档化公开 API 的工具，和上面两层门槛都不是一回事。
+站主的决定（2026-08-16）：**KD 一律走 HTTP，不用它的 MCP server。**
+`seo.web.cafe` 提供 `https://seo.web.cafe/kd/mcp`，但它与 HTTP API 打的是同一份
+额度、返回同一份数据，多一层连接只多一个故障点——实测那个 MCP 端点当时正
+`Failed to connect (ECONNRESET)`，而同一时刻 HTTP 一次就通。
+对应的全局 MCP 注册已用 `claude mcp remove` 摘掉（本机配置，不属于本 Skill）。
+以后需要 KD，跑
+`node scripts/seo-webcafe.mjs kd --keyword ...`，不要去找 MCP 工具。
+
+**完整契约**（2026-08-16 由站主提供的官方文档核对，脚本已实现全部参数）：
+
+```
+GET https://seo.web.cafe/kd/api/v1/kd
+```
+
+鉴权二选一：请求头 `Authorization: Bearer wc_mcp_<令牌>`（推荐），
+或查询参数 `&token=wc_mcp_<令牌>`（URL 即凭证，会进日志和历史，非必要不用）。
+
+| 参数 | 必填 | 默认 | 说明 |
+|---|---|---|---|
+| `keyword` | 是 | — | **只支持英文关键词**，URL 编码 |
+| `gl` | 否 | `us` | 国家码 us/gb/ca/au/de/jp/sg… |
+| `hl` | 否 | `en` | 语言码 |
+| `force` | 否 | — | `1` = 跳过 7 天缓存强制重算 |
+| `format` | 否 | `json` | `markdown` = 自包含报告，适合存档或转发 |
+
+**额度是三端合并计的**：网页 + MCP + API 共用同一个池子。游客 10 次/天（按 IP），
+登录用户 100 次/天（按账号，跨设备共享），VIP 500 次/天。另有**每分钟 10 次**的
+瞬时保险丝（仅 MCP/API），所以批量查询间隔 **≥6 秒**——脚本的 `spacingMs: 6000`
+就是为这个设的。7 天内重复查同一词命中缓存，**秒回但照样计额度**。
+
+| HTTP | `code` | 含义与处理 |
+|---|---|---|
+| 401 | `auth` | 令牌缺失或无效 → 先怀疑令牌过期，别怀疑脚本 |
+| 429 | `rate` | 撞上每分钟保险丝 → 间隔 ≥6 秒重试 |
+| 429 | `quota` | 今日额度用完（三端共用）→ 明天恢复或升 VIP |
+| 400 | — | 参数错误（keyword 缺失或过长） |
+| 502 | `upstream` | 上游数据源故障，可重试；部分降级时会正常返回并在 `reasons` 里标注【纯 DR 模式】 |
+
+**下结论时必看的字段**（不止 `score`）：
+
+- `keywordType` —— `brand` 时 `score` 的口径变成「以衍生内容进入这个 SERP 有多难」，
+  另有 `genericScore` 是正面争夺主词的对照分，**没有行动意义**，别拿它做决策。
+- `keywordVolume` —— 月搜索量绝对值，是 Trends 相对值收口的唯一来源。
+- `keywordTrend.ratio ≥ 1` —— 有站正靠这个词快速上升，时机窗口开着。
+- `linkBudget.quality.mid` —— 外链建设的靶子；`targetDr` 是目标 DR 量级。
+- `details[].ageYears < 2` —— 新域名已排进前十 = 赛道对新站友好，比 `score` 更能
+  决定「值不值得做」。
+- `details[].searchShare` 很低但 DR 高且域名年轻 = 疑似域名迁移承接，DR 是 301 传过来的，
+  不代表它真的强。
 
 ### 登录
 

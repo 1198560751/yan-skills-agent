@@ -276,7 +276,17 @@ async function discover() {
 
 function summarize(name, data) {
   if (!data) return "（非 JSON 响应）";
-  if (name === "kd") return `KD ${data.score} ${data.level} · 月搜 ${data.keywordVolume ?? "—"} · 引用域中值 ${data.linkBudget?.quality?.mid ?? "—"}`;
+  if (name === "kd") {
+    // keywordType=brand 时 score 是「衍生内容进入难度」,与通用词不同口径,不标出来会被误读。
+    // keywordTrend.ratio >= 1 表示有站正靠这个词快速上升,是时机信号,官方文档专门点名。
+    const brand = data.keywordType === "brand" ? " · 品牌词(衍生口径)" : "";
+    const r = data.keywordTrend?.ratio;
+    const rising = typeof r === "number" && r >= 1 ? ` · 上升期 ratio ${r.toFixed(2)}` : "";
+    const newcomer = (data.details || []).some((d) => typeof d.ageYears === "number" && d.ageYears < 2)
+      ? " · 有新站进前十"
+      : "";
+    return `KD ${data.score} ${data.level}${brand} · 月搜 ${data.keywordVolume ?? "—"} · 引用域中值 ${data.linkBudget?.quality?.mid ?? "—"}${rising}${newcomer}`;
+  }
   if (name === "audit") return `得分 ${data.score} ${data.grade} · 失败项 ${(data.categories || []).flatMap((c) => c.checks).filter((c) => c.status === "fail").length}`;
   if (name === "backlink") return `${data.domain} · 质量 ${data.quality?.score ?? "—"}/${data.quality?.level ?? "—"} · 判定 ${data.verdict?.label ?? data.verdict?.text ?? JSON.stringify(data.verdict ?? "—").slice(0, 60)}`;
   if (name === "serp") return `top${(data.results || []).length} · KD ${data.kd ?? "—"}`;
