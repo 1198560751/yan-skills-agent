@@ -21,9 +21,16 @@ first category. Search the second.
 
 ## What actually matters, in order
 
-Four gates. A platform has to clear **all four**, and they fail in this order of
-frequency, so check them in this order.
+Five gates. A platform has to clear **all five**, and they fail in this order of
+frequency, so check them in this order. Gates 0 and 3 are both readable before
+you write a single word of content, which makes them the cheapest way to reject
+a platform — check them first and you will throw most candidates out in under a
+minute each.
 
+0. **Does the page persist?** Several paste hosts cap free retention at days or
+   weeks and sell permanence as the paid tier. An expiring page is not a
+   backlink, and the expiry is usually stated on the compose screen next to the
+   textarea where it is easy to skim past.
 1. **Does the published page render an `<a>` at all?** Several note/paste hosts
    emit your URL as plain text. That is a brand mention, not a backlink. Check
    `document.querySelectorAll('a')` on the *published* page, not the editor.
@@ -101,6 +108,44 @@ services change silently.
   image-selection anti-robot test. Out of scope.
 - **controlc.com** — CAPTCHA on the landing page.
 
+### Rejected on a cheap gate, before writing any content
+
+Each of these cost well under a minute because gate 0 or gate 3 is visible on
+arrival. This is the payoff for checking the cheap gates first.
+
+- **hackmd.io** — anonymous note creation genuinely works, and then the note
+  carries `robots: noindex, nofollow`. Both gates fail at once.
+- **ctxt.io** — free retention tops out at 30 days, permanence is the paid tier.
+  Gate 0.
+- **A public demo instance of a self-hosted editor** — `noindex` *and* documented
+  daily deletion of all content. Demo instances of anything are a dead end for
+  this purpose; look for a production deployment or skip the software entirely.
+- **techplanet.today** — open-publishing article site, but every outbound link in
+  the post body is `nofollow`.
+- **A large anonymous social network with open posting** — outbound links all
+  `nofollow`, and the visible post neighbourhood was wall-to-wall APK and game
+  spam. Even had it been dofollow, that neighbourhood is a reason to decline.
+- **pastelink.net** — advertises "no login required", but the product is
+  automatic link monetisation, meaning outbound links are rewritten into a
+  redirect. **A rewritten link is not a link to you.** The example paste linked
+  from its own homepage also resolved to an "Illegal Content" takedown notice.
+- **A microblog platform with a public feed** — reads as anonymous, but posting
+  is gated behind Join.
+- **txti.es** — retired; the site says so on its homepage.
+
+### The listicles are not a shortcut
+
+"10 alternatives to X for anonymous posting" articles are, as of testing,
+AI-generated and materially wrong: entries repeat one boilerplate sentence
+verbatim, mobile-only messaging apps get listed as web publishers, and platforms
+that plainly require registration are described as not requiring it. Treat these
+articles as a source of *names to test*, never as findings. Every claim about a
+platform in this file was observed in a live DOM.
+
+Budget accordingly: across the platforms tested here, roughly **one in fifteen**
+cleared all five gates. That ratio is the realistic planning number, and it is
+why the cheap gates matter so much.
+
 ## Editor APIs beat native setters
 
 The React native-setter trick in `field-notes.md` is necessary but not
@@ -156,3 +201,13 @@ If the publishing domain is blocked on your network, a reader proxy
 returns markdown and therefore **cannot** confirm `rel`. Record the page as
 public and leave the `rel` state unverified rather than assuming. Generic CORS
 proxies were unreliable for this in testing.
+
+Checking whether the host's pages are *actually indexed* is a separate question
+and often cannot be answered from a restricted network: one major engine's
+regional endpoint silently mangled `site:` queries and returned results for an
+unrelated domain, and another served a bot challenge. **A mangled `site:` query
+returns confident nonsense rather than an error**, so verify the operator is
+being honoured — search for something only the target domain could match —
+before reading anything into the result. Failing that, report the page's own
+`robots` directive as what it is (a claim of indexability) and leave actual
+indexation unverified. It takes days to become true anyway.
