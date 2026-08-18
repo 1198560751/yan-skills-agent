@@ -581,3 +581,67 @@ being honoured — search for something only the target domain could match —
 before reading anything into the result. Failing that, report the page's own
 `robots` directive as what it is (a claim of indexability) and leave actual
 indexation unverified. It takes days to become true anyway.
+
+## Reading a third-party "places to get a backlink" list
+
+These lists circulate widely — tiered tables of 200-300 named platforms with DR,
+a **Dofollow** column, and a Cost column. They are worth harvesting and worthless
+to trust. One such list (270 entries, 13 tiers) was verified against reality in
+2026-08; what came back is the general shape to expect.
+
+**The Dofollow column is an assertion about the platform, not an observation of a
+link.** The list marked free press-release sites as dofollow. The one that was
+actually sampled publishes the author's URLs as **plain text nodes and emits no
+anchor at all** — see the `openpr` record in `data/free-channels.json`. A column
+in someone's table is never evidence; only a rendered anchor on a live item is.
+
+**Names, not URLs.** These lists overwhelmingly give a brand name with no domain.
+Resolving 200 names to domains is most of the work, and a name that resolves to a
+live site tells you nothing about whether the *original* site is still there.
+
+**Expect the long tail to be resold, not merely stale.** In the 2026-08 sweep the
+one domain that turned out to be dead was dead in the strongest sense: it answers
+HTTP 200 and **redirects to an unrelated crypto product**. A status-code check
+passes it. Only following the redirect, or reading the title, catches it.
+
+### The sitewide-advertiser false positive
+
+On a UGC page, an outbound anchor with **no `rel`** looks exactly like a followable
+author link, and it is the single easiest way to record a channel as usable when it
+is not. The free-press-release site above carries several no-`rel` outbound anchors
+— all of them the platform's own properties, a consent manager, and one advertiser.
+
+**The test is cheap: open a second, unrelated item on the same platform.** Any
+outbound domain that appears on both is furniture, not an author link. Only a
+domain unique to one item can be that item's author link. Do this before recording
+`anchorRendered: true` on any platform you have sampled exactly once.
+
+### What the tiers are actually made of
+
+Two structural facts decide how much of such a list you can act on at all:
+
+- **The profile/content-platform tier is a registration tier.** Of 20 sampled,
+  17 required a free account before publishing anything. Account creation is not
+  an agent action — that tier converts into an owner to-do list, not work you can
+  schedule. Budget it as human hours, not as automation.
+- **Roughly a quarter of any such list will refuse plain HTTP** (403 or a reset).
+  None of those are evidence of death. See the asymmetry rule below.
+
+### Request headers are a bot fingerprint, not just a User-Agent
+
+A browser-shaped `User-Agent` alone still gets refused. Adding the two headers a
+real browser always sends —
+
+```
+accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+accept-language: en-US,en;q=0.9
+```
+
+— converted several hard connection failures into clean 200s in the same sweep,
+with no other change. A request carrying a Chrome UA and no `Accept` header is a
+recognisable non-browser signature.
+
+This matters beyond politeness: without those headers the sweep produced a list of
+"dead" sites that were merely defended, and acting on it would have discarded live
+channels. Set them on every probe, then treat a remaining 403 as **unknown** —
+still never as dead.

@@ -1,1077 +1,1105 @@
 {
- "updatedAt": "2026-08-18T03:33:31.670Z",
- "note": "被观察到用于投放的平台登记表；sitesHit 越高越说明它真的在被使用",
- "platforms": {
-  "microlaunch.net": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": "/premium 页有价，未核。",
-   "observedSites": [
-    "21st.dev"
-   ],
-   "placements": [
-    "21st.dev@2025-02-19"
-   ],
-   "totalUrls": 5
-  },
-  "aiquerytool.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "21st.dev"
-   ],
-   "placements": [
-    "21st.dev@2025-02-19",
-    "21st.dev@2025-05-13",
-    "21st.dev@2025-05-15"
-   ],
-   "totalUrls": 12
-  },
-  "webcurate.co": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "21st.dev"
-   ],
-   "placements": [
-    "21st.dev@2025-04-08",
-    "21st.dev@2025-04-11"
-   ],
-   "totalUrls": 7
-  },
-  "szxn.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "21st.dev"
-   ],
-   "placements": [
-    "21st.dev@2025-05-01",
-    "21st.dev@2025-05-26",
-    "21st.dev@2025-05-27",
-    "21st.dev@2025-05-30",
-    "21st.dev@2025-06-04",
-    "21st.dev@2025-06-09",
-    "21st.dev@2025-06-12"
-   ],
-   "totalUrls": 25
-  },
-  "sparkbites.dev": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "21st.dev"
-   ],
-   "placements": [
-    "21st.dev@2025-05-19"
-   ],
-   "totalUrls": 3
-  },
-  "adspirer.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "adspirer.ai"
-   ],
-   "placements": [
-    "adspirer.ai@2025-12-21",
-    "adspirer.ai@2025-12-30",
-    "adspirer.ai@2025-12-31",
-    "adspirer.ai@2026-01-08",
-    "adspirer.ai@2026-01-09",
-    "adspirer.ai@2026-01-10",
-    "adspirer.ai@2026-01-19",
-    "adspirer.ai@2026-02-10",
-    "adspirer.ai@2026-03-25",
-    "adspirer.ai@2026-03-31",
-    "adspirer.ai@2026-04-04",
-    "adspirer.ai@2026-04-05",
-    "adspirer.ai@2026-04-10",
-    "adspirer.ai@2026-04-27",
-    "adspirer.ai@2026-04-30",
-    "adspirer.ai@2026-05-02",
-    "adspirer.ai@2026-05-03",
-    "adspirer.ai@2026-05-05",
-    "adspirer.ai@2026-05-06"
-   ],
-   "totalUrls": 159
-  },
-  "developer.adspirer.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "adspirer.ai"
-   ],
-   "placements": [
-    "adspirer.ai@2026-04-24"
-   ],
-   "totalUrls": 11
-  },
-  "prismo.fedibird.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "aiattractivenesstest.ai"
-   ],
-   "placements": [
-    "aiattractivenesstest.ai@2026-04-02"
-   ],
-   "totalUrls": 3
-  },
-  "blogs.dickinson.edu": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "aiattractivenesstest.ai"
-   ],
-   "placements": [
-    "aiattractivenesstest.ai@2026-04-03"
-   ],
-   "totalUrls": 4
-  },
-  "spillhistorie.no": {
-   "tier": "not-a-platform",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": "挪威游戏史站，单站 388 条。同上，先当异常看待而不是渠道。",
-   "observedSites": [
-    "aiattractivenesstest.ai"
-   ],
-   "placements": [
-    "aiattractivenesstest.ai@2026-04-03"
-   ],
-   "totalUrls": 388
-  },
-  "gptdemo.net": {
-   "tier": "link-package",
-   "price": "同上（一份钱覆盖两个域）",
-   "priceCheckedAt": "2026-08-18",
-   "notes": "aitoolhub.net 的姊妹域，见该条。",
-   "observedSites": [
-    "capafy.ai",
-    "eimg.ai",
-    "fontvibe.ai",
-    "imagefree.net"
-   ],
-   "placements": [
-    "capafy.ai@2026-06-02",
-    "eimg.ai@2026-07-18",
-    "eimg.ai@2026-07-19",
-    "fontvibe.ai@2026-04-21",
-    "imagefree.net@2026-03-20",
-    "imagefree.net@2026-03-21"
-   ],
-   "totalUrls": 364
-  },
-  "aitoolhub.net": {
-   "tier": "link-package",
-   "price": "$19.9 一次性",
-   "priceCheckedAt": "2026-08-18",
-   "notes": "与 gptdemo.net 同一运营方（分类计数、版式完全一致）。pricing 页直写「24 High-Quality Dofollow Backlinks」：12 个界面语言 x 2 个域 = 24 个页面。所以「单站 148 条」是一次投放，不是多次。",
-   "observedSites": [
-    "capafy.ai",
-    "eimg.ai",
-    "fontvibe.ai",
-    "imagefree.net"
-   ],
-   "placements": [
-    "capafy.ai@2026-06-02",
-    "eimg.ai@2026-07-18",
-    "fontvibe.ai@2026-04-21",
-    "imagefree.net@2026-03-20",
-    "imagefree.net@2026-03-21"
-   ],
-   "totalUrls": 444
-  },
-  "toolatlas.io": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "capafy.ai",
-    "fontvibe.ai"
-   ],
-   "placements": [
-    "capafy.ai@2026-06-02",
-    "fontvibe.ai@2026-04-20"
-   ],
-   "totalUrls": 11
-  },
-  "mcpservers.org": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "capafy.ai"
-   ],
-   "placements": [
-    "capafy.ai@2026-06-02"
-   ],
-   "totalUrls": 19
-  },
-  "toolify.ai": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "capafy.ai",
-    "fontvibe.ai"
-   ],
-   "placements": [
-    "capafy.ai@2026-06-02",
-    "fontvibe.ai@2026-04-20",
-    "fontvibe.ai@2026-04-21"
-   ],
-   "totalUrls": 16
-  },
-  "seopxl-organic-boost-lab.shop": {
-   "tier": "spam-net",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": "域名本身写着 seo/ranking/boost/fiverr 的批量站群。出现在自己反链里是被无关方通投，不是成绩。黑名单，不要买。",
-   "observedSites": [
-    "cliptica.com",
-    "emojer.org"
-   ],
-   "placements": [
-    "cliptica.com@2026-07-24",
-    "cliptica.com@2026-07-26",
-    "emojer.org@2026-07-24",
-    "emojer.org@2026-07-26"
-   ],
-   "totalUrls": 19
-  },
-  "seo-growth-optimization-hub.shop": {
-   "tier": "spam-net",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": "域名本身写着 seo/ranking/boost/fiverr 的批量站群。出现在自己反链里是被无关方通投，不是成绩。黑名单，不要买。",
-   "observedSites": [
-    "cliptica.com",
-    "emojer.org",
-    "make.design"
-   ],
-   "placements": [
-    "cliptica.com@2026-07-24",
-    "cliptica.com@2026-07-25",
-    "cliptica.com@2026-07-26",
-    "emojer.org@2026-07-26",
-    "make.design@2026-06-08"
-   ],
-   "totalUrls": 17
-  },
-  "seopxl-performance-authority-engine.shop": {
-   "tier": "spam-net",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": "域名本身写着 seo/ranking/boost/fiverr 的批量站群。出现在自己反链里是被无关方通投，不是成绩。黑名单，不要买。",
-   "observedSites": [
-    "cliptica.com",
-    "emojer.org",
-    "make.design"
-   ],
-   "placements": [
-    "cliptica.com@2026-07-24",
-    "cliptica.com@2026-07-26",
-    "emojer.org@2026-07-24",
-    "emojer.org@2026-07-26",
-    "make.design@2026-06-06"
-   ],
-   "totalUrls": 25
-  },
-  "seopxl-traffic-growth-lab.shop": {
-   "tier": "spam-net",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": "域名本身写着 seo/ranking/boost/fiverr 的批量站群。出现在自己反链里是被无关方通投，不是成绩。黑名单，不要买。",
-   "observedSites": [
-    "cliptica.com",
-    "emojer.org"
-   ],
-   "placements": [
-    "cliptica.com@2026-07-24",
-    "emojer.org@2026-07-24"
-   ],
-   "totalUrls": 13
-  },
-  "seo-growth-authority-boost-hub.shop": {
-   "tier": "spam-net",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": "域名本身写着 seo/ranking/boost/fiverr 的批量站群。出现在自己反链里是被无关方通投，不是成绩。黑名单，不要买。",
-   "observedSites": [
-    "cliptica.com",
-    "emojer.org"
-   ],
-   "placements": [
-    "cliptica.com@2026-07-24",
-    "emojer.org@2026-07-24"
-   ],
-   "totalUrls": 16
-  },
-  "seopxl-ranking-boost-lab.shop": {
-   "tier": "spam-net",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": "域名本身写着 seo/ranking/boost/fiverr 的批量站群。出现在自己反链里是被无关方通投，不是成绩。黑名单，不要买。",
-   "observedSites": [
-    "cliptica.com",
-    "emojer.org",
-    "make.design"
-   ],
-   "placements": [
-    "cliptica.com@2026-07-25",
-    "emojer.org@2026-07-24",
-    "emojer.org@2026-07-25",
-    "make.design@2026-06-05",
-    "make.design@2026-06-06"
-   ],
-   "totalUrls": 23
-  },
-  "nano-banana.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "eimg.ai"
-   ],
-   "placements": [
-    "eimg.ai@2026-07-11",
-    "eimg.ai@2026-07-12",
-    "eimg.ai@2026-07-13",
-    "eimg.ai@2026-07-14",
-    "eimg.ai@2026-07-15",
-    "eimg.ai@2026-07-16",
-    "eimg.ai@2026-07-17"
-   ],
-   "totalUrls": 108
-  },
-  "madrimasd.org": {
-   "tier": "not-a-platform",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": "西班牙机构站，单站 254 条集中在一天——形态更像站群注入或全站挂件，不是可投放的平台。别当渠道用。",
-   "observedSites": [
-    "eimg.ai",
-    "magicremover.org"
-   ],
-   "placements": [
-    "eimg.ai@2026-07-13",
-    "magicremover.org@2026-04-23",
-    "magicremover.org@2026-04-24"
-   ],
-   "totalUrls": 292
-  },
-  "aegypten-ausflug.de": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "eimg.ai"
-   ],
-   "placements": [
-    "eimg.ai@2026-07-13"
-   ],
-   "totalUrls": 5
-  },
-  "heroacademiabeyond.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "eimg.ai"
-   ],
-   "placements": [
-    "eimg.ai@2026-07-15"
-   ],
-   "totalUrls": 3
-  },
-  "creati.ai": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "eimg.ai"
-   ],
-   "placements": [
-    "eimg.ai@2026-07-18",
-    "eimg.ai@2026-07-19"
-   ],
-   "totalUrls": 12
-  },
-  "launchitx.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "eimg.ai"
-   ],
-   "placements": [
-    "eimg.ai@2026-07-18",
-    "eimg.ai@2026-07-19"
-   ],
-   "totalUrls": 26
-  },
-  "bestfor.ai": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "eimg.ai"
-   ],
-   "placements": [
-    "eimg.ai@2026-07-18"
-   ],
-   "totalUrls": 3
-  },
-  "showmebest.ai": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "eimg.ai"
-   ],
-   "placements": [
-    "eimg.ai@2026-07-18"
-   ],
-   "totalUrls": 6
-  },
-  "bai.tools": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "eimg.ai"
-   ],
-   "placements": [
-    "eimg.ai@2026-07-18",
-    "eimg.ai@2026-07-19"
-   ],
-   "totalUrls": 8
-  },
-  "mossai.org": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "eimg.ai",
-    "tryonr.com"
-   ],
-   "placements": [
-    "eimg.ai@2026-07-18",
-    "eimg.ai@2026-07-19",
-    "tryonr.com@2025-12-17",
-    "tryonr.com@2025-12-18",
-    "tryonr.com@2025-12-21",
-    "tryonr.com@2025-12-22",
-    "tryonr.com@2025-12-26",
-    "tryonr.com@2025-12-27",
-    "tryonr.com@2025-12-28",
-    "tryonr.com@2025-12-29",
-    "tryonr.com@2025-12-30",
-    "tryonr.com@2025-12-31",
-    "tryonr.com@2026-01-01",
-    "tryonr.com@2026-01-04",
-    "tryonr.com@2026-01-05",
-    "tryonr.com@2026-01-06",
-    "tryonr.com@2026-01-07",
-    "tryonr.com@2026-01-08",
-    "tryonr.com@2026-01-09",
-    "tryonr.com@2026-01-10"
-   ],
-   "totalUrls": 94
-  },
-  "iuu.ai": {
-   "tier": "free-with-account",
-   "price": "$0（但要注册）",
-   "priceCheckedAt": "2026-08-18",
-   "notes": "FAQ 白纸黑字写 fee is currently $0，但提交按钮本身就是 Login。「免费」与「免注册」是两件事。",
-   "observedSites": [
-    "eimg.ai"
-   ],
-   "placements": [
-    "eimg.ai@2026-07-18",
-    "eimg.ai@2026-07-19"
-   ],
-   "totalUrls": 8
-  },
-  "ai.keenchase.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "eimg.ai"
-   ],
-   "placements": [
-    "eimg.ai@2026-07-18"
-   ],
-   "totalUrls": 4
-  },
-  "aistage.net": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "eimg.ai"
-   ],
-   "placements": [
-    "eimg.ai@2026-07-19"
-   ],
-   "totalUrls": 3
-  },
-  "www3.wind.ne.jp": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "eimg.ai"
-   ],
-   "placements": [
-    "eimg.ai@2026-07-19"
-   ],
-   "totalUrls": 3
-  },
-  "emojer.ru": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "emojer.org"
-   ],
-   "placements": [
-    "emojer.org@2026-07-16",
-    "emojer.org@2026-08-01"
-   ],
-   "totalUrls": 7
-  },
-  "cqiar.blogspot.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "fancytextguru.com"
-   ],
-   "placements": [
-    "fancytextguru.com@2024-01-14"
-   ],
-   "totalUrls": 3
-  },
-  "the-bulldog.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "fancytextguru.com",
-    "textfx.co"
-   ],
-   "placements": [
-    "fancytextguru.com@2024-08-12",
-    "textfx.co@2025-04-18"
-   ],
-   "totalUrls": 10
-  },
-  "saashunt.best": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": "有 Submit Project 与 Pricing，首页自述「Submit, Earn a Badge, High DR Backlink」。",
-   "observedSites": [
-    "fontsgeneratorpro.com"
-   ],
-   "placements": [
-    "fontsgeneratorpro.com@2026-02-14"
-   ],
-   "totalUrls": 289
-  },
-  "hackerchoice.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "gridmakerapp.com"
-   ],
-   "placements": [
-    "gridmakerapp.com@2026-07-16",
-    "gridmakerapp.com@2026-07-17",
-    "gridmakerapp.com@2026-07-18",
-    "gridmakerapp.com@2026-07-20",
-    "gridmakerapp.com@2026-07-21",
-    "gridmakerapp.com@2026-07-22",
-    "gridmakerapp.com@2026-07-23"
-   ],
-   "totalUrls": 99
-  },
-  "lovableapp.org": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "gridmakerapp.com"
-   ],
-   "placements": [
-    "gridmakerapp.com@2026-07-27"
-   ],
-   "totalUrls": 3
-  },
-  "fiverr-seo-for-small-businesses.site": {
-   "tier": "spam-net",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": "域名本身写着 seo/ranking/boost/fiverr 的批量站群。出现在自己反链里是被无关方通投，不是成绩。黑名单，不要买。",
-   "observedSites": [
-    "instaplay.ai",
-    "vixal.app"
-   ],
-   "placements": [
-    "instaplay.ai@2026-07-05",
-    "vixal.app@2026-06-25"
-   ],
-   "totalUrls": 20
-  },
-  "grow-your.website": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "instaplay.ai"
-   ],
-   "placements": [
-    "instaplay.ai@2026-07-06",
-    "instaplay.ai@2026-07-07",
-    "instaplay.ai@2026-07-08"
-   ],
-   "totalUrls": 26
-  },
-  "huntscreens.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "instaplay.ai"
-   ],
-   "placements": [
-    "instaplay.ai@2026-07-19"
-   ],
-   "totalUrls": 7
-  },
-  "founderleague.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "instaplay.ai"
-   ],
-   "placements": [
-    "instaplay.ai@2026-07-25"
-   ],
-   "totalUrls": 8
-  },
-  "instaplay.dev": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "instaplay.ai"
-   ],
-   "placements": [
-    "instaplay.ai@2026-07-30"
-   ],
-   "totalUrls": 10
-  },
-  "launches.uicomet.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": "发布板形态，单次投放可产生数百条。",
-   "observedSites": [
-    "invisibletextpro.com",
-    "musiccup.app"
-   ],
-   "placements": [
-    "invisibletextpro.com@2026-02-09",
-    "invisibletextpro.com@2026-02-10",
-    "musiccup.app@2026-07-28",
-    "musiccup.app@2026-07-29"
-   ],
-   "totalUrls": 312
-  },
-  "updf.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "ivycraft.ai"
-   ],
-   "placements": [
-    "ivycraft.ai@2026-05-12"
-   ],
-   "totalUrls": 200
-  },
-  "automateandtweak.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "lightreel.ai"
-   ],
-   "placements": [
-    "lightreel.ai@2026-03-25",
-    "lightreel.ai@2026-03-26",
-    "lightreel.ai@2026-05-12",
-    "lightreel.ai@2026-05-13"
-   ],
-   "totalUrls": 28
-  },
-  "jameslinks.agency": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "lightreel.ai"
-   ],
-   "placements": [
-    "lightreel.ai@2026-05-13"
-   ],
-   "totalUrls": 3
-  },
-  "toplikevideo.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "lightreel.ai"
-   ],
-   "placements": [
-    "lightreel.ai@2026-05-22"
-   ],
-   "totalUrls": 3
-  },
-  "8coint.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "lightreel.ai"
-   ],
-   "placements": [
-    "lightreel.ai@2026-07-05"
-   ],
-   "totalUrls": 3
-  },
-  "free-fonts.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "lingojam.com"
-   ],
-   "placements": [
-    "lingojam.com@2024-07-08",
-    "lingojam.com@2024-07-24"
-   ],
-   "totalUrls": 6
-  },
-  "forum.cosmoteer.net": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "lingojam.com"
-   ],
-   "placements": [
-    "lingojam.com@2024-08-15"
-   ],
-   "totalUrls": 3
-  },
-  "removetexts.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "magicremover.org"
-   ],
-   "placements": [
-    "magicremover.org@2026-04-23"
-   ],
-   "totalUrls": 8
-  },
-  "lukeio.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "screentester.io"
-   ],
-   "placements": [
-    "screentester.io@2026-04-30"
-   ],
-   "totalUrls": 3
-  },
-  "doors101.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "screentester.io"
-   ],
-   "placements": [
-    "screentester.io@2026-06-04"
-   ],
-   "totalUrls": 3
-  },
-  "dietla.pl": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "starting5.app"
-   ],
-   "placements": [
-    "starting5.app@2026-06-04"
-   ],
-   "totalUrls": 4
-  },
-  "gol-behesht.ir": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "starting5.app"
-   ],
-   "placements": [
-    "starting5.app@2026-06-04"
-   ],
-   "totalUrls": 4
-  },
-  "xrp.army": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "starting5.app"
-   ],
-   "placements": [
-    "starting5.app@2026-06-04"
-   ],
-   "totalUrls": 3
-  },
-  "bloody-disgusting.com": {
-   "tier": "not-a-platform",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": "恐怖片媒体站，单站 301 条且分散在连续多天——更像真实报道加全站挂件。",
-   "observedSites": [
-    "subservientghostface.com"
-   ],
-   "placements": [
-    "subservientghostface.com@2026-05-28",
-    "subservientghostface.com@2026-05-29",
-    "subservientghostface.com@2026-05-30",
-    "subservientghostface.com@2026-05-31",
-    "subservientghostface.com@2026-06-01",
-    "subservientghostface.com@2026-06-02",
-    "subservientghostface.com@2026-06-03",
-    "subservientghostface.com@2026-06-04"
-   ],
-   "totalUrls": 301
-  },
-  "twitter.privacidadlibre.org": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "subservientghostface.com"
-   ],
-   "placements": [
-    "subservientghostface.com@2026-05-31"
-   ],
-   "totalUrls": 3
-  },
-  "subservientghostface.wiki": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "subservientghostface.com"
-   ],
-   "placements": [
-    "subservientghostface.com@2026-06-07"
-   ],
-   "totalUrls": 8
-  },
-  "6-9.space": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "subservientghostface.com"
-   ],
-   "placements": [
-    "subservientghostface.com@2026-07-02",
-    "subservientghostface.com@2026-07-04",
-    "subservientghostface.com@2026-07-05"
-   ],
-   "totalUrls": 10
-  },
-  "topai.tools": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "topview.ai"
-   ],
-   "placements": [
-    "topview.ai@2024-04-03",
-    "topview.ai@2024-04-06",
-    "topview.ai@2024-04-09",
-    "topview.ai@2024-04-11"
-   ],
-   "totalUrls": 13
-  },
-  "autoais.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "topview.ai"
-   ],
-   "placements": [
-    "topview.ai@2024-06-07"
-   ],
-   "totalUrls": 4
-  },
-  "aitoolscorner.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "tryonr.com"
-   ],
-   "placements": [
-    "tryonr.com@2025-12-25"
-   ],
-   "totalUrls": 3
-  },
-  "submitaitools.org": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": "有 /submit-your-ai-tool/ 与 Promote 两档，未核价。会生成 /alternatives/<域名> 这类页面，单站可达数百条。",
-   "observedSites": [
-    "tryonr.com"
-   ],
-   "placements": [
-    "tryonr.com@2026-01-03",
-    "tryonr.com@2026-01-04",
-    "tryonr.com@2026-01-05",
-    "tryonr.com@2026-01-07",
-    "tryonr.com@2026-01-08",
-    "tryonr.com@2026-01-10"
-   ],
-   "totalUrls": 273
-  },
-  "startupaideas.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "tryonr.com"
-   ],
-   "placements": [
-    "tryonr.com@2026-01-04",
-    "tryonr.com@2026-01-05",
-    "tryonr.com@2026-01-06"
-   ],
-   "totalUrls": 16
-  },
-  "goodaitools.com": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "tryonr.com"
-   ],
-   "placements": [
-    "tryonr.com@2026-01-04",
-    "tryonr.com@2026-01-05",
-    "tryonr.com@2026-01-07"
-   ],
-   "totalUrls": 39
-  },
-  "soravideo.art": {
-   "tier": "unverified",
-   "price": null,
-   "priceCheckedAt": null,
-   "notes": null,
-   "observedSites": [
-    "tryonr.com"
-   ],
-   "placements": [
-    "tryonr.com@2026-01-08"
-   ],
-   "totalUrls": 3
+  "updatedAt": "2026-08-18",
+  "note": "被观察到用于投放的平台登记表；sitesHit 越高越说明它真的在被使用",
+  "platforms": {
+    "microlaunch.net": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "/premium 页有价，未核。",
+      "observedSites": [
+        "21st.dev"
+      ],
+      "placements": [
+        "21st.dev@2025-02-19"
+      ],
+      "totalUrls": 5
+    },
+    "aiquerytool.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "21st.dev"
+      ],
+      "placements": [
+        "21st.dev@2025-02-19",
+        "21st.dev@2025-05-13",
+        "21st.dev@2025-05-15"
+      ],
+      "totalUrls": 12
+    },
+    "webcurate.co": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "21st.dev"
+      ],
+      "placements": [
+        "21st.dev@2025-04-08",
+        "21st.dev@2025-04-11"
+      ],
+      "totalUrls": 7
+    },
+    "szxn.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "21st.dev"
+      ],
+      "placements": [
+        "21st.dev@2025-05-01",
+        "21st.dev@2025-05-26",
+        "21st.dev@2025-05-27",
+        "21st.dev@2025-05-30",
+        "21st.dev@2025-06-04",
+        "21st.dev@2025-06-09",
+        "21st.dev@2025-06-12"
+      ],
+      "totalUrls": 25
+    },
+    "sparkbites.dev": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "21st.dev"
+      ],
+      "placements": [
+        "21st.dev@2025-05-19"
+      ],
+      "totalUrls": 3
+    },
+    "adspirer.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "adspirer.ai"
+      ],
+      "placements": [
+        "adspirer.ai@2025-12-21",
+        "adspirer.ai@2025-12-30",
+        "adspirer.ai@2025-12-31",
+        "adspirer.ai@2026-01-08",
+        "adspirer.ai@2026-01-09",
+        "adspirer.ai@2026-01-10",
+        "adspirer.ai@2026-01-19",
+        "adspirer.ai@2026-02-10",
+        "adspirer.ai@2026-03-25",
+        "adspirer.ai@2026-03-31",
+        "adspirer.ai@2026-04-04",
+        "adspirer.ai@2026-04-05",
+        "adspirer.ai@2026-04-10",
+        "adspirer.ai@2026-04-27",
+        "adspirer.ai@2026-04-30",
+        "adspirer.ai@2026-05-02",
+        "adspirer.ai@2026-05-03",
+        "adspirer.ai@2026-05-05",
+        "adspirer.ai@2026-05-06"
+      ],
+      "totalUrls": 159
+    },
+    "developer.adspirer.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "adspirer.ai"
+      ],
+      "placements": [
+        "adspirer.ai@2026-04-24"
+      ],
+      "totalUrls": 11
+    },
+    "prismo.fedibird.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "aiattractivenesstest.ai"
+      ],
+      "placements": [
+        "aiattractivenesstest.ai@2026-04-02"
+      ],
+      "totalUrls": 3
+    },
+    "blogs.dickinson.edu": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "aiattractivenesstest.ai"
+      ],
+      "placements": [
+        "aiattractivenesstest.ai@2026-04-03"
+      ],
+      "totalUrls": 4
+    },
+    "spillhistorie.no": {
+      "tier": "not-a-platform",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "挪威游戏史站，单站 388 条。同上，先当异常看待而不是渠道。",
+      "observedSites": [
+        "aiattractivenesstest.ai"
+      ],
+      "placements": [
+        "aiattractivenesstest.ai@2026-04-03"
+      ],
+      "totalUrls": 388
+    },
+    "gptdemo.net": {
+      "tier": "link-package",
+      "price": "同上（一份钱覆盖两个域）",
+      "priceCheckedAt": "2026-08-18",
+      "notes": "aitoolhub.net 的姊妹域，见该条。",
+      "observedSites": [
+        "capafy.ai",
+        "eimg.ai",
+        "fontvibe.ai",
+        "imagefree.net"
+      ],
+      "placements": [
+        "capafy.ai@2026-06-02",
+        "eimg.ai@2026-07-18",
+        "eimg.ai@2026-07-19",
+        "fontvibe.ai@2026-04-21",
+        "imagefree.net@2026-03-20",
+        "imagefree.net@2026-03-21"
+      ],
+      "totalUrls": 364
+    },
+    "aitoolhub.net": {
+      "tier": "link-package",
+      "price": "$19.9 一次性",
+      "priceCheckedAt": "2026-08-18",
+      "notes": "与 gptdemo.net 同一运营方（分类计数、版式完全一致）。pricing 页直写「24 High-Quality Dofollow Backlinks」：12 个界面语言 x 2 个域 = 24 个页面。所以「单站 148 条」是一次投放，不是多次。",
+      "observedSites": [
+        "capafy.ai",
+        "eimg.ai",
+        "fontvibe.ai",
+        "imagefree.net"
+      ],
+      "placements": [
+        "capafy.ai@2026-06-02",
+        "eimg.ai@2026-07-18",
+        "fontvibe.ai@2026-04-21",
+        "imagefree.net@2026-03-20",
+        "imagefree.net@2026-03-21"
+      ],
+      "totalUrls": 444
+    },
+    "toolatlas.io": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "capafy.ai",
+        "fontvibe.ai"
+      ],
+      "placements": [
+        "capafy.ai@2026-06-02",
+        "fontvibe.ai@2026-04-20"
+      ],
+      "totalUrls": 11
+    },
+    "mcpservers.org": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "capafy.ai"
+      ],
+      "placements": [
+        "capafy.ai@2026-06-02"
+      ],
+      "totalUrls": 19
+    },
+    "toolify.ai": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "capafy.ai",
+        "fontvibe.ai"
+      ],
+      "placements": [
+        "capafy.ai@2026-06-02",
+        "fontvibe.ai@2026-04-20",
+        "fontvibe.ai@2026-04-21"
+      ],
+      "totalUrls": 16
+    },
+    "seopxl-organic-boost-lab.shop": {
+      "tier": "spam-net",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "域名本身写着 seo/ranking/boost/fiverr 的批量站群。出现在自己反链里是被无关方通投，不是成绩。黑名单，不要买。",
+      "observedSites": [
+        "cliptica.com",
+        "emojer.org"
+      ],
+      "placements": [
+        "cliptica.com@2026-07-24",
+        "cliptica.com@2026-07-26",
+        "emojer.org@2026-07-24",
+        "emojer.org@2026-07-26"
+      ],
+      "totalUrls": 19
+    },
+    "seo-growth-optimization-hub.shop": {
+      "tier": "spam-net",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "域名本身写着 seo/ranking/boost/fiverr 的批量站群。出现在自己反链里是被无关方通投，不是成绩。黑名单，不要买。",
+      "observedSites": [
+        "cliptica.com",
+        "emojer.org",
+        "make.design"
+      ],
+      "placements": [
+        "cliptica.com@2026-07-24",
+        "cliptica.com@2026-07-25",
+        "cliptica.com@2026-07-26",
+        "emojer.org@2026-07-26",
+        "make.design@2026-06-08"
+      ],
+      "totalUrls": 17
+    },
+    "seopxl-performance-authority-engine.shop": {
+      "tier": "spam-net",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "域名本身写着 seo/ranking/boost/fiverr 的批量站群。出现在自己反链里是被无关方通投，不是成绩。黑名单，不要买。",
+      "observedSites": [
+        "cliptica.com",
+        "emojer.org",
+        "make.design"
+      ],
+      "placements": [
+        "cliptica.com@2026-07-24",
+        "cliptica.com@2026-07-26",
+        "emojer.org@2026-07-24",
+        "emojer.org@2026-07-26",
+        "make.design@2026-06-06"
+      ],
+      "totalUrls": 25
+    },
+    "seopxl-traffic-growth-lab.shop": {
+      "tier": "spam-net",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "域名本身写着 seo/ranking/boost/fiverr 的批量站群。出现在自己反链里是被无关方通投，不是成绩。黑名单，不要买。",
+      "observedSites": [
+        "cliptica.com",
+        "emojer.org"
+      ],
+      "placements": [
+        "cliptica.com@2026-07-24",
+        "emojer.org@2026-07-24"
+      ],
+      "totalUrls": 13
+    },
+    "seo-growth-authority-boost-hub.shop": {
+      "tier": "spam-net",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "域名本身写着 seo/ranking/boost/fiverr 的批量站群。出现在自己反链里是被无关方通投，不是成绩。黑名单，不要买。",
+      "observedSites": [
+        "cliptica.com",
+        "emojer.org"
+      ],
+      "placements": [
+        "cliptica.com@2026-07-24",
+        "emojer.org@2026-07-24"
+      ],
+      "totalUrls": 16
+    },
+    "seopxl-ranking-boost-lab.shop": {
+      "tier": "spam-net",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "域名本身写着 seo/ranking/boost/fiverr 的批量站群。出现在自己反链里是被无关方通投，不是成绩。黑名单，不要买。",
+      "observedSites": [
+        "cliptica.com",
+        "emojer.org",
+        "make.design"
+      ],
+      "placements": [
+        "cliptica.com@2026-07-25",
+        "emojer.org@2026-07-24",
+        "emojer.org@2026-07-25",
+        "make.design@2026-06-05",
+        "make.design@2026-06-06"
+      ],
+      "totalUrls": 23
+    },
+    "nano-banana.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "eimg.ai"
+      ],
+      "placements": [
+        "eimg.ai@2026-07-11",
+        "eimg.ai@2026-07-12",
+        "eimg.ai@2026-07-13",
+        "eimg.ai@2026-07-14",
+        "eimg.ai@2026-07-15",
+        "eimg.ai@2026-07-16",
+        "eimg.ai@2026-07-17"
+      ],
+      "totalUrls": 108
+    },
+    "madrimasd.org": {
+      "tier": "not-a-platform",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "西班牙机构站，单站 254 条集中在一天——形态更像站群注入或全站挂件，不是可投放的平台。别当渠道用。",
+      "observedSites": [
+        "eimg.ai",
+        "magicremover.org"
+      ],
+      "placements": [
+        "eimg.ai@2026-07-13",
+        "magicremover.org@2026-04-23",
+        "magicremover.org@2026-04-24"
+      ],
+      "totalUrls": 292
+    },
+    "aegypten-ausflug.de": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "eimg.ai"
+      ],
+      "placements": [
+        "eimg.ai@2026-07-13"
+      ],
+      "totalUrls": 5
+    },
+    "heroacademiabeyond.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "eimg.ai"
+      ],
+      "placements": [
+        "eimg.ai@2026-07-15"
+      ],
+      "totalUrls": 3
+    },
+    "creati.ai": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "eimg.ai"
+      ],
+      "placements": [
+        "eimg.ai@2026-07-18",
+        "eimg.ai@2026-07-19"
+      ],
+      "totalUrls": 12
+    },
+    "launchitx.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "eimg.ai"
+      ],
+      "placements": [
+        "eimg.ai@2026-07-18",
+        "eimg.ai@2026-07-19"
+      ],
+      "totalUrls": 26
+    },
+    "bestfor.ai": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "eimg.ai"
+      ],
+      "placements": [
+        "eimg.ai@2026-07-18"
+      ],
+      "totalUrls": 3
+    },
+    "showmebest.ai": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "eimg.ai"
+      ],
+      "placements": [
+        "eimg.ai@2026-07-18"
+      ],
+      "totalUrls": 6
+    },
+    "bai.tools": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "eimg.ai"
+      ],
+      "placements": [
+        "eimg.ai@2026-07-18",
+        "eimg.ai@2026-07-19"
+      ],
+      "totalUrls": 8
+    },
+    "mossai.org": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "eimg.ai",
+        "tryonr.com"
+      ],
+      "placements": [
+        "eimg.ai@2026-07-18",
+        "eimg.ai@2026-07-19",
+        "tryonr.com@2025-12-17",
+        "tryonr.com@2025-12-18",
+        "tryonr.com@2025-12-21",
+        "tryonr.com@2025-12-22",
+        "tryonr.com@2025-12-26",
+        "tryonr.com@2025-12-27",
+        "tryonr.com@2025-12-28",
+        "tryonr.com@2025-12-29",
+        "tryonr.com@2025-12-30",
+        "tryonr.com@2025-12-31",
+        "tryonr.com@2026-01-01",
+        "tryonr.com@2026-01-04",
+        "tryonr.com@2026-01-05",
+        "tryonr.com@2026-01-06",
+        "tryonr.com@2026-01-07",
+        "tryonr.com@2026-01-08",
+        "tryonr.com@2026-01-09",
+        "tryonr.com@2026-01-10"
+      ],
+      "totalUrls": 94
+    },
+    "iuu.ai": {
+      "tier": "free-with-account",
+      "price": "$0（但要注册）",
+      "priceCheckedAt": "2026-08-18",
+      "notes": "FAQ 白纸黑字写 fee is currently $0，但提交按钮本身就是 Login。「免费」与「免注册」是两件事。",
+      "observedSites": [
+        "eimg.ai"
+      ],
+      "placements": [
+        "eimg.ai@2026-07-18",
+        "eimg.ai@2026-07-19"
+      ],
+      "totalUrls": 8
+    },
+    "ai.keenchase.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "eimg.ai"
+      ],
+      "placements": [
+        "eimg.ai@2026-07-18"
+      ],
+      "totalUrls": 4
+    },
+    "aistage.net": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "eimg.ai"
+      ],
+      "placements": [
+        "eimg.ai@2026-07-19"
+      ],
+      "totalUrls": 3
+    },
+    "www3.wind.ne.jp": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "eimg.ai"
+      ],
+      "placements": [
+        "eimg.ai@2026-07-19"
+      ],
+      "totalUrls": 3
+    },
+    "emojer.ru": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "emojer.org"
+      ],
+      "placements": [
+        "emojer.org@2026-07-16",
+        "emojer.org@2026-08-01"
+      ],
+      "totalUrls": 7
+    },
+    "cqiar.blogspot.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "fancytextguru.com"
+      ],
+      "placements": [
+        "fancytextguru.com@2024-01-14"
+      ],
+      "totalUrls": 3
+    },
+    "the-bulldog.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "fancytextguru.com",
+        "textfx.co"
+      ],
+      "placements": [
+        "fancytextguru.com@2024-08-12",
+        "textfx.co@2025-04-18"
+      ],
+      "totalUrls": 10
+    },
+    "saashunt.best": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "有 Submit Project 与 Pricing，首页自述「Submit, Earn a Badge, High DR Backlink」。",
+      "observedSites": [
+        "fontsgeneratorpro.com"
+      ],
+      "placements": [
+        "fontsgeneratorpro.com@2026-02-14"
+      ],
+      "totalUrls": 289
+    },
+    "hackerchoice.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "gridmakerapp.com"
+      ],
+      "placements": [
+        "gridmakerapp.com@2026-07-16",
+        "gridmakerapp.com@2026-07-17",
+        "gridmakerapp.com@2026-07-18",
+        "gridmakerapp.com@2026-07-20",
+        "gridmakerapp.com@2026-07-21",
+        "gridmakerapp.com@2026-07-22",
+        "gridmakerapp.com@2026-07-23"
+      ],
+      "totalUrls": 99
+    },
+    "lovableapp.org": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "gridmakerapp.com"
+      ],
+      "placements": [
+        "gridmakerapp.com@2026-07-27"
+      ],
+      "totalUrls": 3
+    },
+    "fiverr-seo-for-small-businesses.site": {
+      "tier": "spam-net",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "域名本身写着 seo/ranking/boost/fiverr 的批量站群。出现在自己反链里是被无关方通投，不是成绩。黑名单，不要买。",
+      "observedSites": [
+        "instaplay.ai",
+        "vixal.app"
+      ],
+      "placements": [
+        "instaplay.ai@2026-07-05",
+        "vixal.app@2026-06-25"
+      ],
+      "totalUrls": 20
+    },
+    "grow-your.website": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "instaplay.ai"
+      ],
+      "placements": [
+        "instaplay.ai@2026-07-06",
+        "instaplay.ai@2026-07-07",
+        "instaplay.ai@2026-07-08"
+      ],
+      "totalUrls": 26
+    },
+    "huntscreens.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "instaplay.ai"
+      ],
+      "placements": [
+        "instaplay.ai@2026-07-19"
+      ],
+      "totalUrls": 7
+    },
+    "founderleague.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "instaplay.ai"
+      ],
+      "placements": [
+        "instaplay.ai@2026-07-25"
+      ],
+      "totalUrls": 8
+    },
+    "instaplay.dev": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "instaplay.ai"
+      ],
+      "placements": [
+        "instaplay.ai@2026-07-30"
+      ],
+      "totalUrls": 10
+    },
+    "launches.uicomet.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "发布板形态，单次投放可产生数百条。",
+      "observedSites": [
+        "invisibletextpro.com",
+        "musiccup.app"
+      ],
+      "placements": [
+        "invisibletextpro.com@2026-02-09",
+        "invisibletextpro.com@2026-02-10",
+        "musiccup.app@2026-07-28",
+        "musiccup.app@2026-07-29"
+      ],
+      "totalUrls": 312
+    },
+    "updf.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "ivycraft.ai"
+      ],
+      "placements": [
+        "ivycraft.ai@2026-05-12"
+      ],
+      "totalUrls": 200
+    },
+    "automateandtweak.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "lightreel.ai"
+      ],
+      "placements": [
+        "lightreel.ai@2026-03-25",
+        "lightreel.ai@2026-03-26",
+        "lightreel.ai@2026-05-12",
+        "lightreel.ai@2026-05-13"
+      ],
+      "totalUrls": 28
+    },
+    "jameslinks.agency": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "lightreel.ai"
+      ],
+      "placements": [
+        "lightreel.ai@2026-05-13"
+      ],
+      "totalUrls": 3
+    },
+    "toplikevideo.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "lightreel.ai"
+      ],
+      "placements": [
+        "lightreel.ai@2026-05-22"
+      ],
+      "totalUrls": 3
+    },
+    "8coint.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "lightreel.ai"
+      ],
+      "placements": [
+        "lightreel.ai@2026-07-05"
+      ],
+      "totalUrls": 3
+    },
+    "free-fonts.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "lingojam.com"
+      ],
+      "placements": [
+        "lingojam.com@2024-07-08",
+        "lingojam.com@2024-07-24"
+      ],
+      "totalUrls": 6
+    },
+    "forum.cosmoteer.net": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "lingojam.com"
+      ],
+      "placements": [
+        "lingojam.com@2024-08-15"
+      ],
+      "totalUrls": 3
+    },
+    "removetexts.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "magicremover.org"
+      ],
+      "placements": [
+        "magicremover.org@2026-04-23"
+      ],
+      "totalUrls": 8
+    },
+    "lukeio.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "screentester.io"
+      ],
+      "placements": [
+        "screentester.io@2026-04-30"
+      ],
+      "totalUrls": 3
+    },
+    "doors101.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "screentester.io"
+      ],
+      "placements": [
+        "screentester.io@2026-06-04"
+      ],
+      "totalUrls": 3
+    },
+    "dietla.pl": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "starting5.app"
+      ],
+      "placements": [
+        "starting5.app@2026-06-04"
+      ],
+      "totalUrls": 4
+    },
+    "gol-behesht.ir": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "starting5.app"
+      ],
+      "placements": [
+        "starting5.app@2026-06-04"
+      ],
+      "totalUrls": 4
+    },
+    "xrp.army": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "starting5.app"
+      ],
+      "placements": [
+        "starting5.app@2026-06-04"
+      ],
+      "totalUrls": 3
+    },
+    "bloody-disgusting.com": {
+      "tier": "not-a-platform",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "恐怖片媒体站，单站 301 条且分散在连续多天——更像真实报道加全站挂件。",
+      "observedSites": [
+        "subservientghostface.com"
+      ],
+      "placements": [
+        "subservientghostface.com@2026-05-28",
+        "subservientghostface.com@2026-05-29",
+        "subservientghostface.com@2026-05-30",
+        "subservientghostface.com@2026-05-31",
+        "subservientghostface.com@2026-06-01",
+        "subservientghostface.com@2026-06-02",
+        "subservientghostface.com@2026-06-03",
+        "subservientghostface.com@2026-06-04"
+      ],
+      "totalUrls": 301
+    },
+    "twitter.privacidadlibre.org": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "subservientghostface.com"
+      ],
+      "placements": [
+        "subservientghostface.com@2026-05-31"
+      ],
+      "totalUrls": 3
+    },
+    "subservientghostface.wiki": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "subservientghostface.com"
+      ],
+      "placements": [
+        "subservientghostface.com@2026-06-07"
+      ],
+      "totalUrls": 8
+    },
+    "6-9.space": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "subservientghostface.com"
+      ],
+      "placements": [
+        "subservientghostface.com@2026-07-02",
+        "subservientghostface.com@2026-07-04",
+        "subservientghostface.com@2026-07-05"
+      ],
+      "totalUrls": 10
+    },
+    "topai.tools": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "topview.ai"
+      ],
+      "placements": [
+        "topview.ai@2024-04-03",
+        "topview.ai@2024-04-06",
+        "topview.ai@2024-04-09",
+        "topview.ai@2024-04-11"
+      ],
+      "totalUrls": 13
+    },
+    "autoais.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "topview.ai"
+      ],
+      "placements": [
+        "topview.ai@2024-06-07"
+      ],
+      "totalUrls": 4
+    },
+    "aitoolscorner.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "tryonr.com"
+      ],
+      "placements": [
+        "tryonr.com@2025-12-25"
+      ],
+      "totalUrls": 3
+    },
+    "submitaitools.org": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "有 /submit-your-ai-tool/ 与 Promote 两档，未核价。会生成 /alternatives/<域名> 这类页面，单站可达数百条。",
+      "observedSites": [
+        "tryonr.com"
+      ],
+      "placements": [
+        "tryonr.com@2026-01-03",
+        "tryonr.com@2026-01-04",
+        "tryonr.com@2026-01-05",
+        "tryonr.com@2026-01-07",
+        "tryonr.com@2026-01-08",
+        "tryonr.com@2026-01-10"
+      ],
+      "totalUrls": 273
+    },
+    "startupaideas.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "tryonr.com"
+      ],
+      "placements": [
+        "tryonr.com@2026-01-04",
+        "tryonr.com@2026-01-05",
+        "tryonr.com@2026-01-06"
+      ],
+      "totalUrls": 16
+    },
+    "goodaitools.com": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "tryonr.com"
+      ],
+      "placements": [
+        "tryonr.com@2026-01-04",
+        "tryonr.com@2026-01-05",
+        "tryonr.com@2026-01-07"
+      ],
+      "totalUrls": 39
+    },
+    "soravideo.art": {
+      "tier": "unverified",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": null,
+      "observedSites": [
+        "tryonr.com"
+      ],
+      "placements": [
+        "tryonr.com@2026-01-08"
+      ],
+      "totalUrls": 3
+    },
+    "submitdirs.com": {
+      "tier": "link-package",
+      "price": "PRO $249（促销码 EARLY199 后 $199）",
+      "priceCheckedAt": "2026-08-18",
+      "notes": "代投目录包，一次下单铺 20+ 个目录，实测批次里多数是低 DA / link-farm 型目录（SourceForge、Viesearch、Entireweb、ExactSeek、SoMuch、cipinet、iuu.ai 等），且批次内夹带多个加价项。第二笔订单被商家以「no suitable directory list」全额退款——说明它对不吃目录的站点没有货。证据来自第三方公开 Skill gr-backlinks 自己的开销台账，不是本项目的观察。",
+      "observedSites": [
+        "analook.com",
+        "gingiris.tools"
+      ],
+      "placements": [
+        "analook.com@2026-06-17",
+        "gingiris.tools@2026-06-18"
+      ],
+      "totalUrls": 0
+    },
+    "submitsaas.com": {
+      "tier": "link-package",
+      "price": "$140",
+      "priceCheckedAt": "2026-08-18",
+      "notes": "同类代投目录包。买方自己在台账里备注「需核对实拿几条 do-follow」——即交付时并未给出可验证的 rel 清单。证据同样来自第三方公开 Skill gr-backlinks 的开销台账。",
+      "observedSites": [
+        "analook.com"
+      ],
+      "placements": [
+        "analook.com@2026-06-20"
+      ],
+      "totalUrls": 0
+    }
   }
- }
 }

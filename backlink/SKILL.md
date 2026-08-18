@@ -372,6 +372,16 @@ Merge every new competitor harvest into it — the registry's value comes from
 repetition across independent subjects, so it is only as good as what has been
 fed in.
 
+When someone hands you **a list of places to get backlinks** — a tiered table with
+a Dofollow column, a competitor's "we got 200 links here" post, or another Skill's
+directory list — read the "Reading a third-party list" section of
+[instant-publish.md](references/instant-publish.md) before acting on any row of it.
+Those lists are worth harvesting and worthless to trust: the Dofollow column is an
+assertion about a platform, never an observation of a link, and the sweep that
+produced that section found a listed site that publishes your URL as plain text
+with no anchor at all, plus one whose domain now redirects to an unrelated product
+while still answering 200.
+
 When the ask is "somewhere I can post without registering", read
 [instant-publish.md](references/instant-publish.md) **first**. Directory
 submission does not satisfy that request and burning a campaign discovering this

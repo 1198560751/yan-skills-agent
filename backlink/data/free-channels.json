@@ -1,493 +1,545 @@
 {
- "version": 1,
- "updatedAt": "2026-08-18T04:42:52.276Z",
- "channels": [
-  {
-   "id": "telegraph",
-   "name": "telegra.ph (graph.org mirror)",
-   "kind": "publish-platform",
-   "scope": "single-site",
-   "homepage": "https://telegra.ph",
-   "account": "none",
-   "captcha": "none",
-   "browserRequired": false,
-   "anchorRendered": true,
-   "relObserved": [
-    "nofollow"
-   ],
-   "robotsObserved": "index, follow",
-   "indexable": true,
-   "rateLimit": null,
-   "howToPublish": "Pure HTTP API, no browser at all: createAccount then createPage. Both must be POST — GET silently misbehaves.",
-   "traps": [
-    "Body anchors are nofollow; the ONE dofollow link per page is the byline, built from the author_url passed at publish time. Point author_url at the URL you actually want the dofollow to reach.",
-    "This record read 'dofollow' for a while because a check sampled a single anchor — the byline — and generalised. Read rel from EVERY anchor before recording it."
-   ],
-   "status": "live",
-   "lastVerifiedAt": "2026-08-17",
-   "evidence": {
-    "method": "anonymous-http",
-    "what": "Every anchor across six published pages on both hosts was read from raw HTML; body links carried rel=nofollow throughout while the byline did not.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "write-as",
-   "name": "write.as",
-   "kind": "publish-platform",
-   "scope": "single-site",
-   "homepage": "https://write.as",
-   "account": "none",
-   "captcha": "none",
-   "browserRequired": true,
-   "anchorRendered": true,
-   "relObserved": [
-    "nofollow"
-   ],
-   "robotsObserved": null,
-   "indexable": true,
-   "howToPublish": "Browser, plain textarea. No editor API needed.",
-   "traps": [],
-   "status": "live",
-   "lastVerifiedAt": "2026-08-17",
-   "evidence": {
-    "method": "browser-dom",
-    "what": "Published page rendered a real anchor with rel=nofollow and carried no robots meta tag.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "rentry-co",
-   "name": "rentry.co",
-   "kind": "paste",
-   "scope": "single-site",
-   "homepage": "https://rentry.co",
-   "account": "none",
-   "captcha": "none",
-   "browserRequired": true,
-   "anchorRendered": true,
-   "relObserved": [],
-   "robotsObserved": "noindex",
-   "indexable": false,
-   "howToPublish": "Browser; the editor is CodeMirror, so set content with .setValue() rather than by assigning to a textarea value.",
-   "traps": [
-    "The dofollow link is real but the hosting page is noindex, which cancels most of the ranking value. Do not let 'dofollow' alone promote this record."
-   ],
-   "status": "rejected",
-   "rejectReason": "Page-level noindex",
-   "lastVerifiedAt": "2026-08-17",
-   "evidence": {
-    "method": "browser-dom",
-    "what": "Published page emitted an anchor with no rel attribute, and the document head carried a noindex robots meta.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "atabook-guestbooks",
-   "name": "Atabook-powered guestbooks",
-   "kind": "guestbook-engine",
-   "scope": "engine",
-   "homepage": "https://atabook.org",
-   "account": "none",
-   "captcha": "passive",
-   "browserRequired": true,
-   "anchorRendered": true,
-   "relObserved": [
-    "noopener noreferrer ugc"
-   ],
-   "robotsObserved": "varies",
-   "indexable": "per-host",
-   "rateLimit": "Per address across the WHOLE engine, not per board. Refusals begin around the eighth or ninth post in a sitting: 'Too many posts from your address. Try again in a few hours.'",
-   "howToPublish": "Browser. Write the link into the message body as BBCode [URL=…]text[/URL]; the server renders a real anchor, so there is no need to drive the rich-text editor.",
-   "traps": [
-    "The bot check is instantiated ON SUBMIT, not on load. Waiting for a token before clicking times out every time and misreports as 'blocked'. Click submit first, then observe.",
-    "A plain HTTP POST returns 200 and silently saves nothing. Only the verification step catches this, never the response code.",
-    "Board owners independently configure an anti-bot question (a question-<id> field) and the robots tag. On a 30-board sample, 14 had a question — the majority. Realistic postable rate after screening was about 45%.",
-    "Rate-limit failures are silent: no redirect, no HTTP error, only an inline ⚠ Error banner above the form. Read that banner after every submit or throttling is indistinguishable from rejection.",
-    "A hidden field named like a password with tabindex=-1 is a honeypot. Never fill it."
-   ],
-   "status": "live",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "both",
-    "what": "Eleven placements published and then re-read over anonymous cookie-less HTTP; each rendered rel=\"noopener noreferrer ugc\", and the hosting boards carried no robots meta.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "statshow",
-   "name": "statshow.com",
-   "kind": "domain-report",
-   "scope": "single-site",
-   "urlPattern": "https://www.statshow.com/www/{domain}",
-   "account": "none",
-   "captcha": "none",
-   "browserRequired": true,
-   "anchorRendered": true,
-   "relObserved": [
-    "",
-    "nofollow"
-   ],
-   "robotsObserved": "index,follow",
-   "indexable": true,
-   "howToPublish": "Visiting the templated URL is the entire submission — the report page is generated on demand.",
-   "traps": [
-    "Raw HTML shows no anchor; the links only exist after client-side rendering. A plain fetch produces a false negative here."
-   ],
-   "status": "live",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "browser-dom",
-    "what": "Nine anchors to the subject domain in the rendered DOM, some with no rel attribute at all, on a page serving robots index,follow.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "domain-glass",
-   "name": "domain.glass",
-   "kind": "domain-report",
-   "scope": "single-site",
-   "urlPattern": "https://www.domain.glass/{domain}",
-   "account": "none",
-   "captcha": "none",
-   "browserRequired": true,
-   "anchorRendered": true,
-   "relObserved": [
-    "",
-    "nofollow",
-    "nofollow noopener noreferrer",
-    "external nofollow noopener noreferrer"
-   ],
-   "robotsObserved": "index, follow, max-image-preview:large",
-   "indexable": true,
-   "howToPublish": "Visiting the templated URL generates the report page.",
-   "traps": [
-    "Mixed rel values on the same page — some anchors carry none. Record the whole set, not the first one you happen to read."
-   ],
-   "status": "live",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "browser-dom",
-    "what": "Twenty anchors to the subject domain in the rendered DOM with a mix of rel values including bare anchors, on an index,follow page.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "sitelike-org",
-   "name": "sitelike.org",
-   "kind": "domain-report",
-   "scope": "single-site",
-   "urlPattern": "https://www.sitelike.org/similar/{domain}/",
-   "account": "none",
-   "captcha": "none",
-   "browserRequired": false,
-   "anchorRendered": true,
-   "relObserved": [
-    "external nofollow noopener"
-   ],
-   "robotsObserved": null,
-   "indexable": true,
-   "howToPublish": "Visiting the templated URL generates the similar-sites page.",
-   "traps": [],
-   "status": "live",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "anonymous-http",
-    "what": "One anchor to the subject domain present in raw HTML with rel='external nofollow noopener'; no robots meta on the page.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "hypestat",
-   "name": "hypestat.com",
-   "kind": "domain-report",
-   "scope": "single-site",
-   "urlPattern": "https://hypestat.com/info/{domain}",
-   "account": "none",
-   "captcha": "none",
-   "browserRequired": true,
-   "anchorRendered": false,
-   "robotsObserved": "noindex,follow",
-   "indexable": false,
-   "howToPublish": "N/A",
-   "traps": [
-    "Representative of most of this family: the page generates fine and looks like a win, but it is noindex. Checking only that the URL loads passes a pile of worthless pages."
-   ],
-   "status": "rejected",
-   "rejectReason": "noindex, and no anchor to the subject domain in the rendered DOM",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "browser-dom",
-    "what": "Rendered DOM contained zero anchors to the subject domain and the page served robots noindex,follow.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "htmlcommentbox",
-   "name": "HTML Comment Box (embedded widget)",
-   "kind": "comment-form",
-   "scope": "engine",
-   "homepage": "https://www.htmlcommentbox.com",
-   "account": "none",
-   "captcha": "unknown",
-   "browserRequired": true,
-   "anchorRendered": true,
-   "robotsObserved": "varies",
-   "indexable": "per-host",
-   "howToPublish": "Browser. The widget is embedded by the host site; the comment stream renders client-side.",
-   "traps": [
-    "Spam saturation is per embedding, NOT per widget. A blanket rejection of this product was recorded from one bad instance; other embeddings carry ordinary human conversation with zero spam, because the embedding owner has moderation controls.",
-    "The comment stream is client-rendered, so a plain HTTP fetch shows a near-empty page and finds no spam. That is a false clear — check the neighbourhood in a browser."
-   ],
-   "status": "unverified",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "browser-dom",
-    "what": "One embedding rendered a real human comment thread in the browser with zero spam-term hits, while plain HTTP returned only 2439 characters of page text and could not see the stream at all.",
-    "publicUrl": "https://solarcircuits.neocities.org/guestbook"
-   }
-  },
-  {
-   "id": "supertools-rundown",
-   "name": "Supertools (therundown.ai)",
-   "kind": "directory",
-   "scope": "single-site",
-   "homepage": "https://supertools.therundown.ai/submit",
-   "account": "none",
-   "captcha": "none",
-   "browserRequired": false,
-   "anchorRendered": true,
-   "robotsObserved": null,
-   "indexable": true,
-   "howToPublish": "Embedded Tally.so form on /submit. No login, no payment, no CAPTCHA.",
-   "traps": [
-    "Listing is reviewed, so submission is not publication — verify the live listing before recording any rel."
-   ],
-   "status": "unverified",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "both",
-    "what": "Raw HTML grepped for recaptcha/hcaptcha/turnstile/sitekey returned nothing, no login wording and no price in script-stripped visible text, and a headless browser pass showed a reachable Tally form.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "dofollow-tools",
-   "name": "Dofollow.Tools",
-   "kind": "directory",
-   "scope": "single-site",
-   "homepage": "https://dofollow.tools/submit",
-   "account": "none",
-   "captcha": "unknown",
-   "browserRequired": true,
-   "anchorRendered": true,
-   "robotsObserved": null,
-   "indexable": true,
-   "howToPublish": "Native multi-step wizard. Step 1 (Tool Information) is reachable with no login wall and no CAPTCHA.",
-   "traps": [
-    "Only step 1 was walked. Step 2 is named \"Submission Type\", which is usually where a free/paid tier choice lives — treat the channel as unverified until someone walks that step.",
-    "The header carries a \"Sign In\" link, but it is navigation, not a wall: the step-1 form renders and is fillable without it. Matching on the words alone gives a false positive."
-   ],
-   "status": "unverified",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "both",
-    "what": "Step-1 form fields render in raw HTML; script-stripped visible text contains no price and no login requirement; no CAPTCHA sitekey string anywhere in the source.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "legacy-php-directory-script",
-   "name": "Legacy PHP directory script (one engine, several hosts)",
-   "kind": "directory",
-   "scope": "engine",
-   "account": "none",
-   "captcha": "unknown",
-   "browserRequired": false,
-   "anchorRendered": true,
-   "robotsObserved": "varies",
-   "indexable": "per-host",
-   "howToPublish": "Server-rendered submit.php with a free tier. Fields and markup are identical across hosts running this script.",
-   "traps": [
-    "Two of the three hosts measured carry a classic image CAPTCHA exposed only as form fields (name=\"CAPTCHA\" plus name=\"IMAGEHASH\"). No third-party script is loaded, so a recaptcha/hcaptcha/turnstile search returns clean on them — search the field names too.",
-    "Whether the CAPTCHA is present is a per-host choice on the same engine, so it must be probed per host like every other owner-level setting."
-   ],
-   "status": "unverified",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "anonymous-http",
-    "what": "Three hosts served byte-similar submit.php markup with identical field names; a service-name CAPTCHA search returned false on all three while two exposed IMAGEHASH and CAPTCHA form fields.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "qualityinternetdirectory",
-   "name": "qualityinternetdirectory.com",
-   "kind": "directory",
-   "scope": "single-site",
-   "homepage": "https://www.qualityinternetdirectory.com/submit.php",
-   "account": "none",
-   "captcha": "none",
-   "browserRequired": false,
-   "anchorRendered": true,
-   "robotsObserved": null,
-   "indexable": true,
-   "howToPublish": "submit.php, free tier, no account. The only host of this legacy engine measured without a CAPTCHA field.",
-   "traps": [
-    "Same engine as the sibling hosts that DO carry an image CAPTCHA — re-check the field names before each campaign, since this is an owner-level setting that can be turned on."
-   ],
-   "status": "unverified",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "anonymous-http",
-    "what": "submit.php returned 200 with a free tier in script-stripped visible text, no price, and neither modern CAPTCHA service strings nor legacy CAPTCHA/IMAGEHASH field names.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "brownbook",
-   "name": "Brownbook",
-   "kind": "directory",
-   "scope": "single-site",
-   "homepage": "https://www.brownbook.net/",
-   "account": "none",
-   "captcha": "none",
-   "browserRequired": true,
-   "anchorRendered": true,
-   "robotsObserved": null,
-   "indexable": true,
-   "howToPublish": "Add-business wizard. Step 1 reachable with no account, no payment and no CAPTCHA.",
-   "traps": [
-    "Only step 1 of a two-step wizard was walked, so a late gate on step 2 is not ruled out."
-   ],
-   "status": "unverified",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "both",
-    "what": "Homepage and add-business step 1 rendered in a browser with no login wall, no price and no CAPTCHA strings or legacy CAPTCHA field names in source.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "aitoolsguide",
-   "name": "AI Tools Guide",
-   "kind": "directory",
-   "scope": "single-site",
-   "homepage": "https://www.aitoolsguide.com/",
-   "account": "none",
-   "captcha": "none",
-   "browserRequired": false,
-   "anchorRendered": true,
-   "robotsObserved": null,
-   "indexable": true,
-   "howToPublish": "免费提交表单，无登录墙、无验证码、无价格",
-   "traps": [
-    "Reviewed listing, so submitting is not publishing — verify the live listing before recording any rel."
-   ],
-   "status": "unverified",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "both",
-    "what": "Submission form present in source; script-stripped visible text carried no price and no login requirement; neither modern CAPTCHA service strings nor legacy CAPTCHA/IMAGEHASH field names were found.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "ainavhub",
-   "name": "AI NavHub",
-   "kind": "directory",
-   "scope": "single-site",
-   "homepage": "https://ainavhub.com/",
-   "account": "none",
-   "captcha": "none",
-   "browserRequired": false,
-   "anchorRendered": true,
-   "robotsObserved": null,
-   "indexable": true,
-   "howToPublish": "同上",
-   "traps": [
-    "Reviewed listing, so submitting is not publishing — verify the live listing before recording any rel."
-   ],
-   "status": "unverified",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "both",
-    "what": "Submission form present in source; script-stripped visible text carried no price and no login requirement; neither modern CAPTCHA service strings nor legacy CAPTCHA/IMAGEHASH field names were found.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "llmrelevance",
-   "name": "LLM Relevance",
-   "kind": "directory",
-   "scope": "single-site",
-   "homepage": "https://llmrelevance.com/",
-   "account": "none",
-   "captcha": "none",
-   "browserRequired": false,
-   "anchorRendered": true,
-   "robotsObserved": null,
-   "indexable": true,
-   "howToPublish": "可见文本里出现 $ 0，与免费档一致",
-   "traps": [
-    "Reviewed listing, so submitting is not publishing — verify the live listing before recording any rel."
-   ],
-   "status": "unverified",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "both",
-    "what": "Submission form present in source; script-stripped visible text carried no price and no login requirement; neither modern CAPTCHA service strings nor legacy CAPTCHA/IMAGEHASH field names were found.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "activesearchresults",
-   "name": "ActiveSearchResults",
-   "kind": "directory",
-   "scope": "single-site",
-   "homepage": "https://www.activesearchresults.com/",
-   "account": "none",
-   "captcha": "none",
-   "browserRequired": false,
-   "anchorRendered": true,
-   "robotsObserved": null,
-   "indexable": true,
-   "howToPublish": "老派搜索目录，免费提交表单",
-   "traps": [
-    "Reviewed listing, so submitting is not publishing — verify the live listing before recording any rel."
-   ],
-   "status": "unverified",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "both",
-    "what": "Submission form present in source; script-stripped visible text carried no price and no login requirement; neither modern CAPTCHA service strings nor legacy CAPTCHA/IMAGEHASH field names were found.",
-    "publicUrl": null
-   }
-  },
-  {
-   "id": "toolai",
-   "name": "ToolAI",
-   "kind": "directory",
-   "scope": "single-site",
-   "homepage": "https://www.toolai.io/submit/tool",
-   "account": "none",
-   "payment": "optional",
-   "captcha": "none",
-   "browserRequired": false,
-   "anchorRendered": true,
-   "robotsObserved": null,
-   "indexable": true,
-   "howToPublish": "Free submission form (name / website / description), no login required to fill it.",
-   "traps": [
-    "**The free tier is explicitly nofollow.** The paid tier ($99, discounted to $49 first month) is what buys a dofollow link and priority review. Free still gets a listing, so record it as a channel — but never record dofollow here without observing it."
-   ],
-   "status": "unverified",
-   "lastVerifiedAt": "2026-08-18",
-   "evidence": {
-    "method": "browser-dom",
-    "what": "Free form fillable without login; the paid plan panel states dofollow and priority review as its paid features, implying the free listing is nofollow.",
-    "publicUrl": null
-   }
-  }
- ]
+  "version": 1,
+  "updatedAt": "2026-08-18T00:00:00.000Z",
+  "channels": [
+    {
+      "id": "telegraph",
+      "name": "telegra.ph (graph.org mirror)",
+      "kind": "publish-platform",
+      "scope": "single-site",
+      "homepage": "https://telegra.ph",
+      "account": "none",
+      "captcha": "none",
+      "browserRequired": false,
+      "anchorRendered": true,
+      "relObserved": [
+        "nofollow"
+      ],
+      "robotsObserved": "index, follow",
+      "indexable": true,
+      "rateLimit": null,
+      "howToPublish": "Pure HTTP API, no browser at all: createAccount then createPage. Both must be POST — GET silently misbehaves.",
+      "traps": [
+        "Body anchors are nofollow; the ONE dofollow link per page is the byline, built from the author_url passed at publish time. Point author_url at the URL you actually want the dofollow to reach.",
+        "This record read 'dofollow' for a while because a check sampled a single anchor — the byline — and generalised. Read rel from EVERY anchor before recording it."
+      ],
+      "status": "live",
+      "lastVerifiedAt": "2026-08-17",
+      "evidence": {
+        "method": "anonymous-http",
+        "what": "Every anchor across six published pages on both hosts was read from raw HTML; body links carried rel=nofollow throughout while the byline did not.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "write-as",
+      "name": "write.as",
+      "kind": "publish-platform",
+      "scope": "single-site",
+      "homepage": "https://write.as",
+      "account": "none",
+      "captcha": "none",
+      "browserRequired": true,
+      "anchorRendered": true,
+      "relObserved": [
+        "nofollow"
+      ],
+      "robotsObserved": null,
+      "indexable": true,
+      "howToPublish": "Browser, plain textarea. No editor API needed.",
+      "traps": [],
+      "status": "live",
+      "lastVerifiedAt": "2026-08-17",
+      "evidence": {
+        "method": "browser-dom",
+        "what": "Published page rendered a real anchor with rel=nofollow and carried no robots meta tag.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "rentry-co",
+      "name": "rentry.co",
+      "kind": "paste",
+      "scope": "single-site",
+      "homepage": "https://rentry.co",
+      "account": "none",
+      "captcha": "none",
+      "browserRequired": true,
+      "anchorRendered": true,
+      "relObserved": [],
+      "robotsObserved": "noindex",
+      "indexable": false,
+      "howToPublish": "Browser; the editor is CodeMirror, so set content with .setValue() rather than by assigning to a textarea value.",
+      "traps": [
+        "The dofollow link is real but the hosting page is noindex, which cancels most of the ranking value. Do not let 'dofollow' alone promote this record."
+      ],
+      "status": "rejected",
+      "rejectReason": "Page-level noindex",
+      "lastVerifiedAt": "2026-08-17",
+      "evidence": {
+        "method": "browser-dom",
+        "what": "Published page emitted an anchor with no rel attribute, and the document head carried a noindex robots meta.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "atabook-guestbooks",
+      "name": "Atabook-powered guestbooks",
+      "kind": "guestbook-engine",
+      "scope": "engine",
+      "homepage": "https://atabook.org",
+      "account": "none",
+      "captcha": "passive",
+      "browserRequired": true,
+      "anchorRendered": true,
+      "relObserved": [
+        "noopener noreferrer ugc"
+      ],
+      "robotsObserved": "varies",
+      "indexable": "per-host",
+      "rateLimit": "Per address across the WHOLE engine, not per board. Refusals begin around the eighth or ninth post in a sitting: 'Too many posts from your address. Try again in a few hours.'",
+      "howToPublish": "Browser. Write the link into the message body as BBCode [URL=…]text[/URL]; the server renders a real anchor, so there is no need to drive the rich-text editor.",
+      "traps": [
+        "The bot check is instantiated ON SUBMIT, not on load. Waiting for a token before clicking times out every time and misreports as 'blocked'. Click submit first, then observe.",
+        "A plain HTTP POST returns 200 and silently saves nothing. Only the verification step catches this, never the response code.",
+        "Board owners independently configure an anti-bot question (a question-<id> field) and the robots tag. On a 30-board sample, 14 had a question — the majority. Realistic postable rate after screening was about 45%.",
+        "Rate-limit failures are silent: no redirect, no HTTP error, only an inline ⚠ Error banner above the form. Read that banner after every submit or throttling is indistinguishable from rejection.",
+        "A hidden field named like a password with tabindex=-1 is a honeypot. Never fill it."
+      ],
+      "status": "live",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "both",
+        "what": "Eleven placements published and then re-read over anonymous cookie-less HTTP; each rendered rel=\"noopener noreferrer ugc\", and the hosting boards carried no robots meta.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "statshow",
+      "name": "statshow.com",
+      "kind": "domain-report",
+      "scope": "single-site",
+      "urlPattern": "https://www.statshow.com/www/{domain}",
+      "account": "none",
+      "captcha": "none",
+      "browserRequired": true,
+      "anchorRendered": true,
+      "relObserved": [
+        "",
+        "nofollow"
+      ],
+      "robotsObserved": "index,follow",
+      "indexable": true,
+      "howToPublish": "Visiting the templated URL is the entire submission — the report page is generated on demand.",
+      "traps": [
+        "Raw HTML shows no anchor; the links only exist after client-side rendering. A plain fetch produces a false negative here."
+      ],
+      "status": "live",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "browser-dom",
+        "what": "Nine anchors to the subject domain in the rendered DOM, some with no rel attribute at all, on a page serving robots index,follow.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "domain-glass",
+      "name": "domain.glass",
+      "kind": "domain-report",
+      "scope": "single-site",
+      "urlPattern": "https://www.domain.glass/{domain}",
+      "account": "none",
+      "captcha": "none",
+      "browserRequired": true,
+      "anchorRendered": true,
+      "relObserved": [
+        "",
+        "nofollow",
+        "nofollow noopener noreferrer",
+        "external nofollow noopener noreferrer"
+      ],
+      "robotsObserved": "index, follow, max-image-preview:large",
+      "indexable": true,
+      "howToPublish": "Visiting the templated URL generates the report page.",
+      "traps": [
+        "Mixed rel values on the same page — some anchors carry none. Record the whole set, not the first one you happen to read."
+      ],
+      "status": "live",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "browser-dom",
+        "what": "Twenty anchors to the subject domain in the rendered DOM with a mix of rel values including bare anchors, on an index,follow page.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "sitelike-org",
+      "name": "sitelike.org",
+      "kind": "domain-report",
+      "scope": "single-site",
+      "urlPattern": "https://www.sitelike.org/similar/{domain}/",
+      "account": "none",
+      "captcha": "none",
+      "browserRequired": false,
+      "anchorRendered": true,
+      "relObserved": [
+        "external nofollow noopener"
+      ],
+      "robotsObserved": null,
+      "indexable": true,
+      "howToPublish": "Visiting the templated URL generates the similar-sites page.",
+      "traps": [],
+      "status": "live",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "anonymous-http",
+        "what": "One anchor to the subject domain present in raw HTML with rel='external nofollow noopener'; no robots meta on the page.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "hypestat",
+      "name": "hypestat.com",
+      "kind": "domain-report",
+      "scope": "single-site",
+      "urlPattern": "https://hypestat.com/info/{domain}",
+      "account": "none",
+      "captcha": "none",
+      "browserRequired": true,
+      "anchorRendered": false,
+      "robotsObserved": "noindex,follow",
+      "indexable": false,
+      "howToPublish": "N/A",
+      "traps": [
+        "Representative of most of this family: the page generates fine and looks like a win, but it is noindex. Checking only that the URL loads passes a pile of worthless pages."
+      ],
+      "status": "rejected",
+      "rejectReason": "noindex, and no anchor to the subject domain in the rendered DOM",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "browser-dom",
+        "what": "Rendered DOM contained zero anchors to the subject domain and the page served robots noindex,follow.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "htmlcommentbox",
+      "name": "HTML Comment Box (embedded widget)",
+      "kind": "comment-form",
+      "scope": "engine",
+      "homepage": "https://www.htmlcommentbox.com",
+      "account": "none",
+      "captcha": "unknown",
+      "browserRequired": true,
+      "anchorRendered": true,
+      "robotsObserved": "varies",
+      "indexable": "per-host",
+      "howToPublish": "Browser. The widget is embedded by the host site; the comment stream renders client-side.",
+      "traps": [
+        "Spam saturation is per embedding, NOT per widget. A blanket rejection of this product was recorded from one bad instance; other embeddings carry ordinary human conversation with zero spam, because the embedding owner has moderation controls.",
+        "The comment stream is client-rendered, so a plain HTTP fetch shows a near-empty page and finds no spam. That is a false clear — check the neighbourhood in a browser."
+      ],
+      "status": "unverified",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "browser-dom",
+        "what": "One embedding rendered a real human comment thread in the browser with zero spam-term hits, while plain HTTP returned only 2439 characters of page text and could not see the stream at all.",
+        "publicUrl": "https://solarcircuits.neocities.org/guestbook"
+      }
+    },
+    {
+      "id": "supertools-rundown",
+      "name": "Supertools (therundown.ai)",
+      "kind": "directory",
+      "scope": "single-site",
+      "homepage": "https://supertools.therundown.ai/submit",
+      "account": "none",
+      "captcha": "none",
+      "browserRequired": false,
+      "anchorRendered": true,
+      "robotsObserved": null,
+      "indexable": true,
+      "howToPublish": "Embedded Tally.so form on /submit. No login, no payment, no CAPTCHA.",
+      "traps": [
+        "Listing is reviewed, so submission is not publication — verify the live listing before recording any rel."
+      ],
+      "status": "unverified",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "both",
+        "what": "Raw HTML grepped for recaptcha/hcaptcha/turnstile/sitekey returned nothing, no login wording and no price in script-stripped visible text, and a headless browser pass showed a reachable Tally form.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "dofollow-tools",
+      "name": "Dofollow.Tools",
+      "kind": "directory",
+      "scope": "single-site",
+      "homepage": "https://dofollow.tools/submit",
+      "account": "none",
+      "captcha": "unknown",
+      "browserRequired": true,
+      "anchorRendered": true,
+      "robotsObserved": null,
+      "indexable": true,
+      "howToPublish": "Native multi-step wizard. Step 1 (Tool Information) is reachable with no login wall and no CAPTCHA.",
+      "traps": [
+        "Only step 1 was walked. Step 2 is named \"Submission Type\", which is usually where a free/paid tier choice lives — treat the channel as unverified until someone walks that step.",
+        "The header carries a \"Sign In\" link, but it is navigation, not a wall: the step-1 form renders and is fillable without it. Matching on the words alone gives a false positive."
+      ],
+      "status": "unverified",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "both",
+        "what": "Step-1 form fields render in raw HTML; script-stripped visible text contains no price and no login requirement; no CAPTCHA sitekey string anywhere in the source.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "legacy-php-directory-script",
+      "name": "Legacy PHP directory script (one engine, several hosts)",
+      "kind": "directory",
+      "scope": "engine",
+      "account": "none",
+      "captcha": "unknown",
+      "browserRequired": false,
+      "anchorRendered": true,
+      "robotsObserved": "varies",
+      "indexable": "per-host",
+      "howToPublish": "Server-rendered submit.php with a free tier. Fields and markup are identical across hosts running this script.",
+      "traps": [
+        "Two of the three hosts measured carry a classic image CAPTCHA exposed only as form fields (name=\"CAPTCHA\" plus name=\"IMAGEHASH\"). No third-party script is loaded, so a recaptcha/hcaptcha/turnstile search returns clean on them — search the field names too.",
+        "Whether the CAPTCHA is present is a per-host choice on the same engine, so it must be probed per host like every other owner-level setting."
+      ],
+      "status": "unverified",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "anonymous-http",
+        "what": "Three hosts served byte-similar submit.php markup with identical field names; a service-name CAPTCHA search returned false on all three while two exposed IMAGEHASH and CAPTCHA form fields.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "qualityinternetdirectory",
+      "name": "qualityinternetdirectory.com",
+      "kind": "directory",
+      "scope": "single-site",
+      "homepage": "https://www.qualityinternetdirectory.com/submit.php",
+      "account": "none",
+      "captcha": "none",
+      "browserRequired": false,
+      "anchorRendered": true,
+      "robotsObserved": null,
+      "indexable": true,
+      "howToPublish": "submit.php, free tier, no account. The only host of this legacy engine measured without a CAPTCHA field.",
+      "traps": [
+        "Same engine as the sibling hosts that DO carry an image CAPTCHA — re-check the field names before each campaign, since this is an owner-level setting that can be turned on."
+      ],
+      "status": "unverified",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "anonymous-http",
+        "what": "submit.php returned 200 with a free tier in script-stripped visible text, no price, and neither modern CAPTCHA service strings nor legacy CAPTCHA/IMAGEHASH field names.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "brownbook",
+      "name": "Brownbook",
+      "kind": "directory",
+      "scope": "single-site",
+      "homepage": "https://www.brownbook.net/",
+      "account": "none",
+      "captcha": "none",
+      "browserRequired": true,
+      "anchorRendered": true,
+      "robotsObserved": null,
+      "indexable": true,
+      "howToPublish": "Add-business wizard. Step 1 reachable with no account, no payment and no CAPTCHA.",
+      "traps": [
+        "Only step 1 of a two-step wizard was walked, so a late gate on step 2 is not ruled out."
+      ],
+      "status": "unverified",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "both",
+        "what": "Homepage and add-business step 1 rendered in a browser with no login wall, no price and no CAPTCHA strings or legacy CAPTCHA field names in source.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "aitoolsguide",
+      "name": "AI Tools Guide",
+      "kind": "directory",
+      "scope": "single-site",
+      "homepage": "https://www.aitoolsguide.com/",
+      "account": "none",
+      "captcha": "none",
+      "browserRequired": false,
+      "anchorRendered": true,
+      "robotsObserved": null,
+      "indexable": true,
+      "howToPublish": "免费提交表单，无登录墙、无验证码、无价格",
+      "traps": [
+        "Reviewed listing, so submitting is not publishing — verify the live listing before recording any rel."
+      ],
+      "status": "unverified",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "both",
+        "what": "Submission form present in source; script-stripped visible text carried no price and no login requirement; neither modern CAPTCHA service strings nor legacy CAPTCHA/IMAGEHASH field names were found.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "ainavhub",
+      "name": "AI NavHub",
+      "kind": "directory",
+      "scope": "single-site",
+      "homepage": "https://ainavhub.com/",
+      "account": "none",
+      "captcha": "none",
+      "browserRequired": false,
+      "anchorRendered": true,
+      "robotsObserved": null,
+      "indexable": true,
+      "howToPublish": "同上",
+      "traps": [
+        "Reviewed listing, so submitting is not publishing — verify the live listing before recording any rel."
+      ],
+      "status": "unverified",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "both",
+        "what": "Submission form present in source; script-stripped visible text carried no price and no login requirement; neither modern CAPTCHA service strings nor legacy CAPTCHA/IMAGEHASH field names were found.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "llmrelevance",
+      "name": "LLM Relevance",
+      "kind": "directory",
+      "scope": "single-site",
+      "homepage": "https://llmrelevance.com/",
+      "account": "none",
+      "captcha": "none",
+      "browserRequired": false,
+      "anchorRendered": true,
+      "robotsObserved": null,
+      "indexable": true,
+      "howToPublish": "可见文本里出现 $ 0，与免费档一致",
+      "traps": [
+        "Reviewed listing, so submitting is not publishing — verify the live listing before recording any rel."
+      ],
+      "status": "unverified",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "both",
+        "what": "Submission form present in source; script-stripped visible text carried no price and no login requirement; neither modern CAPTCHA service strings nor legacy CAPTCHA/IMAGEHASH field names were found.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "activesearchresults",
+      "name": "ActiveSearchResults",
+      "kind": "directory",
+      "scope": "single-site",
+      "homepage": "https://www.activesearchresults.com/",
+      "account": "none",
+      "captcha": "none",
+      "browserRequired": false,
+      "anchorRendered": true,
+      "robotsObserved": null,
+      "indexable": true,
+      "howToPublish": "老派搜索目录，免费提交表单",
+      "traps": [
+        "Reviewed listing, so submitting is not publishing — verify the live listing before recording any rel."
+      ],
+      "status": "unverified",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "both",
+        "what": "Submission form present in source; script-stripped visible text carried no price and no login requirement; neither modern CAPTCHA service strings nor legacy CAPTCHA/IMAGEHASH field names were found.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "toolai",
+      "name": "ToolAI",
+      "kind": "directory",
+      "scope": "single-site",
+      "homepage": "https://www.toolai.io/submit/tool",
+      "account": "none",
+      "payment": "optional",
+      "captcha": "none",
+      "browserRequired": false,
+      "anchorRendered": true,
+      "robotsObserved": null,
+      "indexable": true,
+      "howToPublish": "Free submission form (name / website / description), no login required to fill it.",
+      "traps": [
+        "**The free tier is explicitly nofollow.** The paid tier ($99, discounted to $49 first month) is what buys a dofollow link and priority review. Free still gets a listing, so record it as a channel — but never record dofollow here without observing it."
+      ],
+      "status": "unverified",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "browser-dom",
+        "what": "Free form fillable without login; the paid plan panel states dofollow and priority review as its paid features, implying the free listing is nofollow.",
+        "publicUrl": null
+      }
+    },
+    {
+      "id": "openpr",
+      "name": "openPR",
+      "kind": "publish-platform",
+      "scope": "single-site",
+      "homepage": "https://www.openpr.com/",
+      "account": "none",
+      "payment": "optional",
+      "captcha": "interactive",
+      "browserRequired": true,
+      "anchorRendered": false,
+      "relObserved": [],
+      "robotsObserved": "index,follow,noarchive",
+      "indexable": true,
+      "howToPublish": "Free press release at /news/submit.html, reachable anonymously — no login wall, only a legacy image CAPTCHA and two consent checkboxes. It publishes; it just does not give you an anchor.",
+      "traps": [
+        "Publishes fine and emits NO anchor for the author. Rendered DOM of a live release carries 127 anchors and not one points at the author domain; the author URLs (arizton.com, four of them) exist only as plain text nodes. Verified in a browser 2026-08-18.",
+        "The page does have outbound anchors with no rel — but they are openPR own properties, a consent-manager, and a sitewide advertiser (einbock.com) that is byte-identical across unrelated releases. Reading those as \"dofollow author link\" is the specific way this site fools a page-level rel scan.",
+        "Every form field name is a per-load random hash (e.g. 8182cb1481cc...), so no script can hardcode field names — it must parse the form on each load.",
+        "The form carries load_credits / credits_code fields: a paid path exists beside the free one. Free submission did not require touching them.",
+        "Generalisation warning: this is one site, not the free-press-release family. Sample each PR site own published item before assuming it behaves the same."
+      ],
+      "status": "rejected",
+      "rejectReason": "Publishes without an account but emits no author anchor at all, so a placement here is worth zero link equity. Rejected on output, not on access.",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "method": "browser-dom",
+        "url": "https://www.openpr.com/news/4606409/middle-east-data-center-construction-investment-to-reach-usd",
+        "what": "Ran document.querySelectorAll on the rendered page: 127 anchors total, outbound anchor hosts were only twitter/facebook/linkedin/google (all rel=nofollow), consentmanager.net and einbock.com (both no rel). The author domain arizton.com appeared four times in document.body.innerText and zero times in any href. Cross-checked against a second unrelated release (/news/4606405) which carried the same einbock.com anchor, confirming it is a sitewide advertiser rather than an author link."
+      }
+    },
+    {
+      "id": "blogengage",
+      "name": "BlogEngage (dead — domain resold)",
+      "kind": "directory",
+      "scope": "single-site",
+      "homepage": "https://blogengage.com/",
+      "account": "required",
+      "captcha": "unknown",
+      "anchorRendered": false,
+      "status": "dead",
+      "lastVerifiedAt": "2026-08-18",
+      "howToPublish": "Nothing to publish. The domain no longer belongs to a blog directory.",
+      "traps": [
+        "Answers HTTP 200 and is still listed as a live blog-promotion directory in widely-copied backlink lists. It now redirects to a crypto product. A status-code check alone passes it; only following the redirect or reading the title catches it."
+      ],
+      "evidence": {
+        "method": "browser-dom",
+        "url": "https://blogengage.com/",
+        "what": "Navigating to blogengage.com in a browser lands on https://gomining.com with the title \"Bitcoin superapp - mining, earning and using BTC | GoMining\". There is no blog directory left at this domain — the site was resold, not merely rebranded."
+      }
+    }
+  ]
 }
