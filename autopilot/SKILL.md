@@ -738,10 +738,28 @@ loop-goal = <loop-goal> 定义的完成判定
 
   <rule id="model">
     根据当前宿主平台选择可用的原生 subagent 模型，不把某个外部 CLI 当作审查前提。
+    **`model` 参数必须每次显式传，绝不省略**——省略等于继承主线程模型，
+    而主线程往往是当前可用的最贵那一档，这是已经真实发生过的事故。
+
+    **Claude 环境：默认派最便宜的够用档，即 `sonnet`。**
+    只有在任务确实需要时（深层架构推理、对微妙逻辑的对抗性审查）才升到 `opus`，
+    并在同一条消息里说明为什么。调查、读文件、跑命令、量布局、查链接、汇报
+    这类阶段一律 `sonnet`。**不要把下面 Codex 那条的「高思考配置」平移过来**：
+    那是 Codex 侧的取值，不是「在任何平台都挑最贵的」。
+
+    两条 Claude 侧的已知限制，说清楚免得误报：
+    - `model` 只接受 `sonnet` / `opus` / `haiku` / `fable` **四个档位别名，
+      没有版本粒度**，所以「Opus 4.8」这种具体版本在工具调用里钉不住；
+      要把某个版本定成常驻默认，那是应用自己的模型配置，不在这里设。
+    - **`Agent` 工具根本没有 reasoning-effort 参数**（只有 `Workflow` 内层的
+      `agent()` 有 `effort`）。所以「所有 subagent 都开中等推理」无法逐次强制，
+      推理档是会话级设置。**不要声称给某个 subagent 设过 effort。**
+
     在 Codex 环境，默认派 Codex subagent；涉及 implement、E2E、review 或 quality audit
-    的阶段必须使用 `model="gpt-5.6-terra"` + `reasoning_effort="high"`（或当前
-    平台等价的高思考配置）。Claude 环境可按其可用模型选择，但不得因 Claude CLI
-    不可用而跳过独立审查。
+    的阶段必须使用 `model="gpt-5.6-terra"` + `reasoning_effort="high"`。
+
+    两侧共同的底线：**成本可以降，独立审查不能省**——
+    不得因为模型档位低或某个 CLI 不可用就跳过 maker-checker 分离。
   </rule>
 
   <rule id="maker-checker-separation">
