@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updatedAt": "2026-08-18T04:22:25.722Z",
+ "updatedAt": "2026-08-18T04:28:44.440Z",
  "channels": [
   {
    "id": "telegraph",
@@ -293,6 +293,78 @@
    "evidence": {
     "method": "both",
     "what": "Step-1 form fields render in raw HTML; script-stripped visible text contains no price and no login requirement; no CAPTCHA sitekey string anywhere in the source.",
+    "publicUrl": null
+   }
+  },
+  {
+   "id": "legacy-php-directory-script",
+   "name": "Legacy PHP directory script (one engine, several hosts)",
+   "kind": "directory",
+   "scope": "engine",
+   "account": "none",
+   "captcha": "unknown",
+   "browserRequired": false,
+   "anchorRendered": true,
+   "robotsObserved": "varies",
+   "indexable": "per-host",
+   "howToPublish": "Server-rendered submit.php with a free tier. Fields and markup are identical across hosts running this script.",
+   "traps": [
+    "Two of the three hosts measured carry a classic image CAPTCHA exposed only as form fields (name=\"CAPTCHA\" plus name=\"IMAGEHASH\"). No third-party script is loaded, so a recaptcha/hcaptcha/turnstile search returns clean on them — search the field names too.",
+    "Whether the CAPTCHA is present is a per-host choice on the same engine, so it must be probed per host like every other owner-level setting."
+   ],
+   "status": "unverified",
+   "lastVerifiedAt": "2026-08-18",
+   "evidence": {
+    "method": "anonymous-http",
+    "what": "Three hosts served byte-similar submit.php markup with identical field names; a service-name CAPTCHA search returned false on all three while two exposed IMAGEHASH and CAPTCHA form fields.",
+    "publicUrl": null
+   }
+  },
+  {
+   "id": "qualityinternetdirectory",
+   "name": "qualityinternetdirectory.com",
+   "kind": "directory",
+   "scope": "single-site",
+   "homepage": "https://www.qualityinternetdirectory.com/submit.php",
+   "account": "none",
+   "captcha": "none",
+   "browserRequired": false,
+   "anchorRendered": true,
+   "robotsObserved": null,
+   "indexable": true,
+   "howToPublish": "submit.php, free tier, no account. The only host of this legacy engine measured without a CAPTCHA field.",
+   "traps": [
+    "Same engine as the sibling hosts that DO carry an image CAPTCHA — re-check the field names before each campaign, since this is an owner-level setting that can be turned on."
+   ],
+   "status": "unverified",
+   "lastVerifiedAt": "2026-08-18",
+   "evidence": {
+    "method": "anonymous-http",
+    "what": "submit.php returned 200 with a free tier in script-stripped visible text, no price, and neither modern CAPTCHA service strings nor legacy CAPTCHA/IMAGEHASH field names.",
+    "publicUrl": null
+   }
+  },
+  {
+   "id": "brownbook",
+   "name": "Brownbook",
+   "kind": "directory",
+   "scope": "single-site",
+   "homepage": "https://www.brownbook.net/",
+   "account": "none",
+   "captcha": "none",
+   "browserRequired": true,
+   "anchorRendered": true,
+   "robotsObserved": null,
+   "indexable": true,
+   "howToPublish": "Add-business wizard. Step 1 reachable with no account, no payment and no CAPTCHA.",
+   "traps": [
+    "Only step 1 of a two-step wizard was walked, so a late gate on step 2 is not ruled out."
+   ],
+   "status": "unverified",
+   "lastVerifiedAt": "2026-08-18",
+   "evidence": {
+    "method": "both",
+    "what": "Homepage and add-business step 1 rendered in a browser with no login wall, no price and no CAPTCHA strings or legacy CAPTCHA field names in source.",
     "publicUrl": null
    }
   }

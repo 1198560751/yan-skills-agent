@@ -41,12 +41,25 @@ subsumes the other:
 
 - grep the **raw HTML** for `recaptcha`, `hcaptcha`, `turnstile`, and
   `sitekey` — this catches invisible gating that rendering hides;
+- **also grep for old-school CAPTCHA field names** — `name="CAPTCHA"`,
+  `name="IMAGEHASH"`, `security_code`, `vercode`. A classic server-rendered
+  image CAPTCHA loads no third-party script at all, so a service-name search
+  returns clean on it. Measured: three sites running one legacy PHP directory
+  script all returned `false` for recaptcha/hcaptcha/turnstile, yet two of them
+  carried `IMAGEHASH` + `CAPTCHA` fields. Searching only for the modern services
+  would have recorded both as open;
 - use the **browser** to confirm anything absent, anything client-rendered,
   and the state of a form's later steps.
 
 Related: when scanning visible text for a login wall or a price, **strip
 `<script>` blocks first**. Minified JS is full of `$` and of words like
 "signin", and matching against it produces confident false positives.
+
+**HTTP 200 does not mean the channel is alive.** Domains get repurposed: one
+sweep found former directories still serving 200 while now being a crypto
+referral page, an unrelated consulting site, or someone's blog. Judge status on
+what the page actually *is*, not on the status code — those are `dead`, and
+recording them as reachable would keep a worthless row alive forever.
 
 **A multi-step form is only verified as far as you actually walked it.** A first
 step with no wall says nothing about step two, and a step literally named
