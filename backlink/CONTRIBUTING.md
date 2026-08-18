@@ -31,6 +31,28 @@ Concretely, do not write:
   never confirm that something is absent.** Negative claims need browser
   evidence, and the validator enforces this.
 
+**The reverse trap exists too, so do not treat the browser as strictly better.**
+A submission page can render with real fields, no visible login text and no
+CAPTCHA badge anywhere in the DOM, and still be gated by an **invisible CAPTCHA
+whose site key is only present as a string in the raw HTML** — inspecting the
+rendered page misses it entirely. One sweep found exactly this on a page that
+looked wide open. So the two methods catch different failures and neither
+subsumes the other:
+
+- grep the **raw HTML** for `recaptcha`, `hcaptcha`, `turnstile`, and
+  `sitekey` — this catches invisible gating that rendering hides;
+- use the **browser** to confirm anything absent, anything client-rendered,
+  and the state of a form's later steps.
+
+Related: when scanning visible text for a login wall or a price, **strip
+`<script>` blocks first**. Minified JS is full of `$` and of words like
+"signin", and matching against it produces confident false positives.
+
+**A multi-step form is only verified as far as you actually walked it.** A first
+step with no wall says nothing about step two, and a step literally named
+something like "submission type" is usually where the free/paid choice lives.
+Record such a channel as `unverified`, not `live`.
+
 ## What a good contribution looks like
 
 Ranked by how much they help:

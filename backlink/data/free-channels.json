@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updatedAt": "2026-08-18T03:57:06.807Z",
+ "updatedAt": "2026-08-18T04:22:25.722Z",
  "channels": [
   {
    "id": "telegraph",
@@ -245,6 +245,55 @@
     "method": "browser-dom",
     "what": "One embedding rendered a real human comment thread in the browser with zero spam-term hits, while plain HTTP returned only 2439 characters of page text and could not see the stream at all.",
     "publicUrl": "https://solarcircuits.neocities.org/guestbook"
+   }
+  },
+  {
+   "id": "supertools-rundown",
+   "name": "Supertools (therundown.ai)",
+   "kind": "directory",
+   "scope": "single-site",
+   "homepage": "https://supertools.therundown.ai/submit",
+   "account": "none",
+   "captcha": "none",
+   "browserRequired": false,
+   "anchorRendered": true,
+   "robotsObserved": null,
+   "indexable": true,
+   "howToPublish": "Embedded Tally.so form on /submit. No login, no payment, no CAPTCHA.",
+   "traps": [
+    "Listing is reviewed, so submission is not publication — verify the live listing before recording any rel."
+   ],
+   "status": "unverified",
+   "lastVerifiedAt": "2026-08-18",
+   "evidence": {
+    "method": "both",
+    "what": "Raw HTML grepped for recaptcha/hcaptcha/turnstile/sitekey returned nothing, no login wording and no price in script-stripped visible text, and a headless browser pass showed a reachable Tally form.",
+    "publicUrl": null
+   }
+  },
+  {
+   "id": "dofollow-tools",
+   "name": "Dofollow.Tools",
+   "kind": "directory",
+   "scope": "single-site",
+   "homepage": "https://dofollow.tools/submit",
+   "account": "none",
+   "captcha": "unknown",
+   "browserRequired": true,
+   "anchorRendered": true,
+   "robotsObserved": null,
+   "indexable": true,
+   "howToPublish": "Native multi-step wizard. Step 1 (Tool Information) is reachable with no login wall and no CAPTCHA.",
+   "traps": [
+    "Only step 1 was walked. Step 2 is named \"Submission Type\", which is usually where a free/paid tier choice lives — treat the channel as unverified until someone walks that step.",
+    "The header carries a \"Sign In\" link, but it is navigation, not a wall: the step-1 form renders and is fillable without it. Matching on the words alone gives a false positive."
+   ],
+   "status": "unverified",
+   "lastVerifiedAt": "2026-08-18",
+   "evidence": {
+    "method": "both",
+    "what": "Step-1 form fields render in raw HTML; script-stripped visible text contains no price and no login requirement; no CAPTCHA sitekey string anywhere in the source.",
+    "publicUrl": null
    }
   }
  ]
