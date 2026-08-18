@@ -1,0 +1,20 @@
+name: backlink data
+
+# 数据层的门禁。PR 改到 backlink/data 就跑，通不过不合。
+# 这个 Skill 的价值主张是「这里每一条都被真的验证过」，
+# 而人工评审挡不住「看起来很合理但其实是猜的」那类条目——只有机器能稳定挡住。
+on:
+  pull_request:
+    paths: ['backlink/data/**', 'backlink/scripts/validate-data.mjs']
+  push:
+    paths: ['backlink/data/**', 'backlink/scripts/validate-data.mjs']
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: node scripts/validate-data.mjs
+        working-directory: backlink

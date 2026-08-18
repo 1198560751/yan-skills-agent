@@ -25,6 +25,83 @@ Two former Skills were merged into this one on 2026-08-16 and deleted:
   harvesting task has nothing to do with links, load this Skill anyway and read
   that one reference.
 
+## Map of this Skill
+
+Two things live here and they answer different questions. **The data files are
+the asset; the references are how to use them and how not to fool yourself.**
+
+```
+backlink/
+├── SKILL.md              ← you are here: routing + the two workflows below
+├── CONTRIBUTING.md       ← how to submit a PR, the data model, the evidence rule
+│
+├── data/                 ← THE DATABASE. Machine-readable, PR-able, CI-checked.
+│   ├── free-channels.json     places that publish a link at no cost
+│   ├── paid-platforms.json    platforms observed carrying purchased placements
+│   └── schema/                JSON Schema for both files
+│
+├── scripts/              ← run these; do not re-derive their knowledge by hand
+│   ├── validate-data.mjs           PR gate. CI runs exactly this. Must exit 0.
+│   ├── paid-platform-registry.mjs  merge a harvest into the paid registry
+│   ├── health.mjs                  run before ANY browser task
+│   ├── inspect-page.mjs            dump one target's form / login / CAPTCHA state
+│   ├── safe-fill.mjs               fill a reviewed payload, never submit
+│   ├── release-submit-guard.mjs    only after explicit per-submission approval
+│   ├── ledger.mjs                  candidate → … → indexed → rel_verified
+│   ├── discovery-queue.mjs         recursive competitor/commenter expansion
+│   ├── harvest-commenters.mjs      pull commenter domains off an article
+│   ├── harvest-*.{sh,mjs,js}       bulk table extraction from logged-in dashboards
+│   └── similarweb-query.mjs        repeatable domain query (needs your own env)
+│
+└── references/           ← method, traps, and why the rules are the rules
+    ├── instant-publish.md     ★ free channels: how each class behaves, what kills them
+    ├── paid-platforms.md      ★ paid: tiers, why a burst is not a purchase
+    ├── field-notes.md           what actually blocks submissions in practice
+    ├── harvest.md               scraping failures that look like success
+    ├── safety-policy.md         read before any fill / submit / logged-in action
+    ├── discovery-loop.md        finding new candidates
+    ├── link-quality-rubric.md   scoring, toxicity, disavow
+    ├── analysis-templates.md    report shapes (they do not fetch data)
+    ├── outreach-templates.md    email frameworks; sending needs approval each time
+    ├── authorized-data-sources.md · backlinkdirs.md · prompts.md
+    └── LICENSE-analysis-templates-Apache-2.0
+```
+
+### Which door do I go through?
+
+| The ask | Start at |
+| --- | --- |
+| "Somewhere I can post **without registering**" | `data/free-channels.json`, filtered to `account: "none"` and `status: "live"` — then [instant-publish.md](references/instant-publish.md) for the mechanics of that class |
+| "What **paid** options exist / where did this competitor buy its links" | [paid-platforms.md](references/paid-platforms.md), then `data/paid-platforms.json` sorted by how many independent sites were observed using each |
+| "Find me **new** opportunities" | [discovery-loop.md](references/discovery-loop.md) — and merge whatever you harvest back into the registry |
+| "Is this link profile any good" | [link-quality-rubric.md](references/link-quality-rubric.md) |
+| "Get these numbers out of a dashboard with no API" | [harvest.md](references/harvest.md) |
+
+Query the data directly rather than reading the JSON by eye:
+
+```bash
+# live channels that need no account
+node -e 'const d=require("./data/free-channels.json");console.log(d.channels.filter(c=>c.account==="none"&&c.status==="live").map(c=>`${c.id}	${c.kind}	${(c.relObserved||["?"]).join("|")||"dofollow"}`).join("
+"))'
+
+# paid platforms ranked by how many independent sites were seen using them
+node scripts/paid-platform-registry.mjs list --min-sites 2
+```
+
+### Before you trust a row, and before you add one
+
+Records carry `lastVerifiedAt` because **this genre dies faster than it
+changes**. A channel that worked three months ago may be gone, gated, or
+`noindex` today. Re-verify before a campaign; the validator warns on anything
+`live` and older than 180 days.
+
+And when you find that a row is wrong — dead host, new account wall, new
+CAPTCHA, changed `rel` — **fixing it is the most valuable contribution there
+is**, more than adding a new channel. See [CONTRIBUTING.md](CONTRIBUTING.md).
+The evidence rule in one line: *record what you observed, never what you
+assume*; a real entry rejected is a small loss, an unverified entry accepted is
+a large one.
+
 ## Install and Update
 
 Source: [Skills.sh](https://skills.sh/yan-labs/yan-skills)
