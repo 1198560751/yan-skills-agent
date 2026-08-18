@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updatedAt": "2026-08-18T00:00:00.000Z",
+ "updatedAt": "2026-08-18T03:57:06.807Z",
  "channels": [
   {
    "id": "telegraph",
@@ -12,7 +12,9 @@
    "captcha": "none",
    "browserRequired": false,
    "anchorRendered": true,
-   "relObserved": ["nofollow"],
+   "relObserved": [
+    "nofollow"
+   ],
    "robotsObserved": "index, follow",
    "indexable": true,
    "rateLimit": null,
@@ -39,7 +41,9 @@
    "captcha": "none",
    "browserRequired": true,
    "anchorRendered": true,
-   "relObserved": ["nofollow"],
+   "relObserved": [
+    "nofollow"
+   ],
    "robotsObserved": null,
    "indexable": true,
    "howToPublish": "Browser, plain textarea. No editor API needed.",
@@ -88,7 +92,9 @@
    "captcha": "passive",
    "browserRequired": true,
    "anchorRendered": true,
-   "relObserved": ["noopener noreferrer ugc"],
+   "relObserved": [
+    "noopener noreferrer ugc"
+   ],
    "robotsObserved": "varies",
    "indexable": "per-host",
    "rateLimit": "Per address across the WHOLE engine, not per board. Refusals begin around the eighth or ninth post in a sitting: 'Too many posts from your address. Try again in a few hours.'",
@@ -118,7 +124,10 @@
    "captcha": "none",
    "browserRequired": true,
    "anchorRendered": true,
-   "relObserved": ["", "nofollow"],
+   "relObserved": [
+    "",
+    "nofollow"
+   ],
    "robotsObserved": "index,follow",
    "indexable": true,
    "howToPublish": "Visiting the templated URL is the entire submission — the report page is generated on demand.",
@@ -143,7 +152,12 @@
    "captcha": "none",
    "browserRequired": true,
    "anchorRendered": true,
-   "relObserved": ["", "nofollow", "nofollow noopener noreferrer", "external nofollow noopener noreferrer"],
+   "relObserved": [
+    "",
+    "nofollow",
+    "nofollow noopener noreferrer",
+    "external nofollow noopener noreferrer"
+   ],
    "robotsObserved": "index, follow, max-image-preview:large",
    "indexable": true,
    "howToPublish": "Visiting the templated URL generates the report page.",
@@ -168,7 +182,9 @@
    "captcha": "none",
    "browserRequired": false,
    "anchorRendered": true,
-   "relObserved": ["external nofollow noopener"],
+   "relObserved": [
+    "external nofollow noopener"
+   ],
    "robotsObserved": null,
    "indexable": true,
    "howToPublish": "Visiting the templated URL generates the similar-sites page.",
@@ -204,6 +220,31 @@
     "method": "browser-dom",
     "what": "Rendered DOM contained zero anchors to the subject domain and the page served robots noindex,follow.",
     "publicUrl": null
+   }
+  },
+  {
+   "id": "htmlcommentbox",
+   "name": "HTML Comment Box (embedded widget)",
+   "kind": "comment-form",
+   "scope": "engine",
+   "homepage": "https://www.htmlcommentbox.com",
+   "account": "none",
+   "captcha": "unknown",
+   "browserRequired": true,
+   "anchorRendered": true,
+   "robotsObserved": "varies",
+   "indexable": "per-host",
+   "howToPublish": "Browser. The widget is embedded by the host site; the comment stream renders client-side.",
+   "traps": [
+    "Spam saturation is per embedding, NOT per widget. A blanket rejection of this product was recorded from one bad instance; other embeddings carry ordinary human conversation with zero spam, because the embedding owner has moderation controls.",
+    "The comment stream is client-rendered, so a plain HTTP fetch shows a near-empty page and finds no spam. That is a false clear — check the neighbourhood in a browser."
+   ],
+   "status": "unverified",
+   "lastVerifiedAt": "2026-08-18",
+   "evidence": {
+    "method": "browser-dom",
+    "what": "One embedding rendered a real human comment thread in the browser with zero spam-term hits, while plain HTTP returned only 2439 characters of page text and could not see the stream at all.",
+    "publicUrl": "https://solarcircuits.neocities.org/guestbook"
    }
   }
  ]

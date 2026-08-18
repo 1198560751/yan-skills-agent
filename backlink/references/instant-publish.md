@@ -150,10 +150,28 @@ Two cautions learned the hard way:
   be publicly visible, and still put your URL in a plain text node. Check the
   rendered DOM of your own entry, not merely that the submission "worked."
 - **Read the existing entries before posting.** One widely embedded comment
-  widget was technically open and capable of a followed link, and its live
-  stream was saturated with illegal and link-farm spam. That is a safety
-  rejection independent of any SEO consideration, and it is only visible if you
-  look at the neighbourhood.
+  widget was technically open and capable of a followed link, and the instance
+  that was sampled had a live stream saturated with illegal and link-farm spam.
+  That is a safety rejection independent of any SEO consideration, and it is
+  only visible if you look at the neighbourhood.
+
+  **But reject the instance, not the widget.** That finding was recorded as a
+  blanket rejection of the whole product, and re-checking later showed other
+  embeddings of the same widget carrying ordinary human conversation with zero
+  spam — because these widgets give the embedding site's owner moderation
+  controls. This is the *second* time a single sample produced exactly the wrong
+  generalisation here (the first was inferring one guestbook engine's `robots`
+  behaviour from one board).
+
+  So state the rule in its general form: **the engine decides how you post; the
+  site owner decides whether the result is worth anything.** `robots`,
+  anti-bot questions, moderation, and spam saturation are all owner-level, and
+  every one of them has to be checked per host. Only the posting *mechanics*
+  generalise across an engine.
+
+  One practical note when checking: these widgets render their comment stream
+  client-side, so a plain HTTP fetch shows a near-empty page and finds no spam.
+  That is a false clear, not a clean neighbourhood — look in a browser.
 
 ### Domain-report generators: a page per domain, no account, no content
 
