@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updatedAt": "2026-08-18T04:28:44.440Z",
+ "updatedAt": "2026-08-18T04:42:52.276Z",
  "channels": [
   {
    "id": "telegraph",
@@ -365,6 +365,127 @@
    "evidence": {
     "method": "both",
     "what": "Homepage and add-business step 1 rendered in a browser with no login wall, no price and no CAPTCHA strings or legacy CAPTCHA field names in source.",
+    "publicUrl": null
+   }
+  },
+  {
+   "id": "aitoolsguide",
+   "name": "AI Tools Guide",
+   "kind": "directory",
+   "scope": "single-site",
+   "homepage": "https://www.aitoolsguide.com/",
+   "account": "none",
+   "captcha": "none",
+   "browserRequired": false,
+   "anchorRendered": true,
+   "robotsObserved": null,
+   "indexable": true,
+   "howToPublish": "免费提交表单，无登录墙、无验证码、无价格",
+   "traps": [
+    "Reviewed listing, so submitting is not publishing — verify the live listing before recording any rel."
+   ],
+   "status": "unverified",
+   "lastVerifiedAt": "2026-08-18",
+   "evidence": {
+    "method": "both",
+    "what": "Submission form present in source; script-stripped visible text carried no price and no login requirement; neither modern CAPTCHA service strings nor legacy CAPTCHA/IMAGEHASH field names were found.",
+    "publicUrl": null
+   }
+  },
+  {
+   "id": "ainavhub",
+   "name": "AI NavHub",
+   "kind": "directory",
+   "scope": "single-site",
+   "homepage": "https://ainavhub.com/",
+   "account": "none",
+   "captcha": "none",
+   "browserRequired": false,
+   "anchorRendered": true,
+   "robotsObserved": null,
+   "indexable": true,
+   "howToPublish": "同上",
+   "traps": [
+    "Reviewed listing, so submitting is not publishing — verify the live listing before recording any rel."
+   ],
+   "status": "unverified",
+   "lastVerifiedAt": "2026-08-18",
+   "evidence": {
+    "method": "both",
+    "what": "Submission form present in source; script-stripped visible text carried no price and no login requirement; neither modern CAPTCHA service strings nor legacy CAPTCHA/IMAGEHASH field names were found.",
+    "publicUrl": null
+   }
+  },
+  {
+   "id": "llmrelevance",
+   "name": "LLM Relevance",
+   "kind": "directory",
+   "scope": "single-site",
+   "homepage": "https://llmrelevance.com/",
+   "account": "none",
+   "captcha": "none",
+   "browserRequired": false,
+   "anchorRendered": true,
+   "robotsObserved": null,
+   "indexable": true,
+   "howToPublish": "可见文本里出现 $ 0，与免费档一致",
+   "traps": [
+    "Reviewed listing, so submitting is not publishing — verify the live listing before recording any rel."
+   ],
+   "status": "unverified",
+   "lastVerifiedAt": "2026-08-18",
+   "evidence": {
+    "method": "both",
+    "what": "Submission form present in source; script-stripped visible text carried no price and no login requirement; neither modern CAPTCHA service strings nor legacy CAPTCHA/IMAGEHASH field names were found.",
+    "publicUrl": null
+   }
+  },
+  {
+   "id": "activesearchresults",
+   "name": "ActiveSearchResults",
+   "kind": "directory",
+   "scope": "single-site",
+   "homepage": "https://www.activesearchresults.com/",
+   "account": "none",
+   "captcha": "none",
+   "browserRequired": false,
+   "anchorRendered": true,
+   "robotsObserved": null,
+   "indexable": true,
+   "howToPublish": "老派搜索目录，免费提交表单",
+   "traps": [
+    "Reviewed listing, so submitting is not publishing — verify the live listing before recording any rel."
+   ],
+   "status": "unverified",
+   "lastVerifiedAt": "2026-08-18",
+   "evidence": {
+    "method": "both",
+    "what": "Submission form present in source; script-stripped visible text carried no price and no login requirement; neither modern CAPTCHA service strings nor legacy CAPTCHA/IMAGEHASH field names were found.",
+    "publicUrl": null
+   }
+  },
+  {
+   "id": "toolai",
+   "name": "ToolAI",
+   "kind": "directory",
+   "scope": "single-site",
+   "homepage": "https://www.toolai.io/submit/tool",
+   "account": "none",
+   "payment": "optional",
+   "captcha": "none",
+   "browserRequired": false,
+   "anchorRendered": true,
+   "robotsObserved": null,
+   "indexable": true,
+   "howToPublish": "Free submission form (name / website / description), no login required to fill it.",
+   "traps": [
+    "**The free tier is explicitly nofollow.** The paid tier ($99, discounted to $49 first month) is what buys a dofollow link and priority review. Free still gets a listing, so record it as a channel — but never record dofollow here without observing it."
+   ],
+   "status": "unverified",
+   "lastVerifiedAt": "2026-08-18",
+   "evidence": {
+    "method": "browser-dom",
+    "what": "Free form fillable without login; the paid plan panel states dofollow and priority review as its paid features, implying the free listing is nofollow.",
     "publicUrl": null
    }
   }
