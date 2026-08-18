@@ -99,7 +99,11 @@ board and treat the whole engine as settled. On the engine measured here, each
 owner independently controls:
 
 - **An anti-bot question** (`question-<id>` field). It is posed to humans, so
-  skip those boards rather than answering — 2 of 7 had one.
+  skip those boards rather than answering. On a larger sample this turned out
+  to be the *majority* configuration, not an exception: **14 of 30 boards had
+  one**. Budget campaign volume off the post-screen count, not the discovery
+  count — the realistic conversion from "boards found" to "boards postable" was
+  about **45%** once `noindex` and form-less boards were also removed.
 - **The `robots` tag.** Several boards carry no robots meta at all and are
   therefore indexable; another on the same engine served `noindex, nofollow`.
   A single-board sample produced exactly the wrong generalisation here.
@@ -125,6 +129,20 @@ Mechanics worth knowing for this class:
   no error, page renders normally, nothing saved. Anything gated by a passive
   bot check must go through a real browser, and the verification step is what
   catches this, not the response code.
+- **Rate limiting is per address across the whole engine, not per board.** The
+  engine measured here starts refusing at roughly the eighth or ninth post in a
+  sitting (`Too many posts from your address. Try again in a few hours.`), and
+  every remaining target in that batch then fails. Failure is silent in the same
+  way as above: no redirect, no HTTP error, just an inline `⚠ Error …` banner
+  above the form. **Read that banner after every submit** — without it, being
+  throttled and genuinely being rejected look identical in the results, and you
+  will burn a retry pass on something retrying cannot fix.
+
+  The general rule this is an instance of: **when the back half of a batch fails
+  and the front half succeeded, suspect a rate limit before suspecting the
+  script.** Stop the run on the first throttle rather than converting the rest
+  of the queue into failures, and make the campaign file resumable so the
+  remainder posts after the window.
 
 Two cautions learned the hard way:
 
@@ -136,6 +154,79 @@ Two cautions learned the hard way:
   stream was saturated with illegal and link-farm spam. That is a safety
   rejection independent of any SEO consideration, and it is only visible if you
   look at the neighbourhood.
+
+### Domain-report generators: a page per domain, no account, no content
+
+A separate family worth probing early, because the cost per link is close to
+zero: sites that **generate a report page for any domain you put in the URL** —
+traffic estimators, worth-of-web calculators, whois and DNS lookups, security
+and tech-stack scanners. Visiting `<site>/<your-domain>` is the entire
+submission process. No registration, no form, nothing to write.
+
+The yield is much lower than the mechanism suggests, so screen on three
+independent conditions and treat any one failure as disqualifying:
+
+1. **A real `<a>` is rendered back to the domain.** Many of these print the
+   domain as plain text, or link it only inside a `<script>` payload.
+2. **The `rel` on that anchor**, recorded as observed. `nofollow` still counts
+   as a link; a claim of `dofollow` you did not read from the DOM does not.
+3. **The report page itself is indexable.** This is the one that eliminates
+   most of them — a large share of this family serves `noindex` sitewide. The
+   page exists, links to you, and will never enter an index. Checking only that
+   the URL loads will pass a pile of pages worth nothing.
+
+Of roughly three dozen probed in one sweep, **three** cleared all three gates.
+
+**Probe this family in a browser, not with a plain fetch.** A plain HTTP sweep
+produces heavy false negatives here: many are client-rendered, so the anchor is
+absent from the raw HTML, and others answer a scripted request with 403 while
+serving the page normally to a browser. One site returned 403 to `curl` and, in
+a browser, a plainly followed link. Use HTTP only to cheaply reject, never to
+confirm absence.
+
+### When the directory ecosystem has monetized, find out before you sweep it
+
+Directory and launch-board lists circulate widely, and it is easy to spend a
+campaign discovering that none of them are open. Before working a list of tens
+or hundreds of directories, spend one cheap HTTP pass per domain that looks for
+a submit page and flags two things visible in the HTML: **a login wall** and
+**a price**. Both disqualify without a browser ever opening.
+
+One sweep of ~80 curated launch directories produced **zero** free self-serve
+submissions: every one either required an account or charged (observed prices
+ranged from about $10 to £49 per listing, several stating openly that the fee
+exists to deter spam). Treat that as the current default for this genre rather
+than an unlucky list, and put the effort into channels that are open by
+construction.
+
+### Read a fast-rising competitor's profile before copying it
+
+When a peer site goes from nothing to substantial traffic in a few months, the
+useful question is not "which directories should I submit to" but "where did its
+links actually come from" — and the answer is often one you should decline.
+
+The tell is **concentration**: pull the profile sorted by first-seen ascending
+and look at how many referring *domains* the early links come from. A site whose
+first few hundred links come from two or three domains did not earn them.
+Following that up on the referring site's own pricing page is usually a
+one-click confirmation — these operations advertise the count directly ("N
+dofollow backlinks from M premium domains" for a fixed one-time fee).
+
+Two things follow that are worth keeping separate:
+
+- **The link-count inflation is locale duplication, not repeat submission.** One
+  paid listing renders once per interface language, and often across two domains
+  run by the same operator, so a single submission shows up as dozens of links
+  with identical anchors. A "148 links from one domain" burst is one placement,
+  not a campaign. The same arithmetic applies to *legitimate* i18n directories,
+  which is the useful half of this observation: **an open channel that ships
+  many locales amplifies one successful placement many times over**, so prefer
+  those when choosing among comparable open channels.
+- **Report the price, decline the purchase.** Paid link schemes are excluded by
+  this Skill's rules and carry an obvious footprint (a two-domain source
+  accounting for nearly the whole profile). Tell the owner what the going rate
+  is and let them decide; do not buy, and do not quietly reframe a paid network
+  as a "directory submission".
 
 ### Liveness first: this genre dies faster than it changes
 
