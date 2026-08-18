@@ -285,6 +285,16 @@ give false negatives, how reciprocal-badge flows are inherently two-pass, the
 browser-automation traps, and what to expect from mining a competitor's
 backlinks.
 
+When the question is about **paid** placement — what platforms exist, what they
+cost, which ones are actually used, or "where did this competitor buy its
+links" — read [paid-platforms.md](references/paid-platforms.md). It documents
+the accumulating registry at `data/paid-platforms.json`, how placements are
+detected, why a burst count is not a purchase count, and the tier vocabulary
+that separates a real paid directory from a link package from a spam net.
+Merge every new competitor harvest into it — the registry's value comes from
+repetition across independent subjects, so it is only as good as what has been
+fed in.
+
 When the ask is "somewhere I can post without registering", read
 [instant-publish.md](references/instant-publish.md) **first**. Directory
 submission does not satisfy that request and burning a campaign discovering this
