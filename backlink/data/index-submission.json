@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "updatedAt": "2026-08-19T00:00:00.000Z",
+  "engines": [
+    {
+      "id": "brave",
+      "name": "Brave Search",
+      "submitUrl": "https://search.brave.com/submit-url",
+      "independentIndex": true,
+      "indexNowMember": false,
+      "webmasterConsole": false,
+      "sitemapAccepted": false,
+      "account": "none",
+      "captcha": "passive",
+      "browserRequired": true,
+      "batch": false,
+      "aiGrounding": {
+        "claimed": true,
+        "source": "https://brave.com/search/api/",
+        "what": "Brave's own API page sells the index for grounding chatbots and AI search, and states it is not a scraper over Google or Bing but Brave's own independent index."
+      },
+      "howToSubmit": "One URL per page load. Load the form, set the input, click Submit with a real click, wait for the passive human check to clear, then read the confirmation text before moving on.",
+      "traps": [
+        "A JS-synthesised button.click() never submits — the passive check requires a trusted event. Injecting the input value with the native value setter is fine; only the click has to be real.",
+        "Enter does not submit. The button is the only path.",
+        "Navigating away during the 2-4s check silently discards the submission. Wait for the confirmation text.",
+        "The button becomes a permanently disabled 'Submitted' after success, so every further URL needs a fresh page load.",
+        "The form ignores a ?url= query parameter — it only reads the input.",
+        "Network-request logs stop recording after an in-page location.reload(), so a missing POST is not evidence of failure. The page's own success text is the only judge."
+      ],
+      "status": "live",
+      "lastVerifiedAt": "2026-08-19",
+      "evidence": {
+        "method": "browser-dom",
+        "what": "Submitted 38 URLs of one owned site through the live form; sampled 12 of them and read 'Success / Thank you for your submission.' off the page each time. The other 26 ran the identical sequence but were not individually re-read.",
+        "publicUrl": null
+      },
+      "notes": "Measured before submitting: site:<domain> returned 1 result on Brave while Google Search Console reported 37 of 38 URLs indexed. Whether the submission moves that number is unresolved — recheck and record the outcome."
+    }
+  ]
+}

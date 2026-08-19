@@ -78,6 +78,49 @@ for (const c of free.channels) {
   }
 }
 
+// —— index-submission ————————————————————————————————————————
+// **这张表里没有一条外链。** 它记的是「把 URL 交给谁去收录」，
+// 和 free-channels 是两类东西，混进去会直接毁掉那张表的语义
+// （那边每条都要回答 anchorRendered / relObserved，这边这两个字段根本不存在）。
+// 它之所以属于本 Skill：verify 阶段的 `indexed` 一直没说清是**谁的** index，
+// 而不在 IndexNow 成员里的引擎，我们那套自动推送一条都没送到。
+const idx = JSON.parse(await readFile(join(DATA, 'index-submission.json'), 'utf8'));
+const idxSeen = new Set();
+for (const e of idx.engines || []) {
+  const at = `index-submission[${e.id || '?'}]`;
+  if (!e.id || !/^[a-z0-9][a-z0-9-]*$/.test(e.id)) err(at, 'id 缺失或不是小写短横线 slug');
+  if (idxSeen.has(e.id)) err(at, 'id 重复');
+  idxSeen.add(e.id);
+  if (!STATUS.has(e.status)) err(at, `status 非法：${e.status}`);
+  if (!CAPTCHA.has(e.captcha)) err(at, `captcha 非法：${e.captcha}`);
+  if (typeof e.independentIndex !== 'boolean') err(at, 'independentIndex 必填');
+  if (typeof e.indexNowMember !== 'boolean') err(at, 'indexNowMember 必填');
+  if (typeof e.batch !== 'boolean') err(at, 'batch 必填');
+  if (!isDate(e.lastVerifiedAt)) err(at, 'lastVerifiedAt 必须是 YYYY-MM-DD');
+  if (!e.evidence || !METHOD.has(e.evidence.method)) err(at, 'evidence.method 必须是 browser-dom / anonymous-http / both');
+  if (!e.evidence?.what || e.evidence.what.length < 10) err(at, 'evidence.what 太短：写清楚确认文案说了什么、以及有几条是逐条复读过的');
+
+  // —— 语义层 ————————————————————————————————————————————
+  // 手工提交的**唯一**理由是「自动推送送不到」。两个都为真的记录是在凭空造工作量。
+  if (e.indexNowMember === true && e.independentIndex === false) {
+    err(at, 'indexNowMember=true 且 independentIndex=false —— 这种引擎既被自动推送覆盖、又没有自己的索引，手工提交毫无意义，不该收进这张表');
+  }
+  // GEO 论据最容易退化成传闻（「某某助手用的是它」）。只收运营方自己publish的说法 + 出处。
+  if (e.aiGrounding && (e.aiGrounding.claimed !== true || !/^https?:\/\//.test(e.aiGrounding.source || ''))) {
+    err(at, 'aiGrounding 必须带 claimed=true 和一个 http(s) 出处 —— 这一格是 GEO 论据，没有出处就是传闻');
+  }
+  if (e.captcha === 'interactive' && e.status === 'live') {
+    err(at, 'captcha=interactive 不能标 live —— 需要人解题的挑战一律记为拒绝，本 Skill 不绕验证码');
+  }
+  if (e.status === 'rejected' && !e.rejectReason) err(at, 'status=rejected 必须写 rejectReason');
+  if (e.batch === false && !e.howToSubmit) {
+    warn(at, 'batch=false 却没写 howToSubmit —— 逐条提交的成本随页数线性增长，动手前必须能算出这个数');
+  }
+  if (e.status === 'live' && isDate(e.lastVerifiedAt) && daysAgo(e.lastVerifiedAt) > 180) {
+    warn(at, `标为 live 但已 ${daysAgo(e.lastVerifiedAt)} 天未复验`);
+  }
+}
+
 // —— paid-platforms ————————————————————————————————————————————
 const paid = JSON.parse(await readFile(join(DATA, 'paid-platforms.json'), 'utf8'));
 const TIER = new Set(['paid-listing', 'link-package', 'free-with-account', 'spam-net', 'not-a-platform', 'unverified']);
@@ -93,6 +136,7 @@ for (const [host, p] of Object.entries(paid.platforms || {})) {
 if (!quiet || errors.length) {
   process.stdout.write(`free-channels: ${free.channels.length} 条（live ${free.channels.filter((c) => c.status === 'live').length}）\n`);
   process.stdout.write(`paid-platforms: ${Object.keys(paid.platforms || {}).length} 条\n`);
+  process.stdout.write(`index-submission: ${(idx.engines || []).length} 条（收录提交口，**不是外链**）\n`);
   for (const w of warns) process.stdout.write(`  ⚠ ${w}\n`);
 }
 if (errors.length) {

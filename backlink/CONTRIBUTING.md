@@ -109,8 +109,8 @@ One channel or one correction per PR where practical. It keeps review honest.
 
 ## Data model
 
-Two files, two purposes. Both live in `data/`, both have a JSON Schema in
-`data/schema/`, and both are checked by `scripts/validate-data.mjs`.
+Three files, three purposes. All live in `data/`, all have a JSON Schema in
+`data/schema/`, and all are checked by `scripts/validate-data.mjs`.
 
 ### `data/free-channels.json` — publish at no cost
 
@@ -153,6 +153,27 @@ gets quoted as current long after it stops being true.
 **Recording is not recommending.** This file exists so the decision is
 *informed*. Whether to buy is the site owner's call. Do not relabel a
 `link-package` as a "directory submission" to make it sound acceptable.
+
+### `data/index-submission.json` — hand a URL to an engine, get no link
+
+**Nothing in this file is a backlink.** These are index-submission endpoints:
+you give a search engine a URL and receive a confirmation string. They earn a
+place in a backlink Skill because the verify stage's `indexed` state never said
+*whose* index, and because an engine outside the IndexNow membership receives
+nothing from the usual automated push — so its pages have to be handed over by
+hand.
+
+Do not merge a row of this into `free-channels.json` to make the channel list
+look longer. That file's contract is *a place that publishes a link*, and
+`anchorRendered` / `relObserved` have no meaning here.
+
+| Field | Why it matters |
+| --- | --- |
+| `independentIndex` + `indexNowMember` | Together they are the reason a row exists. An engine already covered by IndexNow, with no crawler of its own, needs no manual submission — the validator rejects that combination outright, because such a record invents work that accomplishes nothing. |
+| `batch` | `false` means the cost of a site-wide submission is linear in page count. Say the number out loud before starting; 38 pages is 38 operations. |
+| `aiGrounding` | The GEO argument, and the field most likely to rot into folklore. Record only what the operator publishes about its own index, with the URL that says it. **Never** record "assistant X uses index Y" — those pairings change quietly and are rarely confirmed by either party. |
+| `traps` | Same role as in `free-channels.json`. Passive human checks are the recurring theme: one form ignores a synthesised `click()` entirely because the check demands a trusted event. Documenting that is not a bypass — the check still runs and clears itself, or the channel is rejected. |
+| `evidence.what` | Say how many submissions were individually re-read. A campaign that confirmed 12 of 38 says 12 of 38; rounding that up to "all confirmed" is the exact failure this project exists to prevent. |
 
 ## Scope and conduct
 

@@ -38,7 +38,8 @@ backlink/
 ├── data/                 ← THE DATABASE. Machine-readable, PR-able, CI-checked.
 │   ├── free-channels.json     places that publish a link at no cost
 │   ├── paid-platforms.json    platforms observed carrying purchased placements
-│   └── schema/                JSON Schema for both files
+│   ├── index-submission.json  engines that take a URL and publish NO link
+│   └── schema/                JSON Schema for the files above
 │
 ├── scripts/              ← run these; do not re-derive their knowledge by hand
 │   ├── validate-data.mjs           PR gate. CI runs exactly this. Must exit 0.
@@ -56,6 +57,7 @@ backlink/
 └── references/           ← method, traps, and why the rules are the rules
     ├── instant-publish.md     ★ free channels: how each class behaves, what kills them
     ├── paid-platforms.md      ★ paid: tiers, why a burst is not a purchase
+    ├── index-submission.md      index-only channels; why `indexed` must name an engine
     ├── field-notes.md           what actually blocks submissions in practice
     ├── harvest.md               scraping failures that look like success
     ├── safety-policy.md         read before any fill / submit / logged-in action
@@ -76,6 +78,7 @@ backlink/
 | "Find me **new** opportunities" | [discovery-loop.md](references/discovery-loop.md) — and merge whatever you harvest back into the registry |
 | "Is this link profile any good" | [link-quality-rubric.md](references/link-quality-rubric.md) |
 | "Get these numbers out of a dashboard with no API" | [harvest.md](references/harvest.md) |
+| "Submit our pages to **Brave / another engine**" · "why is our index count low on X" | [index-submission.md](references/index-submission.md) — it publishes no link, so it never enters the placement ledger |
 
 Query the data directly rather than reading the JSON by eye:
 
@@ -331,6 +334,12 @@ Never promote a record based on a filled form, a pending notice, or a historical
 assumption. Search Console may provide supplementary link/index evidence, but
 verify the exact live URL and anchor where possible.
 
+**`indexed` must name the engine** — write `indexed@google`, `indexed@brave`.
+An unqualified "indexed" is a claim about the whole web built from one crawler's
+opinion, and every promotion so far has in fact come from Google or Bing. The
+engines with their own crawlers, what reaches them, and what does not, are in
+[index-submission.md](references/index-submission.md).
+
 ## Non-negotiable rules
 
 - No coordinate-based “human-like” clicking.
@@ -338,7 +347,9 @@ verify the exact live URL and anchor where possible.
 - No generic praise, fake identity, invented metrics, or irrelevant comments.
 - No link farms, spam generators, adult/malware surfaces, hidden reciprocal
   links, temporary eligibility pages, or cloaking.
-- Do not record a submission as a backlink.
+- Do not record a submission as a backlink. This includes handing a URL to a
+  search engine: that is an index-submission channel, it publishes no link, and
+  it belongs in `data/index-submission.json` rather than the placement ledger.
 - Do not record `follow`, `nofollow`, `ugc`, `sponsored`, or `indexed` without
   observing it for the exact URL.
 - Do not automatically resubmit an unconfirmed target.
@@ -381,6 +392,17 @@ assertion about a platform, never an observation of a link, and the sweep that
 produced that section found a listed site that publishes your URL as plain text
 with no anchor at all, plus one whose domain now redirects to an unrelated product
 while still answering 200.
+
+When the ask is about **getting pages into an index** rather than getting a link
+— submitting URLs to an engine, a low `site:` count somewhere that is not Google,
+or optimising for AI answers — read
+[index-submission.md](references/index-submission.md). It carries the reason a
+second index matters (an independent index is a grounding source for AI answers,
+so a page missing from it is missing from every answer built on it), the rule
+that keeps these channels out of `free-channels.json`, the baseline-then-recheck
+measurement that makes such a campaign judgeable, and the per-engine traps —
+including a form where a synthesised `click()` silently does nothing because the
+passive check demands a trusted event.
 
 When the ask is "somewhere I can post without registering", read
 [instant-publish.md](references/instant-publish.md) **first**. Directory
