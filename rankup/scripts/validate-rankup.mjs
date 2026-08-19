@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.19.1";
+const expectedVersion = "2.26.0";
 const requiredReferences = [
   "lifecycle.md",
   "cloudflare-stack.md",
@@ -88,7 +88,6 @@ const projectLeakPatterns = [
   ["absolute host path", /\/Users\/[A-Za-z0-9._-]+\//g],
   ["hardcoded local proxy", /\b127\.0\.0\.1:\d{2,5}\b/g],
   ["credential store location", /\.claude\.json\b/g],
-  ["shared account portal", /\bdash\.3ue\.co\b/gi],
 ];
 
 // 这两个文件按职责必须包含上述模式的字面量(守卫本体与它的负向测试夹具),

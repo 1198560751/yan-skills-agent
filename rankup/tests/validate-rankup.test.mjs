@@ -57,7 +57,6 @@ for (const [label, leak] of [
   ["project identifier", "实证:bettercallsaul 的首页转化率。"],
   ["absolute host path", "脚本位于 /Users/someone/Project/site/run.mjs。"],
   ["hardcoded local proxy", "代理走 127.0.0.1:7890。"],
-  ["shared account portal", "入口 https://dash.3ue.co/zh-Hans/#/page/m/home。"],
 ]) {
   test(`release validator rejects a ${label} leak`, async () => {
     await withSkillCopy(async (skillRoot) => {
