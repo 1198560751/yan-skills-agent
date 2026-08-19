@@ -210,6 +210,50 @@
             "unknown"
           ],
           "description": "Which run this target belongs in, derived from `gates`. The point of the field is that a campaign is planned per cohort: `open` needs nobody, `captcha` needs a human present, `account` needs credentials decided up front, `personal-contact` needs the owner's real details. Mixing cohorts in one run is what makes a batch stall."
+        },
+        "traffic": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "description": "Measured human traffic. This is the admission gate (>= 100 monthly visits) and it is checked BEFORE any form is filled. Absent means never measured — which is not the same as zero, and not a licence to submit.",
+          "required": [
+            "monthlyVisits",
+            "verdict",
+            "checkedAt",
+            "source"
+          ],
+          "properties": {
+            "monthlyVisits": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Null only when the source could not find the domain at all."
+            },
+            "verdict": {
+              "enum": [
+                "pass",
+                "fail",
+                "below-floor",
+                "error"
+              ],
+              "description": "pass = >= 100 monthly visits. fail = measured but under the floor. below-floor = the data source has no record of this domain, i.e. traffic too small to measure, which counts as failing. error = the check itself broke; re-run it, do not read it as a verdict."
+            },
+            "checkedAt": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "globalRank": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
         }
       }
     }

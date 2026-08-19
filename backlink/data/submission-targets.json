@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-19T14:40:03.125Z",
+  "updatedAt": "2026-08-19",
   "note": "Submission routes observed to exist. NOT placements: no row here claims a published link, a rel value, or an index entry. A row graduates into free-channels.json only when a real anchor is seen on a live page. Relevance and authority rank these, they never gate them.",
   "targets": [
     {
@@ -26,6 +26,13 @@
         "httpStatus": 200,
         "finalUrl": "https://10015.io/product-finder/submit",
         "title": "Submit Your Product | 10015 Tools"
+      },
+      "traffic": {
+        "monthlyVisits": 488551,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:05:42.285Z",
+        "source": "similarweb-total",
+        "globalRank": 101757
       }
     },
     {
@@ -127,6 +134,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.247webdirectory.com/",
         "title": "General Web Directory | Submit URL | 247WebDirectory.com"
+      },
+      "traffic": {
+        "monthlyVisits": 11291,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:05:46.951Z",
+        "source": "similarweb-total",
+        "globalRank": 1527550
       }
     },
     {
@@ -302,6 +316,13 @@
         "httpStatus": 200,
         "finalUrl": "https://addgoodsites.com/submit.php",
         "title": "Add Good Sites .com - Submit Link"
+      },
+      "traffic": {
+        "monthlyVisits": 668,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:06:10.322Z",
+        "source": "similarweb-total",
+        "globalRank": null
       }
     },
     {
@@ -327,6 +348,13 @@
         "httpStatus": "403",
         "finalUrl": "https://www.adslov.com/index.php?view=post&cityid=513&lang=en&catid=1&subcatid=1&shortcutregion=0&",
         "title": "Just a moment..."
+      },
+      "traffic": {
+        "monthlyVisits": 77953,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:05:51.617Z",
+        "source": "similarweb-total",
+        "globalRank": 217398
       }
     },
     {
@@ -402,6 +430,13 @@
         "httpStatus": "403",
         "finalUrl": "https://www.affiliatefix.com/",
         "title": "Just a moment..."
+      },
+      "traffic": {
+        "monthlyVisits": 43370,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:05:56.276Z",
+        "source": "similarweb-total",
+        "globalRank": 663447
       }
     },
     {
@@ -427,6 +462,13 @@
         "httpStatus": 200,
         "finalUrl": "https://affiliateprograms.com/",
         "title": "Affiliate Programs - Learn Affiliate Marketing Online"
+      },
+      "traffic": {
+        "monthlyVisits": 8111,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:06:00.970Z",
+        "source": "similarweb-total",
+        "globalRank": 2253392
       }
     },
     {
@@ -452,6 +494,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.affiversemedia.com/",
         "title": "Affiliate Marketing Insights - Affiverse"
+      },
+      "traffic": {
+        "monthlyVisits": 44257,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:06:05.652Z",
+        "source": "similarweb-total",
+        "globalRank": 729136
       }
     },
     {
@@ -503,6 +552,13 @@
         "httpStatus": 200,
         "finalUrl": "https://ai-bot.cn/",
         "title": "AI工具集官网 | 1000+ AI工具集合，国内外AI工具集导航大全"
+      },
+      "traffic": {
+        "monthlyVisits": 1161000,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:06:42.078Z",
+        "source": "similarweb-total",
+        "globalRank": 48220
       }
     },
     {
@@ -579,6 +635,13 @@
         "httpStatus": 200,
         "finalUrl": "https://ai-hunter.io/",
         "title": "Best AI Tools And Services | AI-Hunter.io"
+      },
+      "traffic": {
+        "monthlyVisits": 22479,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:06:46.742Z",
+        "source": "similarweb-total",
+        "globalRank": 1252677
       }
     },
     {
@@ -604,6 +667,13 @@
         "httpStatus": 200,
         "finalUrl": "https://ai-nav.net/",
         "title": "AI工具导航站|AI写作,AI编程,AI绘画,AI论文,AI视频,AI生图,AI办公,AI学习,AI生成"
+      },
+      "traffic": {
+        "monthlyVisits": 4932,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:06:51.405Z",
+        "source": "similarweb-total",
+        "globalRank": 3497697
       }
     },
     {
@@ -654,6 +724,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.ai138.com/",
         "title": "AI工具网 | AI工具集导航大全 | 精选AI人工智能工具推荐"
+      },
+      "traffic": {
+        "monthlyVisits": 19103,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:06:56.079Z",
+        "source": "similarweb-total",
+        "globalRank": 1006777
       }
     },
     {
@@ -729,6 +806,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.aidirectory.org/",
         "title": "AI Directory - list of top AI companies in the world"
+      },
+      "traffic": {
+        "monthlyVisits": 4782,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:07:00.741Z",
+        "source": "similarweb-total",
+        "globalRank": 3527868
       }
     },
     {
@@ -754,6 +838,13 @@
         "httpStatus": "200",
         "finalUrl": "https://aifindy.com/contacto/publica-tu-ia-en-aifindy",
         "title": "Publica tu IA en AIFINDY"
+      },
+      "traffic": {
+        "monthlyVisits": 73185,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:07:05.390Z",
+        "source": "similarweb-total",
+        "globalRank": 357648
       }
     },
     {
@@ -804,6 +895,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.aiheron.com/promote",
         "title": "提交AI产品 | AI导航网站"
+      },
+      "traffic": {
+        "monthlyVisits": 245,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:07:10.063Z",
+        "source": "similarweb-total",
+        "globalRank": null
       }
     },
     {
@@ -955,6 +1053,13 @@
         "httpStatus": "200",
         "finalUrl": "https://airtable.com/appCOqCKunkcAjSBL/pagtEVkuvuiQw6CuX/form",
         "title": "Interface Form - Airtable"
+      },
+      "traffic": {
+        "monthlyVisits": 24260000,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:07:14.704Z",
+        "source": "similarweb-total",
+        "globalRank": 1474
       }
     },
     {
@@ -1055,6 +1160,13 @@
         "httpStatus": "200",
         "finalUrl": "https://www.gptdemo.net/gpt/add-tool?lg=en",
         "title": "Submit AI Tool - Premium Service - https://www.gptdemo.net/"
+      },
+      "traffic": {
+        "monthlyVisits": 17798,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:07:19.365Z",
+        "source": "similarweb-total",
+        "globalRank": 1349361
       }
     },
     {
@@ -1105,6 +1217,13 @@
         "httpStatus": 200,
         "finalUrl": "https://aitools.inc/submit",
         "title": "Submit Your AI Tool | AI Tools"
+      },
+      "traffic": {
+        "monthlyVisits": 65820,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:07:24.110Z",
+        "source": "similarweb-total",
+        "globalRank": 526040
       }
     },
     {
@@ -1130,6 +1249,13 @@
         "httpStatus": 200,
         "finalUrl": "https://aitools.rdlab.tw/contact-us",
         "title": "AI設計工具門"
+      },
+      "traffic": {
+        "monthlyVisits": 2977,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:07:28.932Z",
+        "source": "similarweb-total",
+        "globalRank": null
       }
     },
     {
@@ -1155,6 +1281,13 @@
         "httpStatus": 200,
         "finalUrl": "https://aitoolsarena.com/",
         "title": "AI Tools List - AI Tools Arena"
+      },
+      "traffic": {
+        "monthlyVisits": 20483,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:07:33.720Z",
+        "source": "similarweb-total",
+        "globalRank": 1311202
       }
     },
     {
@@ -1180,6 +1313,13 @@
         "httpStatus": 200,
         "finalUrl": "https://aitoolsia.com/",
         "title": "AItoolsIA &#8211; Find the best AI tools and software"
+      },
+      "traffic": {
+        "monthlyVisits": 838,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:11:46.227Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -1330,6 +1470,13 @@
         "httpStatus": 200,
         "finalUrl": "https://akama.com/",
         "title": "Akama - the USA's local business search engine"
+      },
+      "traffic": {
+        "monthlyVisits": 11933,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:08:24.042Z",
+        "source": "similarweb-total",
+        "globalRank": 1339810
       }
     },
     {
@@ -1380,6 +1527,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.allbusinessdirectory.biz/directory.php?page=submission-select",
         "title": "All Business Directory .biz - Select Submission Type"
+      },
+      "traffic": {
+        "monthlyVisits": 2,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:11:54.896Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -1480,6 +1634,13 @@
         "httpStatus": "403",
         "finalUrl": "https://alternativeto.net/manage-item/",
         "title": "Just a moment..."
+      },
+      "traffic": {
+        "monthlyVisits": 2103000,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:09:15.694Z",
+        "source": "similarweb-total",
+        "globalRank": 23872
       }
     },
     {
@@ -1630,6 +1791,13 @@
         "httpStatus": 200,
         "finalUrl": "https://appiod.com/",
         "title": "Appiod - iPhone App Reviews - Android App Reviews - Appiod.com"
+      },
+      "traffic": {
+        "monthlyVisits": 8539,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:09:20.358Z",
+        "source": "similarweb-total",
+        "globalRank": 2762176
       }
     },
     {
@@ -1655,6 +1823,13 @@
         "httpStatus": 200,
         "finalUrl": "https://apprater.net/",
         "title": "AppRater — Discover Apps Worth Your Time"
+      },
+      "traffic": {
+        "monthlyVisits": 6573,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:09:25.047Z",
+        "source": "similarweb-total",
+        "globalRank": 2824581
       }
     },
     {
@@ -1680,6 +1855,13 @@
         "httpStatus": 200,
         "finalUrl": "https://appsandwebsites.com/",
         "title": "AI &amp; SaaS Tools Directory - appsandwebsites.com"
+      },
+      "traffic": {
+        "monthlyVisits": 1854,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:09:29.694Z",
+        "source": "similarweb-total",
+        "globalRank": 8572900
       }
     },
     {
@@ -1830,6 +2012,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.athenelinks.com/",
         "title": "Athene Web Directory"
+      },
+      "traffic": {
+        "monthlyVisits": 0,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:12:03.558Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -1958,6 +2147,13 @@
         "httpStatus": 200,
         "finalUrl": "https://awesomeindie.com/",
         "title": "Best products launching today | Awesome Indie"
+      },
+      "traffic": {
+        "monthlyVisits": 11697,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:10:21.764Z",
+        "source": "similarweb-total",
+        "globalRank": 1830133
       }
     },
     {
@@ -2210,6 +2406,13 @@
         "httpStatus": "200",
         "finalUrl": "https://pitchwall.co/submit",
         "title": "PitchWall - Submit Product"
+      },
+      "traffic": {
+        "monthlyVisits": 0,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:12:12.238Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -2414,6 +2617,13 @@
         "httpStatus": "403",
         "finalUrl": "https://bloglovin.com/",
         "title": "Attention Required! | Cloudflare"
+      },
+      "traffic": {
+        "monthlyVisits": 233138,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:11:13.521Z",
+        "source": "similarweb-total",
+        "globalRank": 176983
       }
     },
     {
@@ -2439,6 +2649,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.blogs-collection.com/",
         "title": "Blogs Directory - Blogs-Collection.com"
+      },
+      "traffic": {
+        "monthlyVisits": 5212,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:11:18.197Z",
+        "source": "similarweb-total",
+        "globalRank": 2817826
       }
     },
     {
@@ -2591,6 +2808,13 @@
         "httpStatus": 200,
         "finalUrl": "https://builtin.com/send-us-tip",
         "title": "Send Us a Tip | Built In"
+      },
+      "traffic": {
+        "monthlyVisits": 2843000,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:11:22.874Z",
+        "source": "similarweb-total",
+        "globalRank": 15557
       }
     },
     {
@@ -2742,6 +2966,13 @@
         "httpStatus": 200,
         "finalUrl": "https://caida.eu/",
         "title": "Caida Web Directory"
+      },
+      "traffic": {
+        "monthlyVisits": 1993,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:11:27.552Z",
+        "source": "similarweb-total",
+        "globalRank": 9131845
       }
     },
     {
@@ -2844,6 +3075,13 @@
         "httpStatus": "403",
         "finalUrl": "https://www.capterra.com/",
         "title": "Attention Required! | Cloudflare"
+      },
+      "traffic": {
+        "monthlyVisits": 1656000,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:11:32.233Z",
+        "source": "similarweb-total",
+        "globalRank": 32779
       }
     },
     {
@@ -2869,6 +3107,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.caradisiac.com/",
         "title": "Caradisiac - 1er site d'info automobile : essais, nouveautés, guides d'achat auto"
+      },
+      "traffic": {
+        "monthlyVisits": 7318000,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:11:36.880Z",
+        "source": "similarweb-total",
+        "globalRank": 8700
       }
     },
     {
@@ -2919,6 +3164,13 @@
         "httpStatus": 200,
         "finalUrl": "https://chatgptdemo.com/",
         "title": "AI 玩新聞 - AI 最新新聞、AI 工具推薦、Prompt 提示詞教學"
+      },
+      "traffic": {
+        "monthlyVisits": null,
+        "verdict": "below-floor",
+        "checkedAt": "2026-08-19T19:12:18.794Z",
+        "source": "similarweb-total",
+        "globalRank": null
       }
     },
     {
@@ -3046,6 +3298,13 @@
         "httpStatus": "403",
         "finalUrl": "https://classified4u.biz/index.php?view=post&cityid=504&lang=en&catid=1&subcatid=1&shortcutregion=0&",
         "title": "Just a moment..."
+      },
+      "traffic": {
+        "monthlyVisits": 83348,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:12:23.481Z",
+        "source": "similarweb-total",
+        "globalRank": 294904
       }
     },
     {
@@ -3096,6 +3355,13 @@
         "httpStatus": "403",
         "finalUrl": "https://classifiedonlineads.net/index.php?view=post&cityid=57&lang=en&catid=1&subcatid=1&shortcutregion=0&",
         "title": "Just a moment..."
+      },
+      "traffic": {
+        "monthlyVisits": 134671,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:12:28.145Z",
+        "source": "similarweb-total",
+        "globalRank": 176557
       }
     },
     {
@@ -3271,6 +3537,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.coodoeil.fr/",
         "title": "Coodoeil : Annuaire Francophone Gratuit - Annuaire internet, rechercher sur le web"
+      },
+      "traffic": {
+        "monthlyVisits": 4212,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:12:32.814Z",
+        "source": "similarweb-total",
+        "globalRank": 3815688
       }
     },
     {
@@ -3400,6 +3673,13 @@
         "httpStatus": 200,
         "finalUrl": "https://ctrlalt.cc/",
         "title": "ctrlalt.cc🦩"
+      },
+      "traffic": {
+        "monthlyVisits": 9119,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:12:37.481Z",
+        "source": "similarweb-total",
+        "globalRank": 2038404
       }
     },
     {
@@ -3450,6 +3730,13 @@
         "httpStatus": 200,
         "finalUrl": "https://cuspera.com/vendors",
         "title": "Amplify your digital presence with social proof | 2026 Cuspera"
+      },
+      "traffic": {
+        "monthlyVisits": 51570,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:12:42.145Z",
+        "source": "similarweb-total",
+        "globalRank": 641663
       }
     },
     {
@@ -3475,6 +3762,13 @@
         "httpStatus": 200,
         "finalUrl": "https://dang.ai/",
         "title": "AI Tools Directory | Dang.ai"
+      },
+      "traffic": {
+        "monthlyVisits": 337046,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:12:46.814Z",
+        "source": "similarweb-total",
+        "globalRank": 129110
       }
     },
     {
@@ -3551,6 +3845,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.dealfuel.com/",
         "title": "Deals For Web Designers, Developers, Marketers &amp; Bloggers"
+      },
+      "traffic": {
+        "monthlyVisits": 95596,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:12:51.487Z",
+        "source": "similarweb-total",
+        "globalRank": 366141
       }
     },
     {
@@ -3601,6 +3902,13 @@
         "httpStatus": 200,
         "finalUrl": "https://dealmango.com/",
         "title": "Unlock 3000+ Amazing Lifetime Deals for Entrepreneurs (Get a Free LTD Now)"
+      },
+      "traffic": {
+        "monthlyVisits": 12539,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:12:56.148Z",
+        "source": "similarweb-total",
+        "globalRank": 1762066
       }
     },
     {
@@ -3930,6 +4238,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.directory.ldmstudio.com/",
         "title": "Web Directory - Ldmstudio"
+      },
+      "traffic": {
+        "monthlyVisits": null,
+        "verdict": "below-floor",
+        "checkedAt": "2026-08-19T19:13:00.817Z",
+        "source": "similarweb-total",
+        "globalRank": null
       }
     },
     {
@@ -4057,6 +4372,13 @@
         "httpStatus": 200,
         "finalUrl": "https://dizila.com/",
         "title": "Dizila Directory"
+      },
+      "traffic": {
+        "monthlyVisits": 10231,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:13:05.499Z",
+        "source": "similarweb-total",
+        "globalRank": 2186803
       }
     },
     {
@@ -4107,6 +4429,13 @@
         "httpStatus": "403",
         "finalUrl": "https://www.doityourself.com/",
         "title": "Just a moment..."
+      },
+      "traffic": {
+        "monthlyVisits": 1251000,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:13:10.171Z",
+        "source": "similarweb-total",
+        "globalRank": 38682
       }
     },
     {
@@ -4334,6 +4663,13 @@
         "httpStatus": 200,
         "finalUrl": "https://elitesitesdirectory.com/post-new/",
         "title": "Post New - elitesitesdirectory"
+      },
+      "traffic": {
+        "monthlyVisits": null,
+        "verdict": "below-floor",
+        "checkedAt": "2026-08-19T19:13:14.844Z",
+        "source": "similarweb-total",
+        "globalRank": null
       }
     },
     {
@@ -4359,6 +4695,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.engineering.com/",
         "title": "Engineering.com"
+      },
+      "traffic": {
+        "monthlyVisits": 332445,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:13:19.528Z",
+        "source": "similarweb-total",
+        "globalRank": 152820
       }
     },
     {
@@ -4560,6 +4903,13 @@
         "httpStatus": 200,
         "finalUrl": "https://feedmystartup.com/",
         "title": "FeedMyStartup - Get Startup Resources, News, List your Startup"
+      },
+      "traffic": {
+        "monthlyVisits": 196,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:13:24.200Z",
+        "source": "similarweb-total",
+        "globalRank": null
       }
     },
     {
@@ -4710,6 +5060,13 @@
         "httpStatus": 200,
         "finalUrl": "https://flsfls.net/",
         "title": "FLS导航 - 世界触手可及"
+      },
+      "traffic": {
+        "monthlyVisits": null,
+        "verdict": "below-floor",
+        "checkedAt": "2026-08-19T19:13:28.887Z",
+        "source": "similarweb-total",
+        "globalRank": null
       }
     },
     {
@@ -4735,6 +5092,13 @@
         "httpStatus": "403",
         "finalUrl": "https://foldads.com/index.php?view=post&cityid=562&lang=en&catid=1&subcatid=1&shortcutregion=0&",
         "title": "Just a moment..."
+      },
+      "traffic": {
+        "monthlyVisits": 119531,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:13:33.557Z",
+        "source": "similarweb-total",
+        "globalRank": 184736
       }
     },
     {
@@ -4809,6 +5173,13 @@
         "httpStatus": 200,
         "finalUrl": "https://forpressrelease.com/",
         "title": "Press Release Distribution Services in India - For Press Re"
+      },
+      "traffic": {
+        "monthlyVisits": 119531,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:13:38.233Z",
+        "source": "similarweb-total",
+        "globalRank": 184736
       }
     },
     {
@@ -4909,6 +5280,13 @@
         "httpStatus": 200,
         "finalUrl": "https://freead1.net/",
         "title": "Free ads without registration"
+      },
+      "traffic": {
+        "monthlyVisits": 111295,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:13:42.897Z",
+        "source": "similarweb-total",
+        "globalRank": 288688
       }
     },
     {
@@ -4934,6 +5312,13 @@
         "httpStatus": "403",
         "finalUrl": "https://freeadsonline.biz/index.php?view=post&cityid=389&lang=en&catid=1&subcatid=1&shortcutregion=0&",
         "title": "Just a moment..."
+      },
+      "traffic": {
+        "monthlyVisits": 154502,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:13:47.573Z",
+        "source": "similarweb-total",
+        "globalRank": 121325
       }
     },
     {
@@ -4986,6 +5371,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.freelistingindia.in/",
         "title": "Free Indian local business listing site, online business directory India - FreeListingIndia"
+      },
+      "traffic": {
+        "monthlyVisits": 154502,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:13:52.234Z",
+        "source": "similarweb-total",
+        "globalRank": 121325
       }
     },
     {
@@ -5011,6 +5403,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.freelistingusa.com/",
         "title": "Free local business listing site USA, online business directory USA - FreeListingUSA"
+      },
+      "traffic": {
+        "monthlyVisits": 47748,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:13:56.901Z",
+        "source": "similarweb-total",
+        "globalRank": 457567
       }
     },
     {
@@ -5162,6 +5561,13 @@
         "httpStatus": "403",
         "finalUrl": "https://freewebads.us/index.php?view=post&cityid=11&lang=en&catid=1&subcatid=1&shortcutregion=0&",
         "title": "Just a moment..."
+      },
+      "traffic": {
+        "monthlyVisits": 68862,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:14:01.595Z",
+        "source": "similarweb-total",
+        "globalRank": null
       }
     },
     {
@@ -5187,6 +5593,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.freewebsubmission.com/",
         "title": "Free Web Submission: Free Search Engine Submission"
+      },
+      "traffic": {
+        "monthlyVisits": 68862,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:14:06.265Z",
+        "source": "similarweb-total",
+        "globalRank": null
       }
     },
     {
@@ -5263,6 +5676,13 @@
         "httpStatus": 200,
         "finalUrl": "https://futureagitools.com/",
         "title": "Vavada casino: logowanie, rejestracja i kod promocyjny Vavada kasyno"
+      },
+      "traffic": {
+        "monthlyVisits": null,
+        "verdict": "below-floor",
+        "checkedAt": "2026-08-19T19:14:10.950Z",
+        "source": "similarweb-total",
+        "globalRank": null
       }
     },
     {
@@ -5463,6 +5883,13 @@
         "httpStatus": 200,
         "finalUrl": "https://ambitiousfounder.com/",
         "title": "Ambitious Founder"
+      },
+      "traffic": {
+        "monthlyVisits": null,
+        "verdict": "below-floor",
+        "checkedAt": "2026-08-19T19:14:15.632Z",
+        "source": "similarweb-total",
+        "globalRank": null
       }
     },
     {
@@ -5615,6 +6042,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.gptdemo.net/gpt/add-tool?lg=en",
         "title": "Submit AI Tool - Premium Service - https://www.gptdemo.net/"
+      },
+      "traffic": {
+        "monthlyVisits": 31912,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:14:20.318Z",
+        "source": "similarweb-total",
+        "globalRank": 954272
       }
     },
     {
@@ -5815,6 +6249,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.hatena.ne.jp/",
         "title": "はてな"
+      },
+      "traffic": {
+        "monthlyVisits": 7869000,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:14:25.017Z",
+        "source": "similarweb-total",
+        "globalRank": 6679
       }
     },
     {
@@ -5866,6 +6307,13 @@
         "httpStatus": 200,
         "finalUrl": "https://historum.com/",
         "title": "Historum | History Forum"
+      },
+      "traffic": {
+        "monthlyVisits": 7869000,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:14:29.741Z",
+        "source": "similarweb-total",
+        "globalRank": 6679
       }
     },
     {
@@ -5891,6 +6339,13 @@
         "httpStatus": 200,
         "finalUrl": "http://hotvsnot.com/Add-Site/Add-Site.aspx",
         "title": "Add Site or Add URL to Submit Site to Web Directory HotVsNot.Com"
+      },
+      "traffic": {
+        "monthlyVisits": 6482,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:14:34.428Z",
+        "source": "similarweb-total",
+        "globalRank": 3209401
       }
     },
     {
@@ -5941,6 +6396,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.humanornot.co/",
         "title": "Human or Not - The Best Place To Find And Learn About AI"
+      },
+      "traffic": {
+        "monthlyVisits": 6482,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:14:39.088Z",
+        "source": "similarweb-total",
+        "globalRank": 3209401
       }
     },
     {
@@ -6017,6 +6479,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.igbaffiliate.com/en/",
         "title": "Empowering the Global iGaming Affiliate Community | iGBA"
+      },
+      "traffic": {
+        "monthlyVisits": 31085,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:14:43.760Z",
+        "source": "similarweb-total",
+        "globalRank": 828953
       }
     },
     {
@@ -6068,6 +6537,13 @@
         "httpStatus": 200,
         "finalUrl": "https://indiefollow.top/",
         "title": "Indie Follow - The Best Indie Mac Apps for Everyday Tasks"
+      },
+      "traffic": {
+        "monthlyVisits": 511,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:14:48.440Z",
+        "source": "similarweb-total",
+        "globalRank": null
       }
     },
     {
@@ -6294,6 +6770,13 @@
         "httpStatus": "200",
         "finalUrl": "https://www.insidr.ai/submit-tools/",
         "title": "Submit AI Tools - Insidr.ai"
+      },
+      "traffic": {
+        "monthlyVisits": 511,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T19:14:53.128Z",
+        "source": "similarweb-total",
+        "globalRank": null
       }
     },
     {
@@ -6344,6 +6827,13 @@
         "httpStatus": 200,
         "finalUrl": "https://internetisbeautiful.com/",
         "title": "Internet Is Beautiful"
+      },
+      "traffic": {
+        "monthlyVisits": 48,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:07:26.312Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -6445,6 +6935,13 @@
         "httpStatus": 200,
         "finalUrl": "https://iuu.ai/",
         "title": "Best AI Tools Directory &amp; AI Model Listings - iuu.ai"
+      },
+      "traffic": {
+        "monthlyVisits": 553,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:07:31.985Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -6546,6 +7043,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.joinly.xyz/",
         "title": "Joinly - The Latest Tech Startups and Products"
+      },
+      "traffic": {
+        "monthlyVisits": 28,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:07:37.653Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -6674,6 +7178,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.lachief.io/",
         "title": "Lachief.io - AI Tool Directory"
+      },
+      "traffic": {
+        "monthlyVisits": 3000,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:07:43.333Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -6724,6 +7235,13 @@
         "httpStatus": "200",
         "finalUrl": "https://launched.io/newsubmission",
         "title": "Launched! - New submission"
+      },
+      "traffic": {
+        "monthlyVisits": 565,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:07:49.036Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -6749,6 +7267,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.launchingnext.com/submit/",
         "title": "Submit Your Project | Launching Next"
+      },
+      "traffic": {
+        "monthlyVisits": 2400,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:12:21.087Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -6924,6 +7449,13 @@
         "httpStatus": 200,
         "finalUrl": "https://lifetimo.com/",
         "title": "Top Lifetime Deals Curated For Startups | Daily Updated"
+      },
+      "traffic": {
+        "monthlyVisits": 849,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:08:35.871Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -6999,6 +7531,13 @@
         "httpStatus": 200,
         "finalUrl": "https://linkdirectorylistings.org/",
         "title": "LinkDirectoryListings.org | Free Link Directory"
+      },
+      "traffic": {
+        "monthlyVisits": 0,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:08:41.540Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -7049,6 +7588,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.listedai.co/",
         "title": "ListedAI - AI tools directory with +3000 AI tools"
+      },
+      "traffic": {
+        "monthlyVisits": 4600,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:12:29.983Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -7099,6 +7645,13 @@
         "httpStatus": 200,
         "finalUrl": "https://listskit.com/",
         "title": "Lists Kit - A plain HTML, CSS, JavaScript boilerplate for making simple business directories with minimal maintenance."
+      },
+      "traffic": {
+        "monthlyVisits": 0,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:09:28.280Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -7149,6 +7702,13 @@
         "httpStatus": 200,
         "finalUrl": "https://localpages.com/",
         "title": "Home"
+      },
+      "traffic": {
+        "monthlyVisits": 438,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:09:33.953Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -7174,6 +7734,13 @@
         "httpStatus": 200,
         "finalUrl": "http://www.localsites.ca/",
         "title": "Canada Web Directory &amp; Business Listings - LocalSites Web Directory"
+      },
+      "traffic": {
+        "monthlyVisits": 6,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:09:39.625Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -7199,6 +7766,13 @@
         "httpStatus": "403",
         "finalUrl": "https://www.locanto.me/",
         "title": "One moment please..."
+      },
+      "traffic": {
+        "monthlyVisits": 30,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:12:39.861Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -7400,6 +7974,13 @@
         "httpStatus": 200,
         "finalUrl": "https://microlaunch.net/",
         "title": "World-class Tech Products on Microlaunch"
+      },
+      "traffic": {
+        "monthlyVisits": 1600,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:14:04.181Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -7526,6 +8107,13 @@
         "httpStatus": 200,
         "finalUrl": "https://morefunz.com/submit-url",
         "title": "Submit URL | MoreFunz"
+      },
+      "traffic": {
+        "monthlyVisits": 487,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:14:12.827Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -7576,6 +8164,13 @@
         "httpStatus": 200,
         "finalUrl": "https://mrfreetools.com/",
         "title": "Mr. Free Tools - The Best Free Tools &amp; Resources"
+      },
+      "traffic": {
+        "monthlyVisits": 21900,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:14:21.478Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -7601,6 +8196,13 @@
         "httpStatus": "403",
         "finalUrl": "https://clutch.co/tools",
         "title": "Just a moment..."
+      },
+      "traffic": {
+        "monthlyVisits": 865700,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:14:30.156Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -7727,6 +8329,13 @@
         "httpStatus": 200,
         "finalUrl": "https://navs.site/",
         "title": "Navs Site | Discover AI tools that fit your work"
+      },
+      "traffic": {
+        "monthlyVisits": 0,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:14:38.808Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -7752,6 +8361,13 @@
         "httpStatus": 200,
         "finalUrl": "https://news.ycombinator.com/",
         "title": "Hacker News"
+      },
+      "traffic": {
+        "monthlyVisits": 2600000,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:14:47.477Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -7877,6 +8493,13 @@
         "httpStatus": "200",
         "finalUrl": "https://novatools.ai/submit/",
         "title": "Submit Your Tool | NovaTools"
+      },
+      "traffic": {
+        "monthlyVisits": 315,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:16:11.991Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -7902,6 +8525,13 @@
         "httpStatus": 200,
         "finalUrl": "https://noxilo.com/",
         "title": "Noxilo — The AI Tools Directory: Discover 3,330+ AI Tools"
+      },
+      "traffic": {
+        "monthlyVisits": 0,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:16:20.644Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -7977,6 +8607,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.offpagesavvy.com/submit-your-site/",
         "title": "Submit Your Site | Offpagesavvy"
+      },
+      "traffic": {
+        "monthlyVisits": 4,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:16:29.309Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -8202,6 +8839,13 @@
         "httpStatus": 403,
         "finalUrl": "https://www.openpr.com/",
         "title": "openPR.com - Worldwide Open Public Relations - Publish Press Releases Free of Charge"
+      },
+      "traffic": {
+        "monthlyVisits": 268000,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:16:37.978Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -8379,6 +9023,13 @@
         "httpStatus": "403",
         "finalUrl": "https://www.petadshub.com/index.php?view=post&cityid=61&lang=en&catid=10&subcatid=163&shortcutregion=0&",
         "title": "Just a moment..."
+      },
+      "traffic": {
+        "monthlyVisits": 3500,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:16:46.646Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -8453,6 +9104,13 @@
         "httpStatus": 200,
         "finalUrl": "https://pitchwall.co/submit",
         "title": "PitchWall - Submit Product"
+      },
+      "traffic": {
+        "monthlyVisits": null,
+        "verdict": "below-floor",
+        "checkedAt": "2026-08-19T20:16:55.313Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -8605,6 +9263,13 @@
         "httpStatus": "403",
         "finalUrl": "https://www.producthunt.com/",
         "title": "Just a moment..."
+      },
+      "traffic": {
+        "monthlyVisits": 402900,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:18:19.260Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -8933,6 +9598,13 @@
         "httpStatus": 200,
         "finalUrl": "https://rakutenadvertising.com/thanks/?submissionGuid=eac41e5e-f1a4-4f3d-90e1-fd50655b7f72",
         "title": "Thank you for your submission!"
+      },
+      "traffic": {
+        "monthlyVisits": 60700,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:18:27.921Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -9161,6 +9833,13 @@
         "httpStatus": 200,
         "finalUrl": "https://reviewai.net/",
         "title": "ReviewAI | #1 AI Tools Directory"
+      },
+      "traffic": {
+        "monthlyVisits": 245,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:18:36.594Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -9236,6 +9915,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.saashub.com/",
         "title": "SaaSHub - Software Alternatives, Accelerators &amp; Startups"
+      },
+      "traffic": {
+        "monthlyVisits": 19600,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:18:45.256Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -9311,6 +9997,13 @@
         "httpStatus": 200,
         "finalUrl": "https://saaspirate.com/",
         "title": "576+ SaaS Lifetime Deals Software &amp; Discounts 2026 | SaaSPirate"
+      },
+      "traffic": {
+        "monthlyVisits": 1700,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:18:53.947Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -9336,6 +10029,13 @@
         "httpStatus": 200,
         "finalUrl": "https://saassurf.com/",
         "title": "Curating tools for developers, designers, and makers"
+      },
+      "traffic": {
+        "monthlyVisits": 7,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:19:02.620Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -9462,6 +10162,13 @@
         "httpStatus": 200,
         "finalUrl": "http://www.secretsearchenginelabs.com/",
         "title": "Secret Search Engine Labs - The Alternative Search Engine"
+      },
+      "traffic": {
+        "monthlyVisits": 8,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:20:26.548Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -9714,6 +10421,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.sitelike.org/add-site",
         "title": "sitelike.org Add&Submit Website"
+      },
+      "traffic": {
+        "monthlyVisits": 55800,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:20:35.255Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -9765,6 +10479,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.sites-internationaux.com/",
         "title": "Annuaire SITES INTERNATIONAUX - Répertoire des professionnels"
+      },
+      "traffic": {
+        "monthlyVisits": 230,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:20:43.914Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -9790,6 +10511,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.sites-plus.com/",
         "title": "Sites Plus Web Directory"
+      },
+      "traffic": {
+        "monthlyVisits": 1,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:20:52.557Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -9815,6 +10543,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.sitesondisplay.com/",
         "title": "Search Engine and Web Directory: SitesOnDisplay.com"
+      },
+      "traffic": {
+        "monthlyVisits": 0,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:21:01.245Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -9940,6 +10675,13 @@
         "httpStatus": 200,
         "finalUrl": "https://softportal.com/",
         "title": "ПРОГРАММЫ - Скачать бесплатные программы"
+      },
+      "traffic": {
+        "monthlyVisits": null,
+        "verdict": "below-floor",
+        "checkedAt": "2026-08-19T20:21:09.916Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10142,6 +10884,13 @@
         "httpStatus": 200,
         "finalUrl": "https://sprout24.com/submit/",
         "title": "Request for MarTech and Email Marketing Tools Review at Sprout24"
+      },
+      "traffic": {
+        "monthlyVisits": 97,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:22:33.897Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10167,6 +10916,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.sqlservercentral.com/",
         "title": "SQLServerCentral &#8211; The #1 SQL Server community"
+      },
+      "traffic": {
+        "monthlyVisits": 81000,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:22:42.560Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10217,6 +10973,13 @@
         "httpStatus": "429",
         "finalUrl": "https://stackshare.io/submit/",
         "title": "Vercel Security Checkpoint"
+      },
+      "traffic": {
+        "monthlyVisits": 22800,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:22:51.230Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10268,6 +11031,13 @@
         "httpStatus": 200,
         "finalUrl": "https://stackviv.ai/",
         "title": "Stackviv - Free AI Tools &amp; Agents Directory"
+      },
+      "traffic": {
+        "monthlyVisits": 311,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:22:59.890Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10293,6 +11063,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.starterstory.com/",
         "title": "Starter Story — The Researched Database of Real, Profitable Businesses"
+      },
+      "traffic": {
+        "monthlyVisits": 23900,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:23:08.563Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10318,6 +11095,13 @@
         "httpStatus": 200,
         "finalUrl": "https://startup88.com/",
         "title": "Startup88 - Showcase your startup to the world!"
+      },
+      "traffic": {
+        "monthlyVisits": 53,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:23:17.231Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10418,6 +11202,13 @@
         "httpStatus": 200,
         "finalUrl": "https://startupcollections.com/submit-product/",
         "title": "Submit Product - Startup Collections"
+      },
+      "traffic": {
+        "monthlyVisits": 34,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:24:41.177Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10468,6 +11259,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.startupguys.net/",
         "title": "Essential Guides for Starting and Growing Your Small Business - Startupguys.net"
+      },
+      "traffic": {
+        "monthlyVisits": 7,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:24:49.851Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10518,6 +11316,13 @@
         "httpStatus": 200,
         "finalUrl": "https://startups.snapmunk.com/",
         "title": "SnapMunk | Startup Directory"
+      },
+      "traffic": {
+        "monthlyVisits": 84,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:24:58.503Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10593,6 +11398,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.stork.ai/",
         "title": "Stork Wire — quality backlinks &amp; AI visibility, on autopilot"
+      },
+      "traffic": {
+        "monthlyVisits": 11000,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:25:07.168Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10670,6 +11482,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.submit.biz/index.php?go=addpage&catid=316",
         "title": "Submit URL to Other Business | Submit.biz"
+      },
+      "traffic": {
+        "monthlyVisits": 0,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:25:15.833Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10796,6 +11615,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.therundown.ai/submit",
         "title": "Submit your AI tool | The Rundown AI"
+      },
+      "traffic": {
+        "monthlyVisits": 16500,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:25:24.508Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10846,6 +11672,13 @@
         "httpStatus": 200,
         "finalUrl": "https://taalk.com/submit-startup/",
         "title": "Submit your startup stories, and entrepreneur stories | Taalk.com"
+      },
+      "traffic": {
+        "monthlyVisits": 331,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:26:48.461Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10871,6 +11704,13 @@
         "httpStatus": 200,
         "finalUrl": "https://tally.so/r/mBkqj5",
         "title": "Attract New Customers With a Free Product Listing on spotSaaS"
+      },
+      "traffic": {
+        "monthlyVisits": 213200,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:26:57.128Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10921,6 +11761,13 @@
         "httpStatus": 200,
         "finalUrl": "https://guidenetworth.com/",
         "title": "Guide Net Worth"
+      },
+      "traffic": {
+        "monthlyVisits": 9,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:27:05.800Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10946,6 +11793,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.techpluto.com/submit-a-startup/",
         "title": "Submit A Startup - TechPluto - Latest Startup &amp; Tech News"
+      },
+      "traffic": {
+        "monthlyVisits": 4500,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:27:14.471Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10971,6 +11825,13 @@
         "httpStatus": 200,
         "finalUrl": "https://telegra.ph/Bring-Still-Memories-to-Life-AI-Animate-Photo-Magic-with-VideoWeb-AI-07-20",
         "title": "Bring Still Memories to Life: AI Animate Photo Magic with VideoWeb AI – Telegraph"
+      },
+      "traffic": {
+        "monthlyVisits": 21500,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:27:23.153Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -10996,6 +11857,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.textlinkdirectory.com/",
         "title": "Text Link Directory"
+      },
+      "traffic": {
+        "monthlyVisits": null,
+        "verdict": "below-floor",
+        "checkedAt": "2026-08-19T20:27:31.816Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -11046,6 +11914,13 @@
         "httpStatus": "200",
         "finalUrl": "https://thataicollection.com/submit/details/",
         "title": "That AI Collection"
+      },
+      "traffic": {
+        "monthlyVisits": 7400,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:28:55.724Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -11096,6 +11971,13 @@
         "httpStatus": 200,
         "finalUrl": "https://theaipedia.io/",
         "title": "TheAIPedia I Find The Best AI Tools To Superboost Your Business"
+      },
+      "traffic": {
+        "monthlyVisits": 170,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:29:04.397Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -11146,6 +12028,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.theinsaneapp.com/",
         "title": "Insane - TheInsaneApp.com"
+      },
+      "traffic": {
+        "monthlyVisits": 2900,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:29:13.055Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -11171,6 +12060,13 @@
         "httpStatus": 200,
         "finalUrl": "https://nextaitool.com/",
         "title": "Find the Best AI Tools | Next AI Tool"
+      },
+      "traffic": {
+        "monthlyVisits": 221,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:29:21.718Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -11221,6 +12117,13 @@
         "httpStatus": 200,
         "finalUrl": "https://thestartupinc.com/",
         "title": "Start up Companies Directory &amp; Startup Listing Website - The Startup INC"
+      },
+      "traffic": {
+        "monthlyVisits": 624,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:29:30.387Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -11321,6 +12224,13 @@
         "httpStatus": "200",
         "finalUrl": "https://www.tipseason.com/ai-tools/submit",
         "title": "Submit Your AI Tool | Pricing Plans"
+      },
+      "traffic": {
+        "monthlyVisits": null,
+        "verdict": "below-floor",
+        "checkedAt": "2026-08-19T20:29:39.079Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -11496,6 +12406,13 @@
         "httpStatus": 200,
         "finalUrl": "https://toolsfine.com/",
         "title": "Toolsfine — Best AI Tools Directory"
+      },
+      "traffic": {
+        "monthlyVisits": 10,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:31:02.980Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -11672,6 +12589,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.tuttosuitalia.com/",
         "title": "Tutto su Italia, aziende e luoghi italiani"
+      },
+      "traffic": {
+        "monthlyVisits": 4100,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:31:11.646Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -11697,6 +12621,13 @@
         "httpStatus": 200,
         "finalUrl": "https://www.txtlinks.com/sug_url.php?cat_id=0",
         "title": "TXT Links Free Link Directory"
+      },
+      "traffic": {
+        "monthlyVisits": 0,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:31:20.308Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -11874,6 +12805,13 @@
         "httpStatus": "403",
         "finalUrl": "https://uycart.com/index.php?view=post&cityid=476&lang=en&catid=1&subcatid=1&shortcutregion=0&",
         "title": "Just a moment..."
+      },
+      "traffic": {
+        "monthlyVisits": 3500,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:31:28.968Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -11899,6 +12837,13 @@
         "httpStatus": "200",
         "finalUrl": "https://www.ventureradar.com/submitcompany?utm_source=VR&utm_medium=Website&utm_content=Landing",
         "title": "VentureRadar"
+      },
+      "traffic": {
+        "monthlyVisits": 7600,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:31:37.627Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -11924,6 +12869,13 @@
         "httpStatus": 200,
         "finalUrl": "https://videobeginners.com/",
         "title": "動画初心者の部屋 | 完全な初心者でも簡単に動画を制作できる！"
+      },
+      "traffic": {
+        "monthlyVisits": null,
+        "verdict": "below-floor",
+        "checkedAt": "2026-08-19T20:31:46.296Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -12275,6 +13227,13 @@
         "httpStatus": 200,
         "finalUrl": "https://whattheai.tech/",
         "title": "WhatTheAI - Discover the Best AI Tools"
+      },
+      "traffic": {
+        "monthlyVisits": 8900,
+        "verdict": "pass",
+        "checkedAt": "2026-08-19T20:33:10.221Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {
@@ -12326,6 +13285,13 @@
         "httpStatus": "200",
         "finalUrl": "https://biz.worldweb-directory.com/add-a-business",
         "title": "Add a business"
+      },
+      "traffic": {
+        "monthlyVisits": 0,
+        "verdict": "fail",
+        "checkedAt": "2026-08-19T20:33:18.885Z",
+        "source": "semrush-organic",
+        "globalRank": null
       }
     },
     {

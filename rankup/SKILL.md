@@ -47,6 +47,7 @@ metadata:
 | `backlink/scripts/harvest-collect.sh` | 等下载落齐（文件数达标 **且** 大小连续两次采样不变）再收拢，防静默丢文件 |
 | `backlink/scripts/harvest-merge.mjs` | 合并抓下来的 TSV 成干净 CSV，带重名副本检测 |
 | `backlink/scripts/similarweb-query.mjs` | 走 OpenCLI 的流量面板查询（performance / similar-sites）。需要 `TOOLS_SHARE_DASHBOARD_URL` 与 `TOOLS_SHARE_APP_ORIGIN` 两个环境变量，未设置会直接报错而不是猜 |
+| `backlink/scripts/similarweb-batch.mjs` | **几百个域名批量测流量**：登录只做一次，之后只换 SPA 的 hash 路由，单域名 5 秒；同步前台跑、逐条追加写盘、按已有输出续跑。要筛一批域名值不值得做时用它，不要用单域名脚本循环，更不要退回 Tranco 这类流行度名单（站群能刷高流行度，实测 73 个站群域名有 48 个在 Tranco top-1M 里）|
 | `backlink/scripts/inspect-page.mjs` | 探一个页面有没有可提交的表单/入口 |
 | `backlink/scripts/safe-fill.mjs` | 受控填表，带提交前护栏 |
 | `backlink/scripts/discovery-queue.mjs` / `ledger.mjs` | 外链机会队列与投放台账 |

@@ -57,7 +57,14 @@ backlink/
 │   ├── merge-submission-targets.mjs fold a probe run into the two data files
 │   ├── targets-select.mjs          pick ONE batch: --cohort open | captcha | …
 │   ├── harvest-*.{sh,mjs,js}       bulk table extraction from logged-in dashboards
-│   └── similarweb-query.mjs        repeatable domain query (needs your own env)
+│   ├── lib-tools-share.mjs         ★ the ONE panel launcher: node pick → 打开 → land
+│   ├── tools-share-open.mjs        launch a tool by name; --goto for a deep link
+│   ├── similarweb-query.mjs        performance | channels | similar-sites
+│   ├── similarweb-batch.mjs        bulk traffic screen — one login, N domains, resumable
+│   ├── semrush-batch.mjs           same, on the other card's quota (organic traffic)
+│   ├── apply-traffic-screen.mjs    write verdicts back into submission-targets.json
+│   ├── semrush-overview.mjs        AS / organic traffic / ref-domains / keywords
+│   └── page-read.mjs               render a public page → text, prices, paywall shape
 │
 └── references/           ← method, traps, and why the rules are the rules
     ├── instant-publish.md     ★ free channels: how each class behaves, what kills them
@@ -144,13 +151,52 @@ A directory with no measurable traffic cannot send a referral, cannot pass a
 useful signal, and its DR is whatever its own network linked into it.
 
 ```bash
-# the whole gate, one query per domain
-node <seo-tool> worth --input example.com   # read live.visits + monthlyHistory
+# hundreds of domains, one login, ~5-10s each, resumable
+node scripts/similarweb-batch.mjs --domains-file domains.txt --out sw.jsonl
+node scripts/semrush-batch.mjs   --domains-file domains.txt --out sem.jsonl
+
+# write verdicts back into the table (repeatable --in; clears stale ones)
+node scripts/apply-traffic-screen.mjs --in sw.jsonl --source similarweb
+node scripts/targets-select.mjs --cohort open --min-traffic 100
 ```
 
-`traffic >= 100` monthly visits qualifies. **A domain the data source cannot find
-at all is a result, not a tool failure** — it means the site is below the
-detection floor, i.e. zero.
+**Budget by quota, not by clock.** Amortising the login gets a domain down to
+~5s, which makes "a few hundred in half an hour" look right. It is not: the
+panel's *API 今日配额* went from 13% to 100% at around domain 110, and every call
+after that timed out — indistinguishable from a dead session, and the launcher's
+own error message sends you off to change nodes. Plan on **~120 domains per card
+per day**. Quota is per card, so when Similarweb is spent, Semrush usually is
+not — switch and keep going, but record which one measured each row, because
+Similarweb reports *total visits* and Semrush reports *organic traffic* and the
+two are not the same number. `traffic.source` exists for exactly this.
+
+Both batch scripts break the circuit after 5 consecutive errors. Without it one
+dead session burned 48 domains at 60s each before anyone noticed.
+
+`traffic >= 100` monthly visits qualifies. **A domain the data source explicitly
+reports no data for is a result, not a tool failure** — it is below the detection
+floor, i.e. zero, and gets written as `below-floor`.
+
+**A timeout is not that result.** A slow render and a genuinely empty record look
+identical at the moment the clock runs out, and they mean opposite things: two
+directories with 2.4K and 4.6K organic visits were written off as "no traffic"
+by exactly that confusion. Timeouts are recorded as `error`, meaning *this check
+did not complete*; resume retries them, and applying an `error` **clears** any
+stale verdict it previously left on that domain. Before writing "no data",
+be able to name the sentence in which the source said so.
+
+**Do not substitute a free popularity list for measured traffic.** Tranco's
+top-1M was tried as a cheap stand-in and failed on the labelled set: **48 of the
+73 known link-farm domains sat inside it**, spread from rank 134k to 998k, so no
+cutoff separates a farm from a small honest directory. Popularity rank is fed by
+DNS resolutions and crawler requests — exactly the signals a network manufactures
+for itself, the same reason DR is worthless here. The general rule: **validate a
+proposed gate against known-bad domains, not against famous ones.** Recognising
+big sites is not the problem a gate exists to solve.
+
+Speed is not a reason to downgrade the metric. The panel login costs ~20s and the
+query itself ~5s, so amortise the login across the batch (that is all
+`similarweb-batch.mjs` does) instead of reaching for a weaker free signal.
 
 Three field signs that a batch is one link network rather than N directories,
 any one of which means measure first:
@@ -552,12 +598,52 @@ Both variables are account configuration and neither ships with this Skill. The
 launched application sits on a different host from the dashboard entry point, so
 the second one cannot be derived from the first.
 
-`--report` accepts `performance` or `similar-sites`. The script opens the
-authorized dashboard, launches Similarweb, waits for the slow app startup,
-navigates by stable DOM attributes, and saves both derived metrics and the
-bounded source text. Sparse results are valid results for small sites. The
-script fails fast with a clear message when `TOOLS_SHARE_DASHBOARD_URL` is
-unset, rather than guessing an entry point.
+`--report` accepts `performance`, `channels`, or `similar-sites`.
+
+`channels` answers the question no keyword tool can: **is this site's traffic
+earned, bought, or shared?** It returns per-channel visit counts plus shares
+computed from those counts, so the shares always reconcile with the visits.
+A competitor holding a #1 position on 40% bought traffic is a different opponent
+from one holding it on 80% organic — plan against the right one.
+
+Two traps this script has already paid for, both of which look like "the tool is
+broken" rather than "my selector is wrong":
+
+- **Poll on a string that only appears once data has rendered.** Polling on a
+  left-nav menu item passes the instant the shell mounts, so the capture runs
+  against an unpopulated body and every metric comes back empty — a query that
+  reports success and returns nothing.
+- **Report routes are not interchangeable.** These hash routes differ in shape
+  between reports; pasting one report's URL shape onto another re-initializes the
+  app into a blank page, which is indistinguishable from a dead node.
+
+```bash
+node scripts/semrush-overview.mjs --domain example.com --db jp \
+  --out .backlink/semrush-example.com.json
+```
+
+Domain overview has no table and no export button, so it can only be read off
+the page. **Its `organicTraffic` is a search-only estimate and is NOT comparable
+to Similarweb's total visits** — the same site legitimately differs several-fold
+between the two. Never put them in one column.
+
+```bash
+node scripts/page-read.mjs --url https://example.com/pricing \
+  --out .backlink/pricing.json
+```
+
+`page-read.mjs` renders a public page and returns text, detected prices by
+currency, and paywall shape (one-time / subscription / trial / refund). Use it
+for competitor product recon — what they sell and how they charge lives only on
+their own pages, and `curl | grep` returns an empty shell on the SPAs these
+sites are built with. It reads only; it never fills or submits anything.
+
+All of these share one launcher, `lib-tools-share.mjs`. **Do not write a second
+one.** A previous copy of the launch sequence inside `similarweb-query.mjs`
+omitted three of the four known traps (session welded to the tool origin, the
+card carrying a logo image instead of text, the node selector hydrating late)
+and failed with a generic "unavailable" whose real cause differed every time.
+One launcher means one place to fix, and one place to look.
 
 ### Inspect or prepare
 
@@ -683,6 +769,14 @@ engines with their own crawlers, what reaches them, and what does not, are in
 
 - No coordinate-based “human-like” clicking.
 - No CAPTCHA, Turnstile, login, paywall, quota, or account-scope bypass.
+- **Never treat "not yet measured" as "qualified".** The traffic gate only works
+  if unmeasured rows are excluded from a batch, not waved through — otherwise the
+  gate is decoration. `targets-select.mjs --min-traffic` drops them by design;
+  `--unmeasured` exists to list them as the next screening queue, not as a batch.
+- **A gate metric is validated against known-bad domains, not famous ones.** Any
+  signal a link network can manufacture for itself — DR, popularity rank,
+  index size — will pass a farm. Tranco's top-1M was tested this way and failed:
+  48 of 73 confirmed farm domains were inside it, spanning rank 134k to 998k.
 - No generic praise, fake identity, invented metrics, or a comment body that
   ignores the article it sits under. A host site on a different topic is fine —
   relevance and DR rank candidates, they never gate them, and `nofollow` is an

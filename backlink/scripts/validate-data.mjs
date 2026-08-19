@@ -178,6 +178,19 @@ for (const t of targets.targets || []) {
   for (const k of ['relObserved', 'anchorRendered', 'indexable']) {
     if (k in t) err(at, `不得出现字段 ${k} —— 这张表没有观察过任何已发布的链接。观察到了就把它升进 free-channels.json`);
   }
+  // 流量是准入门槛，所以它的判决必须自洽，且必须说得出是什么时候测的。
+  if (t.traffic !== undefined && t.traffic !== null) {
+    const tr = t.traffic;
+    if (!['pass', 'fail', 'below-floor'].includes(tr.verdict)) {
+      err(at, `traffic.verdict 非法：${tr.verdict}（error 不是结论，不许落库——重测）`);
+    }
+    if (!tr.checkedAt || Number.isNaN(Date.parse(tr.checkedAt))) err(at, 'traffic 必须写 checkedAt：流量是会变的，没有日期的流量数字不能当门槛用');
+    if (!tr.source) err(at, 'traffic 必须写 source：不同数据源的口径不同，不标来源就没法互相核对');
+    const v = tr.monthlyVisits;
+    if (tr.verdict === 'pass' && !(typeof v === 'number' && v >= 100)) err(at, `traffic.verdict=pass 但 monthlyVisits=${v}，门槛是 >= 100`);
+    if (tr.verdict === 'fail' && !(typeof v === 'number' && v < 100)) err(at, `traffic.verdict=fail 但 monthlyVisits=${v}，fail 指测到了而且低于门槛`);
+    if (tr.verdict === 'below-floor' && v !== null) err(at, 'below-floor 指数据源根本查不到这个域名，monthlyVisits 必须是 null');
+  }
   if (t.status !== 'dead' && isDate(t.lastProbedAt) && daysAgo(t.lastProbedAt) > 180) {
     warn(at, `已 ${daysAgo(t.lastProbedAt)} 天未复探。目录类渠道消失得比改版还快`);
   }
@@ -212,6 +225,13 @@ if (!quiet || errors.length) {
   process.stdout.write(`submission-targets: ${tl.length} 条（可提交入口，**尚未观察到任何已发布链接**；usable ${tl.filter((t) => t.status === 'usable').length} / gated ${tl.filter((t) => t.status === 'gated').length}）\n`);
   const cohorts = tl.reduce((m, t) => ((m[t.cohort] = (m[t.cohort] || 0) + 1), m), {});
   process.stdout.write(`  批次：${Object.entries(cohorts).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(' · ')}\n`);
+  const live = tl.filter((t) => t.status !== 'dead');
+  const measured = live.filter((t) => t.traffic);
+  const passed = measured.filter((t) => t.traffic.verdict === 'pass');
+  process.stdout.write(`  流量门槛（>=100 月访问）：已测 ${measured.length}/${live.length}，过闸 ${passed.length}，未测 ${live.length - measured.length}\n`);
+  if (live.length - measured.length > 0) {
+    process.stdout.write(`  ⓘ 未测的不等于合格。填表前先跑 similarweb-batch.mjs，再用 targets-select --min-traffic 100 选批次\n`);
+  }
   for (const w of warns) process.stdout.write(`  ⚠ ${w}\n`);
 }
 if (errors.length) {
