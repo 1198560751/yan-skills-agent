@@ -137,6 +137,58 @@ it is a row that saves the next campaign — and the next **site**. That library
 reusable across every site the owner ever builds, which is why it lives in the
 Skill and not in any one project.
 
+### Two lanes, and the CAPTCHA lane is not the failure lane
+
+A submission run splits in two, and the split is the whole point of the cohort
+tags. Both lanes produce work; neither is a leftover.
+
+| | Lane A — unattended | Lane B — staged queue |
+| --- | --- | --- |
+| Cohorts | `open` | `captcha`, `account-captcha`, `email-verify`, `manual-review` |
+| What the driver does | fills, clicks the real submit control, reads the result | fills **everything it is allowed to**, walks to the final step, and **leaves the tab open** |
+| Ends at | `submitted` / `outcome-unknown` | `staged-captcha` — a form on screen needing a code and a click |
+| Who finishes it | nobody | the owner, in one sitting, seconds per site |
+
+Lane B is run with `--new-tab`, and that flag is not cosmetic: **one tab per
+staged site, or the queue silently becomes a queue of one.** Reusing a single
+tab overwrites the previous staged form, and the report still says N staged.
+
+The driver never types a CAPTCHA answer, never creates an account, never pays,
+and never ticks a terms box — those stop the row and move it to Lane B with
+whatever could legitimately be filled already in place. Hand the owner the tab
+list, not a list of URLs to re-enter by hand:
+
+```bash
+node scripts/submit-directory.mjs --session "$S" --profile profile.json \
+  --url https://example.com/submit --submit --new-tab
+opencli browser "$S" tab list   # this IS the queue
+```
+
+#### Three guards, each of which exists because it was needed
+
+A generic form driver run across a directory list will, unsupervised, do worse
+than nothing — a listing is a permanent public record, and the brand's official
+mailbox is attached to it. All three of these were added after a real batch run
+did the wrong thing:
+
+1. **No URL field, no submission.** A directory submission always has one. A
+   form without one is something else on the page, and that something else is
+   usually a newsletter box — so the alternative to this check is subscribing
+   the official address to strangers' mailing lists while reporting it as link
+   building. The scorer picked exactly such a form on a live target.
+2. **The submit control must read like one.** On another target the "submit
+   labels" came back as four product names, meaning the scorer had found page
+   buttons rather than the form's own action. A control whose label is not
+   submit/send/add/post/next (or the CJK equivalents) is refused, not clicked.
+3. **`requestSubmit()` is not a click.** Forms wired to a handler on the
+   *button* ignore it, and the page then looks exactly as it does after a silent
+   success. Click the real control and confirm against something other than the
+   page text.
+
+And the rule that outranks all three: **a generic driver classifies, it does not
+certify.** Its `submitted` means the form was accepted, never that a listing
+exists — that is `public`, and it needs the anchor seen on a live page.
+
 ### Run one cohort at a time
 
 Every target carries **all** the gates observed on it in `gates`, and a `cohort`
@@ -302,7 +354,37 @@ success, then `eval` returns someone else's document.
 - If `eval` returns a page you did not navigate to, suspect a name collision
   **before** suspecting the site or the CLI. Confirm with
   `opencli browser <session> tab list`.
-- Release the lease with `opencli browser <session> close` when done.
+- Release the lease with `opencli browser <session> close` when done. A session
+  left open leaves a tab sitting in the owner's Chrome that looks exactly like
+  live work somebody else is doing.
+
+**The Chrome tab group is not an identifier.** Checked on opencli 1.8.6: every
+session's tabs land in a group carrying the same extension-supplied label, and
+there is no way to change it from here — no flag on `browser`, `open`, or `tab`,
+nothing in `opencli --help` or `opencli profile`, and no `chrome.tabGroups` call
+anywhere in the CLI package (the grouping is done by the Chrome extension, which
+this side does not control). `tab list` does not report the group either.
+
+So two consequences, and the first one is the one that bites:
+
+- **Never ask a person to tell tasks apart by looking at the tab group.** They
+  cannot. Watching one group fill with tabs from three different tasks is exactly
+  what a collision looks like from the outside, so the visual will make a healthy
+  run look broken and a broken run look healthy.
+- **The session name is the only identifier**, and it is only visible through
+  `opencli browser <session> tab list`. So make names *describe the work* rather
+  than merely being unique: `backlink-probe-<suffix>` beats `bl-1`. A unique but
+  meaningless name still leaves you unable to answer "whose tab is this" without
+  guessing.
+
+Before starting a batch, confirm ownership rather than assuming it:
+
+```bash
+opencli browser "$SESSION" tab list   # should show only the tabs you opened
+```
+
+If this ever gains a group-label flag, set it to the session name — that closes
+the gap properly. Until then, treat the group as decoration.
 
 ### Background mode is not headless
 

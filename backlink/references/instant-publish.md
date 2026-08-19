@@ -790,3 +790,106 @@ This matters beyond politeness: without those headers the sweep produced a list 
 "dead" sites that were merely defended, and acting on it would have discarded live
 channels. Set them on every probe, then treat a remaining 403 as **unknown** —
 still never as dead.
+
+## 第一轮筛选（2026-08-19）：43 个 AI 目录，零个能免登录发出去
+
+来源是 columbus.tools 外链榜前 100 去掉已收录与垃圾后的 43 个域名。
+按哥飞的两轮法，第一轮的意义就是把这批筛成一张「下次只打这些」的表——
+结果这一轮的答案是：**这 43 个里没有一个能在不越过硬规则的前提下发出去。**
+这本身就是结论，不是失败。
+
+### 先用控制路径把假 `/submit` 剔掉
+
+对每个域名探 `/submit`、`/submit-tool`、`/add-tool`、`/new`、`/post`，
+**同时探一个现编的 `/zzz-control-<随机数>`**。六个域名对控制路径同样返回 200：
+
+`sergechel.info`、`vuink.com`、`topaihubs.com`、`l.dang.ai`、
+`techbasedirectory.com`、`toolspedia.io`
+
+它们是 catch-all 软 404，`/submit` 返回 200 什么都不说明。
+**没有控制路径这一步，这六个会被当成六个可投目标带进下一轮。**
+
+### 剩下的按拦路原因分类
+
+| 拦路的东西 | 域名 |
+|---|---|
+| CAPTCHA（硬规则，不绕） | `oppalerts.com`、`poweredbyai.app`、`anyfp.com`、`navtools.ai`、`topaitoolsreview.com`、`peerpush.net`、`techbullion.com` |
+| 必须注册账号（硬规则，不代做） | `best-ai.org` / `best-ai-tools.org`、`aidive.org`、`sharefast.co`、`aicavo.com` |
+| 要求先在我们首页挂反链，系统自动检测 | `seektool.ai` |
+| 付费 | `thataicollection.com`、`www.toolbit.ai`、`vibe-coding.cloud` |
+| 静态页 0 字节 / 无表单 | `www.ilovefree.com` |
+
+### `best-ai.org` 值得单独记：免费的宣传是真的，门槛在后面
+
+页面写着「Free Submission」「✓ 100% Free • No Credit Card Required」，
+表单只要一个 URL，无 CAPTCHA，填完 `Continue` 也确实被接受了——
+然后跳到 `/login?redirect=/submit-tool?toolUrl=...&start=1`。
+**免费 ≠ 免注册。** 判定必须走到跳转之后，停在「表单接受了」就会误报成可投。
+
+### 两个可复用的浏览器陷阱
+
+- **遮罩吃点击**。同意条点了「Only essential」之后，页面上看不到弹窗了，
+  但 `div.fixed.inset-0.z-50.bg-black/80` 还在，之后每一次 `click` 都落在遮罩上，
+  返回 `clicked: true` 却毫无反应。诊断一行就够：
+
+  ```js
+  const r=btn.getBoundingClientRect();
+  document.elementFromPoint(r.left+r.width/2, r.top+r.height/2) === btn
+  ```
+
+  为 false 就是被盖住了。**`clicked:true` 不等于点到了那个按钮。**
+  （本次的真实成因是：我按文本去点「Only essential」时爬错了祖先层级，
+  点开的是 Settings，打开了 Cookie 偏好中心。弹窗里还有一个同名按钮，
+  点那个才真正关掉。）
+
+- **受控输入的假成功**。`opencli fill` 会返回 `filled:true, verified:true`，
+  但 React 的 state 没更新，回车和提交都无反应。要用原生 setter 派发事件：
+
+  ```js
+  const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;
+  set.call(input, value);
+  input.dispatchEvent(new Event('input',{bubbles:true}));
+  ```
+
+  **判定提交是否真的发生，看 network 里有没有请求，不看按钮的返回值。**
+  本次 `Continue` 点了三次、`Enter` 按了一次，network 捕获到的请求数是 0。
+
+## 第三个池子（2026-08-19）：换到「免注册目录」这一类，卡在人机校验
+
+第一轮把 columbus 那 43 个 AI 目录探完之后换池子，来源是搜索「免注册/免费收录」
+类的目录清单。控制路径先剔掉 `aitoolsdirectory.com`（`/zzz-control-9182` 同样 200）。
+
+剩下两个**表单完整、无第三方 CAPTCHA 服务、不需要账号**的：
+
+| 目标 | 表单 | 拦路 |
+|---|---|---|
+| `thenextai.com/submit-ai-tool/` | 10 个字段全可填 + 一个蜜罐 `website_confirm` | `#captchaInput`，页面上是 **「Quick check: 4 + 7 =」** 的算术题 |
+| `aig123.com/site-submit` | 中文导航站，名称/链接/简介/介绍/分类/标签/昵称/联系方式 | `<input captcha-type="slider">`，滑块验证 |
+
+**两者都属于「不得完成人机验证」那条硬规则**，所以停在填完不提交。
+算术题看起来无害，但它和滑块是同一类东西——都是 bot 检测，规则不按难度区分。
+
+### 可复用的结论：把「有没有人机校验」的判定放到填表之前
+
+这两个站的静态 HTML 里，`recaptcha|hcaptcha|turnstile` 三个词**一个都不出现**，
+按常用指纹扫是干净的。真正的校验一个藏在 `id="captchaInput"` 的数字输入框里，
+另一个藏在 `<input captcha-type="slider" name="captcha_type">` 里。
+
+所以探测词表要加上：
+
+```
+captchaInput | captcha-type | captcha_type | 验证码 | 人机 | quick check | slider
+```
+
+并且**要在实时 DOM 上查，不能只查首屏 HTML**——`thenextai` 那个数字框在静态
+HTML 里存在但游离于 `<form>` 之外（`el.form` 为 null、父元素无文案），
+只有在渲染后的页面上才看得到它旁边那句「Quick check: 4 + 7 =」。
+
+### 填表本身的两个可复用件
+
+- 字段可能只有 `id` 没有 `name`。`thenextai` 全部 12 个控件 `name` 都是空串，
+  `document.querySelector('[name="f-name"]')` 返回 null。先 dump
+  `{tag,id,name,type}` 再决定用哪个选择器。
+- **蜜罐字段必须保持空**。`thenextai` 的 `website_confirm` 是可见性正常的文本框，
+  按「把所有字段填满」的思路去填就会被判为机器人。凡是名字像
+  `*_confirm` / `url2` / `website2` 而 label 为空的，一律不碰。

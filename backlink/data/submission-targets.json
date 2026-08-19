@@ -159,23 +159,23 @@
       "route": "https://www.9sites.net/addurl.php",
       "name": "9Sites.net - Submit Your Site",
       "kind": "web-directory",
-      "gate": "open-form",
+      "gate": "captcha-interactive",
       "gates": [
-        "open-form"
+        "captcha-interactive"
       ],
-      "cohort": "open",
+      "cohort": "captcha",
       "payment": "optional",
       "price": "$15.95 one-time fee (Premium Links listing)",
       "priceCheckedAt": "2026-08-19",
-      "status": "usable",
+      "status": "gated",
       "sourceList": "flaqai/backlink_skills Free-backlink-list.md",
-      "notes": "| 154 | [https://www.9sites.net/addurl.php](<https://www.9sites.net/addurl.php>) | 9Sites.net Web Directory（9sites.net）：是综合网站或链接目录，按分类收集和展示外部网站。当前链接指向提交或新增条目入口。 | — | 未收录 有收费引导 | · Regular Links listing is free (queue/priority unspecified).",
+      "notes": "CAPTCHA appears only on the confirm step: step 1 (listing type, category, URL, title, description, name, email) has no gate at all, then Next reveals a `scode` field. Free tier is radio vtype=reg; premium is $15.95 one-time.",
       "lastProbedAt": "2026-08-19",
       "evidence": {
-        "method": "anonymous-http",
-        "what": "Read the live addurl.php submission form: 'Listing type: Premium Links ($15.95 one time fee) / Regular Links (free)'.",
+        "method": "browser-dom",
+        "what": "Walked the real form in the owner Chrome to the confirm page; every value rendered back correctly and a `scode` security-code input plus a Submit button appeared there.",
         "httpStatus": 200,
-        "finalUrl": "https://www.9sites.net/addurl.php",
+        "finalUrl": "https://www.9sites.net/addurl.php#cfr",
         "title": "9Sites.net - Submit Your Site"
       }
     },
@@ -536,21 +536,21 @@
       "route": "https://ai-findr.com/zh/submit",
       "name": "提交您的AI工具并获取流量 | AI Findr目录",
       "kind": "startup-launch",
-      "gate": "open-form",
+      "gate": "reciprocal",
       "gates": [
-        "open-form"
+        "reciprocal"
       ],
-      "cohort": "open",
+      "cohort": "reciprocal",
       "payment": "none-seen",
       "price": null,
       "priceCheckedAt": null,
-      "status": "usable",
+      "status": "gated",
       "sourceList": "flaqai/backlink_skills Free-backlink-list.md",
-      "notes": "| 430 | [https://ai-findr.com/zh/submit](<https://ai-findr.com/zh/submit>) | ai-findr.com：AI 相关产品、工具、内容或资源网站；是否接受第三方产品收录需结合当前入口确认。当前链接指向提交或新增条目入口。 | 3.18-3.19 | 未收录 |",
+      "notes": "Submit page demands a backlink be added to your own site before submitting, and rejected our URL with Invalid url on the first attempt. Owner decision, not a driver decision.",
       "lastProbedAt": "2026-08-19",
       "evidence": {
-        "method": "anonymous-http",
-        "what": "reachable 200, 1 form(s), no CAPTCHA/login/reciprocal signal in raw HTML",
+        "method": "browser-dom",
+        "what": "Rendered /zh/submit in the owner Chrome: the page shows an Invalid url validation error plus an instruction to add an ai-findr anchor to your own site.",
         "httpStatus": 200,
         "finalUrl": "https://ai-findr.com/zh/submit",
         "title": "提交您的AI工具并获取流量 | AI Findr目录"
@@ -661,21 +661,21 @@
       "route": "https://aiai.tools/submit-ai-tool",
       "name": "Submit AI Tool - AIAI.Tools",
       "kind": "ai-directory",
-      "gate": "open-form",
+      "gate": "none-found",
       "gates": [
-        "open-form"
+        "none-found"
       ],
-      "cohort": "open",
+      "cohort": "unknown",
       "payment": "none-seen",
       "price": null,
       "priceCheckedAt": null,
-      "status": "usable",
+      "status": "unverified",
       "sourceList": "flaqai/backlink_skills Free-backlink-list.md",
-      "notes": "| 160 | [https://aiai.tools/submit-ai-tool](<https://aiai.tools/submit-ai-tool>) | Best Ai Tools List & Free AI Tools Directory（aiai.tools）：是 AI 工具发现或导航网站，面向用户收集、分类和展示不同用途的 AI 产品。当前链接指向提交或新增条目入口。 | — | 未收录 无收费引导 | | 431 | [https://aiai.tools/submit-ai-tool](<https://aiai.tools/submit-ai-tool>) | Bes",
+      "notes": "No qualifying form found in the rendered DOM; needs a human look before any driver run.",
       "lastProbedAt": "2026-08-19",
       "evidence": {
-        "method": "anonymous-http",
-        "what": "reachable 200, 2 form(s), no CAPTCHA/login/reciprocal signal in raw HTML",
+        "method": "browser-dom",
+        "what": "Opened /submit-ai-tool in the owner Chrome; no form with a URL field was present in the rendered page.",
         "httpStatus": 200,
         "finalUrl": "https://aiai.tools/submit-ai-tool",
         "title": "Submit AI Tool - AIAI.Tools"
@@ -836,21 +836,21 @@
       "route": "https://www.aimarketing.directory/submit",
       "name": "Submit Your AI Tool | AI Marketing Directory",
       "kind": "ai-directory",
-      "gate": "open-form",
+      "gate": "none-found",
       "gates": [
-        "open-form"
+        "none-found"
       ],
-      "cohort": "open",
+      "cohort": "unknown",
       "payment": "unknown",
       "price": null,
       "priceCheckedAt": null,
-      "status": "usable",
+      "status": "unverified",
       "sourceList": "flaqai/backlink_skills Free-backlink-list.md",
-      "notes": "| 398 | [https://www.aimarketing.directory/submit](<https://www.aimarketing.directory/submit>) | AI Tools For Business（aimarketing.directory）：是 AI 工具发现或导航网站，面向用户收集、分类和展示不同用途的 AI 产品。当前链接指向提交或新增条目入口。 | 3.18-3.19 | 未收录 有收费引导 |",
+      "notes": "No qualifying form in the rendered DOM.",
       "lastProbedAt": "2026-08-19",
       "evidence": {
-        "method": "anonymous-http",
-        "what": "Read the live /submit page: it advertises fast-track perks with stated 'value' ($100 value, $50 value) but never prints an actual price to pay or a working priced checkout link; free-vs-paid mechanics are not shown on this page.",
+        "method": "browser-dom",
+        "what": "Opened /submit in the owner Chrome; no form carrying a URL field was present.",
         "httpStatus": 200,
         "finalUrl": "https://www.aimarketing.directory/submit",
         "title": "Submit Your AI Tool | AI Marketing Directory"
@@ -861,21 +861,21 @@
       "route": "https://ainewsbase.com/submit-your-ai-tool/",
       "name": "Submit Your AI Tool",
       "kind": "ai-directory",
-      "gate": "open-form",
+      "gate": "unknown",
       "gates": [
-        "open-form"
+        "unknown"
       ],
-      "cohort": "open",
+      "cohort": "unknown",
       "payment": "none-seen",
       "price": null,
       "priceCheckedAt": null,
-      "status": "usable",
+      "status": "unverified",
       "sourceList": "flaqai/backlink_skills Free-backlink-list.md",
-      "notes": "| 543 | [https://ainewsbase.com/submit-your-ai-tool/](<https://ainewsbase.com/submit-your-ai-tool/>) | ainewsbase.com：是 AI 工具发现或导航网站，面向用户收集、分类和展示不同用途的 AI 产品。当前链接指向提交或新增条目入口。 | 4.21 | 站外未搜到 站内无搜索功能 收费投稿 |",
+      "notes": "Elementor form fills name/email/message but the tool URL field was not matched; outcome of the click could not be confirmed.",
       "lastProbedAt": "2026-08-19",
       "evidence": {
-        "method": "anonymous-http",
-        "what": "reachable 200, 2 form(s), no CAPTCHA/login/reciprocal signal in raw HTML",
+        "method": "browser-dom",
+        "what": "Filled the Elementor form in the owner Chrome and clicked Submit; the page did not change and no confirmation text appeared.",
         "httpStatus": 200,
         "finalUrl": "https://ainewsbase.com/submit-your-ai-tool/",
         "title": "Submit Your AI Tool"
@@ -1187,21 +1187,21 @@
       "route": "https://aitoolslist.io/submit-ai-tool/",
       "name": "Submit AI Tool | aitoolslist.io",
       "kind": "ai-directory",
-      "gate": "open-form",
+      "gate": "none-found",
       "gates": [
-        "open-form"
+        "none-found"
       ],
-      "cohort": "open",
+      "cohort": "unknown",
       "payment": "none-seen",
       "price": null,
       "priceCheckedAt": null,
-      "status": "usable",
+      "status": "unverified",
       "sourceList": "flaqai/backlink_skills Free-backlink-list.md",
-      "notes": "| 405 | [https://aitoolslist.io/submit-ai-tool/](<https://aitoolslist.io/submit-ai-tool/>) | aitoolslist.io 是 AI 工具发现或导航网站，面向用户收集、分类和展示不同用途的 AI 产品。当前链接指向提交或新增条目入口。 | 3.18-3.19 | 站外未搜到 站内无搜索功能 |",
+      "notes": "The /submit-ai-tool page carries no submission form with a URL field — the only form on it is a newsletter signup. Do not let a generic driver touch this page.",
       "lastProbedAt": "2026-08-19",
       "evidence": {
-        "method": "anonymous-http",
-        "what": "Submit page embeds a Tally.so form via iframe (tally.so/embed/n9BqRX); no captcha or password markers in the host page's raw HTML.",
+        "method": "browser-dom",
+        "what": "Walked the page in the owner Chrome: the highest-scoring form had only email_address and fields[first_name], no URL field anywhere.",
         "httpStatus": 200,
         "finalUrl": "https://aitoolslist.io/submit-ai-tool/",
         "title": "Submit AI Tool | aitoolslist.io"
@@ -1212,21 +1212,21 @@
       "route": "https://aitoolsmarketer.com/submit/",
       "name": "Submit Your AI Tool for the List | AI Tools Marketer",
       "kind": "ai-directory",
-      "gate": "open-form",
+      "gate": "unknown",
       "gates": [
-        "open-form"
+        "unknown"
       ],
-      "cohort": "open",
+      "cohort": "unknown",
       "payment": "none-seen",
       "price": null,
       "priceCheckedAt": null,
-      "status": "usable",
+      "status": "unverified",
       "sourceList": "flaqai/backlink_skills Free-backlink-list.md",
-      "notes": "| 152 | [https://aitoolsmarketer.com/submit/](<https://aitoolsmarketer.com/submit/>) | Independent AI Marketing Tool Reviews（aitoolsmarketer.com）：是 AI 工具发现或导航网站，面向用户收集、分类和展示不同用途的 AI 产品。当前链接指向提交或新增条目入口。 | — | 未收录 | | 322 | [aitoolsmarketer.com](<https://aitoolsmarketer.com>) | Independent AI Marketin",
+      "notes": "All fields fill cleanly and the button reads Send, but neither requestSubmit nor a synthetic click produced any request to its /api/form endpoint. Needs a real user click.",
       "lastProbedAt": "2026-08-19",
       "evidence": {
-        "method": "anonymous-http",
-        "what": "reachable 200, 3 form(s), no CAPTCHA/login/reciprocal signal in raw HTML",
+        "method": "browser-dom",
+        "what": "Filled every field in the owner Chrome and clicked Send; the form retained its values, no success message rendered, and no request to /api/form was observed.",
         "httpStatus": 200,
         "finalUrl": "https://aitoolsmarketer.com/submit/",
         "title": "Submit Your AI Tool for the List | AI Tools Marketer"
@@ -1915,21 +1915,21 @@
       "route": "https://autoais.com/?U=Add",
       "name": "AutoAI's",
       "kind": "ai-directory",
-      "gate": "open-form",
+      "gate": "unknown",
       "gates": [
-        "open-form"
+        "unknown"
       ],
-      "cohort": "open",
+      "cohort": "unknown",
       "payment": "none-seen",
       "price": null,
       "priceCheckedAt": null,
-      "status": "usable",
+      "status": "unverified",
       "sourceList": "flaqai/backlink_skills Free-backlink-list.md",
-      "notes": "| 433 | [https://autoais.com/?U=Add](<https://autoais.com/?U=Add>) | AutoAI's（autoais.com）：是 AI 工具发现或导航网站，面向用户收集、分类和展示不同用途的 AI 产品。当前链接指向网站首页或相关功能页，具体入口需再次确认。 | 3.18-3.19 | 未收录 |",
+      "notes": "Form fields (Title, Description, WebURL, Video) fill cleanly, but the page exposes no recognisable submit control — the buttons found were product names. Needs a human to identify the real action.",
       "lastProbedAt": "2026-08-19",
       "evidence": {
-        "method": "anonymous-http",
-        "what": "reachable 200, 114 form(s), no CAPTCHA/login/reciprocal signal in raw HTML",
+        "method": "browser-dom",
+        "what": "Filled the add form in the owner Chrome; the only buttons discoverable were labelled ChatGPT / Midjourney / CopyAI / DallE, so no submit was attempted.",
         "httpStatus": 200,
         "finalUrl": "https://autoais.com/?U=Add",
         "title": "AutoAI's"

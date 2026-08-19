@@ -604,6 +604,95 @@
         "what": "Of 19 URLs handed over as no-login comment targets, 7 served an open native WordPress comment form (id=\"commentform\" + wp-comments-post.php) with no login wording; 6 of those also carried Akismet, and 1 exposed no name=\"url\" field.",
         "publicUrl": null
       }
+    },
+    {
+      "id": "reciprocal-link-gated-directory",
+      "name": "Directory that gates free listing behind a reciprocal dofollow link",
+      "kind": "directory",
+      "scope": "engine",
+      "account": "none",
+      "payment": "none",
+      "captcha": "none",
+      "browserRequired": true,
+      "anchorRendered": true,
+      "relObserved": [],
+      "robotsObserved": null,
+      "indexable": "per-host",
+      "rateLimit": null,
+      "howToPublish": "Put a dofollow link to the directory on your own homepage (footer counts — it renders on every page), deploy, verify the anchor is in the served HTML, then submit. The directory crawls your homepage and rejects the submission if the link is missing or carries nofollow.",
+      "traps": [
+        "rel MUST be noopener only. Adding nofollow satisfies the human instruction and fails the automated check, so the outbound link is spent for nothing.",
+        "This is a PAY-FIRST trade: your dofollow ships the moment you deploy, their listing arrives later or never. seektool.ai returned HTTP 500 from POST /api/submit on 4 consecutive attempts on 2026-08-19 while our reciprocal link was already live — a one-sided state that persists until their API recovers. Diarise a recheck and be willing to remove the link.",
+        "Verify the link on the DEPLOYED page with a plain fetch, not in the build output. The check reads what the crawler sees.",
+        "A reciprocal link that only buys faster review, not eligibility, is not worth paying. best-ai.org offers 48h priority for a footer link but still requires an account to submit at all — the link alone buys nothing."
+      ],
+      "status": "live",
+      "lastVerifiedAt": "2026-08-19",
+      "evidence": {
+        "method": "both",
+        "what": "seektool.ai/submit exposes a 2-field form (website, url) with no CAPTCHA and no login. After adding <a href=\"https://seektool.ai\" rel=\"noopener\"> to the intabtools.com footer and deploying, the served homepage HTML carried the anchor and the form POSTed to /api/submit — which answered 500 four times running with the page rendering \"Server error, please try again later\".",
+        "publicUrl": "https://seektool.ai/submit"
+      }
+    },
+    {
+      "id": "arithmetic-and-slider-botcheck-directories",
+      "name": "Free no-account directories gated by a self-hosted bot check",
+      "kind": "directory",
+      "scope": "engine",
+      "account": "none",
+      "payment": "none",
+      "captcha": "interactive",
+      "browserRequired": true,
+      "anchorRendered": true,
+      "relObserved": [],
+      "robotsObserved": null,
+      "indexable": "per-host",
+      "rateLimit": null,
+      "howToPublish": "Not automatable by this Skill. Every field can be filled programmatically; the final bot check must be answered by the site owner. Fill everything, leave the check blank, and hand off.",
+      "traps": [
+        "THE USUAL FINGERPRINTS MISS THESE. Neither thenextai.com nor aig123.com mentions recaptcha, hcaptcha or turnstile anywhere in the served HTML. The checks live in id=\"captchaInput\" (an arithmetic question, rendered as \"Quick check: 4 + 7 =\") and <input captcha-type=\"slider\" name=\"captcha_type\">. Add captchaInput | captcha-type | captcha_type | 验证码 | 人机 | quick check | slider to the probe wordlist.",
+        "Query the LIVE DOM, not the first-response HTML. thenextai renders #captchaInput outside any <form> (el.form is null, parent carries no text); the question text next to it only exists after render.",
+        "An arithmetic question is still bot detection. It is not exempt because it is easy — the rule does not scale with difficulty.",
+        "HONEYPOT FIELDS MUST STAY EMPTY. thenextai ships a normally-visible text input id=\"website_confirm\" with no label. Filling every field on the page is exactly the failure mode it detects. Skip anything named *_confirm / url2 / website2 that carries no label.",
+        "Fields may carry only id and no name. All 12 controls on thenextai have name===\"\"; querySelector(\"[name=...]\") returns null. Dump {tag,id,name,type} before choosing a selector."
+      ],
+      "status": "rejected",
+      "lastVerifiedAt": "2026-08-19",
+      "evidence": {
+        "method": "browser-dom",
+        "what": "thenextai.com/submit-ai-tool/ accepted 10 filled fields (name, url, category, pricing, short/full description, logo, email, tags) with no account and no third-party CAPTCHA, then required #captchaInput. aig123.com/site-submit exposes a full Chinese directory form with no account and a slider captcha declared as captcha-type=\"slider\".",
+        "publicUrl": "https://www.thenextai.com/submit-ai-tool/"
+      },
+      "rejectReason": "Submission requires answering a self-hosted bot check (arithmetic question or slider). This Skill does not complete bot detection, regardless of how trivial the challenge is. Every other field is automatable — fill them and hand the final step to the site owner."
+    },
+    {
+      "id": "catch-all-soft-404-directory",
+      "name": "Directory whose /submit is a catch-all soft 404",
+      "kind": "directory",
+      "scope": "engine",
+      "account": "none",
+      "payment": "none",
+      "captcha": "unknown",
+      "browserRequired": false,
+      "anchorRendered": false,
+      "relObserved": [],
+      "robotsObserved": null,
+      "indexable": false,
+      "rateLimit": null,
+      "howToPublish": "Do not submit. There is no form; the SPA answers 200 for every path.",
+      "traps": [
+        "ALWAYS PROBE AN INVENTED CONTROL PATH alongside /submit. Seven domains measured on 2026-08-19 answered 200 for /zzz-control-<random>: sergechel.info, vuink.com, topaihubs.com, l.dang.ai, techbasedirectory.com, toolspedia.io, aitoolsdirectory.com. Without the control they enter the next round as seven live submission targets.",
+        "Byte size does not disambiguate. topaihubs.com returned different sizes for /submit (28,101) and /submit-tool (52,384), which reads like two distinct real pages — the control path returned 200 as well.",
+        "In a browser the control path often does not merely answer 200 — it lands on the homepage. Comparing location.href after load is a cheaper tell than diffing markup."
+      ],
+      "status": "rejected",
+      "rejectReason": "No submission surface exists; every path returns the SPA shell.",
+      "lastVerifiedAt": "2026-08-19",
+      "evidence": {
+        "method": "both",
+        "what": "Probed /submit, /submit-tool, /submit-ai-tool, /add-tool, /new, /post plus an invented /zzz-control-<random> across 43 directory domains; seven answered 200 on the control path. Confirmed in a real browser on toolspedia.io: /zzz-control-91827 RESOLVES TO https://toolspedia.io/ and renders the homepage, and /submit renders a byte-identical DOM (same title, 2 forms, 499 inputs). Neither path carries a submission surface.",
+        "publicUrl": null
+      }
     }
   ]
 }

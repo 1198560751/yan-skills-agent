@@ -43,6 +43,50 @@ skips the line. This is the business model, not a malfunction, and it means:
   `rel="nofollow"` on the outbound link; check the actual `rel` in the DOM rather
   than assuming.
 
+## The gate you scanned is the gate on screen one
+
+Measured 2026-08-19 on the first target actually walked end to end. Its step 1
+asked for listing type, category, URL, title, description, name and email —
+**no CAPTCHA in the raw HTML, no login, no reciprocal demand**, which is exactly
+the profile that gets a row filed as an open, unattended target. Clicking
+through to the confirm step produced a `scode` security-code field and a second
+Submit button.
+
+So a cohort built from a first-screen scan is **optimistic, and there is no way
+to fix that by scanning harder** — the only thing that settles it is walking the
+form. Two consequences worth building around:
+
+- Treat "open" from a scan as *a lead about the gate*, not the gate. Re-file the
+  row the moment a later step contradicts it.
+- Because the surprise is systematic, plan the run so a discovered CAPTCHA costs
+  one row and not the batch: fill everything the driver legitimately can, leave
+  the page sitting at the confirm step, and push the row into the one manual
+  queue described in [batch-campaign.md](batch-campaign.md).
+
+## `requestSubmit()` does not fire a JS-bound submit handler
+
+Also 2026-08-19, on a form whose `action` was an internal `/api/form` endpoint.
+The driver filled every field, called `form.requestSubmit(button)`, and reported
+a state change of nothing: same URL, same text. **The network capture showed no
+request to `/api/form` at all** — so the submission never happened, which is the
+good outcome, because the alternative is a driver that reports success on a form
+that was never sent.
+
+The cause is that these forms bind a handler to the **button's click**, not to
+the form's submit event. `requestSubmit()` and `form.submit()` both bypass it.
+The fix is to click the real control, and the check that catches it is the
+network capture, not the page text:
+
+```bash
+opencli browser "$SESSION" network | grep -i '<the form endpoint>'
+```
+
+**Never resolve this state by clicking again.** No request fired here, but the
+same "nothing visibly happened" appears when the POST *did* fire and the site
+answered silently — and those two are indistinguishable from the page. That is
+the `outcome-unknown` state: check the endpoint, the mailbox, and the public
+page, in that order, before touching the form a second time.
+
 ## A currency amount on the page is not a submission fee
 
 Measured across a 743-row sweep in 2026-08: a bare money regex flagged ~163 of
