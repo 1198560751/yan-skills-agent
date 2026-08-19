@@ -261,3 +261,52 @@ Blob 下载不是同步完成的，最后一个文件常常晚几秒落盘。
 依赖哪个登录态、已验证日期。下次先跑脚本，不重新摸索 DOM。
 页面改版导致脚本失败时**修脚本**，不要绕过它手工再点一遍；
 失败原因写进脚本头部注释，下次少走一遍。
+
+## 两个采集上限，都是 2026-08-19 实测撞出来的
+
+### Semrush（Tools Share 共享账号）每个报表硬顶 100 行
+
+`/analytics/backlinks/backlinks/` 的分页 **点得动但不动**：`Next` 按钮
+可点击、无 `disabled`、`click` 返回 `clicked:true`，但范围指示始终停在
+`1 - 100 (~50,988)`。连点 12 次抓回 1200 行，去重后只有 90 个唯一源——
+同一页抓了 12 遍。`最佳` / `活跃` / `Follow` 这些筛选片同样点不生效。
+`导出` 按钮点下去既不弹菜单也不产生下载。
+
+**所以这个账号下，一个域名的上限就是首屏那 100 行。**
+判定方法：抓完先看「唯一源域名数 / 总行数」，比值接近 1/N 就是在重复抓同一页。
+
+**由此决定的策略：横向铺同行，而不是纵向深挖一个。**
+21 个同行 × 100 行 = 2100 行、521 个去重来源域名，比在一个域名上死磕有效得多。
+按「出现在多少个**独立**同行身上」排序，就得到这个圈子公认能发的地方——
+这正是哥飞说的抄作业，只是把它量化了。
+
+### 导航的三个坑
+
+- `tools-share-open.mjs --goto` 对 `/analytics/...` 路径有效，**对 `/home/` 无效**。
+  落到 `/home/` 时，搜索框填了词、点了「分析」也不跳转；必须 `--goto` 直接进
+  analytics 路径。
+- 页面上的受控输入用 `fill` 会返回 `filled:true, verified:true`，
+  但 React 状态没更新，回车无反应。**这不是失败信号，是假成功信号。**
+- `opencli click --text/--name` 在 Semrush 上大量多重匹配（`导出` 3 个、
+  `活跃` 6 个、`引荐域名` 22 个），`matches_n>1` 时它不点。可靠办法是先用
+  `eval` 按 `textContent` 精确匹配打标记，再 `click '[data-agent-hit="1"]'`：
+
+  ```js
+  const leaf=[...document.querySelectorAll('*')]
+    .find(e=>e.children.length===0&&e.textContent.trim()===want);
+  let n=leaf; for(let k=0;k<2;k++) n=n.parentElement;  // 爬到可点的祖先
+  n.setAttribute('data-agent-hit','1');
+  ```
+
+### columbus.tools 免费层只给前 100 名
+
+`https://columbus.tools/ai-backlink-rank` 标称 6,254 个外链来源域名、126 页，
+**免费只展示默认排序（出现频次倒序）的前 100 名**，翻页与按 DR/流量/自然搜索
+占比筛选都要订阅。`?page=2` 无效（客户端分页）。
+它的 MCP（`https://columbus.tools/api/mcp`）里 7 个工具只有 `list_model_releases`
+免费，`list_backlink_domains` 属专业版。
+
+**表格是虚拟滚动的**，一次 `extract` 只拿得到视口内的行（首屏约 7KB）。
+要取全 100 行必须边滚边收再去重：滚 3 屏 → 抓 `innerText` → 重复 26 次 → 按域名去重。
+它的指标在 innerText 里是**一行 Tab 分隔**（`访问\tDR\tfollow\t搜索占比\t频次`），
+只按 `\n` 切会解析出 0 行。

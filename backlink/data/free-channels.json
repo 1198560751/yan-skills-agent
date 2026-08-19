@@ -693,6 +693,40 @@
         "what": "Probed /submit, /submit-tool, /submit-ai-tool, /add-tool, /new, /post plus an invented /zzz-control-<random> across 43 directory domains; seven answered 200 on the control path. Confirmed in a real browser on toolspedia.io: /zzz-control-91827 RESOLVES TO https://toolspedia.io/ and renders the homepage, and /submit renders a byte-identical DOM (same title, 2 forms, 499 inputs). Neither path carries a submission surface.",
         "publicUrl": null
       }
+    },
+    {
+      "id": "10015-product-finder",
+      "name": "10015.io Product Finder submission",
+      "kind": "directory",
+      "scope": "single-site",
+      "homepage": "https://10015.io",
+      "urlPattern": "https://10015.io/product-finder/submit",
+      "account": "required",
+      "payment": "optional",
+      "captcha": "none",
+      "browserRequired": true,
+      "anchorRendered": true,
+      "relObserved": [],
+      "robotsObserved": null,
+      "indexable": "unknown",
+      "rateLimit": null,
+      "howToPublish": "Step 1 is a single URL field; submitting it makes the site scrape your page and prefill a long step-2 form. Fill the text fields, pick Pricing / Category / Tags from custom comboboxes, then press Submit Product — which opens a Product Preview modal whose own Submit Product button is the real one.",
+      "traps": [
+        "TWO BUTTONS, SAME LABEL. The first Submit Product opens a preview modal; the modal holds a second Submit Product that actually posts. Reading document.body.innerText after the first click returns the form BEHIND the modal and looks exactly like nothing happened — that false negative cost several retries here. Select the LAST match, and take a screenshot before concluding a click failed.",
+        "FIELD name IS A REACT PROP, NOT A DOM ATTRIBUTE. Selecting by attribute returns an empty list while iterating the inputs and comparing the name property finds them. Set a data-* attribute on the element first, then use that as the selector for opencli type/click.",
+        "Comboboxes for Pricing / Category / Tags render no select element. Walk up two levels from the label's text node, click that container, then read document.body.innerText for the option list — the options are announced there even when no li or role=option nodes match. Enter selects the focused option.",
+        "Scripted value-setting was not enough on its own. Fields set with the native value setter plus input/change events showed correct values and correct lengths, yet submit stayed inert until the fields were re-entered with real key events.",
+        "The standard review queue is 3-4 MONTHS. Do not schedule a public/indexed recheck sooner. Paid Priority Review promises 24 hours and was not bought.",
+        "Requires an existing signed-in account. This Skill does not create accounts — this submission rode the owner's already-authenticated Chrome session.",
+        "The prefill scrapes your own OG image. Ours pointed at a path that 404s, and the form showed 'Image could not be loaded' rather than failing loudly. Check the rendered preview, not just the field value."
+      ],
+      "status": "live",
+      "lastVerifiedAt": "2026-08-20",
+      "evidence": {
+        "method": "browser-dom",
+        "what": "Submitted In-Tab Tools (https://intabtools.com, category Productivity, pricing Free, tags Tools / Text Generator / PDF / Typography / Privacy) through the two-step form on 2026-08-20. The page then rendered: Thanks for submitting your product! \"In-Tab Tools\" has been submitted successfully. — alongside a standard-review notice of 3-4 months.",
+        "publicUrl": null
+      }
     }
   ]
 }
