@@ -37,6 +37,7 @@ backlink/
 │
 ├── data/                 ← THE DATABASE. Machine-readable, PR-able, CI-checked.
 │   ├── free-channels.json     places that publish a link at no cost
+│   ├── submission-targets.json  routes that ACCEPT a submission — first-pass library
 │   ├── paid-platforms.json    platforms observed carrying purchased placements
 │   ├── index-submission.json  engines that take a URL and publish NO link
 │   └── schema/                JSON Schema for the files above
@@ -52,6 +53,9 @@ backlink/
 │   ├── discovery-queue.mjs         recursive competitor/commenter expansion
 │   ├── harvest-commenters.mjs      pull commenter domains off an article
 │   ├── third-party-list-ingest.mjs someone else's list → screened leads + diff
+│   ├── probe-submission-targets.mjs leads → reachability, route, gate, price
+│   ├── merge-submission-targets.mjs fold a probe run into the two data files
+│   ├── targets-select.mjs          pick ONE batch: --cohort open | captcha | …
 │   ├── harvest-*.{sh,mjs,js}       bulk table extraction from logged-in dashboards
 │   └── similarweb-query.mjs        repeatable domain query (needs your own env)
 │
@@ -78,6 +82,8 @@ backlink/
 | "Somewhere I can post **without registering**" | `data/free-channels.json`, filtered to `account: "none"` and `status: "live"` — then [instant-publish.md](references/instant-publish.md) for the mechanics of that class |
 | "What **paid** options exist / where did this competitor buy its links" | [paid-platforms.md](references/paid-platforms.md), then `data/paid-platforms.json` sorted by how many independent sites were observed using each |
 | "Find me **new** opportunities" | [discovery-loop.md](references/discovery-loop.md) — and merge whatever you harvest back into the registry |
+| "Where can I **submit** this site" (any site, any niche) | `node scripts/targets-select.mjs --stats`, then run one cohort at a time |
+| "Give me the ones I can do **without a CAPTCHA**" · "now the account ones" | `node scripts/targets-select.mjs --cohort open` / `--cohort account` — see "Run one cohort at a time" below |
 | "Is this link profile any good" | [link-quality-rubric.md](references/link-quality-rubric.md) |
 | "Get these numbers out of a dashboard with no API" | [harvest.md](references/harvest.md) |
 | "Here are **300 directories**, submit to them" · a campaign that must survive being interrupted | [batch-campaign.md](references/batch-campaign.md) — the single-target loop below does not scale as-is |
@@ -108,6 +114,113 @@ is**, more than adding a new channel. See [CONTRIBUTING.md](CONTRIBUTING.md).
 The evidence rule in one line: *record what you observed, never what you
 assume*; a real entry rejected is a small loss, an unverified entry accepted is
 a large one.
+
+### The two tables are not the same claim
+
+`free-channels.json` and `submission-targets.json` look similar and mean very
+different things. Confusing them is the one way to destroy both.
+
+| | `free-channels.json` | `submission-targets.json` |
+| --- | --- | --- |
+| What was observed | **a published link on a live page** | **a submission route that exists** |
+| Answers `relObserved` / `anchorRendered` | yes, required | **never** — the validator rejects those fields here |
+| What it is for | round two: post here again, you know what happens | round one: the screening pass, and the cross-site asset it produces |
+| How a row gets in | somebody published and read the anchor | somebody reached the route and read the gate |
+
+A target **graduates** from the second table into the first the moment an actual
+anchor is observed. Until then it makes no promise about `rel`, anchor text, or
+indexability, and the report must not imply one.
+
+This split exists because of the doctrine below: the first round's *failures are
+the asset*. A directory that turned out to need an account is not a wasted probe,
+it is a row that saves the next campaign — and the next **site**. That library is
+reusable across every site the owner ever builds, which is why it lives in the
+Skill and not in any one project.
+
+### Run one cohort at a time
+
+Every target carries **all** the gates observed on it in `gates`, and a `cohort`
+derived from that set. The cohort is the batch it belongs in, because the
+cohorts cost different things:
+
+| Cohort | What the run needs |
+| --- | --- |
+| `open` | nobody. This is the only cohort that can run unattended. |
+| `captcha` | a human at the keyboard for the whole run |
+| `account` | credentials and an identity decision, made **before** the run |
+| `account-captcha` | both of the above |
+| `email-verify` | a mailbox watched while the run is going; tokens expire mid-batch |
+| `reciprocal` | a change to the owner's own site — their decision, never yours |
+| `personal-contact` | real name / phone / company email — also the owner's decision |
+
+**Mixing cohorts in one run is what makes a batch stall.** The open rows finish
+in minutes and then everything waits on a person nobody told to be there. So:
+pick one cohort, run it to the end, then pick the next.
+
+```bash
+node scripts/targets-select.mjs --stats                     # cohort x payment matrix
+node scripts/targets-select.mjs --unattended --free-only    # the run needing nobody
+node scripts/targets-select.mjs --cohort captcha --limit 40 # the next session
+node scripts/targets-select.mjs --cohort account --format urls
+```
+
+Two details that are easy to get backwards. `captcha-passive` does **not** put a
+target in the `captcha` cohort — it clears itself in an ordinary browser and
+costs the run nothing; treating it as a challenge pushes open targets into the
+queue that needs a person. And `--free-only` keeps `payment: "optional"`,
+because a free listing behind a three-month queue is still free — it drops only
+`required`.
+
+`gate` (singular) remains the single answer to "what stops me here first",
+ranked by **cost**, not by DOM order: a demand for a phone number outranks an
+account, which outranks a CAPTCHA. All four values — `gates`, `gate`, `cohort`,
+and the ban on `usable` when a human gate exists — are derived in one place,
+`scripts/lib-cohort.mjs`, and the validator recomputes them. Deriving a cohort
+by hand in a report is how a target reads `account` in the data and `open` in
+the plan, which is worse than having no label at all.
+
+Build or extend it with:
+
+```bash
+# 1. someone's list → deduped leads
+node scripts/third-party-list-ingest.mjs --input THEIR-LIST.md --out .backlink/leads.json
+
+# 2. leads → reachability, real route, earliest gate, price on the page
+node scripts/probe-submission-targets.mjs --input .backlink/leads.json \
+  --out .backlink/probed.json --concurrency 12 --resume
+
+# 3. fold in (paid rows route themselves into paid-platforms.json)
+node scripts/merge-submission-targets.mjs --probe .backlink/probed.json \
+  --source-list 'where this came from' --dry-run
+
+# 4. pick a batch and run it
+node scripts/targets-select.mjs --cohort open --free-only
+```
+
+Step 2 is anonymous HTTP, so it is honest only about what **is** present. Rows it
+cannot resolve come out `unverified` and need a browser or a human before they
+mean anything; the merge drops them rather than letting them pad a count.
+
+## 术语：「数据面板」「数据勘测」= Similarweb + Semrush
+
+**当用户说「数据面板」「数据勘测」「查一下数据」「用 Similarweb 看看」「Semrush 拉一下」，
+指的都是同一件事：走那个共享账号的代理面板，用 Similarweb 或 Semrush 查。**
+这两个产品是这里唯一的第三方数据源，没有别的候选，不需要反问用户指的是哪个平台。
+
+分工固定，按问题类型选，不要两个都开：
+
+| 问题 | 用哪个 | 拿得到什么 |
+| --- | --- | --- |
+| 这个站多大、流量从哪来、还有哪些同类站 | **Similarweb** | 总访问量（含直接/推荐，**不只是自然搜索**）、渠道构成、相似站、地理分布 |
+| 这个词多少量、多难、谁在排、它的外链长什么样 | **Semrush** | 分国家搜索量与 KD、关键词全库导出、自然排名、主要页面、引荐域名与反链 |
+
+**两边的「流量」不是一个口径，对不上很正常。** Semrush 的域名概览给的是**自然搜索流量估算**，
+Similarweb 给的是**总访问量**。同一个站两边差三倍以上是常态，
+写结论时必须标明是哪个口径，否则会得出「竞品比想象中弱」这种错误判断。
+
+接入方式、面板卡片与产品的对应关系、订阅到期与配额、以及三个会浪费一小时的坑，
+全部在 [authorized-data-sources.md](references/authorized-data-sources.md)。
+**开工前先看订阅剩余天数**——这是短期订阅，脚本会打印，7 天内会告警。
 
 ## Install and Update
 

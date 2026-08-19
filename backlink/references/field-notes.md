@@ -43,6 +43,56 @@ skips the line. This is the business model, not a malfunction, and it means:
   `rel="nofollow"` on the outbound link; check the actual `rel` in the DOM rather
   than assuming.
 
+## A currency amount on the page is not a submission fee
+
+Measured across a 743-row sweep in 2026-08: a bare money regex flagged ~163 of
+648 domains as costing money. Once each page was actually read, **about a
+quarter of those were not submission fees at all**, and the errors were not
+random — they clustered:
+
+- **One legacy PHPLD directory script accounts for most of it.** Two dozen
+  domains running it (`addgoodsites`, `adbritedirectory`, `deepbluedirectory`,
+  `fire-directory`, `jet-links`, `steeldirectory`, …) all render a sidebar
+  offering an **ad banner for $0.80**, while `/submit.php` on the same site is
+  free with no fee field anywhere. Same template, same false positive, twenty-odd
+  times — so this looks like a trend in the data and is one script.
+- **Directories quote the prices of the products they list.** A SaaS directory's
+  homepage is wall-to-wall pricing that has nothing to do with listing on it.
+
+The fix that works is proximity, not a better money regex: only count an amount
+whose surrounding ~160 characters mention submitting, listing, a plan, a
+package, featured/priority placement, or a billing period.
+`scripts/probe-submission-targets.mjs` does this and reports the rest separately
+as `priceHitsUnscoped`, because "there was money on the page somewhere" is worth
+a human glance and worth nothing as a `payment` value.
+
+**`optional` is the most useful answer here, not a hedge.** In the same sweep 18
+sites turned out to run a genuine free tier next to a paid fast-track — that is
+a *free* channel with a queue, and calling it `required` would have deleted 18
+usable targets from the library. Record what the free path costs in time.
+
+## Cloudflare's interstitial makes "dead" unknowable over HTTP
+
+In the same sweep, of 85 hard cases handed to a resolver, **53 could not be
+classified at all — and the dominant cause was not dead sites.** It was
+Cloudflare's "Just a moment…" JS challenge and WAF blocks, which a browser User-
+Agent on `curl` does not get past. Well-known live properties sat in that bucket:
+`sourceforge`, `g2`, `getapp`, `goodfirms`, `daniweb`, plus a long tail of
+classifieds directories. A second cluster was modern SPAs whose raw HTML is
+essentially empty (`aitoolsdirectory`, `booky.io`, `techbasedirectory`), so form
+and gate detection finds nothing on a page that is obviously alive.
+
+Both clusters are **alive and unresolvable by HTTP**, which is exactly the state
+`unverified` exists for. Do not let them decay into `dead`, and do not let a
+report count them as failures: they are the queue for the browser pass, and the
+Skill already drives a real logged-in Chrome for precisely this.
+
+Two smaller ones from the same run, both of which need the browser as well:
+domain parking that only reveals itself after a **JS redirect to `/lander`**
+(two apparently unrelated domains turned out to share one parking template), and
+a cluster of expired TLS certificates that need an explicit fallback before any
+conclusion is drawn.
+
 ## Reciprocal badge requirements
 
 Several directories grant free listings only if you link back. Handle it in this

@@ -18,6 +18,7 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { cohortOf, primaryGate, COHORTS } from './lib-cohort.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DATA = join(HERE, '..', 'data');
@@ -121,6 +122,67 @@ for (const e of idx.engines || []) {
   }
 }
 
+// —— submission-targets ————————————————————————————————————————
+// 这张表是**第一轮筛选的产物**，语义和 free-channels 不同，绝不能混：
+// free-channels 的每一条都观察到过一个**已发布的链接**（所以要回答 anchorRendered /
+// relObserved）；这张表只观察到「有一个能提交的入口」，对 rel、锚点、收录**不做任何断言**。
+// 它存在的理由见 references/acquisition-doctrine.md 第 3 条：第一轮的结果本身就是资产，
+// 而且是跨站复用的资产——相关性和权重只用来排序，永远不作为准入门槛。
+const targets = JSON.parse(await readFile(join(DATA, 'submission-targets.json'), 'utf8'));
+const T_KIND = new Set(['product-directory', 'ai-directory', 'startup-launch', 'saas-review', 'web-directory', 'business-directory', 'dev-community', 'publish-platform', 'comment-form', 'search-engine', 'contact-form', 'unknown']);
+const T_GATE = new Set(['open-form', 'account', 'captcha-interactive', 'captcha-passive', 'email-verify', 'personal-contact', 'reciprocal', 'manual-review', 'none-found', 'unknown']);
+const T_STATUS = new Set(['usable', 'gated', 'unverified', 'dead']);
+const T_PAY = new Set(['none-seen', 'optional', 'required', 'unknown']);
+const tSeen = new Set();
+for (const t of targets.targets || []) {
+  const at = `submission-targets[${t.domain || '?'}]`;
+  if (!t.domain || !/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(t.domain)) err(at, 'domain 必须是小写可注册域名，不带 scheme 也不带 www');
+  if (tSeen.has(t.domain)) err(at, 'domain 重复 —— 同一个站的多个提交入口合成一条，route 记你真正走通的那个');
+  tSeen.add(t.domain);
+  if (!T_KIND.has(t.kind)) err(at, `kind 非法：${t.kind}`);
+  if (!T_GATE.has(t.gate)) err(at, `gate 非法：${t.gate}`);
+  if (!Array.isArray(t.gates) || !t.gates.length) err(at, 'gates 必填且非空 —— 一个站可以同时要账号、验证码和邮箱确认，只记最早那道会把另外两道的成本藏掉，而成本决定它能进哪一批');
+  else {
+    for (const g of t.gates) if (!T_GATE.has(g)) err(at, `gates 含非法值：${g}`);
+    if (new Set(t.gates).size !== t.gates.length) err(at, 'gates 有重复项');
+    if (!t.gates.includes(t.gate)) err(at, `gate=${t.gate} 不在 gates 里 —— gate 是从 gates 里选出来的那一个，不是另写的`);
+    // 分组必须是算出来的。四个地方各算一遍就会出现四个答案，
+    // 而「数据里写 account、报告里写 open」比没有标签更糟：会有人照着它排一整批。
+    const want = cohortOf(t.gates);
+    if (t.cohort !== want) err(at, `cohort=${t.cohort} 与 gates=[${t.gates.join(', ')}] 不一致，应为 ${want}（用 scripts/lib-cohort.mjs 的 cohortOf 算，不要手写）`);
+    const wantGate = primaryGate(t.gates);
+    if (t.gate !== wantGate) err(at, `gate=${t.gate} 与 gates 不一致，应为 ${wantGate}（按代价排序，不是按 DOM 出现顺序）`);
+  }
+  if (!COHORTS.includes(t.cohort)) err(at, `cohort 非法：${t.cohort}`);
+  if (!T_STATUS.has(t.status)) err(at, `status 非法：${t.status}`);
+  if (!T_PAY.has(t.payment)) err(at, `payment 非法：${t.payment}`);
+  if (!isDate(t.lastProbedAt)) err(at, 'lastProbedAt 必须是 YYYY-MM-DD');
+  if (!t.evidence || !METHOD.has(t.evidence.method)) err(at, 'evidence.method 必须是 browser-dom / anonymous-http / both');
+  if (!t.evidence?.what || t.evidence.what.length < 10) err(at, 'evidence.what 太短：写清楚**看到了什么**');
+
+  // —— 语义层 ————————————————————————————————————————————
+  // 「死了」是否定结论，纯 HTTP 撑不住——除非它 200 到了一个明显不是提交面的页面，
+  // 那属于「观察到了存在什么」，是允许的。
+  if (t.status === 'dead' && t.evidence?.method === 'anonymous-http' && !t.evidence?.finalUrl) {
+    err(at, 'status=dead 只有匿名 HTTP 证据且没记 finalUrl。纯 HTTP 不能证明「不存在」；域名被改作他用要靠 finalUrl + title 来证');
+  }
+  const humanGate = (t.gates || []).find((g) => ['captcha-interactive', 'account', 'reciprocal', 'personal-contact'].includes(g));
+  if (t.status === 'usable' && humanGate) {
+    err(at, `status=usable 但 gates 含 ${humanGate} —— 需要人过的闸一律记 gated，本 Skill 不绕验证码也不替站主注册账号`);
+  }
+  if (t.status === 'usable' && t.gate === 'none-found') err(at, 'status=usable 却没找到入口，两者不能同时成立');
+  // 价格会被当事实引用。
+  if (t.price && !isDate(t.priceCheckedAt || '')) err(at, '写了 price 就必须写 priceCheckedAt：没有日期的价格是误导');
+  if (t.payment === 'required' && !t.price) warn(at, 'payment=required 却没记 price —— 「要钱」而说不出多少钱，下次还得再查一遍');
+  // 这张表不许悄悄升格成 free-channels。
+  for (const k of ['relObserved', 'anchorRendered', 'indexable']) {
+    if (k in t) err(at, `不得出现字段 ${k} —— 这张表没有观察过任何已发布的链接。观察到了就把它升进 free-channels.json`);
+  }
+  if (t.status !== 'dead' && isDate(t.lastProbedAt) && daysAgo(t.lastProbedAt) > 180) {
+    warn(at, `已 ${daysAgo(t.lastProbedAt)} 天未复探。目录类渠道消失得比改版还快`);
+  }
+}
+
 // —— paid-platforms ————————————————————————————————————————————
 const paid = JSON.parse(await readFile(join(DATA, 'paid-platforms.json'), 'utf8'));
 const TIER = new Set(['paid-listing', 'link-package', 'free-with-account', 'spam-net', 'not-a-platform', 'unverified']);
@@ -130,13 +192,26 @@ for (const [host, p] of Object.entries(paid.platforms || {})) {
   // 价格是会被当成事实引用的东西，所以必须能说出「什么时候看的」。
   if (p.price && !isDate(p.priceCheckedAt || '')) err(at, '写了 price 就必须写 priceCheckedAt（YYYY-MM-DD）：价格会被直接引用，没有日期的价格是误导');
   if (p.tier !== 'unverified' && p.tier !== 'spam-net' && !p.notes) warn(at, '已分档但没写 notes，别人无法复核你凭什么这么分');
-  if (!Array.isArray(p.observedSites) || !p.observedSites.length) err(at, 'observedSites 为空 —— 这张表的全部意义就是「被谁用过」，没有观察对象的条目不该存在');
+  // 这张表原本只收「被观察到有人在这里买过位置」的平台，因为一张没有观察对象的价目表
+  // 就是又一份传闻。但「谁买过」和「它要多少钱」是两种不同的观察，后者同样是我们亲眼看的：
+  // 打开它自己的提交/定价页读到的报价。所以放行第二种，条件是必须说得出**在哪一页、哪一天**读到的。
+  // 两者都没有，才是真的没有证据。
+  const hasPlacements = Array.isArray(p.observedSites) && p.observedSites.length;
+  const hasPriceObs = p.observedPrice && isDate(p.observedPrice.checkedAt || '') && /^https?:\/\//.test(p.observedPrice.sourceUrl || '') && typeof p.observedPrice.what === 'string' && p.observedPrice.what.length >= 10;
+  if (!hasPlacements && !hasPriceObs) {
+    err(at, 'observedSites 为空，且没有合格的 observedPrice —— 这张表只收观察：要么观察到有人在这里投放过（observedSites），要么观察到它自己标的价（observedPrice 需 sourceUrl + checkedAt + what）。两者皆无就是传闻');
+  }
+  if (p.observedPrice && !hasPriceObs) err(at, 'observedPrice 不完整：需要 sourceUrl（http 开头）、checkedAt（YYYY-MM-DD）和 what（读到了什么，≥10 字）');
 }
 
 if (!quiet || errors.length) {
   process.stdout.write(`free-channels: ${free.channels.length} 条（live ${free.channels.filter((c) => c.status === 'live').length}）\n`);
   process.stdout.write(`paid-platforms: ${Object.keys(paid.platforms || {}).length} 条\n`);
   process.stdout.write(`index-submission: ${(idx.engines || []).length} 条（收录提交口，**不是外链**）\n`);
+  const tl = (targets.targets || []);
+  process.stdout.write(`submission-targets: ${tl.length} 条（可提交入口，**尚未观察到任何已发布链接**；usable ${tl.filter((t) => t.status === 'usable').length} / gated ${tl.filter((t) => t.status === 'gated').length}）\n`);
+  const cohorts = tl.reduce((m, t) => ((m[t.cohort] = (m[t.cohort] || 0) + 1), m), {});
+  process.stdout.write(`  批次：${Object.entries(cohorts).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(' · ')}\n`);
   for (const w of warns) process.stdout.write(`  ⚠ ${w}\n`);
 }
 if (errors.length) {

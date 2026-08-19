@@ -109,7 +109,7 @@ One channel or one correction per PR where practical. It keeps review honest.
 
 ## Data model
 
-Three files, three purposes. All live in `data/`, all have a JSON Schema in
+Four files, four purposes. All live in `data/`, all have a JSON Schema in
 `data/schema/`, and all are checked by `scripts/validate-data.mjs`.
 
 ### `data/free-channels.json` — publish at no cost
@@ -132,6 +132,39 @@ The fields that carry the weight:
 never reuse an `id` for a different channel — the history would then point at
 the wrong thing. The validator enforces id uniqueness.
 
+### `data/submission-targets.json` — a route exists, nothing was published yet
+
+This is the **first-pass library**, and it is deliberately a weaker claim than
+`free-channels.json`. A row here says one thing: *somebody reached a submission
+route on this domain and read what stands in front of it.* It says nothing about
+`rel`, about whether an anchor is rendered, or about indexability — the validator
+**rejects** those fields on this table, because a row that quietly acquires them
+is a row that has started lying.
+
+| Field | Why it matters |
+| --- | --- |
+| `gates` | **Every** gate observed, not just the first. A site can want an account and a CAPTCHA and an email confirmation; recording one of the three hides two thirds of what a submission costs. |
+| `gate` | The one of `gates` that stops you first, ranked by **cost** — `personal-contact` > `reciprocal` > `account` > `captcha-interactive`. Not DOM order. |
+| `cohort` | Which batch this belongs in, derived from `gates`. Campaigns are planned per cohort: `open` needs nobody present, `captcha` needs a human at the keyboard, `account` needs an identity decision up front. Mixing cohorts in one run is what makes a batch stall. |
+| `status` | `usable` = route plus a form, no human-only gate. `gated` = route exists, a human must clear it. `unverified` = plain HTTP could not tell. `dead` = observed to be something else now. |
+| `payment` | `optional` is the common and useful case: free listing behind a months-long queue, paid for fast-track. Record what the free path actually costs you in `notes`. |
+| `evidence.finalUrl` | The only thing that catches a repurposed domain. A former directory still answering 200 from a crypto page is `dead`, and the status code alone will never tell you. |
+
+`gates`, `gate` and `cohort` are **derived, never hand-written**: use
+`cohortOf()` / `primaryGate()` from `scripts/lib-cohort.mjs`, and the validator
+recomputes both and fails on a mismatch. Four hand-derivations produce four
+answers, and a target that reads `account` in the data while a plan calls it
+`open` is worse than an unlabelled row — somebody schedules a batch around it.
+
+**Rows graduate.** The moment an actual anchor is observed on a live page, write
+the channel into `free-channels.json` with its `relObserved` and
+`anchorRendered`. Until then it stays here.
+
+**Nothing is excluded for being low-quality.** Low DR, obscure, off-topic, and
+ancient are all fine — those rank a target, they never disqualify one. See
+[references/acquisition-doctrine.md](references/acquisition-doctrine.md). The
+only exclusions are: unreachable, no route, or repurposed.
+
 ### `data/paid-platforms.json` — observed paid placement
 
 This one is generated and merged by `scripts/paid-platform-registry.mjs` from
@@ -145,6 +178,15 @@ Tiers: `paid-listing` (a real directory charging a listing fee) ·
 `spam-net` (**blacklist**) · `not-a-platform` (a sitewide widget, genuine
 editorial coverage, or an injection — big numbers, not an opportunity) ·
 `unverified` (the default).
+
+There are **two** admissible kinds of evidence here, and they are not the same
+observation. `observedSites` records *who was seen buying* — the stronger signal,
+and the reason this table exists. `observedPrice` records *what the platform
+itself charges*, read off its own page; it needs `sourceUrl`, `checkedAt`, and a
+`what` sentence. A row with neither is a rumour and the validator rejects it.
+Do not fill `observedSites` with a site you did not actually see placed there in
+order to get a priced row in — that corrupts the stronger signal to satisfy the
+weaker one.
 
 Never infer a price. Open the pricing page, fill in `price`, and fill in
 `priceCheckedAt` — the validator requires the date, because a price without one

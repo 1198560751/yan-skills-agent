@@ -87,3 +87,31 @@ verified price, how many independent sites were observed using it, and the
 footprint risk. Whether to buy is the site owner's call, not the agent's. Do not
 buy on your own initiative, and do not relabel a `link-package` as a "directory
 submission" to make it sound acceptable.
+
+## Identical wording across many domains is one operator, not a trend
+
+The most valuable pattern a bulk price check produces is not any single price —
+it is **recognising the same template twice**. Two families surfaced in one
+2026-08 sweep of 648 domains:
+
+- **~28 reciprocal web directories** (`1directory.org`, `azure-directory.com`,
+  `dicedirectory.com`, `fruity-directory.com`, `johnnylist.org`,
+  `lemon-directory.com`, `reddit-directory.com`, `webguiding.net`, …) all running
+  one PHP/Smarty template: free submission **in exchange for a reciprocal link**,
+  plus a verbatim-identical upsell — *a $0.80 sponsored link placed across
+  32–90 directories*. Same sentence, same price, twenty-eight domains. That is
+  one operator selling a link network, and the honest way to record it is as
+  **one entry with 28 hosts**, not 28 independent opportunities. Counting them
+  separately is how a report claims 28 placements for what a search engine sees
+  as one footprint.
+- **~11 launch platforms** (`600.tools`, `dirs.cc`, `featuredtool.com`,
+  `open-launch.com`, `shipybara.com`, `launchvault.dev`, …) sharing a pricing
+  template: a genuinely free tier with a stated multi-week-to-multi-year queue,
+  against a cheap $2–$50 instant/featured tier. This family is the opposite
+  case — the free path is real, so these belong in the free library with the
+  queue length recorded, not written off as paid.
+
+**The tell is verbatim wording, not similar pricing.** Similar prices across a
+niche are a market; the same sentence across two dozen domains is a codebase.
+When you find one, check the whole family before filing any of them.
+

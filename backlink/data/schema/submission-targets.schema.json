@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yan-labs/yan-skills/backlink/data/schema/submission-targets.schema.json",
+  "title": "Submission targets",
+  "description": "Places that accept a submission, screened but not yet proven to publish a link. This is the first-pass resource library: relevance and authority never gate entry here, only reachability and the existence of a route. A row graduates into free-channels.json once an actual placement is observed on a live page — until then it makes no claim about rel, anchor, or indexability.",
+  "type": "object",
+  "required": [
+    "version",
+    "updatedAt",
+    "note",
+    "targets"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "updatedAt": {
+      "type": "string"
+    },
+    "note": {
+      "type": "string"
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/target"
+      }
+    }
+  },
+  "$defs": {
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domain",
+        "route",
+        "kind",
+        "gate",
+        "gates",
+        "cohort",
+        "payment",
+        "status",
+        "lastProbedAt",
+        "evidence"
+      ],
+      "properties": {
+        "domain": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9.-]*\\.[a-z]{2,}$",
+          "description": "Registrable domain, no scheme, no www."
+        },
+        "route": {
+          "type": "string",
+          "format": "uri",
+          "description": "The submission URL that was actually reached, after redirects."
+        },
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "product-directory",
+            "ai-directory",
+            "startup-launch",
+            "saas-review",
+            "web-directory",
+            "business-directory",
+            "dev-community",
+            "publish-platform",
+            "comment-form",
+            "search-engine",
+            "contact-form",
+            "unknown"
+          ],
+          "description": "What the site is, judged from the page itself — never from the source list's blurb."
+        },
+        "gate": {
+          "enum": [
+            "open-form",
+            "account",
+            "captcha-interactive",
+            "captcha-passive",
+            "email-verify",
+            "personal-contact",
+            "reciprocal",
+            "manual-review",
+            "none-found",
+            "unknown"
+          ],
+          "description": "The EARLIEST thing standing between you and a submitted form. Kept for sorting and for the single-answer question 'what stops me here first'. For selecting a batch, use `cohort`; for the complete picture, use `gates`."
+        },
+        "payment": {
+          "enum": [
+            "none-seen",
+            "optional",
+            "required",
+            "unknown"
+          ]
+        },
+        "price": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Verbatim as printed on the page, with its currency. Null unless read."
+        },
+        "priceCheckedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "usable",
+            "gated",
+            "unverified",
+            "dead"
+          ],
+          "description": "usable = reachable and a submission route exists. gated = route exists but needs a human (interactive CAPTCHA, personal contact, reciprocal link). dead rows are kept only when a previously usable row died; never import a source's dead rows."
+        },
+        "sourceList": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Where the lead came from. A source is provenance, never evidence."
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lastProbedAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "method",
+            "what"
+          ],
+          "properties": {
+            "method": {
+              "enum": [
+                "browser-dom",
+                "anonymous-http",
+                "both"
+              ]
+            },
+            "what": {
+              "type": "string",
+              "minLength": 10
+            },
+            "httpStatus": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "finalUrl": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "After redirects. A directory that now 200s onto an unrelated product is dead, and only this field catches it."
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "gates": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "open-form",
+              "account",
+              "captcha-interactive",
+              "captcha-passive",
+              "email-verify",
+              "personal-contact",
+              "reciprocal",
+              "manual-review",
+              "none-found",
+              "unknown"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "EVERY gate observed on the route, not just the first. A site can want an account AND a CAPTCHA AND an email confirmation; recording only the earliest one loses the cost of the other two, and the cost is what decides which batch it belongs to. Must contain `gate`."
+        },
+        "cohort": {
+          "enum": [
+            "open",
+            "captcha",
+            "account",
+            "account-captcha",
+            "email-verify",
+            "reciprocal",
+            "personal-contact",
+            "manual-review",
+            "unknown"
+          ],
+          "description": "Which run this target belongs in, derived from `gates`. The point of the field is that a campaign is planned per cohort: `open` needs nobody, `captcha` needs a human present, `account` needs credentials decided up front, `personal-contact` needs the owner's real details. Mixing cohorts in one run is what makes a batch stall."
+        }
+      }
+    }
+  }
+}

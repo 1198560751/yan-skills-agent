@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-18",
+  "updatedAt": "2026-08-19T14:40:03.125Z",
   "note": "被观察到用于投放的平台登记表；sitesHit 越高越说明它真的在被使用",
   "platforms": {
     "microlaunch.net": {
@@ -606,9 +606,9 @@
       "totalUrls": 10
     },
     "saashunt.best": {
-      "tier": "unverified",
-      "price": null,
-      "priceCheckedAt": null,
+      "tier": "paid-listing",
+      "price": "$12.5 (was $25) Premium Plus launch; $49 (was $99) SEO Growth Package",
+      "priceCheckedAt": "2026-08-19",
       "notes": "有 Submit Project 与 Pricing，首页自述「Submit, Earn a Badge, High DR Backlink」。",
       "observedSites": [
         "fontsgeneratorpro.com"
@@ -616,7 +616,12 @@
       "placements": [
         "fontsgeneratorpro.com@2026-02-14"
       ],
-      "totalUrls": 289
+      "totalUrls": 289,
+      "observedPrice": {
+        "what": "Read the live /pricing page — same template/network as devhub.best, dirs.cc, featuredtool.com: 'Free Launch $0/launch... 180+ days wait at current pace', 'Premium Plus $12.5 ($25)', 'SEO Growth Package $49 ($99)'.",
+        "sourceUrl": "https://saashunt.best/pricing",
+        "checkedAt": "2026-08-19"
+      }
     },
     "hackerchoice.com": {
       "tier": "unverified",
@@ -681,17 +686,22 @@
       "totalUrls": 26
     },
     "huntscreens.com": {
-      "tier": "unverified",
-      "price": null,
-      "priceCheckedAt": null,
-      "notes": null,
+      "tier": "paid-listing",
+      "price": "VIP Pass $10.00 (24h review, skip queue); optional add-ons: Permanent SEO Backlink $79.00, Sidebar Ad 7 days $29.00 / 30 days $99.00; Launch Pack bundle $99.00 (reg. $118.00)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "On /submit the launch flow offers a free \"Queue\" option (~30 day review) alongside a paid \"VIP Pass\" ($10, 24h review) and further optional paid add-ons (backlink, sidebar ads, bundle) all itemized with prices.",
       "observedSites": [
         "instaplay.ai"
       ],
       "placements": [
         "instaplay.ai@2026-07-19"
       ],
-      "totalUrls": 7
+      "totalUrls": 7,
+      "observedPrice": {
+        "what": "On /submit the launch flow offers a free \"Queue\" option (~30 day review) alongside a paid \"VIP Pass\" ($10, 24h review) and further optional paid add-ons (backlink, sidebar ads, bundle) all itemized with prices.",
+        "sourceUrl": "https://huntscreens.com/submit",
+        "checkedAt": "2026-08-19"
+      }
     },
     "founderleague.com": {
       "tier": "unverified",
@@ -1100,6 +1110,958 @@
         "analook.com@2026-06-20"
       ],
       "totalUrls": 0
+    },
+    "1directory.org": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: submission form (title/URL/reciprocal link) carries no price; a 'Sponsored Links' block separately offers 'Your Link Here for $0.80' appearing in 32 directories.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: submission form (title/URL/reciprocal link) carries no price; a 'Sponsored Links' block separately offers 'Your Link Here for $0.80' appearing in 32 directories.",
+        "sourceUrl": "https://1directory.org/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "afunnydir.com": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page, which explicitly prints 'Pricing: Regular Reviews free / Regular Reviews with reciprocal free', plus a separate $0.80 sponsored-link upsell.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page, which explicitly prints 'Pricing: Regular Reviews free / Regular Reviews with reciprocal free', plus a separate $0.80 sponsored-link upsell.",
+        "sourceUrl": "https://afunnydir.com/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "alivelinks.org": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, submission form has no fee, separate $0.80 'Your Link Here' sponsored-link block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, submission form has no fee, separate $0.80 'Your Link Here' sponsored-link block.",
+        "sourceUrl": "https://www.alivelinks.org/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "angelsdirectory.com": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Page returned HTTP 500 but still rendered the same network template's submit form (no fee) plus the $0.80 sponsored-link block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Page returned HTTP 500 but still rendered the same network template's submit form (no fee) plus the $0.80 sponsored-link block.",
+        "sourceUrl": "https://angelsdirectory.com/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "azure-directory.com": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, submission form has no fee, separate $0.80 sponsored-link block appearing across 32 directories.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, submission form has no fee, separate $0.80 sponsored-link block appearing across 32 directories.",
+        "sourceUrl": "https://azure-directory.com/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "bedirectory.com": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: form only asks for title/URL (no fee); page separately advertises 'Sponsored Links' at $0.80.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: form only asks for title/URL (no fee); page separately advertises 'Sponsored Links' at $0.80.",
+        "sourceUrl": "https://bedirectory.com/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "beegdirectory.com": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus separate $0.80 sponsored-link upsell.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus separate $0.80 sponsored-link upsell.",
+        "sourceUrl": "https://beegdirectory.com/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "blackandbluedirectory.com": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block appearing in 32 directories.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block appearing in 32 directories.",
+        "sourceUrl": "https://blackandbluedirectory.com/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "bluebook-directory.com": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+        "sourceUrl": "https://bluebook-directory.com/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "businessfreedirectory.biz": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 'Your Link Here' sponsored block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 'Your Link Here' sponsored block.",
+        "sourceUrl": "http://businessfreedirectory.biz/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "dbsdirectory.com": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block appearing in 32 directories.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block appearing in 32 directories.",
+        "sourceUrl": "https://www.dbsdirectory.com/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "dicedirectory.com": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: submission rules text has no fee; the only real prices are a $0.80 sponsored-link block (other $26/$55 hits are old syndicated news-feed content on the page, unrelated to pricing).",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: submission rules text has no fee; the only real prices are a $0.80 sponsored-link block (other $26/$55 hits are old syndicated news-feed content on the page, unrelated to pricing).",
+        "sourceUrl": "https://dicedirectory.com/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "directory5.org": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+        "sourceUrl": "https://directory5.org/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "direct-directory.com": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block appearing in 32 directories.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block appearing in 32 directories.",
+        "sourceUrl": "https://direct-directory.com/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "ecodir.net": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+        "sourceUrl": "https://ecodir.net/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "freeseolink.org": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+        "sourceUrl": "https://freeseolink.org/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "fruity-directory.com": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block appearing in 32 directories.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block appearing in 32 directories.",
+        "sourceUrl": "https://fruity-directory.com/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "homedirectory.biz": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+        "sourceUrl": "https://homedirectory.biz/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "justdirectory.org": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+        "sourceUrl": "https://justdirectory.org/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "johnnylist.org": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block appearing in 32 directories.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block appearing in 32 directories.",
+        "sourceUrl": "https://johnnylist.org/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "justlink.org": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+        "sourceUrl": "https://justlink.org/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "link-man.org": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+        "sourceUrl": "https://link-man.org/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "lemon-directory.com": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live homepage (route given): same network template markers present, free directory listing plus $0.80 sponsored-link block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live homepage (route given): same network template markers present, free directory listing plus $0.80 sponsored-link block.",
+        "sourceUrl": "https://lemon-directory.com/",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "poordirectory.com": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+        "sourceUrl": "https://poordirectory.com/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "reddit-directory.com": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+        "sourceUrl": "https://reddit-directory.com/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "relevantdirectory.biz": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+        "sourceUrl": "https://relevantdirectory.biz/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "unique-listing.com": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block.",
+        "sourceUrl": "https://unique-listing.com/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "webguiding.net": {
+      "tier": "link-package",
+      "price": "$0.80 sponsored-link placement (appears across the network's ~32-90 directory sites)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block appearing in 32 directories.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: same network template, free submission form plus $0.80 sponsored-link block appearing in 32 directories.",
+        "sourceUrl": "https://webguiding.net/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "9sites.net": {
+      "tier": "paid-listing",
+      "price": "$15.95 one-time fee (Premium Links listing)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live addurl.php submission form: 'Listing type: Premium Links ($15.95 one time fee) / Regular Links (free)'.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live addurl.php submission form: 'Listing type: Premium Links ($15.95 one time fee) / Regular Links (free)'.",
+        "sourceUrl": "https://www.9sites.net/addurl.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "600.tools": {
+      "tier": "paid-listing",
+      "price": "$9.9 (list price $14.9) instant listing with dofollow links; $19.9 (list price $39.9) featured for 7 days at top of directory",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /pricing page: three tiers 'free $0', 'listing $9.9 ($14.9)', 'featured $19.9 ($39.9)' with the free tier explicitly warning of 180+ day wait.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /pricing page: three tiers 'free $0', 'listing $9.9 ($14.9)', 'featured $19.9 ($39.9)' with the free tier explicitly warning of 180+ day wait.",
+        "sourceUrl": "https://600.tools/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "aibucket.io": {
+      "tier": "paid-listing",
+      "price": "$299 one-time PREMIUM SUBMISSION (permanent SEO backlink, social post); $599 PROMOTION (2-month campaign, sidebar ad, newsletter to 20k, sponsor blog post)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /tool-submission page: three packages listed as FREE ($0/mo, no follow link), PREMIUM SUBMISSION ($299 one time), PROMOTION ($599).",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /tool-submission page: three packages listed as FREE ($0/mo, no follow link), PREMIUM SUBMISSION ($299 one time), PROMOTION ($599).",
+        "sourceUrl": "https://www.aibucket.io/tool-submission",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "allbusinessdirectory.biz": {
+      "tier": "paid-listing",
+      "price": "$20/year or $10/6-months Featured Listing; $12 48-Hour Express Review",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live directory.php?page=submission-select page: 'Featured Listing... Price: 1 Year = $20, 6 Months = $10', '48 Hour Express Review... Price: $12', and 'Standard Listings Free placement'.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live directory.php?page=submission-select page: 'Featured Listing... Price: 1 Year = $20, 6 Months = $10', '48 Hour Express Review... Price: $12', and 'Standard Listings Free placement'.",
+        "sourceUrl": "https://www.allbusinessdirectory.biz/directory.php?page=submission-select",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "cipinet.com": {
+      "tier": "paid-listing",
+      "price": "$85 Permanent Premium (unlimited days); $135 Featured (1 year)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live suggest.php?action=addlink form: 'Select Type of Listing: Free / Permanent Premium / Featured' with 'Permanent Premium is $85 for unlimited days. Featured is $135 for 1 year.'",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live suggest.php?action=addlink form: 'Select Type of Listing: Free / Permanent Premium / Featured' with 'Permanent Premium is $85 for unlimited days. Featured is $135 for 1 year.'",
+        "sourceUrl": "https://www.cipinet.com/suggest.php?action=addlink",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "curated.design": {
+      "tier": "paid-listing",
+      "price": "$29 Priority review (verdict within 7 days, editor notes, one free resubmit)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /submit/ page: 'Submitting is free and a person reads every entry... Pick your lane: Priority $29 (verdict in 7 days) / Free queue $0 (a few weeks, sometimes months)'.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /submit/ page: 'Submitting is free and a person reads every entry... Pick your lane: Priority $29 (verdict in 7 days) / Free queue $0 (a few weeks, sometimes months)'.",
+        "sourceUrl": "https://curated.design/submit/",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "devhub.best": {
+      "tier": "paid-listing",
+      "price": "$12.5 (was $25) Premium Plus launch; $49 (was $99) SEO Growth Package",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /pricing page: 'Free Launch $0/launch... 180+ days wait at current pace / May be rejected due to limited free slots', 'Premium Plus $12.5 ($25)', 'SEO Growth Package $49 ($99)'.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /pricing page: 'Free Launch $0/launch... 180+ days wait at current pace / May be rejected due to limited free slots', 'Premium Plus $12.5 ($25)', 'SEO Growth Package $49 ($99)'.",
+        "sourceUrl": "https://devhub.best/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "dirs.cc": {
+      "tier": "paid-listing",
+      "price": "$9.9 (list $14.9) instant listing; $19.9 (list $39.9) featured for 7 days at top of directory",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /pricing page: identical template to 600.tools/devhub.best network — 'free $0 ... 180+ days wait', 'listing $9.9 ($14.9)', 'featured $19.9 ($39.9)'.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /pricing page: identical template to 600.tools/devhub.best network — 'free $0 ... 180+ days wait', 'listing $9.9 ($14.9)', 'featured $19.9 ($39.9)'.",
+        "sourceUrl": "https://dirs.cc/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "featuredtool.com": {
+      "tier": "paid-listing",
+      "price": "$9.9 (list $14.9) instant listing; $19.9 (list $39.9) featured for 7 days at top of directory",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /pricing page: identical template to the 600.tools/dirs.cc network — 'free $0 ... 180+ days wait', 'listing $9.9 ($14.9)', 'featured $19.9 ($39.9)'.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /pricing page: identical template to the 600.tools/dirs.cc network — 'free $0 ... 180+ days wait', 'listing $9.9 ($14.9)', 'featured $19.9 ($39.9)'.",
+        "sourceUrl": "https://featuredtool.com/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "firsto.co": {
+      "tier": "paid-listing",
+      "price": "$199 Professional Mini Review (50-80 word review); $399 Public Review (blog post)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /pricing page: 'Free Launch $0/launch, get your product listed for free, but be ready to wait. 5 slots...', 'Professional Mini Review $199', 'Public review $399'.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /pricing page: 'Free Launch $0/launch, get your product listed for free, but be ready to wait. 5 slots...', 'Professional Mini Review $199', 'Public review $399'.",
+        "sourceUrl": "https://firsto.co/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "genify.dev": {
+      "tier": "paid-listing",
+      "price": "$4.9 Pro plan (featured placement, no backlink required, no wait)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /pricing page: 'free $0 ... Backlink to our site is required', 'pro $4.9 ... Permanent link, no backlink required, Featured placement'.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /pricing page: 'free $0 ... Backlink to our site is required', 'pro $4.9 ... Permanent link, no backlink required, Featured placement'.",
+        "sourceUrl": "https://genify.dev/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "indiehackerstacks.com": {
+      "tier": "paid-listing",
+      "price": "$40 (was $85) Premium Pre-Sale — unlimited products, dofollow backlink",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /pricing page: 'Pro $0 USD 1 Product - Get a backlink (DR 29!) and boost your Google SEO!' and 'Premium Pre-Sales $85 $40 USD Unlimited products, dofollow backlink'.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /pricing page: 'Pro $0 USD 1 Product - Get a backlink (DR 29!) and boost your Google SEO!' and 'Premium Pre-Sales $85 $40 USD Unlimited products, dofollow backlink'.",
+        "sourceUrl": "https://indiehackerstacks.com/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "issuewire.com": {
+      "tier": "paid-listing",
+      "price": "$21 Tier 1 (145+ outlets); $45 Tier 2 (195+ outlets incl. USA TV/Radio network); higher-priced Tier 1 Pro / Tier 2 Pro (225-300+ outlets) also offered without a stated price on this page",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /signup/pricing page ('*For Free PR, we offer limited distribution up to 35+ sites') and the homepage FAQ ('Tier 1 PR Distribution - you get all the 145+ outlets at $21. Tier 2... 195+ affiliates at $45').",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /signup/pricing page ('*For Free PR, we offer limited distribution up to 35+ sites') and the homepage FAQ ('Tier 1 PR Distribution - you get all the 145+ outlets at $21. Tier 2... 195+ affiliates at $45').",
+        "sourceUrl": "https://www.issuewire.com/signup/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "launchvault.dev": {
+      "tier": "paid-listing",
+      "price": "$9.99 (was $19.99) Premium Launch (guaranteed DR46 dofollow backlink, skip queue); also standalone $79/mo Hero and $39/mo Sidebar sponsor slots",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /pricing page: 'Free Launch $0/launch... Verified dofollow backlink required for free launch scheduling' vs 'Premium Launch $9.99 $19.99/launch... Guaranteed dofollow backlink (DR 46)... Skip the free queue'.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /pricing page: 'Free Launch $0/launch... Verified dofollow backlink required for free launch scheduling' vs 'Premium Launch $9.99 $19.99/launch... Guaranteed dofollow backlink (DR 46)... Skip the free queue'.",
+        "sourceUrl": "https://www.launchvault.dev/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "nextfreeads.com": {
+      "tier": "paid-listing",
+      "price": "Featured Ad: $3(15d)/$8(45d)/$12(100d)/$16(270d)/$20(365d); Extended Ad: +$5(30d)/+$10(90d)/+$15(200d)/+$20(365d)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live post form: 'Regular ads is free and viewable for 30 days... You may consider buying one of the Extended Ad packages or Feature Ad' with the priced dropdown options listed on the form.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live post form: 'Regular ads is free and viewable for 30 days... You may consider buying one of the Extended Ad packages or Feature Ad' with the priced dropdown options listed on the form.",
+        "sourceUrl": "https://nextfreeads.com/index.php?view=post&cityid=493&lang=en&catid=1&subcatid=1&shortcutregion=0&",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "open-launch.com": {
+      "tier": "paid-listing",
+      "price": "$12/launch Premium Launch (guaranteed DR71 dofollow, immediate); $59 (was $199) SEO Growth Package (dedicated SEO article + premium launch)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /pricing page: 'Free Launch Fully booked $0/launch... Free slots are fully booked into 2027' vs 'Premium Launch $12/launch... Guaranteed dofollow backlink from a DR 71 domain' and 'SEO Growth Package $59 $199'.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /pricing page: 'Free Launch Fully booked $0/launch... Free slots are fully booked into 2027' vs 'Premium Launch $12/launch... Guaranteed dofollow backlink from a DR 71 domain' and 'SEO Growth Package $59 $199'.",
+        "sourceUrl": "https://open-launch.com/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "openhunts.com": {
+      "tier": "paid-listing",
+      "price": "$9.9 (was $19) Premium Launch — launch next Monday, no badge required",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /pricing page: 'Free Launch $0/launch 20 slots weekly Current queue time: ~100 weeks' vs 'Premium Launch $9.9 $19/launch Skip the wait. Launch next Monday'.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /pricing page: 'Free Launch $0/launch 20 slots weekly Current queue time: ~100 weeks' vs 'Premium Launch $9.9 $19/launch Skip the wait. Launch next Monday'.",
+        "sourceUrl": "https://openhunts.com/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "prolinkdirectory.com": {
+      "tier": "unverified",
+      "price": "LIFETIME featured link $59; 3-months featured link $9",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live submit.php page: it shows 'LIFETIME featured link $59' and '3 months featured link $9' as listing-type options, but the fetched fragment was truncated before showing whether a non-featured/free listing type is also offered, so free-path availability is unconfirmed.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live submit.php page: it shows 'LIFETIME featured link $59' and '3 months featured link $9' as listing-type options, but the fetched fragment was truncated before showing whether a non-featured/free listing type is also offered, so free-path availability is unconfirmed.",
+        "sourceUrl": "https://www.prolinkdirectory.com/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "shipybara.com": {
+      "tier": "paid-listing",
+      "price": "$69 (was $79) SEO Package (SEO article + premium launch); separately, a LaunchDirectories.com bulk-submission add-on: $99/30 directories, $149/60 directories, $199 (was $249)/100+ directories",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /pricing page: 'Free $0 ... 18 slots weekly Featured on homepage Dofollow' vs 'SEO Package $69 $79' and a separate bulk-directory-submission service priced at $99/$149/$199 ($249), 'Service provided by LaunchDirectories.com'.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /pricing page: 'Free $0 ... 18 slots weekly Featured on homepage Dofollow' vs 'SEO Package $69 $79' and a separate bulk-directory-submission service priced at $99/$149/$199 ($249), 'Service provided by LaunchDirectories.com'.",
+        "sourceUrl": "https://shipybara.com/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "shipstry.com": {
+      "tier": "paid-listing",
+      "price": "Voyage $9.9/ticket (priority boarding, faster review); Flagship $3/day (top placement); plus separate one-time add-ons: Backlink Directory access $19 (was $29), Done-for-you 60+ directory submission $129 (was $199)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /pricing page: 'Harbor Free ... Backlinks 1 nofollow, Submissions 1/month' vs 'Voyage $9.9/ticket', 'Flagship $3/day', plus 'Backlink Directory $19.00 $29.00 one-time' and 'Done-for-you... hand-submit your product to 60+ directories $129.00 $199.00 one-time'.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /pricing page: 'Harbor Free ... Backlinks 1 nofollow, Submissions 1/month' vs 'Voyage $9.9/ticket', 'Flagship $3/day', plus 'Backlink Directory $19.00 $29.00 one-time' and 'Done-for-you... hand-submit your product to 60+ directories $129.00 $199.00 one-time'.",
+        "sourceUrl": "https://shipstry.com/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "startupbase.io": {
+      "tier": "paid-listing",
+      "price": "$99 (was $199) one-time sponsored blog post w/ permanent dofollow backlink; $199/month sidebar ad; $99/month highlighted product card; $59/issue newsletter sponsor",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /advertise page (sponsored blog post $199->$99, sidebar ad $199/mo, product card $99/mo, newsletter $59/issue) and /submit, which redirects to a free account sign-in with no price shown.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /advertise page (sponsored blog post $199->$99, sidebar ad $199/mo, product card $99/mo, newsletter $59/issue) and /submit, which redirects to a free account sign-in with no price shown.",
+        "sourceUrl": "https://startupbase.io/advertise",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "startupdope.com": {
+      "tier": "link-package",
+      "price": "$99 (was $280) 'Startup Directory Submission Service for SaaS' — a done-for-you bulk submission to 150+ directories",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Read the live /submit-news/ route (record's URL): it is a news/PR feed page with no visible price for submitting news itself; its own $2.75/$3.3 etc. price-like hits are abbreviated startup funding-round amounts in article teasers (false positives). Following the site's own nav to /product/startup-directory-submission-service-for-saas/ found StartupDope's real paid product: '$280.00 -> $99.00... 150+ SaaS startup directory submission service.'",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Read the live /submit-news/ route (record's URL): it is a news/PR feed page with no visible price for submitting news itself; its own $2.75/$3.3 etc. price-like hits are abbreviated startup funding-round amounts in article teasers (false positives). Following the site's own nav to /product/startup-directory-submission-service-for-saas/ found StartupDope's real paid product: '$280.00 -> $99.00... 150+ SaaS startup directory submission service.'",
+        "sourceUrl": "https://startupdope.com/product/startup-directory-submission-service-for-saas/",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "aigclist.com": {
+      "tier": "paid-listing",
+      "price": "Pro $19.9 one-time (permanent dofollow, priority review, featured badge); Partner $299 one-time (multi-channel distribution launch package)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "On /pricing the site offers a Free tier ($0, nofollow unless you add a backlink badge) alongside paid Pro ($19.9 one-time) and Partner ($299 one-time) tiers for dofollow/priority placement.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "On /pricing the site offers a Free tier ($0, nofollow unless you add a backlink badge) alongside paid Pro ($19.9 one-time) and Partner ($299 one-time) tiers for dofollow/priority placement.",
+        "sourceUrl": "https://aigclist.com/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "aiheron.com": {
+      "tier": "paid-listing",
+      "price": "$6.99 (discounted from $12.99), 1-hour review, up to 3 links, 7-day featured ad slot",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "On /promote the FAQ states submitting costs $12.99 (currently discounted to $6.99), or you can submit free if you add AiHeron's link to your own site.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "On /promote the FAQ states submitting costs $12.99 (currently discounted to $6.99), or you can submit free if you add AiHeron's link to your own site.",
+        "sourceUrl": "https://www.aiheron.com/promote",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "aitools.inc": {
+      "tier": "paid-listing",
+      "price": "$129 one-time fee",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "On /submit the page lists a \"Free Listing $0\" option and a \"$129 (one-time fee)\" option side by side, with an FAQ item confirming free listings are offered.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "On /submit the page lists a \"Free Listing $0\" option and a \"$129 (one-time fee)\" option side by side, with an FAQ item confirming free listings are offered.",
+        "sourceUrl": "https://aitools.inc/submit",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "antdirectory.com": {
+      "tier": "paid-listing",
+      "price": "Listing $9.9 (reg. $14.9, no-wait dofollow); Featured $19.9 (reg. $39.9, 7-day top placement)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "On /pricing three tiers are shown: Free ($0, 180+ day wait), Listing ($9.9), and Featured ($19.9), each granting immediate placement for the paid tiers versus a long queue for free.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "On /pricing three tiers are shown: Free ($0, 180+ day wait), Listing ($9.9), and Featured ($19.9), each granting immediate placement for the paid tiers versus a long queue for free.",
+        "sourceUrl": "https://antdirectory.com/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "bestofai.com": {
+      "tier": "paid-listing",
+      "price": "Sponsor Your Tool — $250/mo",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Homepage shows \"Submit or Sponsor Your AI Tool\" with a free \"Submit a Tool\" link and a \"Sponsor Your Tool — $250/mo\" paid option.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Homepage shows \"Submit or Sponsor Your AI Tool\" with a free \"Submit a Tool\" link and a \"Sponsor Your Tool — $250/mo\" paid option.",
+        "sourceUrl": "https://bestofai.com/",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "bunity.com": {
+      "tier": "paid-listing",
+      "price": "$3 one-time fee to claim/add a business listing",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Homepage states \"Browse 30 million+ listings... claim yours for a one-time $3 fee\" and \"Get Listed in Under 5 Minutes: Search for your business, claim it for $3\"; no free listing path is mentioned.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Homepage states \"Browse 30 million+ listings... claim yours for a one-time $3 fee\" and \"Get Listed in Under 5 Minutes: Search for your business, claim it for $3\"; no free listing path is mentioned.",
+        "sourceUrl": "https://www.bunity.com/",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "ctrlalt.cc": {
+      "tier": "paid-listing",
+      "price": "$39 add-on: homepage feature, skip queue, and newsletter shoutout",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "The homepage's inline launch-submission widget offers a free \"Schedule free launch\" button plus an optional \"+ Homepage feature, skip queue & newsletter shoutout ($39)\" checkbox.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "The homepage's inline launch-submission widget offers a free \"Schedule free launch\" button plus an optional \"+ Homepage feature, skip queue & newsletter shoutout ($39)\" checkbox.",
+        "sourceUrl": "https://ctrlalt.cc/",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "deeplaunch.io": {
+      "tier": "paid-listing",
+      "price": "One-Time Pro $9.90 (was $19.90)/lifetime; Monthly Promotion $5.00 (was $10.00)/first month; Featured Listing $29.90 (was $39.90)/month; Ultimate $199 (was $259)/year",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "The /pricing page lists a Free tier (backlink required, 2-day review) alongside four paid tiers (One-Time Pro, Monthly Promotion, Featured Listing, Ultimate) with listed discounted prices, confirmed by the /submit FAQ noting free submissions take 48h review while paid ones get immediate review.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "The /pricing page lists a Free tier (backlink required, 2-day review) alongside four paid tiers (One-Time Pro, Monthly Promotion, Featured Listing, Ultimate) with listed discounted prices, confirmed by the /submit FAQ noting free submissions take 48h review while paid ones get immediate review.",
+        "sourceUrl": "https://deeplaunch.io/pricing",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "directory-free.com": {
+      "tier": "paid-listing",
+      "price": "$4.95 one-time fee (Featured listing, lifetime)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "On /submit/submit.php the page states \"Featured listing - $4.95 (One Time Fee)... Lifetime Submission\" for one category, while the \"Searching/Free Directories\" category states \"Submission is free.\"",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "On /submit/submit.php the page states \"Featured listing - $4.95 (One Time Fee)... Lifetime Submission\" for one category, while the \"Searching/Free Directories\" category states \"Submission is free.\"",
+        "sourceUrl": "https://www.directory-free.com/submit/submit.php",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "freewebsubmission.com": {
+      "tier": "paid-listing",
+      "price": "$3-$5/month for \"Guaranteed Top-10 Exposure\" across FWS's network of search engines/directories",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "Homepage states the site provides free manual/auto submission to free search engines and directories, and separately advertises its own \"Guaranteed Top-10 Exposure... for $3 - $5 per month\" upsell.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "Homepage states the site provides free manual/auto submission to free search engines and directories, and separately advertises its own \"Guaranteed Top-10 Exposure... for $3 - $5 per month\" upsell.",
+        "sourceUrl": "https://www.freewebsubmission.com/",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "launchingnext.com": {
+      "tier": "paid-listing",
+      "price": "$99 upgrade for consideration within 1 business day",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "On /submit/ the page states \"Submitting to Launching Next is free, but if you want your startup to be considered for publication within 1-business day, we offer a $99 upgrade on the next page.\"",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "On /submit/ the page states \"Submitting to Launching Next is free, but if you want your startup to be considered for publication within 1-business day, we offer a $99 upgrade on the next page.\"",
+        "sourceUrl": "https://www.launchingnext.com/submit/",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "nocodefounders.com": {
+      "tier": "paid-listing",
+      "price": "$149 one-time lifetime listing fee",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "/list-your-tool states \"One-time $149 lifetime listing fee. Includes a permanent listing and deal placement in the tools directory\" with no free tier offered.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "/list-your-tool states \"One-time $149 lifetime listing fee. Includes a permanent listing and deal placement in the tools directory\" with no free tier offered.",
+        "sourceUrl": "https://www.nocodefounders.com/list-your-tool",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "onemilliondirectory.com": {
+      "tier": "paid-listing",
+      "price": "Premium Listing (Yearly) $129.95; Featured Listing (Permanent) $69.95; Basic Listing Plus (Permanent) $29.95; Article (Yearly) $89.95",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "On the /submit listing-type chooser, five options are shown side by side: four paid tiers with explicit prices and one \"Basic Listing - Permanent\" marked Free.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "On the /submit listing-type chooser, five options are shown side by side: four paid tiers with explicit prices and one \"Basic Listing - Permanent\" marked Free.",
+        "sourceUrl": "https://www.onemilliondirectory.com/submit?c=93&LINK_TYPE=2",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "postquickads.com": {
+      "tier": "paid-listing",
+      "price": "15 days $3.00; 45 days $8.00; 100 days $12.00; 270 days $16.00; 365 days $20.00 (extensions: +30 days $5.00, +90 days $10.00, +200 days $15.00, +365 days $20.00)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "The post-ad page for the Cambridge, USA category states \"Regular ads is free and viewable for\" followed by a table of paid duration upgrades and paid extension add-ons with explicit prices.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "The post-ad page for the Cambridge, USA category states \"Regular ads is free and viewable for\" followed by a table of paid duration upgrades and paid extension add-ons with explicit prices.",
+        "sourceUrl": "https://postquickads.com/index.php?view=post&cityid=397&lang=en&catid=1&subcatid=1&shortcutregion=0&",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "productlaunch.com.br": {
+      "tier": "paid-listing",
+      "price": "R$20/launch (Lançamento Premium, guaranteed dofollow backlink, priority queue); Premium Plus R$25 (was R$50, top homepage placement)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "On /precos three plans are listed: Free (R$0, 90-day queue, backlink only if Top 3), Premium (R$20, guaranteed dofollow backlink, priority queue), and Premium Plus (R$25, was R$50, top placement).",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "On /precos three plans are listed: Free (R$0, 90-day queue, backlink only if Top 3), Premium (R$20, guaranteed dofollow backlink, priority queue), and Premium Plus (R$25, was R$50, top placement).",
+        "sourceUrl": "https://productlaunch.com.br/precos",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "somuch.com": {
+      "tier": "paid-listing",
+      "price": "$8.95 fast-approval upgrade; $22.95 higher upgrade tier",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "/submit-links/ states the Basic URL Submission is free but slow (\"a few weeks to a couple of months\"), and lists two paid upgrade options, $8.95 and $22.95, \"for fast approval\" after submitting.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "/submit-links/ states the Basic URL Submission is free but slow (\"a few weeks to a couple of months\"), and lists two paid upgrade options, $8.95 and $22.95, \"for fast approval\" after submitting.",
+        "sourceUrl": "https://somuch.com/submit-links/",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "submit.biz": {
+      "tier": "paid-listing",
+      "price": "$10.90 (Paid Listing, faster handling); $19.90 (Featured Listing, stronger visibility)",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "The /index.php?go=addpage submission page lists three listing types side by side: Free ($0, normal review), and two paid tiers at $10.90 and $19.90 with faster handling and stronger visibility.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "The /index.php?go=addpage submission page lists three listing types side by side: Free ($0, normal review), and two paid tiers at $10.90 and $19.90 with faster handling and stronger visibility.",
+        "sourceUrl": "https://www.submit.biz/index.php?go=addpage&catid=316",
+        "checkedAt": "2026-08-19"
+      }
+    },
+    "techbasedirectory.com": {
+      "tier": "paid-listing",
+      "price": "$10.00 one-time fee",
+      "priceCheckedAt": "2026-08-19",
+      "notes": "/submit-product describes a 3-step flow (free sign-in, AI-assisted draft, then \"Pay & go live: One-time $10 fee. Published immediately with a do-follow link and featured placement\") — no way to publish without paying.",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "/submit-product describes a 3-step flow (free sign-in, AI-assisted draft, then \"Pay & go live: One-time $10 fee. Published immediately with a do-follow link and featured placement\") — no way to publish without paying.",
+        "sourceUrl": "https://techbasedirectory.com/submit-product",
+        "checkedAt": "2026-08-19"
+      }
     }
   }
 }

@@ -146,6 +146,36 @@ Use the brand, the product name, or the naked canonical URL. Nothing else.
   was commercial or reciprocal, after publication. Recording the anchor you
   *submitted* is recording your intent, not the outcome.
 
+## Fanning the screen out across parallel agents
+
+Screening is the one stage that parallelises cleanly — each row is independent
+and network-bound. Three failure modes showed up the first time this was run
+five-wide, and all three are cheap to prevent in the brief:
+
+**Scratch filenames collide.** Parallel agents share one scratch directory, so
+two of them writing `chunk1.json` silently overwrite each other's work. It was
+caught only by diffing the finished domain set against the input. **Give every
+agent a distinct output path and require every temp file to carry its slice
+number.** This is the same failure as two browser tasks picking one session name
+(see [SKILL.md](../SKILL.md)) — shared namespace, no error, wrong data.
+
+**An agent will background the batch and then wait forever.** Nothing wakes it,
+the turn ends on idle, and the task finishes having written nothing. Two
+sentences in the brief prevent it: *run the work synchronously in foreground
+calls, chunked; a call may run for minutes, so raise its timeout rather than
+backgrounding it* and *rewrite the output file after every chunk so a partial
+result survives an unexpected stop.* The second one paid for itself immediately —
+every agent's file was readable and growing throughout the run.
+
+**Verify the returned count against the input.** An agent's own summary is not
+evidence that every row was processed. Diff the domain sets.
+
+What to hand an agent is the judgement, not the fetching: following a route to
+the real submission page, deciding what a page *is*, reading what a price
+actually buys. The mechanical sweep belongs in a script — it is faster, it is
+consistent across rows, and its heuristics can be fixed once instead of
+re-invented per agent.
+
 ## Records: aliases in the shareable file, secrets nowhere
 
 Split the campaign record in two:
