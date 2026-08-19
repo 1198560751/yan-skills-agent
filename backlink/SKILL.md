@@ -137,6 +137,45 @@ it is a row that saves the next campaign — and the next **site**. That library
 reusable across every site the owner ever builds, which is why it lives in the
 Skill and not in any one project.
 
+### Screen for traffic before you fill anything
+
+**The qualifying test is real traffic, not DR, and it runs BEFORE the form does.**
+A directory with no measurable traffic cannot send a referral, cannot pass a
+useful signal, and its DR is whatever its own network linked into it.
+
+```bash
+# the whole gate, one query per domain
+node <seo-tool> worth --input example.com   # read live.visits + monthlyHistory
+```
+
+`traffic >= 100` monthly visits qualifies. **A domain the data source cannot find
+at all is a result, not a tool failure** — it means the site is below the
+detection floor, i.e. zero.
+
+Three field signs that a batch is one link network rather than N directories,
+any one of which means measure first:
+
+- one site script across the batch, with field names identical to the character;
+- a promotional sentence repeated **word for word** across dozens of domains —
+  similar pricing across a niche is a market, one sentence twenty times is a
+  codebase;
+- DR that exists while traffic does not.
+
+**The order is not negotiable, and reversing it is expensive.** One run filled
+every form across a 73-domain family and only then sampled five of them for
+traffic: four returned no DR and no traffic at all, the fifth scored bottom-tier
+with traffic down 89% in three months and a suspected penalty. Every filled form
+was discarded. Measuring a domain costs one query; filling its form costs two
+orders of magnitude more.
+
+Submitting to N domains of one network buys **one** link's worth of value and
+accrues **N times** the footprint, because the buyer's and the seller's link
+graphs are the same graph. See
+[acquisition-doctrine.md](references/acquisition-doctrine.md) §1.1 — and note
+that the doctrine's "post everywhere you can" was never a licence to skip this:
+it governs topical irrelevance, and it always excluded link farms in the same
+breath.
+
 ### Two lanes, and the CAPTCHA lane is not the failure lane
 
 A submission run splits in two, and the split is the whole point of the cohort
@@ -651,7 +690,13 @@ engines with their own crawlers, what reaches them, and what does not, are in
   [acquisition-doctrine.md](references/acquisition-doctrine.md) before rejecting
   any target on quality grounds.
 - No link farms, spam generators, adult/malware surfaces, hidden reciprocal
-  links, temporary eligibility pages, or cloaking.
+  links, temporary eligibility pages, or cloaking. **Screen for the link farm
+  before filling anything**, not after: the qualifying test is real traffic
+  (`>= 100` monthly visits), never DR, which a network inflates by linking to
+  itself. Two identical give-aways in one place — one site script across dozens
+  of domains and a promotional sentence repeated word for word — mean one
+  operator, and submitting to N of its domains buys one link's value while
+  accruing N times the footprint.
 - Do not record a submission as a backlink. This includes handing a URL to a
   search engine: that is an index-submission channel, it publishes no link, and
   it belongs in `data/index-submission.json` rather than the placement ledger.
