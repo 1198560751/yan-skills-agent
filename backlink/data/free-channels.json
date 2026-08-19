@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-18T00:00:00.000Z",
+  "updatedAt": "2026-08-19T00:00:00.000Z",
   "channels": [
     {
       "id": "telegraph",
@@ -539,6 +539,67 @@
         "method": "browser-dom",
         "url": "https://blogengage.com/",
         "what": "Navigating to blogengage.com in a browser lands on https://gomining.com with the title \"Bitcoin superapp - mining, earning and using BTC | GoMining\". There is no blog directory left at this domain — the site was resold, not merely rebranded."
+      }
+    },
+    {
+      "id": "valine-comment-engine",
+      "name": "Valine (LeanCloud-backed comment engine)",
+      "kind": "comment-form",
+      "scope": "engine",
+      "homepage": "https://valine.js.org",
+      "account": "none",
+      "payment": "none",
+      "captcha": "none",
+      "browserRequired": true,
+      "anchorRendered": true,
+      "relObserved": [
+        "noopener"
+      ],
+      "robotsObserved": null,
+      "indexable": "per-host",
+      "rateLimit": null,
+      "howToPublish": "Browser only. Four fields: 昵称 (required), 邮箱 (required), 网址 (optional), comment body. Submit with the button or Cmd/Ctrl+Enter. Publishes instantly with no moderation queue on the host measured — a comment posted 9 seconds earlier was already rendered.",
+      "traps": [
+        "The nickname becomes an anchor pointing at whatever went in the 网址 field, and bare URLs in the body become anchors too. Both carried rel=\"noopener\" only — no nofollow — so this is one of the few genuinely dofollow no-account channels in this file.",
+        "THE WHOLE STREAM IS CLIENT-RENDERED. The served HTML of the host measured is 9766 bytes and contains ZERO outbound anchors; every link, including the static site list above the form, appears only after Valine.min.js runs. An anonymous-http check therefore reports no anchors at all, and a non-rendering crawler sees none either. Do not record this as an indexed dofollow link without confirming the rendered page in Search Console or a cache view.",
+        "Moderation, and whether comments require review at all, is a per-host LeanCloud setting. Instant publish on one host says nothing about the next.",
+        "Because the backend is the host owner’s own LeanCloud app, the entire history can be wiped or the app can expire, taking every link with it. Treat placements here as impermanent."
+      ],
+      "status": "live",
+      "lastVerifiedAt": "2026-08-19",
+      "evidence": {
+        "method": "both",
+        "what": "On noisedaohang.netlify.app/tougao the rendered DOM exposed 12 outbound comment anchors, every one rel=\"noopener\" with no nofollow and no robots meta on the page, while a plain HTTP fetch of the same URL returned 9766 bytes with zero outbound anchors and no comment markup.",
+        "publicUrl": "https://noisedaohang.netlify.app/tougao/"
+      }
+    },
+    {
+      "id": "wordpress-open-comment-form",
+      "name": "WordPress native comment form (open, no account)",
+      "kind": "comment-form",
+      "scope": "engine",
+      "account": "none",
+      "payment": "none",
+      "captcha": "passive",
+      "browserRequired": false,
+      "anchorRendered": true,
+      "robotsObserved": "varies",
+      "indexable": "per-host",
+      "rateLimit": null,
+      "howToPublish": "POST to wp-comments-post.php, or fill #commentform in a browser. Detect by grepping the served HTML for id=\"commentform\" together with wp-comments-post.php.",
+      "traps": [
+        "THE WEBSITE FIELD IS OPTIONAL AND OWNERS TURN IT OFF. One of 7 open forms measured (onlytoday.com.ua) renders #commentform with no name=\"url\" input at all, so an accepted comment there can never carry an anchor. Grep for name=\"url\" separately — the presence of a comment form does not imply a link field.",
+        "Akismet was present on 6 of the 7 open forms measured. It is invisible in the form markup, produces no challenge, and silently sinks submissions; a 200 response and a \"your comment is awaiting moderation\" notice are both compatible with the comment never appearing.",
+        "A page can serve a complete #commentform and still be closed to new comments, and the reverse also happens: yourcupofcake.com served no form at all and matched \"comments are closed\", while a form’s presence on an 11-year-old post says nothing about whether anything still gets approved.",
+        "Comment pagination hides state. squatuniversity.com was supplied as /comment-page-3/ — the form renders there, but link value and moderator attention concentrate on page 1.",
+        "These are almost always somebody’s topical blog. An off-topic comment from an unrelated site is the single most likely thing to be deleted, and posting it is what this Skill refuses to automate."
+      ],
+      "status": "live",
+      "lastVerifiedAt": "2026-08-19",
+      "evidence": {
+        "method": "anonymous-http",
+        "what": "Of 19 URLs handed over as no-login comment targets, 7 served an open native WordPress comment form (id=\"commentform\" + wp-comments-post.php) with no login wording; 6 of those also carried Akismet, and 1 exposed no name=\"url\" field.",
+        "publicUrl": null
       }
     }
   ]

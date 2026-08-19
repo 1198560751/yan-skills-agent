@@ -604,6 +604,42 @@ one domain that turned out to be dead was dead in the strongest sense: it answer
 HTTP 200 and **redirects to an unrelated crypto product**. A status-code check
 passes it. Only following the redirect, or reading the title, catches it.
 
+### A list labelled "no-login comment targets" is mostly not that
+
+A 19-URL list handed over in 2026-08 as *免登录直接发评论* was measured URL by URL.
+All 19 answered HTTP 200 with no redirects, which is exactly why status codes are
+not a filter. What they actually were:
+
+| What the row really was | Count |
+| --- | --- |
+| Open native WordPress comment form, no account | 7 |
+| Directory / launch platform behind a login **and** a paid tier | 4 |
+| Comment engine needing an account, or comments closed | 4 |
+| Not a comment surface at all (nav-site submission box, TG resource index, tag page) | 3 |
+| Paid guest-post marketplace | 1 |
+
+Three things generalise from it:
+
+- **Zero of the 19 needed a Google sign-in**, though the list was believed to
+  contain some. The gate people remember as "needs Google login" is usually a
+  site-native account form — `aifinderguru.com/submit` serves a plain
+  `name="login"` + `name="password"` form, no OAuth anywhere. Check before
+  arranging any authenticated session; the credential you were about to reach for
+  may not be the one the site wants.
+- **A "700+ high authority sites" marketplace was sitting in the list** as though
+  it were a free comment target. Read every row's `<title>`: `shop.sparltech.com`
+  announces itself as a Premium Guest Posting Marketplace. It is not a free
+  channel, and it is not a paid-registry entry either until somebody is observed
+  buying from it — the paid table records *observed usage*, so an entry with an
+  empty `observedSites` is correctly rejected by `validate-data.mjs`.
+- **The 7 usable forms were 7 unrelated blogs**: two recipe posts, a knee-anatomy
+  article, a towel sourcing guide, a 2012 sociology post, an Italian celebrity
+  health story, and a Ukrainian radiator piece. Topical fit is what decides
+  whether a comment survives moderation, so a list like this converts into a
+  handful of hand-written comments at most, not a batch job. This is where the
+  Skill's "no irrelevant comments" rule does its real work: the list *looks* like
+  20 placements and contains approximately zero that a moderator would keep.
+
 ### The sitewide-advertiser false positive
 
 On a UGC page, an outbound anchor with **no `rel`** looks exactly like a followable
