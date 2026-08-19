@@ -604,6 +604,43 @@ one domain that turned out to be dead was dead in the strongest sense: it answer
 HTTP 200 and **redirects to an unrelated crypto product**. A status-code check
 passes it. Only following the redirect, or reading the title, catches it.
 
+### Normalise the list before you argue about it
+
+`scripts/third-party-list-ingest.mjs` turns any Markdown list — pipe table,
+bullets, whatever — into deduplicated rows keyed by registrable domain, diffs
+them against files you already have, and marks rows whose own notes disqualify
+them. It records nothing as verified: every row comes out `candidate` or
+`excluded`, because a source's column is not an observation.
+
+```bash
+node scripts/third-party-list-ingest.mjs   --input THEIR-LIST.md   --known data/free-channels.json --known <project>/.rankup/backlink-targets.json   --drop-pattern 'dead|shut ?down|停服|入口关闭'   --flag-pattern 'paid|reciprocal|收费|互链|已收录'   --new-only --out .backlink/leads.json
+```
+
+Run against the 743-entry `Free-backlink-list.md` from
+[flaqai/backlink_skills](https://github.com/flaqai/backlink_skills) on 2026-08-19,
+with one site's existing 65-row target file as the known set:
+
+| | Rows |
+| --- | ---: |
+| Raw entries in the list | 743 |
+| Unique registrable domains | 648 |
+| Already in the local target file | 43 |
+| Marked dead **by the list itself** | 69 |
+| Flagged paid / reciprocal / already-listed / known-broken | 229 |
+| New, unflagged, still unscreened | **343** |
+
+Three things generalise. **A published count is a row count, not a domain
+count** — 743 became 648, because these lists carry duplicates and multiple entry
+paths into one site. **The list's own notes are the cheapest filter you will ever
+get**: 69 + 229 rows disqualified themselves in free text that nobody had turned
+into a field. And the survivors are still leads — 343 unscreened domains is a
+starting point for the qualification loop, not 343 places to submit.
+
+The same list is also where the six-field traffic rule in
+[batch-campaign.md](batch-campaign.md#traffic-numbers-need-six-fields-or-they-are-not-numbers)
+comes from: it originally carried undated per-site traffic figures, and its
+maintainers deleted all of them after a recheck found 20–30% drift.
+
 ### A list labelled "no-login comment targets" is mostly not that
 
 A 19-URL list handed over in 2026-08 as *免登录直接发评论* was measured URL by URL.
@@ -639,6 +676,78 @@ Three things generalise from it:
   handful of hand-written comments at most, not a batch job. This is where the
   Skill's "no irrelevant comments" rule does its real work: the list *looks* like
   20 placements and contains approximately zero that a moderator would keep.
+
+### Mine a submission board's own comment store before searching for peers
+
+The recursive-discovery loop in [discovery-loop.md](discovery-loop.md) starts from a
+backlink tool. When the tool is unavailable — plan-blocked Ahrefs, unset Semrush
+dashboard — there is a **free and much richer** starting point that was measured in
+2026-08: a submission board's own comment backend.
+
+The Chinese nav-site 投稿区 genre runs on Valine / Waline / Twikoo, all of which are
+client-side widgets talking to a backend whose credentials are **embedded in the page
+because every visitor's browser needs them**. Read them from the live page, then page
+through the class over HTTP:
+
+```js
+// from the rendered page
+window.AV.applicationId       // → X-LC-Id
+window.AV.applicationKey      // → X-LC-Key
+window.AV._config.serverURLs  // → API host
+```
+
+```bash
+curl -s -G "$SERVER/1.1/classes/Comment" \
+  --data-urlencode 'limit=1000' --data-urlencode 'skip=0' \
+  --data-urlencode 'keys=nick,link,comment,createdAt' \
+  --data-urlencode 'order=-createdAt' \
+  -H "X-LC-Id: $ID" -H "X-LC-Key: $KEY"
+```
+
+One board yielded **5108 comments → 3387 unique submitter domains**, of which 1606 had
+submitted within the year and 138 had submitted 8+ times. Those 138 are sites running
+an active link campaign right now — a far better seed set than any guess, and it cost
+six HTTP requests.
+
+**Restrict `keys` to what you need and leave `mail` out.** The class holds commenter
+email addresses; harvesting third-party emails is not part of link research, and a
+`keys=` whitelist is the difference between reading a public comment stream and
+collecting personal data.
+
+Two things this seed set is good for: the submitters are peers to reverse-look-up, and
+a subset of them are **themselves directory owners submitting their own directory** —
+filter the comment bodies for a self-description (`导航站` / `目录站` / `工具箱` /
+`收录\d+`) **together with** an application form (`申请收录` / `网站名称` / `网址：`).
+Requiring both matters: matching the nav keyword alone returns mostly commenters
+discussing the board, which looked like 82 candidates and was really 21.
+
+### Two traps when qualifying the directories you find that way
+
+**A SPA catch-all makes every path return 200.** Three of the candidates answered 200
+with an identical byte count for `/submit`, `/apply`, `/contribute` **and** `/shoulu` —
+a nonsense path invented as a control. There is no submit page; the router serves the
+shell for everything. Always probe a path you know cannot exist, and compare response
+sizes before believing a 200.
+
+**Mirrors share one comment store, so one submission is not N placements.** The board
+measured is served from three hostnames — a `.cn`, a `.link`, and a `netlify.app` —
+whose `/tougao/` pages are byte-identical (9766 bytes) and whose `data.js` carries the
+**same** LeanCloud `appId`. One comment therefore renders on all three. That may be
+three referring domains or one, depending on what gets indexed, but it is definitely
+**one action and one moderation decision**: do not queue the mirrors as separate
+targets, and do not resubmit to them.
+
+### What search-based reverse lookup actually returns
+
+With no backlink tool, quoted-domain web search is the fallback. Expect a thin, weak
+yield: 14 peers produced 8 candidate platforms, only one of which appeared for two
+different peers. The dominant failure is **name collision** — 8 of the 14 peers were
+small sites named after famous products (Seedance, Kimi, TRELLIS, Claude, OpenClaw),
+so the results were coverage of the parent product, not pages linking to the clone.
+Snippet-only evidence also cannot support any `rel` or acceptance claim.
+
+Treat this as a way to generate leads, never as a substitute for a referring-domains
+export. If the yield matters, unblocking a real backlink source is the cheaper move.
 
 ### The sitewide-advertiser false positive
 

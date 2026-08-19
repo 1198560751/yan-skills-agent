@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import { writeFile } from 'node:fs/promises';
-import { firstJson, opencli, parseFlags, printJson, required, validateSession } from './opencli-core.mjs';
+import { defaultSession, firstJson, opencli, parseFlags, printJson, required, validateSession } from './opencli-core.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 const url = new URL(required(flags, 'url'));
 if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Only http(s) URLs are supported.');
-const session = validateSession(flags.session || 'backlink-work');
+const session = flags.session ? validateSession(flags.session) : defaultSession('backlink-work');
 const waitSeconds = Math.max(0, Math.min(15, Number(flags.wait || 3)));
 const windowMode = flags.window === 'foreground' ? 'foreground' : 'background';
 const mode = ['auto', 'directory', 'comment'].includes(flags.mode) ? flags.mode : 'auto';

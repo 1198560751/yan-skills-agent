@@ -8,6 +8,31 @@ function normalizeDomain(value) {
   return new URL(source).hostname.toLowerCase().replace(/^www\./, '');
 }
 
+/** Quote-aware CSV parse: exported cells contain commas and embedded newlines. */
+function parseCsv(text) {
+  const source = text.replace(/^\uFEFF/, '');
+  const rows = [];
+  let row = [];
+  let cur = '';
+  let quoted = false;
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (source[i + 1] === '"') { cur += '"'; i += 1; } else quoted = false;
+      } else cur += ch;
+      continue;
+    }
+    if (ch === '"') { quoted = true; continue; }
+    if (ch === ',') { row.push(cur); cur = ''; continue; }
+    if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; continue; }
+    if (ch !== '\r') cur += ch;
+  }
+  if (cur || row.length) { row.push(cur); rows.push(row); }
+  const head = rows.shift() || [];
+  return rows.filter((r) => r.length === head.length).map((r) => Object.fromEntries(head.map((h, i) => [h, r[i]])));
+}
+
 async function load(file) {
   try {
     const value = JSON.parse(await readFile(file, 'utf8'));
@@ -62,6 +87,51 @@ if (command === 'seed') {
   }
   await save(file, graph);
   printJson({ source, added: [...new Set(added)] });
+} else if (command === 'import-refdomains') {
+  // The discovery loop's step 2 is "get their backlink rows from an authorized
+  // export and feed those domains back into the queue", but the only bulk import
+  // was import-commenters, whose edges are typed `commenter`. Routing referring
+  // domains through it records a claim that was never observed. This command
+  // keeps the provenance honest: edge type `refdomain`, source domain named.
+  //
+  // --input accepts either a Semrush referring-domains CSV (a `Root Domain` /
+  // `Root Domain / Category` column, whose cells may span multiple lines) or a
+  // JSON array / newline-separated list of domains.
+  const source = normalizeDomain(required(flags, 'source'));
+  const raw = await readFile(required(flags, 'input'), 'utf8');
+  let candidates = [];
+  if (/^\s*[[{]/.test(raw)) {
+    const parsed = JSON.parse(raw);
+    candidates = Array.isArray(parsed) ? parsed : parsed.candidateDomains || [];
+  } else if (raw.includes(',') && /Root Domain/i.test(raw.split('\n')[0] || '')) {
+    const rows = parseCsv(raw);
+    const key = Object.keys(rows[0] || {}).find((k) => /^Root Domain/i.test(k));
+    if (!key) throw new Error('CSV has no "Root Domain" column.');
+    candidates = rows.map((row) => (row[key] || '').split('\n')[0].trim());
+  } else {
+    candidates = raw.split('\n');
+  }
+  candidates = [...new Set(candidates.map((value) => String(value).trim()).filter(Boolean))];
+
+  const sourceNode = addNode(graph, source, Number(flags.depth || 0), 'refdomain-export');
+  const added = [];
+  const skipped = [];
+  for (const candidate of candidates) {
+    let node;
+    try {
+      node = addNode(graph, candidate, sourceNode.depth + 1, `refdomains:${source}`);
+    } catch {
+      skipped.push(candidate); // not a parseable hostname; record it rather than dropping it silently
+      continue;
+    }
+    if (!node.sources.includes(`refdomains:${source}`)) node.sources.push(`refdomains:${source}`);
+    if (!graph.edges.some((edge) => edge.from === source && edge.to === node.domain && edge.type === 'refdomain')) {
+      graph.edges.push({ from: source, to: node.domain, type: 'refdomain', at: new Date().toISOString() });
+    }
+    added.push(node.domain);
+  }
+  await save(file, graph);
+  printJson({ source, added: [...new Set(added)], skipped });
 } else if (command === 'mark') {
   const domain = normalizeDomain(required(flags, 'domain'));
   const node = graph.nodes.find((entry) => entry.domain === domain);

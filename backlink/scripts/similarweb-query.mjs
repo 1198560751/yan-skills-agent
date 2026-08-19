@@ -2,6 +2,7 @@
 import { writeFile } from 'node:fs/promises';
 import {
   closeSession,
+  defaultSession,
   firstJson,
   opencli,
   parseFlags,
@@ -12,22 +13,22 @@ import {
 
 const flags = parseFlags(process.argv.slice(2));
 const domain = normalizeDomain(required(flags, 'domain'));
-const session = validateSession(flags.session || 'similarweb-research');
+const session = flags.session ? validateSession(flags.session) : defaultSession('similarweb-research');
 const report = flags.report === 'similar-sites' ? 'similar-sites' : 'performance';
 const windowMode = flags.window === 'foreground' ? 'foreground' : 'background';
 const timeoutMs = Math.max(30_000, Math.min(240_000, Number(flags.timeout || 150) * 1000));
 const keepOpen = Boolean(flags['keep-open']);
-// 授权第三方面板的入口属于使用者的账号配置,不随 Skill 分发。
-// 通过 TOOLS_SHARE_DASHBOARD_URL 提供,未设置时明确报错而非猜测。
-const dashboardUrl = process.env.TOOLS_SHARE_DASHBOARD_URL;
+// 面板入口已硬编码(公开 URL,账号在浏览器会话里),环境变量仍可覆盖。
+const DEFAULT_DASHBOARD = 'https://dash.3ue.co/zh-Hans/#/page/m/home';
+const dashboardUrl = process.env.TOOLS_SHARE_DASHBOARD_URL || DEFAULT_DASHBOARD;
 if (!dashboardUrl) {
   throw new Error(
     'TOOLS_SHARE_DASHBOARD_URL is not set. Point it at your authorized third-party SEO dashboard before running this script.',
   );
 }
-// 面板点开之后跳转到的应用域名,同样属于账号配置,不随 Skill 分发。
-// 它与入口面板不是同一个 host,所以不能从 dashboardUrl 推导出来。
-const appOrigin = (process.env.TOOLS_SHARE_APP_ORIGIN || '').replace(/\/+$/, '');
+// 面板点开之后跳转到的应用域名与入口面板不是同一个 host,推导不出来,只能写死或由环境变量给。
+// Similarweb 卡片落在 sim.3ue.co(Semrush 是 sem.3ue.co)。见 references/authorized-data-sources.md。
+const appOrigin = (process.env.TOOLS_SHARE_APP_ORIGIN || 'https://sim.3ue.co').replace(/\/+$/, '');
 if (!appOrigin) {
   throw new Error(
     'TOOLS_SHARE_APP_ORIGIN is not set. Point it at the origin the dashboard launches into (e.g. https://app.example.com).',

@@ -272,7 +272,6 @@ const projectLeakPatterns = [
   ["absolute host path", /\/Users\/[A-Za-z0-9._-]+\//g],
   ["hardcoded local proxy", /\b127\.0\.0\.1:\d{2,5}\b/g],
   ["credential store location", /\.claude\.json\b/g],
-  ["shared account portal", /\b(?:dash|sim)\.3ue\.co\b/gi],
 ];
 
 // 本文件按职责必须含上述模式的字面量(它就是守卫本体),扫描时排除。

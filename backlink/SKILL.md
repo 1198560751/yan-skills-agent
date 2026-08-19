@@ -51,6 +51,7 @@ backlink/
 │   ├── ledger.mjs                  candidate → … → indexed → rel_verified
 │   ├── discovery-queue.mjs         recursive competitor/commenter expansion
 │   ├── harvest-commenters.mjs      pull commenter domains off an article
+│   ├── third-party-list-ingest.mjs someone else's list → screened leads + diff
 │   ├── harvest-*.{sh,mjs,js}       bulk table extraction from logged-in dashboards
 │   └── similarweb-query.mjs        repeatable domain query (needs your own env)
 │
@@ -58,6 +59,7 @@ backlink/
     ├── instant-publish.md     ★ free channels: how each class behaves, what kills them
     ├── paid-platforms.md      ★ paid: tiers, why a burst is not a purchase
     ├── index-submission.md      index-only channels; why `indexed` must name an engine
+    ├── batch-campaign.md         ★ 100+ rows: queue, idempotency, resume, reporting
     ├── field-notes.md           what actually blocks submissions in practice
     ├── harvest.md               scraping failures that look like success
     ├── safety-policy.md         read before any fill / submit / logged-in action
@@ -78,6 +80,8 @@ backlink/
 | "Find me **new** opportunities" | [discovery-loop.md](references/discovery-loop.md) — and merge whatever you harvest back into the registry |
 | "Is this link profile any good" | [link-quality-rubric.md](references/link-quality-rubric.md) |
 | "Get these numbers out of a dashboard with no API" | [harvest.md](references/harvest.md) |
+| "Here are **300 directories**, submit to them" · a campaign that must survive being interrupted | [batch-campaign.md](references/batch-campaign.md) — the single-target loop below does not scale as-is |
+| "Someone published a **list** of backlink sites, is it useful" | `scripts/third-party-list-ingest.mjs` to normalise and diff it, then the "Reading a third-party list" section of [instant-publish.md](references/instant-publish.md) |
 | "Submit our pages to **Brave / another engine**" · "why is our index count low on X" | [index-submission.md](references/index-submission.md) — it publishes no link, so it never enters the placement ledger |
 
 Query the data directly rather than reading the JSON by eye:
@@ -135,15 +139,99 @@ sessions and expose page/network data without coordinate-based clicking. Use an
 existing OpenCLI adapter first. When no adapter exists, use a named browser
 session and DOM/network inspection.
 
+### The session name is a tab claim — never hardcode a literal one
+
+**Each `opencli browser <session>` name owns its own tab. Different names never
+steal from, switch, or pollute each other.** So "another task stole my tab" is
+never the CLI round-robining; it is always **two tasks that picked the same
+session name**.
+
+Measured 2026-08-19 on opencli 1.8.6:
+
+```bash
+opencli browser isoA --window background open https://example.com/
+opencli browser isoB --window background open https://example.org/
+opencli browser isoA --window background open https://example.net/
+# isoA -> https://example.net/    isoB -> https://example.org/
+# each session's `tab list` shows only its own single tab
+```
+
+`isoB` was untouched by `isoA`'s second navigation, and neither `tab list` could
+see the other's tab.
+
+This Skill caused the exact failure it warns about: `scripts/tools-share-open.mjs`
+defaulted to the literal session `backlink-panel`. Two concurrent tasks each ran
+it, shared one tab, and each read back pages the other had opened — which looks
+identical to tab theft. The symptom is subtle and expensive: navigation reports
+success, then `eval` returns someone else's document.
+
+**Rules:**
+
+- Never write a literal session name as a default. In JS, never hand-roll the
+  suffix either — `scripts/opencli-core.mjs` exports `defaultSession(base)`,
+  which applies it and validates the result:
+
+  ```js
+  const session = flags.session ? validateSession(flags.session) : defaultSession('backlink-work');
+  ```
+
+- The suffix resolves `OPENCLI_SESSION_SUFFIX` → `CLAUDE_CODE_SESSION_ID` →
+  `CLAUDE_CODE_HOST_SESSION_ID` → pid. **Never key off the HOST id directly**:
+  it is per desktop-app host and shared by every conversation running inside it,
+  so it hands parallel tasks the same tab — the exact bug this guards against.
+  `CLAUDE_CODE_SESSION_ID` is per conversation, which is the unit that actually
+  runs concurrently.
+- **Subagents inherit the parent's environment**, so several agents spawned
+  inside one conversation resolve to the same default. When fanning browser work
+  out across parallel agents, give each an explicit `--session` or a distinct
+  `OPENCLI_SESSION_SUFFIX`.
+- In shell, do the same: `SESSION="backlink-$$"`, never a bare constant.
+- If `eval` returns a page you did not navigate to, suspect a name collision
+  **before** suspecting the site or the CLI. Confirm with
+  `opencli browser <session> tab list`.
+- Release the lease with `opencli browser <session> close` when done.
+
+### Background mode is not headless
+
 Default every session to background mode. The flag sits **between the session
 name and the subcommand** — `opencli browser <session> --window background
 <command>`. Before it and after it both fail, one with `unknown command` and one
 with `unknown option`, so a misplaced flag reads like a broken install rather
-than a syntax error. Never request foreground mode unless the user explicitly
-wants to watch the operation. Avoid clicking
-launchers that open a new window: inspect the target and open it directly in the
-background session when possible. If a site cannot be operated without stealing
-focus, stop and report that constraint.
+than a syntax error.
+
+Background mode runs the owner's real, logged-in Chrome without raising the
+window. It does **not** steal focus and it is **not** headless. Measured probes
+inside a background session:
+
+| Probe | Value |
+|---|---|
+| `navigator.webdriver` | `false` |
+| UA contains `Headless` | no |
+| `navigator.plugins.length` | 5 |
+| `document.visibilityState` | `visible` (background windows are not throttled) |
+| `window.outerWidth × outerHeight` | 1364 × 806 |
+
+So "background mode will trip the site's bot defences" is not a real concern
+here — every headless tell reads negative. There is never a reason to reach for
+foreground to look more human. Request foreground only when the user explicitly
+wants to watch. Avoid clicking launchers that open a new window: inspect the
+target and open it directly in the background session when possible. If a site
+cannot be operated without stealing focus, stop and report that constraint.
+
+### If you reach for a different browser tool
+
+`agent-browser` is the other CLI on this machine and it solves a different
+problem: each `--session` is an isolated browser with its own cookies, default
+headless. Use it only when the task needs **no** logged-in identity. Anything
+touching the owner's authenticated sessions — the Tools Share panel, Search
+Console, a logged-in community — stays on OpenCLI, because that identity is the
+whole reason this Skill drives the owner's Chrome.
+
+One trap worth knowing if you do use it: when several `agent-browser` sessions
+share one Chrome (`--cdp <port>` or `--auto-connect`), `open` navigates the
+**shared active tab** by default and the sessions collide. Pass `--pin-tab` on
+each session's first command; the binding is sticky, and a closed bound tab then
+fails with `tab_gone` instead of silently acting on someone else's tab.
 
 Resolve all paths below relative to this `SKILL.md`.
 
@@ -185,13 +273,30 @@ Queue commands:
 
 ```bash
 node scripts/discovery-queue.mjs seed --file .backlink/discovery.json --domain competitor.com
+
+# step 2 in bulk: feed an authorized referring-domains export straight in.
+# --input takes a Semrush refdomains CSV, a JSON array, or one domain per line.
+# Edges are typed `refdomain` — do NOT route these through import-commenters,
+# which would record a commenter relationship nobody observed.
+node scripts/discovery-queue.mjs import-refdomains --file .backlink/discovery.json \
+  --source competitor.com --input .backlink/competitor-refdomains.csv
+
 node scripts/harvest-commenters.mjs --session backlink-discovery --url https://example.com/article --out .backlink/commenters.json
 node scripts/discovery-queue.mjs import-commenters --file .backlink/discovery.json --input .backlink/commenters.json
 node scripts/discovery-queue.mjs next --file .backlink/discovery.json --limit 10
 ```
 
 For the user's available Similarweb and Semrush access, follow
-[authorized-data-sources.md](references/authorized-data-sources.md). These
+[authorized-data-sources.md](references/authorized-data-sources.md). Both live
+behind one shared-account panel; open either with:
+
+```bash
+node scripts/tools-share-open.mjs --tool semrush
+```
+
+Launching through the panel is mandatory — a deep link into the tool origin
+before the launcher runs lands on `about:blank`, and the panel's subscription is
+short-dated, so check the expiry the script prints before planning around it. These
 metrics help discover and prioritize candidates; they do not prove a backlink
 is public, indexed, followable, or causally producing traffic.
 
@@ -344,7 +449,12 @@ engines with their own crawlers, what reaches them, and what does not, are in
 
 - No coordinate-based “human-like” clicking.
 - No CAPTCHA, Turnstile, login, paywall, quota, or account-scope bypass.
-- No generic praise, fake identity, invented metrics, or irrelevant comments.
+- No generic praise, fake identity, invented metrics, or a comment body that
+  ignores the article it sits under. A host site on a different topic is fine —
+  relevance and DR rank candidates, they never gate them, and `nofollow` is an
+  observation to record rather than a reason to skip. Read
+  [acquisition-doctrine.md](references/acquisition-doctrine.md) before rejecting
+  any target on quality grounds.
 - No link farms, spam generators, adult/malware surfaces, hidden reciprocal
   links, temporary eligibility pages, or cloaking.
 - Do not record a submission as a backlink. This includes handing a URL to a
@@ -352,7 +462,25 @@ engines with their own crawlers, what reaches them, and what does not, are in
   it belongs in `data/index-submission.json` rather than the placement ledger.
 - Do not record `follow`, `nofollow`, `ugc`, `sponsored`, or `indexed` without
   observing it for the exact URL.
-- Do not automatically resubmit an unconfirmed target.
+- Do not automatically resubmit an unconfirmed target. **Never retry an
+  ambiguous final action** — one where the submit happened and the result was not
+  observed. Check the account backend, then the mailbox, then the public page.
+  That state is `outcome-unknown`, and it is not a failure.
+- Anchor text is the brand, the product name, or the naked canonical URL. Never
+  request dofollow treatment, never repeat a commercial exact-match anchor across
+  a campaign, and treat a paid or incentivised placement that publishes as a
+  plain follow link as **noncompliant** rather than as a win.
+- A click, a completed registration, a saved draft, a form that cleared itself,
+  or a generic thank-you URL is **not** evidence of a submission. Those record
+  what you did; the ledger records what the site did.
+- Never invent a product fact to fill a field — founder, pricing, address, launch
+  date, user count, ownership, legal, or contact. Leave optional unknowns blank
+  and stop a row whose required field is unknown.
+- Records carry aliases and evidence IDs. Passwords, OTPs, recovery codes,
+  cookies, OAuth parameters, magic links, raw session IDs, raw email addresses,
+  and phone numbers belong in none of them.
+- A third-party traffic figure without `source · metric · month · geography ·
+  device · date verified` is not a number. Store all six or store none.
 - Keep raw cookies, tokens, authorization headers, and credentials out of logs.
 - Prefer a documented HTTP endpoint over an MCP server whenever both exist and
   serve the same data from the same quota: the MCP adds a connection and a
@@ -362,9 +490,27 @@ engines with their own crawlers, what reaches them, and what does not, are in
   endpoint here, and dropping them removes capability rather than relocating it.
   Never retire a working path before the replacement has run successfully once.
 
+When the question is **"should we post here at all"** — a target on a different
+topic, a low-DR host, a platform known to emit `nofollow`, or a first round that
+mostly bounced into moderation — read
+[acquisition-doctrine.md](references/acquisition-doctrine.md) **before** rejecting
+anything. It carries the site owner's standing ruling, sourced to a practitioner's
+own posts: relevance and authority rank candidates but never gate them, `nofollow`
+is recorded rather than avoided, and a first campaign is a screening pass whose
+"failures" are the asset. It also fixes the evidence bar for `indexed` (a `site:`
+query on the host page, never a third-party crawler's count).
+
 For BacklinkDirs-specific eligibility, read
 [backlinkdirs.md](references/backlinkdirs.md). For ready-to-copy user prompts,
 read [prompts.md](references/prompts.md).
+
+When the campaign is **large** — a supplied list of a hundred rows or more,
+anything that has to survive being interrupted, or anything where the report will
+be a count — read [batch-campaign.md](references/batch-campaign.md) before
+opening a browser. The single-target loop above is correct per target and wrong
+per campaign: it deduplicates too late, stalls the whole run behind the first
+CAPTCHA, cannot tell an interrupted row from an unstarted one, and produces a
+number that counts forms instead of links.
 
 Before a first submission campaign, read
 [field-notes.md](references/field-notes.md): what actually blocks submissions
@@ -412,6 +558,29 @@ classes apart, per-platform verified behaviour including which ones emit no
 anchor at all, the editor-API traps that make a filled form submit empty, and
 why campaign results must be reported by observed `rel` rather than by
 "published successfully".
+
+## Credits
+
+This Skill absorbs work from other people. Their rules are marked where they are
+used; this is the full list.
+
+- **[flaqai/backlink_skills](https://github.com/flaqai/backlink_skills)** (MIT,
+  Flaq AI) — the campaign-operations layer in
+  [batch-campaign.md](references/batch-campaign.md): idempotency keys, execution
+  shards, the verification-first pipeline that keeps one CAPTCHA from stalling a
+  run, per-action authorization, resumable state, the anchor-text policy, and the
+  reporting discipline that separates published listings from submitted forms.
+  Their `Free-backlink-list.md` (743 entries) is also the largest third-party
+  lead list this Skill has been tested against — see
+  [instant-publish.md](references/instant-publish.md#reading-a-third-party-places-to-get-a-backlink-list).
+  Their two Skills carry no channel list of their own and expect user-supplied
+  URLs, so the list and the workflow are separate assets in that repo too.
+- **[aaron-he-zhu/seo-geo-claude-skills](https://github.com/aaron-he-zhu/seo-geo-claude-skills)**
+  (Apache-2.0) — the analysis templates, quality rubric, and outreach frameworks
+  in [analysis-templates.md](references/analysis-templates.md),
+  [link-quality-rubric.md](references/link-quality-rubric.md), and
+  [outreach-templates.md](references/outreach-templates.md). Licence text is kept
+  at `references/LICENSE-analysis-templates-Apache-2.0`.
 
 ## Output contract
 

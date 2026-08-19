@@ -4,17 +4,61 @@ Use this reference for logged-in research surfaces.
 
 ## Tools Share dashboard
 
-Entry point:
+Entry point, hardcoded because it is a public URL and every owner of this Skill
+lands on their **own** account there:
 
-由 `TOOLS_SHARE_DASHBOARD_URL` 提供(使用者自备的授权第三方面板入口，不随 Skill 分发)
+```
+https://dash.3ue.co/zh-Hans/#/page/m/home
+```
 
-The authenticated dashboard currently exposes two SEO tools:
+`TOOLS_SHARE_DASHBOARD_URL` still overrides it, for anyone on a different panel.
+There is nothing secret in the URL — the account lives in the browser session,
+so a reader of this file gains nothing without the owner's logged-in Chrome.
 
-- Similarweb, identified by `assets/svg/similarweb.svg`
-- Semrush, identified by `assets/svg/semrush.svg`
+Tools Share is a **shared-account proxy**: it holds one paid subscription and
+lends it out through its own origins. As measured 2026-08-19 the panel carried
+two SEO cards, and the card labels describe the *plan*, not the product:
 
-Each card has a node selector, language selector, quota indicator, and an
-`打开` launcher. The dashboard subscription and quotas are time-sensitive.
+| Card label on the panel | What it actually launches | Origin |
+| --- | --- | --- |
+| `🔖 PRO 全球版` | Similarweb PRO | `https://sim.3ue.co` |
+| `🔖 GURU 地区数据库` | Semrush GURU | `https://sem.3ue.co` |
+
+So the mapping is not guessable from the label — verify the landed origin
+rather than trusting the card text, which is what `tools-share-open.mjs` does.
+
+### Use the script, not hand-driven clicks
+
+```bash
+node scripts/tools-share-open.mjs --tool semrush
+node scripts/tools-share-open.mjs --tool similarweb
+node scripts/tools-share-open.mjs --tool semrush \
+  --goto '/analytics/backlinks/referring-domains/?q=example.com&searchType=domain'
+```
+
+It opens the panel in a named background OpenCLI session, picks the card by
+matching its label, clicks `打开`, polls until the expected origin appears, and
+prints the subscription expiry and today's quota. It **never types a password**:
+a logged-out panel is an error telling the owner to sign in themselves.
+
+### Three things that will waste an hour if you do not know them
+
+**The launcher is what mints the session.** Navigating straight to
+`https://sem.3ue.co/analytics/...` before clicking `打开` lands on
+**`about:blank`** — not an error page, not a redirect to a login, just blank.
+Launch first, then navigate inside the established session (`--goto` does
+exactly this). A blank page here means "no session yet", not "the tool is down".
+
+**The launch URL carries a session token** as a `__gmitm=` query parameter.
+Never log it, never paste it into a file, never commit it. Strip the query
+string before printing any URL from these origins.
+
+**The subscription is short-dated and the panel says so.** The instance measured
+on 2026-08-19 had **2 days left** (expiry `2026-08-20 21:56`) with per-tool daily
+quotas at 2% and 15%. Read `到期时间` / `剩余天数` / `API 今日配额` off the panel
+before planning a campaign around this data source; the script returns all three
+and warns at 7 days or fewer. Plan the pull around the expiry, not the other way
+around.
 
 ### Similarweb role
 

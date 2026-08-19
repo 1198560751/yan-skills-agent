@@ -4,6 +4,13 @@
 > `backlink-analyzer` Skill，2026-08-16 并入 `backlink`。许可证副本见
 > `LICENSE-analysis-templates-Apache-2.0`。
 
+> **这是排序器，不是准入门槛。** 下面的 LQS 六因子、DR 区间和所有
+> Healthy/Warning/Critical 表格，只用于读懂一个**已有**链接档案、
+> 或给候选排先后。**不得**拿其中任何阈值去决定一个目标发不发——
+> 那个判断只看 [acquisition-doctrine.md](acquisition-doctrine.md)。
+> 新站的档案天然长得像表中 "Healthy new site" 那一行，
+> 用成熟站阈值去卡它，结果是永远发不出去。
+
 Use this reference to score individual backlinks, audit link profiles, find competitive link gaps, and prepare disavow files without mistaking weak links for toxic links.
 
 ## 1. Individual Link Quality Score

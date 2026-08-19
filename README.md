@@ -86,6 +86,19 @@ node scripts/link-skills.mjs --check
 - **`backlink-analyzer`**（外链质量、毒性与竞争缺口分析）本身是一套纯提示词模板，没有脚本也没有浏览器通道——能描述外链画像，却拿不到画像。现为 `backlink/references/` 下的 `link-quality-rubric.md`、`analysis-templates.md`、`outreach-templates.md`，保留上游 [aaron-he-zhu/seo-geo-claude-skills](https://github.com/aaron-he-zhu/seo-geo-claude-skills) 的 Apache-2.0 许可证与归属。
 - **`browser-harvest`**（从登录态后台批量取数）现为 `backlink/references/harvest.md` 加三个 `scripts/harvest-*`。它沉淀的是四个必踩的坑——虚拟滚动表格没有 `<table>`、数据出不了页面沙箱、执行通道超时不等于任务失败、后台标签不 mount 且定时器会被密集节流——以及一组「输出看着正常、数据其实错了」的守卫。**注意合并的代价**：这套知识本身是通用的（广告平台、电商后台都适用），现在却挂在一个以外链命名的 Skill 下；做与外链无关的后台取数时，仍然加载 `backlink` 再读那一篇。
 
+## 致谢 / Credits
+
+这些 Skill 吸收了其他开源项目的成果，在此致谢：
+
+- **[flaqai/backlink_skills](https://github.com/flaqai/backlink_skills)**（MIT，Flaq AI）——
+  `backlink` 的批量投放运维层来自这个项目：幂等键与队列分片、**验证优先**（先只读预检整批、把所有验证码集中成一个人工队列，而不是让整批卡在第一个验证码上）、逐动作授权、可断点恢复的状态集、锚文本策略，以及「已发布条目必须与已提交表单分开报」的报告纪律。
+  见 [`backlink/references/batch-campaign.md`](backlink/references/batch-campaign.md)。
+  他们公开的 `Free-backlink-list.md`（743 条渠道）也是本 Skill 迄今测过的最大一份第三方线索清单，
+  归一化与差异对比的结果记在 [`backlink/references/instant-publish.md`](backlink/references/instant-publish.md)。
+  需要说明的是：**那份清单和那两个提交 Skill 在他们仓库里是分开的资产**，Skill 本身不带渠道，URL 由使用者提供。
+- **[aaron-he-zhu/seo-geo-claude-skills](https://github.com/aaron-he-zhu/seo-geo-claude-skills)**（Apache-2.0）——
+  `backlink/references/` 下的质量评分矩阵、分析模板与外联模板，许可证与归属见下。
+
 ## License
 
 除另有标注的第三方内容外，仓库内容采用 MIT License。`backlink/references/` 下三份分析模板来自上游 Apache-2.0 项目，许可证副本与归属说明保留在同目录的 `LICENSE-analysis-templates-Apache-2.0`。

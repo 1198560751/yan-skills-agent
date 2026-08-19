@@ -563,13 +563,16 @@
         "The nickname becomes an anchor pointing at whatever went in the 网址 field, and bare URLs in the body become anchors too. Both carried rel=\"noopener\" only — no nofollow — so this is one of the few genuinely dofollow no-account channels in this file.",
         "THE WHOLE STREAM IS CLIENT-RENDERED. The served HTML of the host measured is 9766 bytes and contains ZERO outbound anchors; every link, including the static site list above the form, appears only after Valine.min.js runs. An anonymous-http check therefore reports no anchors at all, and a non-rendering crawler sees none either. Do not record this as an indexed dofollow link without confirming the rendered page in Search Console or a cache view.",
         "Moderation, and whether comments require review at all, is a per-host LeanCloud setting. Instant publish on one host says nothing about the next.",
-        "Because the backend is the host owner’s own LeanCloud app, the entire history can be wiped or the app can expire, taking every link with it. Treat placements here as impermanent."
+        "Because the backend is the host owner’s own LeanCloud app, the entire history can be wiped or the app can expire, taking every link with it. Treat placements here as impermanent.",
+        "The nickname anchor and any bare URL in the body BOTH point at your domain, so one submission yields two anchors on the same page — count that as one placement, not two.",
+        "Boards in this family are served from several hostnames sharing ONE LeanCloud app. The Noise board answers on noisedh.cn, noisedh.link and noisedaohang.netlify.app with byte-identical /tougao/ pages (9766 bytes) and the same appId in data.js, so one comment renders on all three. Queue it as one target, not three, and never resubmit to a mirror.",
+        "The comment store is readable over the LeanCloud REST API with the appId/appKey embedded in the page — 5108 comments came back in six requests. That makes the board a discovery source, not just a placement target. Whitelist keys=nick,link,comment,createdAt so you do not pull commenters mail addresses."
       ],
       "status": "live",
       "lastVerifiedAt": "2026-08-19",
       "evidence": {
         "method": "both",
-        "what": "On noisedaohang.netlify.app/tougao the rendered DOM exposed 12 outbound comment anchors, every one rel=\"noopener\" with no nofollow and no robots meta on the page, while a plain HTTP fetch of the same URL returned 9766 bytes with zero outbound anchors and no comment markup.",
+        "what": "On noisedaohang.netlify.app/tougao a submission of our own published instantly with no moderation queue (comment count 4651 to 4652) and rendered TWO anchors to the submitted domain — the nickname anchor built from the 网址 field and the bare URL in the body — both rel=\"noopener\" with no nofollow, on a page carrying no robots meta. A plain HTTP fetch of the same URL returns 9766 bytes with zero outbound anchors and no comment markup.",
         "publicUrl": "https://noisedaohang.netlify.app/tougao/"
       }
     },

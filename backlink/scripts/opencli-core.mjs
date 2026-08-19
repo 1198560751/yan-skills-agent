@@ -30,6 +30,34 @@ export function validateSession(value) {
   return value;
 }
 
+/**
+ * A session name is a tab claim: two tasks that pick the same name share one tab
+ * and read back each other's pages, which looks exactly like the CLI stealing
+ * tabs. So no script may ship a literal session name as its default — every
+ * default gets a per-process suffix, with `--session` still overriding.
+ */
+export function defaultSession(base) {
+  // Order matters. CLAUDE_CODE_SESSION_ID is per conversation — the unit that
+  // actually runs concurrently on one machine. CLAUDE_CODE_HOST_SESSION_ID is
+  // per desktop-app host and is SHARED by every conversation inside it, so it
+  // is a fallback, never the first choice: keying off it hands two parallel
+  // tasks the same tab, which is the exact bug this helper exists to prevent.
+  const suffix = (
+    process.env.OPENCLI_SESSION_SUFFIX ||
+    process.env.CLAUDE_CODE_SESSION_ID ||
+    process.env.CLAUDE_CODE_HOST_SESSION_ID ||
+    String(process.ppid)
+  ).replace(/[^a-zA-Z0-9]/g, '').slice(0, 12) || 'local';
+  return validateSession(`${base}-${suffix}`);
+}
+
+/**
+ * Subagents inherit the parent conversation's environment, so several agents
+ * spawned inside ONE conversation still resolve to the same default. Any script
+ * that fans browser work out across parallel agents must give each one an
+ * explicit `--session` (or set OPENCLI_SESSION_SUFFIX per agent).
+ */
+
 export async function run(command, args, options = {}) {
   return await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
