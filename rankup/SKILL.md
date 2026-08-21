@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链" 时使用。
 metadata:
-  version: "2.28.0"
+  version: "2.29.0"
 ---
 
 # Rankup 2.0
@@ -31,6 +31,7 @@ metadata:
 | `scripts/seo-webcafe.mjs` | 一个脚本覆盖 seo.web.cafe 全部有后端的工具：`kd` 关键词难度+top9 盘面、`audit` 页面体检、`serp` 排名归因、`backlink` 外链估价、`worth` 网站估值、`history` 域名前世、`chat` 站内 SEO Agent | 问「这个词难不难做」「这盘面能不能进」「这条外链值不值」「这域名什么来历」。零配置可跑，匿名 10 次/日 |
 | `scripts/gt.py` | Google Trends：热度对比、地区分布、相关飙升词、每日热搜 | 问「XX 和 YY 哪个更火」「哪个国家有机会」「最近什么在涨」。首次运行自动建 venv |
 | `scripts/chatbot-drive.browser.js` | 驱动只有网页形态的 AI Chatbot（要登录、按条扣费、无 API），反复提问并**完整**取回长回答 | 需要向某个聊天式工具连续提问并保全全文时 |
+| `scripts/cf-analytics-setup.mjs` | **开通 Cloudflare Web Analytics 并读回 beacon**。`status` 只读探测，`enable` 开启 | 新站上线后接测量时。不依赖任何第三方账号，应排在 GSC/GA 之前做 |
 | `scripts/cf-zone-setup.mjs` | **把域名加进 Cloudflare（zone onboarding）并读回 NS 对**——Wrangler 没有 zone 命令，这是补它的缺口。`status` 只读探测，`create` 建 zone | 新域名接入 Cloudflare 时。**优先仍是操作用户浏览器**，本脚本是浏览器不可用时的退路 |
 | `scripts/registry.mjs` | 扫描各项目 `.rankup/` 重建跨项目资产登记表 | 开工前查「别的项目有没有现成的」；收工时刷新 |
 | `scripts/review.mjs` | 项目记忆体检：缺失文件、超期记录、脚本体检、经验库信号 | `rankup review` 第一步 |
@@ -364,6 +365,7 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 |---|---|---|
 | 新站、SaaS、工具站、产品设计、架构 | [`lifecycle.md`](references/lifecycle.md)、[`cloudflare-stack.md`](references/cloudflare-stack.md)、[`project-memory.md`](references/project-memory.md) | 设计或开发相关 Skill |
 | Cloudflare、Worker、数据库、存储、部署 | [`cloudflare-stack.md`](references/cloudflare-stack.md)、[`integrations.md`](references/integrations.md) | Wrangler、workers-best-practices |
+| **上线后接测量与品牌资产（favicon/图标集、分析、站长工具）** | [`lifecycle.md`](references/lifecycle.md) 阶段 7.5 | `scripts/cf-analytics-setup.mjs`；搜索平台优先驱动**用户的浏览器** |
 | **新域名接入 Cloudflare、拿 NS、切 NS、DNSSEC** | [`cloudflare-stack.md`](references/cloudflare-stack.md) 的「8.5 接入域名」 | 优先驱动**用户的浏览器**点 Add a domain；不可用时 `scripts/cf-zone-setup.mjs` |
 | 支付、订阅、账单、Stripe | [`integrations.md`](references/integrations.md)、[`project-memory.md`](references/project-memory.md) | stripe-best-practices |
 | SEO、GSC、排名、关键词、CTR、索引、内容 | [`seo-growth.md`](references/seo-growth.md)、[`trends.md`](references/trends.md)、[`project-memory.md`](references/project-memory.md) | SEO 或研究能力 |

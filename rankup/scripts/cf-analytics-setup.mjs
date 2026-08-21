@@ -1,0 +1,139 @@
+#!/usr/bin/env node
+/**
+ * Cloudflare Web Analytics（RUM）接入。
+ *
+ * 用法：
+ *   node <rankup-skill-dir>/scripts/cf-analytics-setup.mjs status <domain>
+ *   node <rankup-skill-dir>/scripts/cf-analytics-setup.mjs enable <domain>
+ *
+ * 站点由 Cloudflare 代理时用 auto_install：beacon 由边缘在 HTML 响应经过时注入，
+ * 不需要改代码、不需要发版。Workers custom domain 本身就是代理态，满足条件。
+ *
+ * 凭据：只从环境变量 CLOUDFLARE_API_TOKEN 读，读不到就退到 <repo>/.cf-token
+ * （该文件已被 .gitignore 排除）。真实值不打印、不落盘、不进日志。
+ *
+ * 需要的权限：Account > Account Analytics > Edit（RUM）+ Zone > Zone > Read。
+ * 不要用 Global API Key：它不能限定 scope，泄露即等于整个账号。
+ *
+ * 已验证：2026-08-21
+ */
+import { readFileSync, existsSync } from "node:fs"
+import { join } from "node:path"
+
+const API = "https://api.cloudflare.com/client/v4"
+
+function token() {
+  if (process.env.CLOUDFLARE_API_TOKEN) return process.env.CLOUDFLARE_API_TOKEN.trim()
+  const f = join(process.cwd(), ".cf-token")
+  if (existsSync(f)) return readFileSync(f, "utf8").trim()
+  console.error(`找不到 API token。二选一：
+  export CLOUDFLARE_API_TOKEN=...        （当前 shell 有效）
+  echo '...' > .cf-token                 （已 gitignore）
+
+token 在 dash.cloudflare.com → My Profile → API Tokens → Create Token → Custom：
+  权限  Zone > Zone > Edit
+  范围  Zone Resources = All zones      ← 必须 All zones，不能选具体某个 zone
+不要用 Global API Key。`)
+  process.exit(2)
+}
+
+/**
+ * 两种凭据的 header 完全不同，认错会得到一个极具误导性的
+ * `6003 Invalid request headers`（看着像请求写错了，其实是凭据类型不匹配）：
+ *   - API Token（40 字符）  → Authorization: Bearer <token>
+ *   - Global API Key（37 字符）→ X-Auth-Email + X-Auth-Key，还必须带账号邮箱
+ * 按长度判别，并允许 CLOUDFLARE_EMAIL 覆盖。
+ */
+function authHeaders() {
+  const t = token()
+  if (t.length === 37 && /^[0-9a-f]+$/.test(t)) {
+    const email = process.env.CLOUDFLARE_EMAIL
+    if (!email) {
+      console.error(`检测到 Global API Key。它必须配合账号邮箱使用：
+  export CLOUDFLARE_EMAIL=你的Cloudflare账号邮箱
+
+强烈建议改用 scoped API Token（Zone>Zone>Edit，范围 All zones）：
+Global Key 不能限定范围，泄露即等于整个账号。`)
+      process.exit(2)
+    }
+    return { "X-Auth-Email": email, "X-Auth-Key": t }
+  }
+  return { Authorization: `Bearer ${t}` }
+}
+
+async function cf(path, init = {}) {
+  const r = await fetch(`${API}${path}`, {
+    ...init,
+    headers: {
+      ...authHeaders(),
+      "Content-Type": "application/json",
+      ...(init.headers || {}),
+    },
+  })
+  const j = await r.json().catch(() => ({}))
+  if (!j.success) {
+    const msg = (j.errors || []).map((e) => `${e.code} ${e.message}`).join("; ")
+    throw new Error(`${init.method || "GET"} ${path} → HTTP ${r.status}: ${msg || "未知错误"}`)
+  }
+  return j.result
+}
+
+function reportZone(z) {
+  console.log(`zone       ${z.name}`)
+  console.log(`状态       ${z.status}`)
+  console.log(`zone id    ${z.id}`)
+  if (z.original_name_servers?.length) console.log(`原 NS      ${z.original_name_servers.join(", ")}`)
+  console.log(`\n把注册商的 NS 整体替换成这两个（是替换，不是追加）：`)
+  for (const ns of z.name_servers || []) console.log(`  ${ns}`)
+  if (z.status !== "active") {
+    console.log(`\n⚠️ 状态还不是 active。换 NS 之前先在注册商关掉 DNSSEC——`)
+    console.log(`   带着旧 DS 记录换 NS 会 SERVFAIL，症状伪装成「NS 还没生效」。`)
+    console.log(`   核验：whois -h whois.registry.co ${z.name} | grep -i dnssec   → 要看到 unsigned`)
+  }
+}
+
+
+function reportSite(s) {
+  console.log(`site tag     ${s.site_tag}`)
+  console.log(`auto_install ${s.auto_install}`)
+  console.log(`zone         ${s.ruleset?.zone_name || "(未绑定 zone)"}`)
+  console.log(`规则启用     ${s.ruleset?.enabled}`)
+  if (!s.auto_install) {
+    console.log(`\n⚠️ auto_install 为 false —— 需要手动把 beacon 片段嵌进页面。`)
+  } else {
+    console.log(`\n✅ 边缘自动注入。无需改代码、无需发版。`)
+  }
+}
+
+const [cmd, domain] = process.argv.slice(2)
+if (!cmd || !domain) {
+  console.error("用法: cf-analytics-setup.mjs <status|enable> <domain>")
+  process.exit(2)
+}
+
+const zones = await cf(`/zones?name=${encodeURIComponent(domain)}`)
+if (!zones.length) throw new Error(`${domain} 不在这个账号里，先跑 cf-zone-setup.mjs create`)
+const zone = zones[0]
+
+const accounts = await cf("/accounts")
+const accountId = process.env.CF_ACCOUNT_ID || accounts[0].id
+
+// 必须分页：默认每页 10 条，账号站点一多就会把已存在的条目判成「不存在」而重复创建。
+const existing = await cf(`/accounts/${accountId}/rum/site_info/list?per_page=100`)
+const hit = (existing || []).find((s) => s.ruleset?.zone_tag === zone.id)
+if (hit) {
+  console.log(`Web Analytics 已启用：\n`)
+  reportSite(hit)
+  process.exit(0)
+}
+if (cmd === "status") {
+  console.log(`${domain} 尚未启用 Web Analytics。跑 enable 开启。`)
+  process.exit(0)
+}
+
+const site = await cf(`/accounts/${accountId}/rum/site_info`, {
+  method: "POST",
+  body: JSON.stringify({ zone_tag: zone.id, auto_install: true }),
+})
+console.log(`✅ 已启用 Web Analytics\n`)
+reportSite(site)
