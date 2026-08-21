@@ -1,54 +1,69 @@
 ---
 name: backlink
-description: OpenCLI-first backlink discovery, profile analysis, opportunity qualification, safe browser-assisted form filling, evidence-based verification, and bulk data harvesting from logged-in dashboards. Use for backlinks, external links, competitor link research, blog-comment opportunities, directory submissions, Similarweb/Semrush/Ahrefs discovery, Search Console verification, anchor analysis, toxic-link review, disavow review, outreach templates, scraping SaaS report tables that have no API, or Chinese requests such as 反链、外链、找外链、发外链、评论外链、外链分析、抓后台数据、导出报表.
+description: OpenCLI-first backlink discovery, profile analysis, opportunity qualification, safe browser-assisted form filling, evidence-based verification, and bulk data harvesting from logged-in dashboards. Use for backlinks, external links, competitor link research, blog-comment opportunities, directory submissions, Similarweb/Semrush/Ahrefs discovery, Search Console verification, anchor analysis, toxic-link review, disavow review, outreach templates, scraping SaaS report tables that have no API, driving the owner's logged-in Chrome from a script, or Chinese requests such as 反链、外链、找外链、发外链、评论外链、外链分析、抓后台数据、导出报表、数据面板、数据勘测.
 ---
 
-# Backlink
+<skill name="backlink" version="3.0" body-format="xml">
 
-Maintain one business Skill for the complete backlink lifecycle. Do not split it
-back apart, and do not create another browser-extension Skill. OpenCLI and its
-Chrome extension are the connector underneath this Skill, not separate business
-workflows.
+<why-xml>
+The frontmatter above stays YAML because the Skill loader reads it for
+discovery. Everything below is XML because this Skill is mostly laws and
+routing, and a law that is easy to skim past is a law that gets broken. Tagged
+blocks make "which rule did I just violate" answerable by name.
+</why-xml>
 
-Two former Skills were merged into this one on 2026-08-16 and deleted:
+<mission>
+One business Skill for the complete backlink lifecycle. Do not split it back
+apart, and do not create another browser-extension Skill — OpenCLI and its
+Chrome extension are the connector underneath this Skill, never a separate
+business workflow.
 
-- `backlink-analyzer` — profile analysis, the toxicity rubric, and outreach
-  templates. It shipped as prompt templates with no scripts and no browser
-  access, so it could describe a link profile but never obtain one. Its content
-  now lives in the three analysis references below, under its original
-  Apache-2.0 license (see `references/LICENSE-analysis-templates-Apache-2.0`;
-  upstream is `aaron-he-zhu/seo-geo-claude-skills`).
-- `browser-harvest` — pulling report tables out of logged-in dashboards.
-  See [harvest.md](references/harvest.md). Note the scope trade of the merge:
-  that knowledge is general-purpose (ad platforms, e-commerce backends, any
-  no-API SaaS report), but it now triggers under a backlink-named Skill. When a
-  harvesting task has nothing to do with links, load this Skill anyway and read
-  that one reference.
+Two former Skills were merged in on 2026-08-16 and deleted: `backlink-analyzer`
+(analysis templates, toxicity rubric, outreach — now in three references under
+its original Apache-2.0 licence) and `browser-harvest` (pulling tables out of
+logged-in dashboards — now <ref file="references/harvest.md"/>). The harvest
+knowledge is general-purpose: ad platforms, e-commerce backends, any no-API
+SaaS report. When a harvesting task has nothing to do with links, load this
+Skill anyway and read that one reference.
+</mission>
 
-## Map of this Skill
-
+<map>
+<summary>
 Two things live here and they answer different questions. **The data files are
 the asset; the references are how to use them and how not to fool yourself.**
-
-```
+</summary>
+<tree><![CDATA[
 backlink/
-├── SKILL.md              ← you are here: routing + the two workflows below
+├── SKILL.md              ← you are here: laws + routing + workflow entry points
 ├── CONTRIBUTING.md       ← how to submit a PR, the data model, the evidence rule
 │
 ├── data/                 ← THE DATABASE. Machine-readable, PR-able, CI-checked.
-│   ├── free-channels.json     places that publish a link at no cost
+│   ├── free-channels.json       places that publish a link at no cost
 │   ├── submission-targets.json  routes that ACCEPT a submission — first-pass library
-│   ├── paid-platforms.json    platforms observed carrying purchased placements
-│   ├── index-submission.json  engines that take a URL and publish NO link
-│   └── schema/                JSON Schema for the files above
+│   ├── paid-platforms.json      platforms observed carrying purchased placements
+│   ├── index-submission.json    engines that take a URL and publish NO link
+│   └── schema/                  JSON Schema for the files above
 │
 ├── scripts/              ← run these; do not re-derive their knowledge by hand
 │   ├── validate-data.mjs           PR gate. CI runs exactly this. Must exit 0.
-│   ├── paid-platform-registry.mjs  merge a harvest into the paid registry
 │   ├── health.mjs                  run before ANY browser task
+│   ├── opencli-core.mjs            ★ defaultSession(), run(), closeSession()
+│   ├── lib-tools-share.mjs         ★ the ONE panel launcher
+│   ├── tools-share-open.mjs        launch a tool by name; --goto for a deep link
+│   ├── similarweb-query.mjs        performance | channels | similar-sites
+│   ├── similarweb-batch.mjs        bulk traffic screen — one login, N domains, resumable
+│   ├── semrush-batch.mjs           same, on the other card's quota (organic traffic)
+│   ├── semrush-overview.mjs        AS / organic traffic / ref-domains / keywords
+│   ├── semrush-keyword.mjs         one keyword: volume, KD, CPC, per-country split
+│   ├── semrush-positions.mjs       a domain's full organic-positions table
+│   ├── semrush-report.mjs          the OTHER four no-export reports; reuses one session
+│   ├── page-read.mjs               render a public page → text, prices, paywall shape
+│   ├── apply-traffic-screen.mjs    write verdicts back into submission-targets.json
 │   ├── inspect-page.mjs            dump one target's form / login / CAPTCHA state
 │   ├── safe-fill.mjs               fill a reviewed payload, never submit
 │   ├── release-submit-guard.mjs    only after explicit per-submission approval
+│   ├── submit-directory.mjs        the single-target driver; one session per staged site
+│   ├── adapter-phpld.mjs           ★ reference implementation of one-session-per-site
 │   ├── ledger.mjs                  candidate → … → indexed → rel_verified
 │   ├── discovery-queue.mjs         recursive competitor/commenter expansion
 │   ├── harvest-commenters.mjs      pull commenter domains off an article
@@ -56,872 +71,705 @@ backlink/
 │   ├── probe-submission-targets.mjs leads → reachability, route, gate, price
 │   ├── merge-submission-targets.mjs fold a probe run into the two data files
 │   ├── targets-select.mjs          pick ONE batch: --cohort open | captcha | …
-│   ├── harvest-*.{sh,mjs,js}       bulk table extraction from logged-in dashboards
-│   ├── lib-tools-share.mjs         ★ the ONE panel launcher: node pick → 打开 → land
-│   ├── tools-share-open.mjs        launch a tool by name; --goto for a deep link
-│   ├── similarweb-query.mjs        performance | channels | similar-sites
-│   ├── similarweb-batch.mjs        bulk traffic screen — one login, N domains, resumable
-│   ├── semrush-batch.mjs           same, on the other card's quota (organic traffic)
-│   ├── apply-traffic-screen.mjs    write verdicts back into submission-targets.json
-│   ├── semrush-overview.mjs        AS / organic traffic / ref-domains / keywords
-│   └── page-read.mjs               render a public page → text, prices, paywall shape
+│   ├── paid-platform-registry.mjs  merge a harvest into the paid registry
+│   └── harvest-*.{sh,mjs,js}       bulk table extraction from logged-in dashboards
 │
 └── references/           ← method, traps, and why the rules are the rules
+    ├── browser-runtime.md     ★★ READ FIRST for any browser work. The laws + measurements.
+    ├── traffic-screen.md      ★ the qualifying gate, and why it runs before the form
+    ├── submission-lanes.md    ★ lanes, cohorts, the three guards, staged queues
     ├── instant-publish.md     ★ free channels: how each class behaves, what kills them
     ├── paid-platforms.md      ★ paid: tiers, why a burst is not a purchase
+    ├── batch-campaign.md      ★ 100+ rows: queue, idempotency, resume, reporting
     ├── index-submission.md      index-only channels; why `indexed` must name an engine
-    ├── batch-campaign.md         ★ 100+ rows: queue, idempotency, resume, reporting
+    ├── authorized-data-sources.md  the panel, the cards, quota, expiry, the traps
     ├── field-notes.md           what actually blocks submissions in practice
     ├── harvest.md               scraping failures that look like success
     ├── safety-policy.md         read before any fill / submit / logged-in action
-    ├── discovery-loop.md        finding new candidates
-    ├── link-quality-rubric.md   scoring, toxicity, disavow
-    ├── analysis-templates.md    report shapes (they do not fetch data)
-    ├── outreach-templates.md    email frameworks; sending needs approval each time
-    ├── authorized-data-sources.md · backlinkdirs.md · prompts.md
+    ├── acquisition-doctrine.md  the standing ruling on what is worth pursuing
+    ├── discovery-loop.md · link-quality-rubric.md · analysis-templates.md
+    ├── outreach-templates.md · backlinkdirs.md · prompts.md · credits.md
     └── LICENSE-analysis-templates-Apache-2.0
-```
+]]></tree>
+<path-rule>Resolve every path in this file relative to this SKILL.md.</path-rule>
+</map>
 
-### Which door do I go through?
-
-| The ask | Start at |
-| --- | --- |
-| "Somewhere I can post **without registering**" | `data/free-channels.json`, filtered to `account: "none"` and `status: "live"` — then [instant-publish.md](references/instant-publish.md) for the mechanics of that class |
-| "What **paid** options exist / where did this competitor buy its links" | [paid-platforms.md](references/paid-platforms.md), then `data/paid-platforms.json` sorted by how many independent sites were observed using each |
-| "Find me **new** opportunities" | [discovery-loop.md](references/discovery-loop.md) — and merge whatever you harvest back into the registry |
-| "Where can I **submit** this site" (any site, any niche) | `node scripts/targets-select.mjs --stats`, then run one cohort at a time |
-| "Give me the ones I can do **without a CAPTCHA**" · "now the account ones" | `node scripts/targets-select.mjs --cohort open` / `--cohort account` — see "Run one cohort at a time" below |
-| "Is this link profile any good" | [link-quality-rubric.md](references/link-quality-rubric.md) |
-| "Get these numbers out of a dashboard with no API" | [harvest.md](references/harvest.md) |
-| "Here are **300 directories**, submit to them" · a campaign that must survive being interrupted | [batch-campaign.md](references/batch-campaign.md) — the single-target loop below does not scale as-is |
-| "Someone published a **list** of backlink sites, is it useful" | `scripts/third-party-list-ingest.mjs` to normalise and diff it, then the "Reading a third-party list" section of [instant-publish.md](references/instant-publish.md) |
-| "Submit our pages to **Brave / another engine**" · "why is our index count low on X" | [index-submission.md](references/index-submission.md) — it publishes no link, so it never enters the placement ledger |
-
-Query the data directly rather than reading the JSON by eye:
-
-```bash
-# live channels that need no account
-node -e 'const d=require("./data/free-channels.json");console.log(d.channels.filter(c=>c.account==="none"&&c.status==="live").map(c=>`${c.id}	${c.kind}	${(c.relObserved||["?"]).join("|")||"dofollow"}`).join("
-"))'
-
-# paid platforms ranked by how many independent sites were seen using them
+<routing>
+<summary>Match the ask to a starting point. When two rows fit, take the lower one — it is more specific.</summary>
+<route ask="Somewhere I can post without registering">
+  `data/free-channels.json` filtered to `account: "none"` and `status: "live"`,
+  then <ref file="references/instant-publish.md"/> for that class's mechanics.
+  Directory submission does NOT satisfy this ask; burning a campaign discovering
+  that is the common failure.
+</route>
+<route ask="What paid options exist / where did this competitor buy its links">
+  <ref file="references/paid-platforms.md"/>, then `data/paid-platforms.json`
+  sorted by how many independent sites were observed using each.
+</route>
+<route ask="Find me new opportunities">
+  <ref file="references/discovery-loop.md"/> — merge whatever you harvest back
+  into the registry.
+</route>
+<route ask="Where can I submit this site">
+  `node scripts/targets-select.mjs --stats`, then one cohort at a time per
+  <ref file="references/submission-lanes.md"/>.
+</route>
+<route ask="Is this link profile any good">
+  <ref file="references/link-quality-rubric.md"/>
+</route>
+<route ask="Get these numbers out of a dashboard with no API">
+  <ref file="references/harvest.md"/>
+</route>
+<route ask="Here are 300 directories, submit to them / a campaign that must survive interruption">
+  <ref file="references/batch-campaign.md"/>. The single-target loop is correct
+  per target and wrong per campaign.
+</route>
+<route ask="Someone published a list of backlink sites, is it useful">
+  `scripts/third-party-list-ingest.mjs` to normalise and diff it, then the
+  "Reading a third-party list" section of
+  <ref file="references/instant-publish.md"/>.
+</route>
+<route ask="Submit our pages to Brave / another engine, why is our index count low">
+  <ref file="references/index-submission.md"/>. It publishes no link, so it never
+  enters the placement ledger.
+</route>
+<route ask="Should we post here at all — off-topic host, low DR, known nofollow">
+  <ref file="references/acquisition-doctrine.md"/> BEFORE rejecting anything.
+</route>
+<route ask="Just open this page and tell me what is on it">
+  <workflow-ref id="explore"/> — still OpenCLI, still a script.
+</route>
+<query-the-data>
+Query the data rather than reading JSON by eye.
+<cmd><![CDATA[
+node -e 'const d=require("./data/free-channels.json");console.log(d.channels.filter(c=>c.account==="none"&&c.status==="live").map(c=>`${c.id}\t${c.kind}`).join("\n"))'
 node scripts/paid-platform-registry.mjs list --min-sites 2
-```
+]]></cmd>
+</query-the-data>
+</routing>
 
-### Before you trust a row, and before you add one
+<browser-runtime>
+<summary>
+`$backlink → scripts and policy → OpenCLI → the owner's authorized Chrome → website`
 
-Records carry `lastVerifiedAt` because **this genre dies faster than it
-changes**. A channel that worked three months ago may be gone, gated, or
-`noindex` today. Re-verify before a campaign; the validator warns on anything
-`live` and older than 180 days.
+Every script here shells out to the `opencli` binary, which drives the owner's
+own logged-in Chrome through the OpenCLI extension. No Playwright, no headless
+instance, no remote runtime. That identity is the entire reason this Skill
+exists, and it is why the laws below matter.
 
-And when you find that a row is wrong — dead host, new account wall, new
-CAPTCHA, changed `rel` — **fixing it is the most valuable contribution there
-is**, more than adding a new channel. See [CONTRIBUTING.md](CONTRIBUTING.md).
-The evidence rule in one line: *record what you observed, never what you
-assume*; a real entry rejected is a small loss, an unverified entry accepted is
-a large one.
+**Read <ref file="references/browser-runtime.md"/> before any browser work.** It
+carries the measurements behind every law here, the two other drivers and what
+they cost, and an ordered checklist for diagnosing "something stole my tab".
+</summary>
 
-### The two tables are not the same claim
+<default-driver>
+OpenCLI is the default for **everything**, including a quick ad-hoc look at one
+page. It reaches the owner's Chrome through an extension plus a local daemon,
+and because it is a CLI, any agent runtime that can run a shell command gets the
+identical capability — Claude Code, Codex, anything else. Work done through a
+runtime-specific tool cannot be replayed from a script or from another agent
+later, which defeats the reason this Skill has scripts.
 
-`free-channels.json` and `submission-targets.json` look similar and mean very
-different things. Confusing them is the one way to destroy both.
+Use an existing OpenCLI adapter first. When no adapter exists, use a named
+browser session with DOM/network inspection.
+</default-driver>
 
-| | `free-channels.json` | `submission-targets.json` |
-| --- | --- | --- |
-| What was observed | **a published link on a live page** | **a submission route that exists** |
-| Answers `relObserved` / `anchorRendered` | yes, required | **never** — the validator rejects those fields here |
-| What it is for | round two: post here again, you know what happens | round one: the screening pass, and the cross-site asset it produces |
-| How a row gets in | somebody published and read the anchor | somebody reached the route and read the gate |
+<law id="one-session-one-tab" weight="load-bearing">
+<statement>
+`opencli browser &lt;session&gt;` is a one-page abstraction. **A session name owns
+exactly one tab.** Different names never steal from, switch, or pollute each
+other. So N pages need N session names.
+</statement>
+<why>
+This inverts the intuition most people arrive with, which is why it is stated
+first. Measured 2026-08-21 under three concurrent agents: distinct session names
+produced **zero** cross-agent thefts across 4 rounds × 3 pages; three agents
+sharing the name `work` produced 3, 12, and 2 thefts, one of them missing on
+every check it made. Re-confirmed the same day against this Skill as written:
+three agents told only to follow it scored **36/36 clean with zero leaked
+tabs**.
+</why>
+<correct><![CDATA[
+opencli browser recon-sw-notion --window background open "https://..."
+opencli browser recon-sw-figma  --window background open "https://..."
+opencli browser recon-sem-rival --window background open "https://..."
+]]></correct>
+</law>
 
-A target **graduates** from the second table into the first the moment an actual
-anchor is observed. Until then it makes no promise about `rel`, anchor text, or
-indexability, and the report must not imply one.
+<law id="no-multi-tab-api" weight="load-bearing">
+<statement>
+Do not use `tab new`, `tab select`, or `open --tab` to hold several pages under
+one session. All three fail, and every one fails **silently** — the command
+reports success and the next read returns the wrong page.
+</statement>
+<why>
+Measured 2026-08-21 on opencli 1.8.6: a session tracks only its newest tab, so
+earlier ids drop out of `tab list`; `tab select` returns success with no effect
+on reads; `open --tab &lt;id&gt;` opens a **new** tab and leaves the named one
+untouched; and `get` does not accept `--tab` at all, so a run using `get url` to
+confirm its position cannot be right about it. One three-agent run took the
+owner's Chrome from 11 tabs to 30 orphans.
+</why>
+<instead>
+`--tab` works on `open`, `state`, `extract`, `find`, and `click`. When a read
+must name its target, use `state --tab &lt;id&gt;`.
 
-This split exists because of the doctrine below: the first round's *failures are
-the asset*. A directory that turned out to need an account is not a wasted probe,
-it is a row that saves the next campaign — and the next **site**. That library is
-reusable across every site the owner ever builds, which is why it lives in the
-Skill and not in any one project.
+**Read this next sentence before you over-correct.** Under
+<law-ref id="one-session-one-tab"/> a session owns exactly one page, so there is
+nothing to disambiguate and **plain `get url` is safe and is the simplest
+confirmation read**. The objection above is only about sessions holding several
+pages. Three testers each flagged this as the passage most likely to be
+misread — one of them nearly threaded a `--tab` id through the whole job to
+obey a rule that did not apply.
 
-### Screen for traffic before you fill anything
+<confirm-identity>
+The canonical check after every navigation, and the one Law 4 exists to make
+possible:
+<cmd><![CDATA[
+opencli browser "$S" --window background get url    # one page per session: safe
+opencli browser "$S" --window background state      # same, plus title + elements
+]]></cmd>
+</confirm-identity>
+</instead>
+</law>
 
-**The qualifying test is real traffic, not DR, and it runs BEFORE the form does.**
-A directory with no measurable traffic cannot send a referral, cannot pass a
-useful signal, and its DR is whatever its own network linked into it.
+<law id="no-literal-session-name">
+<statement>
+Never write a literal session name as a default. In JS use
+`defaultSession(base)` from `scripts/opencli-core.mjs`; in shell use
+`SESSION="backlink-$$"`.
+</statement>
+<why>
+"Another task stole my tab" is never the CLI round-robining — it is always two
+tasks that picked the same name. The commonest source is documentation:
+`opencli browser --help` opens with `opencli browser work open https://x.com`,
+so every agent copying the example lands on `work`. This Skill caused the same
+failure itself when `tools-share-open.mjs` defaulted to `backlink-panel`.
+</why>
+<code><![CDATA[
+const session = flags.session ? validateSession(flags.session) : defaultSession('backlink-work');
+]]></code>
+<subagent-trap>
+Subagents inherit the parent's environment, so several agents spawned inside one
+conversation resolve to the same default. When fanning browser work across
+parallel agents, give each an explicit `--session` or a distinct
+`OPENCLI_SESSION_SUFFIX`.
+</subagent-trap>
+<naming>
+Make names **describe the work**: `backlink-probe-&lt;suffix&gt;` beats `bl-1`. The
+session name is the only identifier that exists — the Chrome tab group carries
+one extension-supplied label for every session and cannot be changed from here,
+so never ask a person to tell tasks apart by looking at it.
 
-```bash
-# hundreds of domains, one login, ~5-10s each, resumable
-node scripts/similarweb-batch.mjs --domains-file domains.txt --out sw.jsonl
-node scripts/semrush-batch.mjs   --domains-file domains.txt --out sem.jsonl
+**A name needs two distinguishing parts, and it is easy to ship only one.** The
+suffix makes your task unique against *other* agents. It does nothing to
+separate your own pages from each other, and by
+<law-ref id="one-session-one-tab"/> a three-page job needs three names. So
+`backlink-probe-$$` used for all three pages obeys this law's letter and breaks
+Law 1. Vary both: `backlink-probe-p1-$$`, `-p2-$$`, `-p3-$$`.
+</naming>
+<help-text-bait>
+`opencli browser --help` opens with `opencli browser work open https://x.com`.
+That is the literal collision name this law exists to prevent, printed by the
+tool itself, and an agent that consults `--help` for syntax after reading this
+law will see the CLI modelling the anti-pattern. Trust the law. The same help
+text also shows `--window background` trailing the URL, which does work — see
+<law-ref id="background-by-default"/>.
+</help-text-bait>
+<cleanup>
+Release the lease with `opencli browser &lt;session&gt; close` when done. A session
+left open leaves a tab that looks exactly like live work somebody else is doing.
 
-# write verdicts back into the table (repeatable --in; clears stale ones)
-node scripts/apply-traffic-screen.mjs --in sw.jsonl --source similarweb
-node scripts/targets-select.mjs --cohort open --min-traffic 100
-```
+**Verify the close rather than trusting the message.** `close` prints
+"Browser session tab lease released" whether or not the tab went with it, and
+the native check costs one command — an empty `tab list` means the tab is
+actually gone:
+<cmd><![CDATA[
+opencli browser "$S" close        # -> Browser session tab lease released
+opencli browser "$S" tab list     # -> []   (anything else means it survived)
+]]></cmd>
+Counting tabs in Chrome from the outside cannot answer this while other tasks
+are running, because their tabs are in the same count.
+</cleanup>
+</law>
 
-**Budget by quota, not by clock.** Amortising the login gets a domain down to
-~5s, which makes "a few hundred in half an hour" look right. It is not: the
-panel's *API 今日配额* went from 13% to 100% at around domain 110, and every call
-after that timed out — indistinguishable from a dead session, and the launcher's
-own error message sends you off to change nodes. Plan on **~120 domains per card
-per day**. Quota is per card, so when Similarweb is spent, Semrush usually is
-not — switch and keep going, but record which one measured each row, because
-Similarweb reports *total visits* and Semrush reports *organic traffic* and the
-two are not the same number. `traffic.source` exists for exactly this.
+<law id="claim-handles-first">
+<statement>
+Open every session you need up front and capture every handle, then start the
+work loop. Do not interleave creation with use.
+</statement>
+<why>
+Every driver tested shares one race window: the stretch between creating a page
+and holding a stable handle to it. Two independent runs lost pages in exactly
+that gap, because a bare `open` with no established handle resolves against
+whatever "current" happens to mean at that instant.
+</why>
+</law>
 
-Both batch scripts break the circuit after 5 consecutive errors. Without it one
-dead session burned 48 domains at 60s each before anyone noticed.
+<law id="background-by-default">
+<statement>
+Default every session to background mode. The flag sits **between** the session
+name and the subcommand: `opencli browser &lt;session&gt; --window background &lt;command&gt;`.
+</statement>
+<why>
+Background mode runs the owner's real logged-in Chrome without raising the
+window. It is **not** headless — `navigator.webdriver` is `false`, the UA
+carries no `Headless`, `plugins.length` is 5, and `visibilityState` is
+`visible`. So "background will trip the site's bot defences" is not a real
+concern, and there is never a reason to reach for foreground to look more human.
 
-`traffic >= 100` monthly visits qualifies. **A domain the data source explicitly
-reports no data for is a result, not a tool failure** — it is below the detection
-floor, i.e. zero, and gets written as `below-floor`.
+**Neither mode steals focus.** Nine concurrent agents across three drivers
+checked the frontmost app before and after every navigation on 2026-08-21; the
+host app stayed frontmost every time. If a person reports the screen "jumping
+around", the cause is several tasks writing to one shared page — that is
+<law-ref id="one-session-one-tab"/> being violated, not focus stealing.
+</why>
+<misplaced-flag>
+Before the session name it fails with `unknown command: &lt;yoursession&gt;`, which
+reads like a broken install rather than a syntax error — check flag position
+before reinstalling anything.
 
-**A timeout is not that result.** A slow render and a genuinely empty record look
-identical at the moment the clock runs out, and they mean opposite things: two
-directories with 2.4K and 4.6K organic visits were written off as "no traffic"
-by exactly that confusion. Timeouts are recorded as `error`, meaning *this check
-did not complete*; resume retries them, and applying an `error` **clears** any
-stale verdict it previously left on that domain. Before writing "no data",
-be able to name the sentence in which the source said so.
+**After the subcommand it works.** Re-measured 2026-08-21: `opencli browser s
+open URL --window background` succeeds identically to the between form, and the
+CLI's own `--help` prints that trailing form as its second example. An earlier
+version of this law claimed both positions fail; a tester falsified it in one
+command. Prefer the between form for consistency with the rest of this Skill,
+and do not treat the trailing form as an error when you meet it in someone
+else's script.
+</misplaced-flag>
+<exception>
+Request foreground only when the user explicitly wants to watch. If a site
+cannot be operated without stealing focus, stop and report that constraint.
+</exception>
+</law>
 
-**Do not substitute a free popularity list for measured traffic.** Tranco's
-top-1M was tried as a cheap stand-in and failed on the labelled set: **48 of the
-73 known link-farm domains sat inside it**, spread from rank 134k to 998k, so no
-cutoff separates a farm from a small honest directory. Popularity rank is fed by
-DNS resolutions and crawler requests — exactly the signals a network manufactures
-for itself, the same reason DR is worthless here. The general rule: **validate a
-proposed gate against known-bad domains, not against famous ones.** Recognising
-big sites is not the problem a gate exists to solve.
+<other-drivers>
+<driver name="agent-browser" verdict="no logged-in identity, ever">
+It attaches over CDP, and CDP cannot reach the owner's Chrome: Chrome 136+
+silently ignores `--remote-debugging-port` on the default user-data-dir
+(verified on 151 — the flag is passed, no port is opened), and macOS TCC blocks
+copying the profile out. Relaunching Chrome is wasted effort; do not suggest it.
+Its `--profile` means a separate directory you log into once, unrelated to the
+owner's sessions. Use it only for tasks needing **no** logged-in identity, and
+address tabs by `--label`, never by the `t1`/`t2` positional index, which is a
+shared namespace across agents.
+</driver>
+<driver name="Claude in Chrome" verdict="single agent, ad-hoc, prefer OpenCLI anyway">
+It reaches the owner's Chrome but has no isolation boundary of any kind: one
+flat tab group shared by every concurrent agent, and omitting `tabId` resolves
+to "first tab in the shared group". It also has a reproducible bug where closing
+one of your own tabs tears down your session's tab-group tracking and orphans
+the rest. It is Claude-only, so anything built on it cannot be replayed from
+another runtime.
+</driver>
+</other-drivers>
 
-Speed is not a reason to downgrade the metric. The panel login costs ~20s and the
-query itself ~5s, so amortise the login across the batch (that is all
-`similarweb-batch.mjs` does) instead of reaching for a weaker free signal.
+<preflight>
+<cmd>node scripts/health.mjs</cmd>
+Run before browser work. Use `--check-update` only when the user asks about
+versions; an available update is informational, and upgrading OpenCLI needs a
+separate request.
 
-Three field signs that a batch is one link network rather than N directories,
-any one of which means measure first:
+Read <ref file="references/safety-policy.md"/> before any fill, submission,
+account, or logged-in operation.
 
-- one site script across the batch, with field names identical to the character;
-- a promotional sentence repeated **word for word** across dozens of domains —
-  similar pricing across a niche is a market, one sentence twenty times is a
-  codebase;
-- DR that exists while traffic does not.
+Confirm ownership rather than assuming it:
+<cmd>opencli browser "$SESSION" tab list   # should show only your own tab</cmd>
+</preflight>
+</browser-runtime>
 
-**The order is not negotiable, and reversing it is expensive.** One run filled
-every form across a 73-domain family and only then sampled five of them for
-traffic: four returned no DR and no traffic at all, the fifth scored bottom-tier
-with traffic down 89% in three months and a suspected penalty. Every filled form
-was discarded. Measuring a domain costs one query; filling its form costs two
-orders of magnitude more.
-
-Submitting to N domains of one network buys **one** link's worth of value and
-accrues **N times** the footprint, because the buyer's and the seller's link
-graphs are the same graph. See
-[acquisition-doctrine.md](references/acquisition-doctrine.md) §1.1 — and note
-that the doctrine's "post everywhere you can" was never a licence to skip this:
-it governs topical irrelevance, and it always excluded link farms in the same
-breath.
-
-### Two lanes, and the CAPTCHA lane is not the failure lane
-
-A submission run splits in two, and the split is the whole point of the cohort
-tags. Both lanes produce work; neither is a leftover.
-
-| | Lane A — unattended | Lane B — staged queue |
-| --- | --- | --- |
-| Cohorts | `open` | `captcha`, `account-captcha`, `email-verify`, `manual-review` |
-| What the driver does | fills, clicks the real submit control, reads the result | fills **everything it is allowed to**, walks to the final step, and **leaves the tab open** |
-| Ends at | `submitted` / `outcome-unknown` | `staged-captcha` — a form on screen needing a code and a click |
-| Who finishes it | nobody | the owner, in one sitting, seconds per site |
-
-Lane B is run with `--new-tab`, and that flag is not cosmetic: **one tab per
-staged site, or the queue silently becomes a queue of one.** Reusing a single
-tab overwrites the previous staged form, and the report still says N staged.
-
-The driver never types a CAPTCHA answer, never creates an account, never pays,
-and never ticks a terms box — those stop the row and move it to Lane B with
-whatever could legitimately be filled already in place. Hand the owner the tab
-list, not a list of URLs to re-enter by hand:
-
-```bash
-node scripts/submit-directory.mjs --session "$S" --profile profile.json \
-  --url https://example.com/submit --submit --new-tab
-opencli browser "$S" tab list   # this IS the queue
-```
-
-#### Three guards, each of which exists because it was needed
-
-A generic form driver run across a directory list will, unsupervised, do worse
-than nothing — a listing is a permanent public record, and the brand's official
-mailbox is attached to it. All three of these were added after a real batch run
-did the wrong thing:
-
-1. **No URL field, no submission.** A directory submission always has one. A
-   form without one is something else on the page, and that something else is
-   usually a newsletter box — so the alternative to this check is subscribing
-   the official address to strangers' mailing lists while reporting it as link
-   building. The scorer picked exactly such a form on a live target.
-2. **The submit control must read like one.** On another target the "submit
-   labels" came back as four product names, meaning the scorer had found page
-   buttons rather than the form's own action. A control whose label is not
-   submit/send/add/post/next (or the CJK equivalents) is refused, not clicked.
-3. **`requestSubmit()` is not a click.** Forms wired to a handler on the
-   *button* ignore it, and the page then looks exactly as it does after a silent
-   success. Click the real control and confirm against something other than the
-   page text.
-
-And the rule that outranks all three: **a generic driver classifies, it does not
-certify.** Its `submitted` means the form was accepted, never that a listing
-exists — that is `public`, and it needs the anchor seen on a live page.
-
-### Run one cohort at a time
-
-Every target carries **all** the gates observed on it in `gates`, and a `cohort`
-derived from that set. The cohort is the batch it belongs in, because the
-cohorts cost different things:
-
-| Cohort | What the run needs |
-| --- | --- |
-| `open` | nobody. This is the only cohort that can run unattended. |
-| `captcha` | a human at the keyboard for the whole run |
-| `account` | credentials and an identity decision, made **before** the run |
-| `account-captcha` | both of the above |
-| `email-verify` | a mailbox watched while the run is going; tokens expire mid-batch |
-| `reciprocal` | a change to the owner's own site — their decision, never yours |
-| `personal-contact` | real name / phone / company email — also the owner's decision |
-
-**Mixing cohorts in one run is what makes a batch stall.** The open rows finish
-in minutes and then everything waits on a person nobody told to be there. So:
-pick one cohort, run it to the end, then pick the next.
-
-```bash
-node scripts/targets-select.mjs --stats                     # cohort x payment matrix
-node scripts/targets-select.mjs --unattended --free-only    # the run needing nobody
-node scripts/targets-select.mjs --cohort captcha --limit 40 # the next session
-node scripts/targets-select.mjs --cohort account --format urls
-```
-
-Two details that are easy to get backwards. `captcha-passive` does **not** put a
-target in the `captcha` cohort — it clears itself in an ordinary browser and
-costs the run nothing; treating it as a challenge pushes open targets into the
-queue that needs a person. And `--free-only` keeps `payment: "optional"`,
-because a free listing behind a three-month queue is still free — it drops only
-`required`.
-
-`gate` (singular) remains the single answer to "what stops me here first",
-ranked by **cost**, not by DOM order: a demand for a phone number outranks an
-account, which outranks a CAPTCHA. All four values — `gates`, `gate`, `cohort`,
-and the ban on `usable` when a human gate exists — are derived in one place,
-`scripts/lib-cohort.mjs`, and the validator recomputes them. Deriving a cohort
-by hand in a report is how a target reads `account` in the data and `open` in
-the plan, which is worse than having no label at all.
-
-Build or extend it with:
-
-```bash
-# 1. someone's list → deduped leads
-node scripts/third-party-list-ingest.mjs --input THEIR-LIST.md --out .backlink/leads.json
-
-# 2. leads → reachability, real route, earliest gate, price on the page
-node scripts/probe-submission-targets.mjs --input .backlink/leads.json \
-  --out .backlink/probed.json --concurrency 12 --resume
-
-# 3. fold in (paid rows route themselves into paid-platforms.json)
-node scripts/merge-submission-targets.mjs --probe .backlink/probed.json \
-  --source-list 'where this came from' --dry-run
-
-# 4. pick a batch and run it
-node scripts/targets-select.mjs --cohort open --free-only
-```
-
-Step 2 is anonymous HTTP, so it is honest only about what **is** present. Rows it
-cannot resolve come out `unverified` and need a browser or a human before they
-mean anything; the merge drops them rather than letting them pad a count.
-
-## 术语：「数据面板」「数据勘测」= Similarweb + Semrush
-
+<data-sources>
+<terminology lang="zh">
 **当用户说「数据面板」「数据勘测」「查一下数据」「用 Similarweb 看看」「Semrush 拉一下」，
 指的都是同一件事：走那个共享账号的代理面板，用 Similarweb 或 Semrush 查。**
 这两个产品是这里唯一的第三方数据源，没有别的候选，不需要反问用户指的是哪个平台。
-
-分工固定，按问题类型选，不要两个都开：
+</terminology>
+<division lang="zh">
+分工固定，按问题类型选，一次只开一个：
 
 | 问题 | 用哪个 | 拿得到什么 |
 | --- | --- | --- |
-| 这个站多大、流量从哪来、还有哪些同类站 | **Similarweb** | 总访问量（含直接/推荐，**不只是自然搜索**）、渠道构成、相似站、地理分布 |
+| 这个站多大、流量从哪来、还有哪些同类站 | **Similarweb** | 总访问量（含直接/推荐）、渠道构成、相似站、地理分布 |
 | 这个词多少量、多难、谁在排、它的外链长什么样 | **Semrush** | 分国家搜索量与 KD、关键词全库导出、自然排名、主要页面、引荐域名与反链 |
 
-**两边的「流量」不是一个口径，对不上很正常。** Semrush 的域名概览给的是**自然搜索流量估算**，
-Similarweb 给的是**总访问量**。同一个站两边差三倍以上是常态，
-写结论时必须标明是哪个口径，否则会得出「竞品比想象中弱」这种错误判断。
+**两边的「流量」口径不同，对不上很正常。** Semrush 域名概览给的是**自然搜索流量估算**，
+Similarweb 给的是**总访问量**。同一个站两边差三倍以上是常态，写结论时必须标明口径，
+否则会得出「竞品比想象中弱」这种错误判断。绝不放进同一列。
+</division>
+<panel-launch>
+Both live behind one shared-account panel, and launching through the launcher is
+mandatory — a deep link into the tool origin before the launcher runs lands on
+`about:blank`.
+<cmd>node scripts/tools-share-open.mjs --tool semrush</cmd>
+Both entry points are **optional overrides**, not prerequisites.
+`lib-tools-share.mjs` ships a `DEFAULT_DASHBOARD` and loads the Skill's
+gitignored `.env`, so the scripts run with neither variable set — an earlier
+revision of this file called them required, which sent a tester hunting for
+configuration that was already there. Set them only to point at a different
+dashboard:
+<cmd><![CDATA[
+export TOOLS_SHARE_DASHBOARD_URL="https://<your-authorized-dashboard>"
+export TOOLS_SHARE_APP_ORIGIN="https://<origin-the-dashboard-launches-into>"
+]]></cmd>
+The launched application sits on a different host from the dashboard entry
+point, so the second cannot be derived from the first.
 
-接入方式、面板卡片与产品的对应关系、订阅到期与配额、以及三个会浪费一小时的坑，
-全部在 [authorized-data-sources.md](references/authorized-data-sources.md)。
-**开工前先看订阅剩余天数**——这是短期订阅，脚本会打印，7 天内会告警。
+All of these share one launcher, `lib-tools-share.mjs`. **Do not write a second
+one.** A previous copy of the launch sequence inside `similarweb-query.mjs`
+omitted three of the four known traps and failed with a generic "unavailable"
+whose real cause differed every time.
 
-## Install and Update
+**Check the subscription expiry before planning around it** — it is short-dated,
+the scripts print it, and they warn inside 7 days.
 
-Source: [Skills.sh](https://skills.sh/yan-labs/yan-skills)
+**Budget the whole recon against the quota printed at launch.** Reusing a
+session skips the launcher, which is the point, and the side effect is that the
+quota text never re-renders — so no reused-session call prints a fresh reading.
+A rule like "stop at 80%" cannot be enforced mid-run; decide the size of the
+run up front.
 
-```bash
-# First global install, or reinstall if an update fails
-npx skills add yan-labs/yan-skills --skill backlink -g -y
+**Raise your shell timeout before a batch, not after it fails.** A panel launch
+costs 20–40s and each report ~15s, so five domains or a dozen keywords in one
+call runs for minutes and a two-minute default kills it mid-flight. The scripts
+write incrementally so nothing is lost, but the run still has to be restarted.
 
-# Update the globally installed Skill
-npx skills update backlink -g -y
-```
+Everything else about cards, quota, and the traps is in
+<ref file="references/authorized-data-sources.md"/>.
+</panel-launch>
+</data-sources>
 
-For a project-level install, omit `-g`; update a project installation with `npx skills update backlink -p -y`.
+<workflows>
+<workflow id="explore" when="the user just wants to see what is on a page">
+<statement>
+Ad-hoc looking is still scripted work. Use OpenCLI so the look is replayable.
+</statement>
+<cmd><![CDATA[
+# Name it after what you are looking at, per <law id="no-literal-session-name">:
+# a unique-but-meaningless name still cannot answer "whose tab is this".
+S="explore-pricing-$$"
+opencli browser "$S" --window background open "https://example.com/pricing"
+opencli browser "$S" --window background get url     # confirm you landed
+opencli browser "$S" --window background extract
+opencli browser "$S" close
+opencli browser "$S" tab list                        # expect [] 
+]]></cmd>
+<or>
+For a public page where you want prices and paywall shape parsed out:
+<cmd>node scripts/page-read.mjs --url https://example.com/pricing --out .backlink/pricing.json</cmd>
+`page-read.mjs` reads only; it never fills or submits. `curl | grep` returns an
+empty shell on the SPAs these sites are built with.
+</or>
+<promote>
+If you find yourself running the same exploration twice, that is the signal to
+write a script for it. That is how every script in `scripts/` started.
+</promote>
+</workflow>
 
-## Operating model
-
-`$backlink → scripts and policy → OpenCLI → authorized Chrome session → website`
-
-Every script here shells out to the `opencli` binary, which drives the owner's
-own Chrome through the OpenCLI extension. There is no separate automation
-runtime: no bb-browser, no Playwright, no headless instance, and nothing that
-runs on a remote machine by default. It is the owner's logged-in local Chrome,
-which is exactly why the session reuse works and exactly why the safety policy
-below matters.
-
-OpenCLI is preferred because it can reuse the owner's authenticated Chrome
-sessions and expose page/network data without coordinate-based clicking. Use an
-existing OpenCLI adapter first. When no adapter exists, use a named browser
-session and DOM/network inspection.
-
-### The session name is a tab claim — never hardcode a literal one
-
-**Each `opencli browser <session>` name owns its own tab. Different names never
-steal from, switch, or pollute each other.** So "another task stole my tab" is
-never the CLI round-robining; it is always **two tasks that picked the same
-session name**.
-
-Measured 2026-08-19 on opencli 1.8.6:
-
-```bash
-opencli browser isoA --window background open https://example.com/
-opencli browser isoB --window background open https://example.org/
-opencli browser isoA --window background open https://example.net/
-# isoA -> https://example.net/    isoB -> https://example.org/
-# each session's `tab list` shows only its own single tab
-```
-
-`isoB` was untouched by `isoA`'s second navigation, and neither `tab list` could
-see the other's tab.
-
-This Skill caused the exact failure it warns about: `scripts/tools-share-open.mjs`
-defaulted to the literal session `backlink-panel`. Two concurrent tasks each ran
-it, shared one tab, and each read back pages the other had opened — which looks
-identical to tab theft. The symptom is subtle and expensive: navigation reports
-success, then `eval` returns someone else's document.
-
-**Rules:**
-
-- Never write a literal session name as a default. In JS, never hand-roll the
-  suffix either — `scripts/opencli-core.mjs` exports `defaultSession(base)`,
-  which applies it and validates the result:
-
-  ```js
-  const session = flags.session ? validateSession(flags.session) : defaultSession('backlink-work');
-  ```
-
-- The suffix resolves `OPENCLI_SESSION_SUFFIX` → `CLAUDE_CODE_SESSION_ID` →
-  `CLAUDE_CODE_HOST_SESSION_ID` → pid. **Never key off the HOST id directly**:
-  it is per desktop-app host and shared by every conversation running inside it,
-  so it hands parallel tasks the same tab — the exact bug this guards against.
-  `CLAUDE_CODE_SESSION_ID` is per conversation, which is the unit that actually
-  runs concurrently.
-- **Subagents inherit the parent's environment**, so several agents spawned
-  inside one conversation resolve to the same default. When fanning browser work
-  out across parallel agents, give each an explicit `--session` or a distinct
-  `OPENCLI_SESSION_SUFFIX`.
-- In shell, do the same: `SESSION="backlink-$$"`, never a bare constant.
-- If `eval` returns a page you did not navigate to, suspect a name collision
-  **before** suspecting the site or the CLI. Confirm with
-  `opencli browser <session> tab list`.
-- Release the lease with `opencli browser <session> close` when done. A session
-  left open leaves a tab sitting in the owner's Chrome that looks exactly like
-  live work somebody else is doing.
-
-**The Chrome tab group is not an identifier.** Checked on opencli 1.8.6: every
-session's tabs land in a group carrying the same extension-supplied label, and
-there is no way to change it from here — no flag on `browser`, `open`, or `tab`,
-nothing in `opencli --help` or `opencli profile`, and no `chrome.tabGroups` call
-anywhere in the CLI package (the grouping is done by the Chrome extension, which
-this side does not control). `tab list` does not report the group either.
-
-So two consequences, and the first one is the one that bites:
-
-- **Never ask a person to tell tasks apart by looking at the tab group.** They
-  cannot. Watching one group fill with tabs from three different tasks is exactly
-  what a collision looks like from the outside, so the visual will make a healthy
-  run look broken and a broken run look healthy.
-- **The session name is the only identifier**, and it is only visible through
-  `opencli browser <session> tab list`. So make names *describe the work* rather
-  than merely being unique: `backlink-probe-<suffix>` beats `bl-1`. A unique but
-  meaningless name still leaves you unable to answer "whose tab is this" without
-  guessing.
-
-Before starting a batch, confirm ownership rather than assuming it:
-
-```bash
-opencli browser "$SESSION" tab list   # should show only the tabs you opened
-```
-
-If this ever gains a group-label flag, set it to the session name — that closes
-the gap properly. Until then, treat the group as decoration.
-
-### Background mode is not headless
-
-Default every session to background mode. The flag sits **between the session
-name and the subcommand** — `opencli browser <session> --window background
-<command>`. Before it and after it both fail, one with `unknown command` and one
-with `unknown option`, so a misplaced flag reads like a broken install rather
-than a syntax error.
-
-Background mode runs the owner's real, logged-in Chrome without raising the
-window. It does **not** steal focus and it is **not** headless. Measured probes
-inside a background session:
-
-| Probe | Value |
-|---|---|
-| `navigator.webdriver` | `false` |
-| UA contains `Headless` | no |
-| `navigator.plugins.length` | 5 |
-| `document.visibilityState` | `visible` (background windows are not throttled) |
-| `window.outerWidth × outerHeight` | 1364 × 806 |
-
-So "background mode will trip the site's bot defences" is not a real concern
-here — every headless tell reads negative. There is never a reason to reach for
-foreground to look more human. Request foreground only when the user explicitly
-wants to watch. Avoid clicking launchers that open a new window: inspect the
-target and open it directly in the background session when possible. If a site
-cannot be operated without stealing focus, stop and report that constraint.
-
-### If you reach for a different browser tool
-
-`agent-browser` is the other CLI on this machine and it solves a different
-problem: each `--session` is an isolated browser with its own cookies, default
-headless. Use it only when the task needs **no** logged-in identity. Anything
-touching the owner's authenticated sessions — the Tools Share panel, Search
-Console, a logged-in community — stays on OpenCLI, because that identity is the
-whole reason this Skill drives the owner's Chrome.
-
-One trap worth knowing if you do use it: when several `agent-browser` sessions
-share one Chrome (`--cdp <port>` or `--auto-connect`), `open` navigates the
-**shared active tab** by default and the sessions collide. Pass `--pin-tab` on
-each session's first command; the binding is sticky, and a closed bound tab then
-fails with `tab_gone` instead of silently acting on someone else's tab.
-
-Resolve all paths below relative to this `SKILL.md`.
-
-## Start every browser task
-
-Run the health check before browser work:
-
-```bash
-node scripts/health.mjs
-```
-
-Use `--check-update` only when the user asks about versions. An available update
-is informational; do not upgrade OpenCLI without a separate request.
-
-Read [safety-policy.md](references/safety-policy.md) before any fill,
-submission, account, or logged-in operation.
-
-## Choose one workflow
-
-### Discover
-
-Use when the user wants new opportunities. Read
-[discovery-loop.md](references/discovery-loop.md).
-
-The core idea retained from the Web.Cafe post is recursive discovery:
-
-1. Seed relevant competitors or known-good sites.
-2. Get their backlink rows from an authorized Semrush/Ahrefs export or logged-in
-   browser, and use Similarweb for traffic and similar-site expansion.
-3. Classify source URLs into editorial, resource, directory, profile, comment,
-   login wall, paid, CAPTCHA, and rejected.
-4. On real article pages, harvest commenter website domains.
-5. Feed those domains back into the queue, fetch their backlinks, and repeat to
-   a bounded depth.
-6. Rank candidates by topical fit, page quality, moderation, public visibility,
-   and referral potential. Low-quality comment volume is auxiliary, not the goal.
-
-Queue commands:
-
-```bash
+<workflow id="discover" when="the user wants new opportunities">
+<read><ref file="references/discovery-loop.md"/></read>
+<method>
+Recursive discovery: seed competitors → get their backlink rows from an
+authorized Semrush/Ahrefs export or logged-in browser → classify source URLs
+(editorial, resource, directory, profile, comment, login wall, paid, CAPTCHA,
+rejected) → harvest commenter domains on real article pages → feed those back
+into the queue → repeat to a bounded depth. Rank by topical fit, page quality,
+moderation, public visibility, and referral potential. Low-quality comment
+volume is auxiliary, never the goal.
+</method>
+<cmd><![CDATA[
 node scripts/discovery-queue.mjs seed --file .backlink/discovery.json --domain competitor.com
 
-# step 2 in bulk: feed an authorized referring-domains export straight in.
-# --input takes a Semrush refdomains CSV, a JSON array, or one domain per line.
+# bulk: feed an authorized referring-domains export straight in.
 # Edges are typed `refdomain` — do NOT route these through import-commenters,
 # which would record a commenter relationship nobody observed.
 node scripts/discovery-queue.mjs import-refdomains --file .backlink/discovery.json \
   --source competitor.com --input .backlink/competitor-refdomains.csv
 
-node scripts/harvest-commenters.mjs --session backlink-discovery --url https://example.com/article --out .backlink/commenters.json
+node scripts/harvest-commenters.mjs --session "discovery-$$" --url https://example.com/article --out .backlink/commenters.json
 node scripts/discovery-queue.mjs import-commenters --file .backlink/discovery.json --input .backlink/commenters.json
 node scripts/discovery-queue.mjs next --file .backlink/discovery.json --limit 10
-```
+]]></cmd>
+<recon>
+Domain overview is one page out of five that matter; the other four have no
+export button and are where competitor recon actually happens. **Pass the same
+`--session` across the whole recon** — the panel launch costs 20–40s and a
+login, the report itself ~15s, and `semrush-report.mjs` skips the launch when
+the session is already parked on the tool origin (`sessionReused: true` says
+which happened).
+<cmd><![CDATA[
+S=semrush-recon-$$                       # descriptive + unique; never a bare constant
+node scripts/semrush-report.mjs --session $S --report keyword --keyword 'grid maker' --db us
+node scripts/semrush-report.mjs --session $S --report backlinks-overview --domain rival.com
+node scripts/semrush-report.mjs --session $S --report organic-positions --domain rival.com --db us
+opencli browser $S close
+]]></cmd>
+<note>
+This is the one place a session legitimately handles several *reports* — it is
+still one page at a time, navigated in sequence, which is what
+<law-ref id="one-session-one-tab"/> allows. Holding them open simultaneously
+would need N session names.
+</note>
+</recon>
+<caution>
+These metrics help discover and prioritize candidates. They never prove a
+backlink is public, indexed, followable, or causally producing traffic. The
+parsing traps that make a report silently return zeros are documented in
+<ref file="references/authorized-data-sources.md"/> — read it before writing any
+new reader, especially the rule that a readiness predicate must key on a **data
+row**, never on a tab name, column header, or filter chip.
 
-For the user's available Similarweb and Semrush access, follow
-[authorized-data-sources.md](references/authorized-data-sources.md). Both live
-behind one shared-account panel; open either with:
+**Then check the parser against itself.** A ready page and a correct parse are
+different claims, and the second one fails silently: count the record-shaped
+lines in `rawText` and compare with `parsed.rows.length`. A gap is your regex's
+blind spot. One live run under-reported **all five** domains it touched this way
+— the worst lost 91 rows of 93, and the one that looked healthiest still lost
+49 — with no error anywhere and a wrong written conclusion on top.
+</caution>
+</workflow>
 
-```bash
-node scripts/tools-share-open.mjs --tool semrush
-```
+<workflow id="screen" when="before filling anything, always">
+<statement>
+The qualifying test is real traffic (`&gt;= 100` monthly visits), never DR, and it
+runs BEFORE the form does.
+</statement>
+<read><ref file="references/traffic-screen.md"/></read>
+<cmd><![CDATA[
+node scripts/similarweb-batch.mjs --domains-file domains.txt --out sw.jsonl
+node scripts/apply-traffic-screen.mjs --in sw.jsonl --source similarweb
+node scripts/targets-select.mjs --cohort open --min-traffic 100
+]]></cmd>
+<headline>
+Measuring a domain costs one query; filling its form costs two orders of
+magnitude more. One run filled every form across a 73-domain family and only
+then sampled five for traffic — every filled form was discarded.
+</headline>
+</workflow>
 
-Launching through the panel is mandatory — a deep link into the tool origin
-before the launcher runs lands on `about:blank`, and the panel's subscription is
-short-dated, so check the expiry the script prints before planning around it. These
-metrics help discover and prioritize candidates; they do not prove a backlink
-is public, indexed, followable, or causally producing traffic.
-
-Run a repeatable Similarweb domain query instead of retyping browser commands.
-The dashboard entry point is your own account configuration, so it is supplied
-through the environment and never ships with this Skill:
-
-```bash
-export TOOLS_SHARE_DASHBOARD_URL="https://<your-authorized-dashboard>"
-export TOOLS_SHARE_APP_ORIGIN="https://<origin-the-dashboard-launches-into>"
-
-node scripts/similarweb-query.mjs \
-  --domain example.com \
-  --report performance \
-  --out .backlink/similarweb-example.com.json
-```
-
-Both variables are account configuration and neither ships with this Skill. The
-launched application sits on a different host from the dashboard entry point, so
-the second one cannot be derived from the first.
-
-`--report` accepts `performance`, `channels`, or `similar-sites`.
-
-`channels` answers the question no keyword tool can: **is this site's traffic
-earned, bought, or shared?** It returns per-channel visit counts plus shares
-computed from those counts, so the shares always reconcile with the visits.
-A competitor holding a #1 position on 40% bought traffic is a different opponent
-from one holding it on 80% organic — plan against the right one.
-
-Two traps this script has already paid for, both of which look like "the tool is
-broken" rather than "my selector is wrong":
-
-- **Poll on a string that only appears once data has rendered.** Polling on a
-  left-nav menu item passes the instant the shell mounts, so the capture runs
-  against an unpopulated body and every metric comes back empty — a query that
-  reports success and returns nothing.
-- **Report routes are not interchangeable.** These hash routes differ in shape
-  between reports; pasting one report's URL shape onto another re-initializes the
-  app into a blank page, which is indistinguishable from a dead node.
-
-```bash
-node scripts/semrush-overview.mjs --domain example.com --db jp \
-  --out .backlink/semrush-example.com.json
-```
-
-Domain overview has no table and no export button, so it can only be read off
-the page. **Its `organicTraffic` is a search-only estimate and is NOT comparable
-to Similarweb's total visits** — the same site legitimately differs several-fold
-between the two. Never put them in one column.
-
-```bash
-node scripts/page-read.mjs --url https://example.com/pricing \
-  --out .backlink/pricing.json
-```
-
-`page-read.mjs` renders a public page and returns text, detected prices by
-currency, and paywall shape (one-time / subscription / trial / refund). Use it
-for competitor product recon — what they sell and how they charge lives only on
-their own pages, and `curl | grep` returns an empty shell on the SPAs these
-sites are built with. It reads only; it never fills or submits anything.
-
-All of these share one launcher, `lib-tools-share.mjs`. **Do not write a second
-one.** A previous copy of the launch sequence inside `similarweb-query.mjs`
-omitted three of the four known traps (session welded to the tool origin, the
-card carrying a logo image instead of text, the node selector hydrating late)
-and failed with a generic "unavailable" whose real cause differed every time.
-One launcher means one place to fix, and one place to look.
-
-### Inspect or prepare
-
-Inspect every target independently. Never infer a form from a sibling site.
-
-```bash
-node scripts/inspect-page.mjs \
-  --session backlink-work \
-  --mode comment \
-  --url https://example.com/article \
-  --out .backlink/scan.json
-```
-
-Modes are `comment`, `directory`, or `auto`. A page is fillable only when there
-is one unambiguous qualifying form and no detected CAPTCHA/login wall.
-
-Create a reviewed JSON payload with truthful values:
-
-```json
+<workflow id="submit" when="a route exists and the target passed the screen">
+<read><ref file="references/submission-lanes.md"/></read>
+<inspect>
+Inspect every target independently. Never infer a form from a sibling site. A
+page is fillable only when there is one unambiguous qualifying form and no
+detected CAPTCHA/login wall.
+<cmd><![CDATA[
+node scripts/inspect-page.mjs --session "inspect-$$" --mode comment \
+  --url https://example.com/article --out .backlink/scan.json
+]]></cmd>
+Modes are `comment`, `directory`, or `auto`.
+</inspect>
+<payload>
+Create a reviewed JSON payload with truthful values. For comment mode,
+`description` is the comment body.
+<cmd><![CDATA[
 {
   "url": "https://owned.example/relevant-page",
   "name": "Real owner or product name",
   "email": "owner@example.com",
   "description": "A page-specific, useful comment or truthful listing description"
 }
-```
+]]></cmd>
+</payload>
+<fill>
+<cmd><![CDATA[
+node scripts/safe-fill.mjs --session "fill-$$" \
+  --scan .backlink/scan.json --payload .backlink/payload.json
+]]></cmd>
+It revalidates the URL, form identity, field semantics, login state, and CAPTCHA
+state, installs a submit guard, and never submits. The human reviews the
+rendered page and performs final submission. Only after the user explicitly
+authorizes one exact reviewed submission may the agent run
+`release-submit-guard.mjs` — and releasing the guard still does not click
+Submit.
+</fill>
+<staged-queue>
+Lane B leaves forms on screen for the owner to finish. **One session name per
+staged site** — a session owns one tab, so reusing one session overwrites the
+previous staged form while the report still says N staged. `adapter-phpld.mjs`
+carries the reference implementation.
+</staged-queue>
+</workflow>
 
-For comment mode, `description` is the comment body. Then fill without submit:
+<workflow id="analyze" when="the user has exported backlink data already">
+<statement>
+Analyze referring-domain quality and topical relevance; suspicious networks,
+sitewide links, and toxic patterns; anchor and target-page diversity;
+follow/nofollow/UGC/sponsored distribution **when observed**; competitor gaps
+and prioritized next opportunities.
+</statement>
+<read>
+<ref file="references/link-quality-rubric.md"/> — scoring, toxicity, disavow.
+<ref file="references/analysis-templates.md"/> — report shapes.
+<ref file="references/outreach-templates.md"/> — frameworks; sending needs the
+user's explicit approval per message.
+</read>
+<hard-limit>
+These templates assume you already have the data. They do not fetch it. **A
+report built from templates alone, with no observed rows behind it, is
+fabrication.** Do not disavow links, contact site owners, or change production
+sites unless the user separately asks. Treat third-party authority and traffic
+estimates as directional and time-sensitive.
+</hard-limit>
+</workflow>
 
-```bash
-node scripts/safe-fill.mjs \
-  --session backlink-work \
-  --scan .backlink/scan.json \
-  --payload .backlink/payload.json
-```
-
-The fill script revalidates the URL, form identity, field semantics, login
-state, and CAPTCHA state. It installs a submit guard and never submits.
-
-The human reviews the rendered page and performs final submission. Only after
-the user explicitly authorizes one exact reviewed submission may the agent run
-`release-submit-guard.mjs`; releasing the guard still does not click Submit.
-
-### Analyze
-
-Use this mode for exported backlink CSV/XLSX data or an existing backlink list.
-Analyze in this single Skill:
-
-- referring-domain quality and topical relevance;
-- suspicious networks, sitewide links, and toxic patterns;
-- anchor and target-page diversity;
-- follow/nofollow/UGC/sponsored distribution when observed;
-- competitor gaps and prioritized next opportunities.
-
-Do not disavow links, contact site owners, or change production sites unless the
-user separately asks. Treat third-party authority and traffic estimates as
-directional, time-sensitive measurements.
-
-Three references carry the analysis detail, merged from the former
-`backlink-analyzer` Skill:
-
-- [link-quality-rubric.md](references/link-quality-rubric.md) — the scoring
-  matrix, toxic-link criteria, benchmarks, and disavow guidance.
-- [analysis-templates.md](references/analysis-templates.md) — compact output
-  templates for the profile overview, quality breakdown, toxicity list,
-  competitor comparison, opportunity list, and change tracking.
-- [outreach-templates.md](references/outreach-templates.md) — outreach
-  frameworks, subject lines, response benchmarks, and follow-up sequences.
-  Sending anything still requires the user's explicit approval per message.
-
-These templates assume you already have the data. They do not fetch it: get the
-rows from an authorized export, the Ahrefs/Semrush tools, or the harvest
-workflow below, then fill the template. A report built from templates alone,
-with no observed rows behind it, is fabrication.
-
-### Harvest
-
-Use when the numbers you need are visible in a logged-in dashboard that has no
-API, charges for the API, or bills per exported row. Read
-[harvest.md](references/harvest.md) before writing any scraping loop — it
+<workflow id="harvest" when="the numbers are visible in a logged-in dashboard with no API">
+<read>
+<ref file="references/harvest.md"/> before writing any scraping loop. It
 documents failures that produce **plausible, silently wrong output**: virtual
-scroll tables that are not `<table>` and drop rows without erroring, long URLs
+scroll tables that are not `&lt;table&gt;` and drop rows without erroring, long URLs
 that make whole rows vanish, execution-channel timeouts that look like failure
-while the page loop is still running, and Chrome's intensive throttling that
-stretches a four-second loop into twenty-five minutes.
-
-```bash
+while the page loop is still running, and Chrome's intensive throttling
+stretching a four-second loop into twenty-five minutes.
+</read>
+<cmd><![CDATA[
 sh scripts/harvest-collect.sh          # wait for downloads to settle, then collect
 node scripts/harvest-merge.mjs         # merge by field shape, refuse duplicate files
-```
-
+]]></cmd>
+<note>
 `scripts/harvest.browser.js` is the in-page collector. Its output arrives via a
 Blob download rather than a return value, because the execution channel
 truncates at roughly 1 KB.
+</note>
+</workflow>
 
-### Verify
-
-Use exact evidence for each state:
-
-`candidate → qualified → drafted → filled → submitted → public → indexed → rel_verified`
-
-Create and update the ledger:
-
-```bash
+<workflow id="verify" when="closing the loop on any placement">
+<states>candidate → qualified → drafted → filled → submitted → public → indexed → rel_verified</states>
+<cmd><![CDATA[
 node scripts/ledger.mjs upsert --file .backlink/ledger.json --url https://target.example/page
 node scripts/ledger.mjs transition --file .backlink/ledger.json \
   --url https://target.example/page --state public \
   --evidence "Observed the exact public anchor on 2026-07-30"
-```
+]]></cmd>
+<evidence-bar>
+`submitted`, `public`, `indexed`, and `rel_verified` each require an evidence
+note. Never promote a record from a filled form, a pending notice, or a
+historical assumption. **`indexed` must name the engine** — `indexed@google`,
+`indexed@brave`. An unqualified "indexed" is a claim about the whole web built
+from one crawler's opinion.
+</evidence-bar>
+</workflow>
+</workflows>
 
-`submitted`, `public`, `indexed`, and `rel_verified` require an evidence note.
-Never promote a record based on a filled form, a pending notice, or a historical
-assumption. Search Console may provide supplementary link/index evidence, but
-verify the exact live URL and anchor where possible.
+<rules type="non-negotiable">
+<rule id="no-coordinate-clicking">No coordinate-based "human-like" clicking.</rule>
+<rule id="no-bypass">No CAPTCHA, Turnstile, login, paywall, quota, or account-scope bypass.</rule>
+<rule id="unmeasured-is-not-qualified">
+Never treat "not yet measured" as "qualified". The traffic gate only works if
+unmeasured rows are excluded from a batch rather than waved through.
+`--min-traffic` drops them by design; `--unmeasured` lists them as the next
+screening queue, never as a batch.
+</rule>
+<rule id="validate-gates-against-known-bad">
+A gate metric is validated against known-bad domains, never against famous ones.
+Any signal a link network can manufacture for itself — DR, popularity rank,
+index size — will pass a farm. Tranco's top-1M failed exactly this way: 48 of 73
+confirmed farm domains sat inside it, from rank 134k to 998k.
+</rule>
+<rule id="no-fabrication">
+No generic praise, fake identity, invented metrics, or a comment body that
+ignores the article it sits under. Never invent a product fact to fill a field —
+founder, pricing, address, launch date, user count, ownership, legal, contact.
+Leave optional unknowns blank and stop a row whose required field is unknown.
+</rule>
+<rule id="relevance-ranks-never-gates">
+A host site on a different topic is fine. Relevance and DR **rank** candidates,
+they never **gate** them, and `nofollow` is an observation to record rather than
+a reason to skip. Read <ref file="references/acquisition-doctrine.md"/> before
+rejecting any target on quality grounds.
+</rule>
+<rule id="no-link-farms">
+No link farms, spam generators, adult/malware surfaces, hidden reciprocal links,
+temporary eligibility pages, or cloaking. Two identical give-aways in one place
+— one site script across dozens of domains, and a promotional sentence repeated
+word for word — mean one operator. Submitting to N of its domains buys one
+link's value while accruing N times the footprint.
+</rule>
+<rule id="submission-is-not-a-backlink">
+Do not record a submission as a backlink. This includes handing a URL to a
+search engine: that is an index-submission channel, it publishes no link, and it
+belongs in `data/index-submission.json` rather than the placement ledger.
+</rule>
+<rule id="observe-before-recording">
+Do not record `follow`, `nofollow`, `ugc`, `sponsored`, or `indexed` without
+observing it for the exact URL. A click, a completed registration, a saved
+draft, a form that cleared itself, or a generic thank-you URL is **not** evidence
+of a submission — those record what you did, and the ledger records what the
+site did.
+</rule>
+<rule id="never-retry-ambiguous">
+Do not automatically resubmit an unconfirmed target. Never retry an ambiguous
+final action — one where the submit happened and the result was not observed.
+Check the account backend, then the mailbox, then the public page. That state is
+`outcome-unknown`, and it is not a failure.
+</rule>
+<rule id="anchor-policy">
+Anchor text is the brand, the product name, or the naked canonical URL. Never
+request dofollow treatment, never repeat a commercial exact-match anchor across
+a campaign, and treat a paid or incentivised placement that publishes as a plain
+follow link as **noncompliant** rather than as a win.
+</rule>
+<rule id="secrets">
+Records carry aliases and evidence IDs. Passwords, OTPs, recovery codes,
+cookies, OAuth parameters, magic links, raw session IDs, raw email addresses,
+and phone numbers belong in none of them. Keep raw cookies, tokens,
+authorization headers, and credentials out of logs.
+</rule>
+<rule id="traffic-figures-need-six-fields">
+A third-party traffic figure without `source · metric · month · geography ·
+device · date verified` is not a number. Store all six or store none.
+</rule>
+<rule id="http-over-mcp">
+Prefer a documented HTTP endpoint over an MCP server when both serve the same
+data from the same quota — the MCP adds a connection and a process without
+adding capability, and a failure there is harder to tell apart from the service
+being down. Keep MCP where it is the only authorized channel; never retire a
+working path before the replacement has run successfully once.
+</rule>
+<rule id="verify-before-trusting-a-row">
+Records carry `lastVerifiedAt` because this genre dies faster than it changes. A
+channel that worked three months ago may be gone, gated, or `noindex` today.
+Re-verify before a campaign; the validator warns on anything `live` older than
+180 days. **Fixing a wrong row is worth more than adding a new channel.**
+</rule>
+<rule id="two-tables-two-claims">
+`free-channels.json` records **a published link on a live page** and requires
+`relObserved`/`anchorRendered`. `submission-targets.json` records **a submission
+route that exists** and the validator rejects those fields there. A target
+graduates from the second into the first the moment an actual anchor is
+observed; until then it makes no promise about `rel`, anchor text, or
+indexability, and the report must not imply one.
+</rule>
+</rules>
 
-**`indexed` must name the engine** — write `indexed@google`, `indexed@brave`.
-An unqualified "indexed" is a claim about the whole web built from one crawler's
-opinion, and every promotion so far has in fact come from Google or Bing. The
-engines with their own crawlers, what reaches them, and what does not, are in
-[index-submission.md](references/index-submission.md).
+<escalation>
+<summary>Read the reference **before** acting, not after the run goes wrong.</summary>
+<when trigger="any browser work at all">references/browser-runtime.md</when>
+<when trigger="any fill, submit, account, or logged-in action">references/safety-policy.md</when>
+<when trigger="a supplied list of 100+ rows, or anything that must survive interruption">references/batch-campaign.md — the single-target loop deduplicates too late, stalls behind the first CAPTCHA, cannot tell an interrupted row from an unstarted one, and produces a number that counts forms instead of links</when>
+<when trigger="a first submission campaign">references/field-notes.md — personal-contact requirements outrank CAPTCHAs, and landing-page CAPTCHA scans give false negatives</when>
+<when trigger="someone hands you a 'places to get backlinks' list">the "Reading a third-party list" section of references/instant-publish.md — a Dofollow column is an assertion about a platform, never an observation of a link</when>
+<when trigger="the ask is about paid placement">references/paid-platforms.md</when>
+<when trigger="the ask is about getting pages into an index rather than getting a link">references/index-submission.md</when>
+<when trigger="about to reject a target on quality grounds">references/acquisition-doctrine.md</when>
+<when trigger="BacklinkDirs eligibility">references/backlinkdirs.md</when>
+<when trigger="the user wants a ready-to-copy prompt">references/prompts.md</when>
+<when trigger="whose work is this built on">references/credits.md</when>
+</escalation>
 
-## Non-negotiable rules
+<output-contract>
+<item n="1">data sources and authorization boundary</item>
+<item n="2">candidates by type, and the reason for qualification or rejection</item>
+<item n="3">current ledger state, never an inferred later state</item>
+<item n="4">evidence links or local evidence files</item>
+<item n="5">the next safe action, and whether human review or submission is required</item>
+</output-contract>
 
-- No coordinate-based “human-like” clicking.
-- No CAPTCHA, Turnstile, login, paywall, quota, or account-scope bypass.
-- **Never treat "not yet measured" as "qualified".** The traffic gate only works
-  if unmeasured rows are excluded from a batch, not waved through — otherwise the
-  gate is decoration. `targets-select.mjs --min-traffic` drops them by design;
-  `--unmeasured` exists to list them as the next screening queue, not as a batch.
-- **A gate metric is validated against known-bad domains, not famous ones.** Any
-  signal a link network can manufacture for itself — DR, popularity rank,
-  index size — will pass a farm. Tranco's top-1M was tested this way and failed:
-  48 of 73 confirmed farm domains were inside it, spanning rank 134k to 998k.
-- No generic praise, fake identity, invented metrics, or a comment body that
-  ignores the article it sits under. A host site on a different topic is fine —
-  relevance and DR rank candidates, they never gate them, and `nofollow` is an
-  observation to record rather than a reason to skip. Read
-  [acquisition-doctrine.md](references/acquisition-doctrine.md) before rejecting
-  any target on quality grounds.
-- No link farms, spam generators, adult/malware surfaces, hidden reciprocal
-  links, temporary eligibility pages, or cloaking. **Screen for the link farm
-  before filling anything**, not after: the qualifying test is real traffic
-  (`>= 100` monthly visits), never DR, which a network inflates by linking to
-  itself. Two identical give-aways in one place — one site script across dozens
-  of domains and a promotional sentence repeated word for word — mean one
-  operator, and submitting to N of its domains buys one link's value while
-  accruing N times the footprint.
-- Do not record a submission as a backlink. This includes handing a URL to a
-  search engine: that is an index-submission channel, it publishes no link, and
-  it belongs in `data/index-submission.json` rather than the placement ledger.
-- Do not record `follow`, `nofollow`, `ugc`, `sponsored`, or `indexed` without
-  observing it for the exact URL.
-- Do not automatically resubmit an unconfirmed target. **Never retry an
-  ambiguous final action** — one where the submit happened and the result was not
-  observed. Check the account backend, then the mailbox, then the public page.
-  That state is `outcome-unknown`, and it is not a failure.
-- Anchor text is the brand, the product name, or the naked canonical URL. Never
-  request dofollow treatment, never repeat a commercial exact-match anchor across
-  a campaign, and treat a paid or incentivised placement that publishes as a
-  plain follow link as **noncompliant** rather than as a win.
-- A click, a completed registration, a saved draft, a form that cleared itself,
-  or a generic thank-you URL is **not** evidence of a submission. Those record
-  what you did; the ledger records what the site did.
-- Never invent a product fact to fill a field — founder, pricing, address, launch
-  date, user count, ownership, legal, or contact. Leave optional unknowns blank
-  and stop a row whose required field is unknown.
-- Records carry aliases and evidence IDs. Passwords, OTPs, recovery codes,
-  cookies, OAuth parameters, magic links, raw session IDs, raw email addresses,
-  and phone numbers belong in none of them.
-- A third-party traffic figure without `source · metric · month · geography ·
-  device · date verified` is not a number. Store all six or store none.
-- Keep raw cookies, tokens, authorization headers, and credentials out of logs.
-- Prefer a documented HTTP endpoint over an MCP server whenever both exist and
-  serve the same data from the same quota: the MCP adds a connection and a
-  process without adding capability, and a failure there is harder to tell apart
-  from the service being down. Keep using MCP where it is the only authorized
-  channel — paid data sources such as Ahrefs and Semrush have no direct HTTP
-  endpoint here, and dropping them removes capability rather than relocating it.
-  Never retire a working path before the replacement has run successfully once.
+<install>
+Source: [Skills.sh](https://skills.sh/yan-labs/yan-skills)
+<cmd><![CDATA[
+npx skills add yan-labs/yan-skills --skill backlink -g -y   # first install
+npx skills update backlink -g -y                            # update
+]]></cmd>
+For a project-level install omit `-g`; update with `npx skills update backlink -p -y`.
+</install>
 
-When the question is **"should we post here at all"** — a target on a different
-topic, a low-DR host, a platform known to emit `nofollow`, or a first round that
-mostly bounced into moderation — read
-[acquisition-doctrine.md](references/acquisition-doctrine.md) **before** rejecting
-anything. It carries the site owner's standing ruling, sourced to a practitioner's
-own posts: relevance and authority rank candidates but never gate them, `nofollow`
-is recorded rather than avoided, and a first campaign is a screening pass whose
-"failures" are the asset. It also fixes the evidence bar for `indexed` (a `site:`
-query on the host page, never a third-party crawler's count).
-
-For BacklinkDirs-specific eligibility, read
-[backlinkdirs.md](references/backlinkdirs.md). For ready-to-copy user prompts,
-read [prompts.md](references/prompts.md).
-
-When the campaign is **large** — a supplied list of a hundred rows or more,
-anything that has to survive being interrupted, or anything where the report will
-be a count — read [batch-campaign.md](references/batch-campaign.md) before
-opening a browser. The single-target loop above is correct per target and wrong
-per campaign: it deduplicates too late, stalls the whole run behind the first
-CAPTCHA, cannot tell an interrupted row from an unstarted one, and produces a
-number that counts forms instead of links.
-
-Before a first submission campaign, read
-[field-notes.md](references/field-notes.md): what actually blocks submissions
-(personal-contact requirements outrank CAPTCHAs), why landing-page CAPTCHA scans
-give false negatives, how reciprocal-badge flows are inherently two-pass, the
-browser-automation traps, and what to expect from mining a competitor's
-backlinks.
-
-When the question is about **paid** placement — what platforms exist, what they
-cost, which ones are actually used, or "where did this competitor buy its
-links" — read [paid-platforms.md](references/paid-platforms.md). It documents
-the accumulating registry at `data/paid-platforms.json`, how placements are
-detected, why a burst count is not a purchase count, and the tier vocabulary
-that separates a real paid directory from a link package from a spam net.
-Merge every new competitor harvest into it — the registry's value comes from
-repetition across independent subjects, so it is only as good as what has been
-fed in.
-
-When someone hands you **a list of places to get backlinks** — a tiered table with
-a Dofollow column, a competitor's "we got 200 links here" post, or another Skill's
-directory list — read the "Reading a third-party list" section of
-[instant-publish.md](references/instant-publish.md) before acting on any row of it.
-Those lists are worth harvesting and worthless to trust: the Dofollow column is an
-assertion about a platform, never an observation of a link, and the sweep that
-produced that section found a listed site that publishes your URL as plain text
-with no anchor at all, plus one whose domain now redirects to an unrelated product
-while still answering 200.
-
-When the ask is about **getting pages into an index** rather than getting a link
-— submitting URLs to an engine, a low `site:` count somewhere that is not Google,
-or optimising for AI answers — read
-[index-submission.md](references/index-submission.md). It carries the reason a
-second index matters (an independent index is a grounding source for AI answers,
-so a page missing from it is missing from every answer built on it), the rule
-that keeps these channels out of `free-channels.json`, the baseline-then-recheck
-measurement that makes such a campaign judgeable, and the per-engine traps —
-including a form where a synthesised `click()` silently does nothing because the
-passive check demands a trusted event.
-
-When the ask is "somewhere I can post without registering", read
-[instant-publish.md](references/instant-publish.md) **first**. Directory
-submission does not satisfy that request and burning a campaign discovering this
-is the common failure. That reference carries the rule for telling the two
-classes apart, per-platform verified behaviour including which ones emit no
-anchor at all, the editor-API traps that make a filled form submit empty, and
-why campaign results must be reported by observed `rel` rather than by
-"published successfully".
-
-## Credits
-
-This Skill absorbs work from other people. Their rules are marked where they are
-used; this is the full list.
-
-- **[flaqai/backlink_skills](https://github.com/flaqai/backlink_skills)** (MIT,
-  Flaq AI) — the campaign-operations layer in
-  [batch-campaign.md](references/batch-campaign.md): idempotency keys, execution
-  shards, the verification-first pipeline that keeps one CAPTCHA from stalling a
-  run, per-action authorization, resumable state, the anchor-text policy, and the
-  reporting discipline that separates published listings from submitted forms.
-  Their `Free-backlink-list.md` (743 entries) is also the largest third-party
-  lead list this Skill has been tested against — see
-  [instant-publish.md](references/instant-publish.md#reading-a-third-party-places-to-get-a-backlink-list).
-  Their two Skills carry no channel list of their own and expect user-supplied
-  URLs, so the list and the workflow are separate assets in that repo too.
-- **[aaron-he-zhu/seo-geo-claude-skills](https://github.com/aaron-he-zhu/seo-geo-claude-skills)**
-  (Apache-2.0) — the analysis templates, quality rubric, and outreach frameworks
-  in [analysis-templates.md](references/analysis-templates.md),
-  [link-quality-rubric.md](references/link-quality-rubric.md), and
-  [outreach-templates.md](references/outreach-templates.md). Licence text is kept
-  at `references/LICENSE-analysis-templates-Apache-2.0`.
-
-## Output contract
-
-Report:
-
-1. data sources and authorization boundary;
-2. candidates by type and reason for qualification/rejection;
-3. current ledger state, never an inferred later state;
-4. evidence links or local evidence files;
-5. the next safe action and whether human review/submission is required.
+</skill>

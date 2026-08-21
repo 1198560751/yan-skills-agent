@@ -187,8 +187,8 @@ hash 路由，单域名摊到 5 秒，419 个域名 35 分钟跑完。脚本见
 这与 rubric 里"Brand anchors 30-40% 为健康"是一致的，
 且给了一个明确的默认值：**没有特殊理由时，锚文本用品牌名。**
 
-对本机项目 In-Tab Tools，锚文本写 `In-Tab Tools`，不写 `intabtools.com`，
-更不写 `free online image compressor` 这类精确匹配词。
+落到具体做法：锚文本用**产品名本身**（例：`Acme Tools`），不写裸域名
+（`acmetools.com`），更不写 `free online image compressor` 这类精确匹配商业词。
 
 ## 7. 核验：GSC 看数量，`site:` 看单条，Ahrefs 谁都不代表
 

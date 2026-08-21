@@ -28,7 +28,7 @@
 //   # 把某个项目的抓取产物并进登记表（可反复跑，按域名合并、不覆盖历史）
 //   node scripts/paid-platform-registry.mjs merge \
 //     --dirs /path/to/project/.rankup/data/semrush-backlinks \
-//     --exclude-subject intabtools.com \
+//     --exclude-subject your-own-site.com \   # 排除自己，否则自家域名会被当成一个「平台」
 //     [--min-burst 3]
 //
 //   # 看表

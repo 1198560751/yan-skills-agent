@@ -44,8 +44,20 @@ if (!args.session || !args.profile || !args.url) {
 const profile = JSON.parse(fs.readFileSync(args.profile, 'utf8'));
 const targetUrl = args.targetUrl || profile.linkTargets?.default || profile.canonicalUrl;
 
+// ONE SESSION PER STAGED SITE. A session name owns exactly one tab, so a staged
+// queue of N forms needs N session names. `tab new` + `open --tab` looks like
+// the answer and is not: measured on opencli 1.8.6, a session tracks only its
+// newest tab (earlier ids drop out of `tab list`), `tab select` reports success
+// with no effect on reads, and `open --tab <id>` opens a *new* tab while
+// leaving the named one untouched. Driving the queue that way leaks tabs and
+// silently reduces it to a queue of one while still reporting N staged.
+// `adapter-phpld.mjs` derives its session names the same way.
+const session = args.newTab
+  ? `${args.session}-${new URL(args.url).hostname.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 40)}`
+  : args.session;
+
 function ocli(...argv) {
-  const out = execFileSync('opencli', ['browser', args.session, '--window', 'background', ...argv], {
+  const out = execFileSync('opencli', ['browser', session, '--window', 'background', ...argv], {
     encoding: 'utf8', timeout: 90_000, maxBuffer: 32 * 1024 * 1024,
   });
   return out.split('\n').filter((l) => !/UNDICI|trace-warnings/.test(l)).join('\n').trim();
@@ -152,17 +164,12 @@ const payload = {
 
 const result = { url: args.url, targetUrl, at: new Date().toISOString() };
 try {
-  // --new-tab gives this target its own tab so a staged form can be LEFT on
+  // --new-tab gives this target its OWN SESSION so a staged form can be LEFT on
   // screen. The queue is only useful if every staged form is still sitting
-  // there when the person sits down; reusing one tab overwrites the previous
-  // one and the queue silently becomes a queue of one.
-  if (args.newTab) {
-    const id = ocli('tab', 'new').match(/[0-9A-F]{16,}/i);
-    if (id) { result.tab = id[0]; ocli('open', args.url, '--tab', id[0]); }
-    else ocli('open', args.url);
-  } else {
-    ocli('open', args.url);
-  }
+  // there when the person sits down; reusing one session overwrites the
+  // previous form and the queue silently becomes a queue of one.
+  ocli('open', args.url);
+  if (args.newTab) result.session = session;
   const page = evalJs('JSON.stringify({url:location.href,title:document.title,len:document.body.innerText.length})');
   result.page = page;
   if (typeof page === 'object' && /just a moment|attention required|bot challenge/i.test(page.title || '')) {

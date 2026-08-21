@@ -170,9 +170,126 @@ user management, removals, or other mutations.
 新增里判为可用 45 个、判为垃圾 33 个（短链农场与镜像站：`*-links-bhs.xyz` 系列、
 `buzzshrink.website`、`anchorurl.cloud`、`urls-shortener.eu`、`shortenurls.eu`、
 `bye.fyi`、`quero.party` 等，共同特征是 0 流量 + 0 自然搜索占比 + 短链形态）。
-原始数据存 `toolpear/.backlink/columbus-top100.json`。
+原始数据落在项目侧的 `<项目>/.backlink/columbus-top100.json`——**采集产物属于项目，不进本 Skill**。
 
 > 这份榜是**平台层面的断言**，不是对某一条链的观测。
 > 它的 Dofollow 列和第三方名单的 Dofollow 列性质一样——
 > 按 [instant-publish.md](instant-publish.md) 的「Reading a third-party list」对待：
 > 可以拿来排候选，不可以直接写进 ledger 当 `rel_verified`。
+
+### 瞬时错误页：刷新即恢复，不是节点挂了（2026-08-21，站主口述 + 实测）
+
+面板和工具页偶尔整页变成：
+
+> **出错了**
+> 别担心，我们已经发现了问题并正在处理。
+> 请稍后重试。
+
+**这是瞬时的，重载页面即恢复，多刷几次一定回来。**
+不要因此换节点、改选择器、怀疑登录态——那些都不是原因。
+
+**与「节点会挂」是两件事，症状可以区分：**
+
+| | 瞬时错误页 | 节点挂了 |
+|---|---|---|
+| 页面长什么样 | **有明确错误文案**（上面那三行） | **白页 / 长时间不渲染**，`bodyText` 为空但标题是对的 |
+| 怎么办 | **重载当前页**，重试几次 | **换 `--node`**，重载没用 |
+
+`semrush-report.mjs` 已经按这条实现：命中错误文案就 `location.reload()` 重试，
+默认 3 次（`--retries`），失败时的报错文案会把两种成因分开列。
+
+### Semrush 的五张「没有导出按钮」的报告，以及会话复用的经济账
+
+`semrush-overview.mjs` 只覆盖域名概览一张。真正做竞品勘测要的是另外四张，
+全部由 `semrush-report.mjs` 覆盖：
+
+| `--report` | 路由 | 拿得到什么 |
+|---|---|---|
+| `organic-overview` | `/analytics/organic/overview/` | 关键词数、自然流量、流量成本、分国家 |
+| `organic-positions` | `/analytics/organic/positions/` | **全量排名词**（页面只显示 10 行，DOM 里是全部） |
+| `organic-pages` | `/analytics/organic/pages/` | 哪些页在带流量、各自几个词、引荐域名数 |
+| `backlinks-overview` | `/analytics/backlinks/overview/` | 引荐域名、反链、AS、月访问、**有没有 follow 反链** |
+| `keyword` | `/analytics/keywordoverview/` | 量、KD、**要多少引荐域名**、CPC、分国家 |
+
+**同一个 `--session` 贯穿整轮勘测，面板只启动一次。**
+启动一次 20–40 秒并消耗一次登录，报告本身只要十几秒。
+一轮读十几张报告，每张都重新启动等于把时间和配额乘以十几倍。
+脚本会检测会话是否已停在工具 origin 上并跳过启动，输出里的 `sessionReused` 说明走了哪条。
+
+**`backlinks-overview` 有一个别处拿不到的强信号**：全站一条 follow 反链都没有时，
+Semrush 会直接写「找不到 Follow 反向链接」。脚本解析成 `noFollowBacklinks: true`。
+它比 `AS = 0` 更明确——AS 0 也可能只是数据太新，而这句话是关于 rel 的断言。
+
+### 两条走不通的路由，别再花一小时重新发现
+
+- **批量关键词分析不能用 URL 驱动。** 把换行连接的关键词塞进 `?q=`，
+  页面会落在「批量分析」标签页上、参数被丢弃、表格为空。**一次查一个词。**
+- **Keyword Magic 的关键词表格渲染不出来。** 主题云会水合，行不会，
+  于是采集「成功」但一个关键词都没有。**改用 `--report keyword` 逐词查。**
+
+### `opencli eval` 返回裸字符串时没有 JSON 信封
+
+`eval` 的返回值是字符串时，stdout 里就是那个裸字符串，`firstJson()` 会抛
+`OpenCLI returned no JSON payload`。**所有 eval 表达式都用 `JSON.stringify(...)` 包一层**，
+调用侧再兜一层 try。2026-08-21 有个一次性脚本因为这个在第一步直接崩掉，
+现象是「OpenCLI 坏了」，实际是返回值形状。
+
+
+### `backlinks-overview` 的「找不到 Follow 反向链接」不等于零（2026-08-21 实测）
+
+概览页会在 Authority Score 旁边打一句「**找不到 Follow 反向链接**」。
+**不要把它当成「一条 follow 都没有」的字面结论。** 同一个域名、同一时刻，
+`backlinks-list` 报告顶部的卡片写着「最佳 **2** · 带 follow 属性的反向链接」，
+而逐条到源页面用 `curl` 核实，**至少 7 个来源发的是无 `rel` 属性的 follow 链**。
+
+三个数字都是 Semrush 自己给的，口径各不相同：概览那句大概率是**质量过滤后**的说法
+（垃圾网络发的 follow 不计入它的权重模型），不是爬虫计数。
+
+**规矩：`rel` 只有一个可信来源——源页面上那个 `<a>` 标签本身。**
+任何第三方面板的 follow/nofollow 列都只能用来排候选，不能写进 ledger 的 `rel_verified`。
+这与「Reading a third-party list」里对 Dofollow 列的处置是同一条。
+
+### 排名页全落在裸根域名时，解析器会静默吐空（2026-08-21 实战测试）
+
+`semrush-report.mjs --report organic-positions` 的 URL 行匹配器曾经写成
+`/^[a-z0-9-]+(\.[a-z0-9-]+)+\/\S/i`——**斜杠后面必须还有一个非空白字符**。
+于是每一条排名页是裸根（`snapgen.ai/`，斜杠后面什么都没有）的行都被丢掉，
+既不报错，也不留痕迹。
+
+这不是边缘情况，是这个人群的**中位数情况**：新上线的 SaaS / AI 工具站，
+自然流量基本全压在 `/` 上。2026-08-21 实测一批榜单站，**五个域名无一幸免**：
+
+| 域名 | 修复前解析出 | 修复后 | 丢失 |
+|---|---|---|---|
+| snapgen.ai | 2 | 93 | 91 |
+| ezmaker.ai | 51 | 100 | 49 |
+| logomotion.design | 2 | 22 | 20 |
+| foziscribe.ai | 8 | 14 | 6 |
+| agenton.me | 2 | 5 | 3 |
+
+危险的地方在 `ezmaker.ai` 那一行：51 行看着完全正常，没有任何理由去怀疑它。
+测试者当场只发现了 snapgen.ai 一个，并且据 `logomotion.design` 那 2 行写下
+「这个站几乎没有自然排名」——**结论是错的，而他不知道**。
+
+已修（斜杠后不再要求字符）。留在这里是因为它示范了一类比选择器写错更难发现的
+故障：**页面完全就绪、渲染完整、脚本退出码 0，错的是解析器自己的正则。**
+Skill 里原有的四个坑全都是「页面还没好就去读」，这一个不是，所以四条老经验
+一条都拦不住它。
+
+推论，写给下一个写解析器的人：**行数是可以被证伪的。** 拿 `rawText` 里符合
+「一行一条记录」特征的行数，和 `parsed.rows.length` 对一次，差额就是你正则的
+盲区。这个自查比任何就绪判定都便宜。
+
+### 会话复用之后，配额读数就消失了（2026-08-21 实战测试）
+
+`lib-tools-share.mjs` 只在面板/仪表盘页面上刮 `API 今日配额` 那段文字。
+复用会话跳过启动器——也就是本文件明确推荐、用来省时间省配额的那条路——
+页面不会重新渲染那段文字，所以**后续每一次 `semrush-report.mjs` /
+`semrush-keyword.mjs` 调用都不再打印配额**。
+
+后果很具体：「配额过 80% 就停」这类预算纪律，在推荐工作流下**无法在中途执行**。
+实测一轮 5 份域名报表 + 13 个关键词查询，全程只有最开始那一次启动打印过
+`["3%", "33%"]`，跑完拿不到第二个读数。
+
+所以：**按启动时那一个读数给整轮 recon 做预算**，别指望中途还能看到。
+真要中途复核，只能额外付一次启动的钱（20–40 秒），值不值自己权衡。

@@ -630,7 +630,7 @@
       "lastVerifiedAt": "2026-08-19",
       "evidence": {
         "method": "both",
-        "what": "seektool.ai/submit exposes a 2-field form (website, url) with no CAPTCHA and no login. After adding <a href=\"https://seektool.ai\" rel=\"noopener\"> to the intabtools.com footer and deploying, the served homepage HTML carried the anchor and the form POSTed to /api/submit — which answered 500 four times running with the page rendering \"Server error, please try again later\".",
+        "what": "seektool.ai/submit exposes a 2-field form (website, url) with no CAPTCHA and no login. After adding <a href=\"https://seektool.ai\" rel=\"noopener\"> to the subject site's footer and deploying, the served homepage HTML carried the anchor and the form POSTed to /api/submit — which answered 500 four times running with the page rendering \"Server error, please try again later\".",
         "publicUrl": "https://seektool.ai/submit"
       }
     },
@@ -724,7 +724,7 @@
       "lastVerifiedAt": "2026-08-20",
       "evidence": {
         "method": "browser-dom",
-        "what": "Submitted In-Tab Tools (https://intabtools.com, category Productivity, pricing Free, tags Tools / Text Generator / PDF / Typography / Privacy) through the two-step form on 2026-08-20. The page then rendered: Thanks for submitting your product! \"In-Tab Tools\" has been submitted successfully. — alongside a standard-review notice of 3-4 months.",
+        "what": "Submitted a browser-tools site (category Productivity, pricing Free, tags Tools / Text Generator / PDF / Typography / Privacy) through the two-step form on 2026-08-20. The page then rendered: Thanks for submitting your product! \"<product name>\" has been submitted successfully. — alongside a standard-review notice of 3-4 months.",
         "publicUrl": null
       }
     }

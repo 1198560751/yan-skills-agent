@@ -267,8 +267,12 @@ test("merge 没有输入时失败而不是产出空文件", async () => {
 // 模式与 rankup/scripts/validate-rankup.mjs 的 projectLeakPatterns 保持一致。
 // ─────────────────────────────────────────────────────────────────────────
 
+// 名单里为什么是这些名字:它们是**已经泄漏过或最可能泄漏**的自有项目代号。
+// 这不是「这些项目特殊」,而是黑名单只能拦住它认识的词——2026-08-21 发现
+// `intabtools` / `toolpear` 有四处漏进 backlink/,根因就是它们不在这张表里。
+// **新开一个项目时把它的代号加进来**,否则这个守卫对它等于不存在。
 const projectLeakPatterns = [
-  ["project identifier", /\b(?:bettercallsaul|birthstonemeaning|crystalhealing|sbti)\b/gi],
+  ["project identifier", /\b(?:bettercallsaul|birthstonemeaning|crystalhealing|sbti|intabtools|toolpear|shindan-lab|butterflydream|sgsz-alliance|xueer)\b/gi],
   ["absolute host path", /\/Users\/[A-Za-z0-9._-]+\//g],
   ["hardcoded local proxy", /\b127\.0\.0\.1:\d{2,5}\b/g],
   ["credential store location", /\.claude\.json\b/g],

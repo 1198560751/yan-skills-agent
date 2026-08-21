@@ -91,7 +91,9 @@ try {
 
   const lines = captured.bodyText.split(/\n+/).map((l) => l.trim()).filter(Boolean);
   const metrics = {
-    authorityScore: Number(pick(lines, 'Authority Score', /^\d+$/)) || null,
+    // `Number(x) || null` 会把 AS=0 吞成 null —— 而 0 是真实值（新站常见），
+    // 与「没数据」含义相反。2026-08-21 在 semrush-report.mjs 上发现，同步修这里。
+    authorityScore: (() => { const v = pick(lines, 'Authority Score', /^\d+$/); return v === null ? null : Number(v); })(),
     organicTraffic: parseCompact(pick(lines, '自然流量', /^[\d.,]+\s*[KMB]?$/i)),
     paidTraffic: parseCompact(pick(lines, '付费流量', /^[\d.,]+\s*[KMB]?$/i)),
     referringDomains: parseCompact(pick(lines, '引荐域名', /^[\d.,]+\s*[KMB]?$/i)),
