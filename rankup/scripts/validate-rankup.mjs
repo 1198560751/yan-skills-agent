@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.26.0";
+const expectedVersion = "2.27.0";
 const requiredReferences = [
   "lifecycle.md",
   "cloudflare-stack.md",
@@ -83,8 +83,12 @@ const secretPatterns = [
 // Skill 必须保持项目中立与机器中立:任何可归属到某个具体项目、账号或本机环境的内容
 // 都属于 <project>/.rankup/,不进本 Skill。经验条目只保留"剥离站点后仍成立"的规则,
 // 证据出处、流量数字、凭据位置一律留在项目侧。
+// 名单里为什么是这些名字:它们是**已经泄漏过或最可能泄漏**的自有项目代号。
+// 这不是「这些项目特殊」,而是黑名单只能拦住它认识的词——2026-08-21 发现
+// `intabtools` / `toolpear` 有四处漏进 backlink/,根因就是它们不在这张表里。
+// **新开一个项目时把它的代号加进来**,否则这个守卫对它等于不存在。
 const projectLeakPatterns = [
-  ["project identifier", /\b(?:bettercallsaul|birthstonemeaning|crystalhealing|sbti)\b/gi],
+  ["project identifier", /\b(?:bettercallsaul|birthstonemeaning|crystalhealing|sbti|intabtools|toolpear|shindan-lab|shindan|butterflydream|sgsz-alliance|xueer)\b/gi],
   ["absolute host path", /\/Users\/[A-Za-z0-9._-]+\//g],
   ["hardcoded local proxy", /\b127\.0\.0\.1:\d{2,5}\b/g],
   ["credential store location", /\.claude\.json\b/g],

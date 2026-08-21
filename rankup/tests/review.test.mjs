@@ -109,3 +109,27 @@ test("非法 --days 直接报错而不是静默取默认值", async () => {
     assert.match(result.stderr, /--days/);
   });
 });
+
+test("用 ## 分条的经验库被判为格式异常,而不是静默报 0 条", async () => {
+  await withProject(async (root) => {
+    // 这是本协议里最容易发生的静默失效:切分器认 `- **[日期] 标题**`,
+    // 用 `## 标题` 分条会读出 0 条,于是重复检测与回流候选长期空转,
+    // 而报告看起来完全正常。实测有过一个 12 条的库被静默报成 0 条。
+    await seed(root, {
+      "experience.md": ["# 经验", "", "## 一条结论", "", "正文。", "", "## 又一条", "", "正文。"].join("\n"),
+    });
+    const report = JSON.parse(runReview(root, ["--json"]).stdout);
+    assert.equal(report.experience.total, 0);
+    assert.equal(report.experience.malformed, true);
+    assert.match(runReview(root).stdout, /格式异常/);
+  });
+});
+
+test("空的经验库不报格式异常", async () => {
+  await withProject(async (root) => {
+    await seed(root, { "experience.md": "# 本项目可复用经验\n\n还没有条目。\n" });
+    const report = JSON.parse(runReview(root, ["--json"]).stdout);
+    assert.equal(report.experience.total, 0);
+    assert.equal(report.experience.malformed, false);
+  });
+});

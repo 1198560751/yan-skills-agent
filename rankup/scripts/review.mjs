@@ -83,7 +83,7 @@ async function reviewProject(projectRoot, days) {
     missingRecommended: [],
     stale: [],
     scripts: [],
-    experience: { total: 0, duplicates: [], promotionCandidates: [] },
+    experience: { total: 0, malformed: false, duplicates: [], promotionCandidates: [] },
     commitsSince: null,
   };
   if (!report.hasRankup) return report;
@@ -122,8 +122,20 @@ async function reviewProject(projectRoot, days) {
 
   const experiencePath = path.join(rankupDir, "experience.md");
   if (await exists(experiencePath)) {
-    const entries = splitEntries(await readFile(experiencePath, "utf8"));
+    const raw = await readFile(experiencePath, "utf8");
+    const entries = splitEntries(raw);
     report.experience.total = entries.length;
+
+    // 文件里明明有内容却一条都切不出来 = 格式不对(多半是用 `## 标题` 分的条),
+    // 而不是「还没积累经验」。不报出来的话重复检测与回流候选会长期空转,
+    // 报告却完全正常——实测有过一个 12 条的库被静默报成 0 条。
+    // 判据取「有 `##` 分条却切不出条目」为主,纯长度阈值为辅——
+    // 只用长度会漏掉短条目的库(标题行被剔掉后正文可能不足两百字)。
+    const hasHeadingSections = /^##\s+\S/m.test(raw);
+    const bodyLength = raw.replace(/^#.*$/gm, "").trim().length;
+    if (entries.length === 0 && (hasHeadingSections || bodyLength > 200)) {
+      report.experience.malformed = true;
+    }
 
     const seen = new Map();
     for (const entry of entries) {
@@ -192,6 +204,12 @@ function renderText(report, days) {
 
   lines.push("## 经验库信号", "");
   lines.push(`- 条目总数：${report.experience.total}`);
+  if (report.experience.malformed) {
+    lines.push(
+      "- **格式异常**：文件有内容但一条都切不出来。条目必须以 `- **[YYYY-MM-DD] 标题**` 起头,",
+      "  用 `## 标题` 分条会让本脚本读出 0 条,重复检测与回流候选因此全部空转。",
+    );
+  }
   if (report.experience.duplicates.length > 0) {
     lines.push(`- 疑似重复（应合并）：${report.experience.duplicates.join("、")}`);
   }
