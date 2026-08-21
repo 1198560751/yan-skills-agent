@@ -37,6 +37,9 @@ const session = flags.session ? validateSession(flags.session) : defaultSession(
 const APP_ORIGIN = (process.env.TOOLS_SHARE_APP_ORIGIN_SEMRUSH || 'https://sem.3ue.co').replace(/\/+$/, '');
 const APP_HOST = new URL(APP_ORIGIN).host;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** 同一个关键词可以合法地出现在多个落地页上，去重键必须带 URL 与排名，
+ *  只用关键词会把 100 行压成 67 行——实测踩过。 */
+const rowKey = (r) => `${r.keyword}||${r.url || ''}||${r.position ?? ''}`;
 const escapeRe = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
@@ -69,12 +72,14 @@ const REPORTS = {
     // 记过的「认左侧菜单项导致抓到空壳」是同一个坑，第二次踩了。
     ready: (t, target) => new RegExp(`${escapeRe(target)}/`).test(t) || /未找到结果|No results|没有数据/.test(t),
     parse: parsePositions,
+    paginated: true,
   },
   'organic-pages': {
     needs: 'domain',
     path: (t, db) => `/analytics/organic/pages/?searchType=domain&q=${encodeURIComponent(t)}${db ? `&db=${db}` : ''}`,
     ready: (t, target) => new RegExp(`${escapeRe(target)}/`).test(t) || /未找到结果|No results|没有数据/.test(t),
     parse: parsePages,
+    paginated: true,
   },
   'backlinks-list': {
     needs: 'domain',
@@ -322,6 +327,38 @@ function parseRows(lines, fieldCount) {
 // with no error, and a tester wrote up "this domain ranks for almost nothing"
 // on the strength of it. A young SaaS site ranking entirely on `/` is the
 // median case here, not an edge case, so the slash ends the requirement.
+/**
+ * 表格报告每页 100 行，**超出部分不会有任何提示**——`parsed.rows` 就是 100，
+ * 看起来像一个完整结果。2026-08-21 实测一个 104 词的域名被静默截成 100。
+ *
+ * 翻页**不是 URL 驱动的**：`&page=2` / `&pageNumber=2` / `&offset=100` 三种写法
+ * 都试过，页码指示器纹丝不动停在 1。这与本 Skill 既有的「分页多半是 URL 驱动，
+ * 确认后可直接拼 URL」相反——**这里是反例，只能点「下一页」**。
+ */
+function readPageInfo(bodyText) {
+  const m = bodyText.match(/页码：\s*\n?\s*(\d+)?[\s\S]{0,6}?\/\s*\n?\s*(\d+)/);
+  const cur = bodyText.match(/页码：\s*(\d+)\s*$/m);
+  return { current: cur ? Number(cur[1]) : (m && m[1] ? Number(m[1]) : 1), total: m ? Number(m[2]) : 1 };
+}
+
+/** 点「下一页」，等页码真的变了再返回。页码没变就是到头了。 */
+async function clickNextPage(evalPage, before) {
+  const clicked = await evalPage(`(() => {
+    const el = [...document.querySelectorAll('button,a,[role="button"]')]
+      .find((b) => /^(下一页|Next)$/.test((b.innerText || '').trim()) && !b.disabled && b.getAttribute('aria-disabled') !== 'true');
+    if (!el) return JSON.stringify({ ok: false, why: 'no enabled next control' });
+    el.click();
+    return JSON.stringify({ ok: true });
+  })()`);
+  if (!clicked.ok) return false;
+  for (let i = 0; i < 12; i++) {
+    await sleep(1500);
+    const now = await evalPage('(() => JSON.stringify({ t: document.body?.innerText || "" }))()');
+    if (readPageInfo(now.t).current > before) return true;
+  }
+  return false;
+}
+
 function parsePositions(lines) {
   const NUMISH = /^(<\s*)?[\d.,]+\s*(?:[KMB]|万)?$|^< ?0\.01$/i;
   const rows = [];
@@ -455,7 +492,33 @@ try {
       `(3) 若页面显示「出错了…请稍后重试」，本脚本已自动重载重试 ${flags.retries || 3} 次仍失败。`,
     );
   }
-  const lines = cap.bodyText.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  let lines = cap.bodyText.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  let parsed = spec.parse(lines);
+  const pageInfo = readPageInfo(cap.bodyText);
+  let pagesRead = 1;
+
+  // **不允许静默截断**（本 Skill 的明文规则）：要么把页翻完，要么把丢掉的量报出来。
+  if (spec.paginated && pageInfo.total > 1) {
+    if (flags['all-pages']) {
+      const seen = new Set((parsed.rows || []).map(rowKey));
+      while (pagesRead < pageInfo.total && pagesRead < Number(flags['max-pages'] || 20)) {
+        if (!(await clickNextPage(evalPage, pagesRead))) break;
+        pagesRead += 1;
+        const next = await evalPage('(() => JSON.stringify({ bodyText: document.body?.innerText || "" }))()');
+        const more = spec.parse(next.bodyText.split(/\n+/).map((l) => l.trim()).filter(Boolean));
+        for (const r of more.rows || []) {
+          const k = rowKey(r);
+          if (!seen.has(k)) { seen.add(k); parsed.rows.push(r); }
+        }
+      }
+    } else {
+      console.error(
+        `[truncated] ${name} 共 ${pageInfo.total} 页，本次只读了第 1 页（${(parsed.rows || []).length} 行）。` +
+        `要全量加 --all-pages。`,
+      );
+    }
+  }
+
   output = {
     version: 1,
     source: 'Semrush via authenticated Tools Share browser session',
@@ -471,7 +534,8 @@ try {
       expiry: tool.state.expiry, daysLeft: tool.state.daysLeft,
       quotas: tool.state.quotas, warning: expiryWarning(tool.state),
     },
-    parsed: spec.parse(lines),
+    pagination: spec.paginated ? { pages: pageInfo.total, pagesRead, complete: pagesRead >= pageInfo.total } : null,
+    parsed,
     rawText: cap.bodyText.slice(0, 20000),
   };
 } catch (error) {

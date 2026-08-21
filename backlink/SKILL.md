@@ -55,8 +55,8 @@ backlink/
 │   ├── semrush-batch.mjs           same, on the other card's quota (organic traffic)
 │   ├── semrush-overview.mjs        AS / organic traffic / ref-domains / keywords
 │   ├── semrush-keyword.mjs         one keyword: volume, KD, CPC, per-country split
-│   ├── semrush-positions.mjs       a domain's full organic-positions table
 │   ├── semrush-report.mjs          the OTHER four no-export reports; reuses one session
+│   │                               table reports paginate — pass --all-pages or it warns
 │   ├── page-read.mjs               render a public page → text, prices, paywall shape
 │   ├── apply-traffic-screen.mjs    write verdicts back into submission-targets.json
 │   ├── inspect-page.mjs            dump one target's form / login / CAPTCHA state
