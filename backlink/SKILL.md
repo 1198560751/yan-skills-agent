@@ -519,11 +519,29 @@ new reader, especially the rule that a readiness predicate must key on a **data
 row**, never on a tab name, column header, or filter chip.
 
 **Then check the parser against itself.** A ready page and a correct parse are
-different claims, and the second one fails silently: count the record-shaped
-lines in `rawText` and compare with `parsed.rows.length`. A gap is your regex's
-blind spot. One live run under-reported **all five** domains it touched this way
-— the worst lost 91 rows of 93, and the one that looked healthiest still lost
-49 — with no error anywhere and a wrong written conclusion on top.
+different claims, and the second one fails silently. One live run under-reported
+**all five** domains it touched — the worst lost 91 rows of 93, and the one that
+looked healthiest still lost 49 — with no error anywhere and a wrong written
+conclusion on top.
+
+The check is **two comparisons, and conflating them produces false alarms**:
+
+<check level="1" compares="rawText vs parsed.rows.length">
+Count the record-shaped lines in `rawText`, compare with `parsed.rows.length`.
+A gap here means **your regex has a blind spot** — the rows arrived and you
+dropped them. This is the silent, dangerous one. Fix the parser.
+</check>
+<check level="2" compares="the page's own headline count vs rawText">
+Semrush prints its own total (`自然搜索排名: N`). If that exceeds what `rawText`
+even contains, the rows **never reached you**: these tables are virtual-scroll
+and only mount a fraction at a time, so a full pull needs the export, which
+costs quota. This is a known ceiling, not a bug — say so rather than "fixed
+the parser".
+</check>
+
+A live re-run shows both at once: three domains matched their headline exactly
+(14/14, 22/22, 5/5) while one read 91 against a claimed 430. The first three
+prove the parser; the fourth is level 2 and needs no fix.
 </caution>
 </workflow>
 
