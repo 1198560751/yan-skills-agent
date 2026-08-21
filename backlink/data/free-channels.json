@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-19T00:00:00.000Z",
+  "updatedAt": "2026-08-21T17:54:19.298Z",
   "channels": [
     {
       "id": "telegraph",
@@ -726,6 +726,36 @@
         "method": "browser-dom",
         "what": "Submitted a browser-tools site (category Productivity, pricing Free, tags Tools / Text Generator / PDF / Typography / Privacy) through the two-step form on 2026-08-20. The page then rendered: Thanks for submitting your product! \"<product name>\" has been submitted successfully. — alongside a standard-review notice of 3-4 months.",
         "publicUrl": null
+      }
+    },
+    {
+      "id": "github-repo",
+      "name": "GitHub — public repository (README)",
+      "kind": "publish-platform",
+      "scope": "own-property",
+      "homepage": "https://github.com",
+      "account": "required",
+      "captcha": "none",
+      "browserRequired": false,
+      "anchorRendered": true,
+      "relObserved": [
+        "nofollow"
+      ],
+      "robotsObserved": "index, follow",
+      "indexable": true,
+      "rateLimit": null,
+      "howToPublish": "Create a public repo and put real links in README.md. Entirely scriptable with the `gh` CLI plus git — no browser needed. The repo must carry something genuinely useful; an empty shell built only to hold links is what every guideline calls out.",
+      "traps": [
+        "EVERY anchor to an external site is rel=\"nofollow\" — measured 2026-08-22 across 46 anchors on one repo page: 45 plain nofollow plus 1 \"noopener noreferrer nofollow\". There is no dofollow slot anywhere on the page, unlike platforms where a byline or profile field escapes the rule.",
+        "The repo description and homepage fields render as links too and are nofollow as well — do not count them as a second channel.",
+        "A README goes stale silently. Links to pages later merged away keep 301-ing and look fine to a human, so re-diff the README against the live sitemap whenever the site's URL set changes."
+      ],
+      "status": "live",
+      "lastVerifiedAt": "2026-08-22",
+      "evidence": {
+        "method": "anonymous-http",
+        "what": "Fetched the public repo page and read the rel attribute off every anchor pointing at the linked site. 46 anchors total, all carrying nofollow.",
+        "observedAt": "2026-08-22"
       }
     }
   ]
