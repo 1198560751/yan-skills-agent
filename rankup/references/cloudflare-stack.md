@@ -135,6 +135,95 @@ npx skills add cloudflare/skills --skill workers-best-practices -g -y
 4. secrets 均存在于目标环境，但输出不包含真实值。
 5. 回滚部署或前滚修复路径已记录。
 
+## 8.5 接入域名：把 zone 加进 Cloudflare
+
+新域名的第一步不是部署，是**让 Cloudflare 接管这个域名**（zone onboarding）。
+这一步不完成，`wrangler deploy` 会因为找不到 zone 而失败，custom domain 也无从绑定。
+
+**Wrangler 没有 zone 命令。** 实测其完整命令面覆盖 Workers / Pages / KV / R2 / D1 /
+Queues / AI / Containers / secret / email，**没有任何创建或列出 zone 的子命令**——
+zone 属于账号层资源，不在 Wrangler 职责内。因此不要试图用 `wrangler` 完成这一步，
+也不要因为 Wrangler 做不到就断言"这件事只能人工做"。
+
+### 两条路径，按优先级
+
+**路径 A（优先）：操作用户自己的浏览器。**
+Cloudflare 后台是登录态页面，按本 Skill 的浏览器规则，必须驱动**用户本机那个真实的、
+已登录的浏览器**，不得使用运行环境自带的沙箱浏览器（沙箱没有用户会话，只会看到登录页）。
+流程：打开 Cloudflare 控制台 → Add a domain → 输入域名 → 选择方案 → 读回分配到的
+nameserver 对 → 把这对 NS 交给用户。
+
+这条路的优势不只是省事：**全程不涉及任何凭据**。它只是代替用户点了几下网页，
+没有任何 token 被创建、传输或落盘，因此不产生新的泄露面。
+
+**路径 B（退路）：用户已有 API 凭据时，走脚本。**
+浏览器不可用时（扩展未连接、用户机器网络受限、无图形界面），用
+`scripts/cf-zone-setup.mjs`。让**用户自己**把凭据写进项目根的 `.cf-token`
+（该文件必须先加入 `.gitignore`），或导出为环境变量；脚本自行读取，
+凭据值不经过对话、不进日志、不落提交。
+
+```bash
+node <rankup-skill-dir>/scripts/cf-zone-setup.mjs status <domain>   # 先只读探测
+node <rankup-skill-dir>/scripts/cf-zone-setup.mjs create <domain>   # 建 zone 并读回 NS
+```
+
+**先跑 `status`**：它是只读的，既能验证凭据有效，又能发现 zone 其实已经存在
+（重复创建会报错，而错误信息不会告诉你"其实已经有了"）。
+
+### 凭据选型：这里的默认答案是 scoped token
+
+创建 zone 需要 **`Zone > Zone > Edit`，且资源范围必须是 All zones**。
+zone 尚不存在，所以 zone-scoped 的 token 建不了它——这是官方文档明确写死的约束，
+不是可以绕的配置问题。
+
+**永远优先 scoped API Token，不要用 Global API Key。** 两者在使用现场都只是一串字符，
+但风险差着数量级：Global Key 不能限定 scope、资源或 IP，等同账号完全控制权
+（所有 zone、所有 Worker、DNS、账单），且无法按用途回收；scoped token 可以窄到
+"只允许改 zone 配置"，即使泄露，可造成的最大伤害也被框死。
+
+两者的 HTTP 认证方式还不同，认错会得到一个**极具误导性的错误**：
+
+| 凭据 | 长度 | header |
+|---|---|---|
+| API Token | 40 字符 | `Authorization: Bearer <token>` |
+| Global API Key | 37 位十六进制 | `X-Auth-Email` + `X-Auth-Key`（必须带账号邮箱） |
+
+把 Global Key 当 Bearer 发出去，返回的是 `400 / 6003 Invalid request headers`。
+这条错误看起来像"请求头写错了"，会把排查引向请求构造，**而真实成因是凭据类型不匹配**。
+判据：先按长度判别凭据形态，再选 header。
+
+### 换 NS 之前必须先关 DNSSEC
+
+**注册商默认签名已是常态**——新注册的域名可能立刻就是 `DNSSEC: signedDelegation`。
+带着旧的 DS 记录把 NS 指向新服务商，验证型 resolver 会 SERVFAIL，**域名整个打不开**，
+而症状伪装成"NS 还没生效，再等等"，排查方向完全错，代价是白等一天。
+
+顺序不可颠倒：
+
+1. 注册商后台关闭 DNSSEC；
+2. `whois -h <注册局 whois 主机> <domain>` 复查到 `DNSSEC: unsigned` 才继续；
+3. 在 Cloudflare 建 zone、取得 NS 对；
+4. 注册商侧 **整体替换** NS（删掉原有的，不是追加——混合 NS 会解析错乱）；
+5. 等 zone 变为 active；
+6. 用 Cloudflare 提供的 DS 记录重新启用 DNSSEC。
+
+**NS 对是按 zone 分配的**，加站点之后才知道是哪一对，无法预先告知或猜测；
+换一个域名就是另一对，不可套用上一个项目的值。
+
+### 判定域名状态只看注册局 whois
+
+不要用本机 `dig` 判断域名是否被占用或 NS 是否已切换：解析器或 VPN 可能返回劫持应答
+（例如落在 `198.18.0.0/15` 基准测试保留段的地址），看起来像一条正常记录。
+**权威来源是注册局 whois**，且每批查询都应带正对照（一个确定已注册的域名）与
+负对照（一个随机串），否则无法把"查不到"与"查询链路故障"区分开。
+
+### 一个会误判成"Cloudflare 打不开"的现象
+
+若用户机器无法访问某个身份提供商（例如 OAuth 跳转的域被网络阻断），
+Cloudflare 后台点"用该身份登录"会失败，表现为**控制台整个打不开**。
+此时应分别探测身份提供商与 Cloudflare 各自的可达性，而不是断定 Cloudflare 不可用——
+改用邮箱密码登录通常即可解决。
+
 ## 9. 部署
 
 部署命令应来自项目锁定的脚本或 Wrangler 配置，不在不知道环境的情况下猜测命令。典型顺序：
