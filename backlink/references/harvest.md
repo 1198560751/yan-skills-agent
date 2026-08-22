@@ -310,3 +310,39 @@ Blob 下载不是同步完成的，最后一个文件常常晚几秒落盘。
 要取全 100 行必须边滚边收再去重：滚 3 屏 → 抓 `innerText` → 重复 26 次 → 按域名去重。
 它的指标在 innerText 里是**一行 Tab 分隔**（`访问\tDR\tfollow\t搜索占比\t频次`），
 只按 `\n` 切会解析出 0 行。
+
+---
+
+## 把 OpenCLI 输出直接重定向成 .json，会得到一个解析不了的文件（2026-08-22）
+
+`opencli` 在 Node 22 下会往输出里打两行运行时警告：
+
+```
+(node:71826) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+```
+
+于是 `opencli browser "$S" eval '…' > evidence.json` 存下来的文件，
+**前 178 字节是这两行警告，后面才是 JSON**。表现是：
+
+- 文件存在、大小正常（10KB）、`head` 看上去像那么回事；
+- `json.load()` 直接抛异常，且异常信息指向解析器内部，**看不出是被污染了**；
+- 如果这个文件是"证据留存"，那它**看起来合规、实际不可用**——
+  而这类失败往往要到很久以后有人去复核时才被发现。
+
+**做法**：写文件前先截到第一个 `{`，并且**解析成功才落盘**——
+解析不过就抛错，不要把一个坏文件覆盖成另一个坏文件。
+
+```python
+raw = open(f, encoding="utf-8").read()
+i = raw.find("{")
+body = raw[i:] if i > 0 else raw
+json.loads(body)              # 不过就抛，不写
+open(f, "w", encoding="utf-8").write(body)
+```
+
+同类判据：**任何把命令行输出当结构化数据存盘的地方，都要先解析再落盘。**
+「命令退出码 0 + 文件非空」不构成"拿到数据了"。
+
+顺带一条 shell 陷阱，本项目已重复踩到：**zsh 里 `for … do` 循环体内嵌 heredoc 会解析失败**
+（`parse error near 'done'`）。把逻辑写成独立脚本文件再跑，不要在 `-c` 里拼。
