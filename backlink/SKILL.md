@@ -81,6 +81,7 @@ backlink/
     ├── instant-publish.md     ★ free channels: how each class behaves, what kills them
     ├── paid-platforms.md      ★ paid: tiers, why a burst is not a purchase
     ├── batch-campaign.md      ★ 100+ rows: queue, idempotency, resume, reporting
+    ├── directory-run-playbook.md ★ what a real run hits: hidden free tiers, already-listed sites, stale ledger rows
     ├── index-submission.md      index-only channels; why `indexed` must name an engine
     ├── authorized-data-sources.md  the panel, the cards, quota, expiry, the traps
     ├── field-notes.md           what actually blocks submissions in practice
@@ -763,6 +764,7 @@ indexability, and the report must not imply one.
 <when trigger="any browser work at all">references/browser-runtime.md</when>
 <when trigger="any fill, submit, account, or logged-in action">references/safety-policy.md</when>
 <when trigger="a supplied list of 100+ rows, or anything that must survive interruption">references/batch-campaign.md — the single-target loop deduplicates too late, stalls behind the first CAPTCHA, cannot tell an interrupted row from an unstarted one, and produces a number that counts forms instead of links</when>
+<when trigger="about to actually submit to directories — authorization, hidden free tiers, no-fabrication, ledger hygiene">references/directory-run-playbook.md — a real run's difficulty is before and after the form, not in it: 4 of 5 successful submissions hid their free tier behind a paid upsell, one target was already listed without any submission, and a driver's ledger row went stale the moment someone else finished the job</when>
 <when trigger="a first submission campaign">references/field-notes.md — personal-contact requirements outrank CAPTCHAs, and landing-page CAPTCHA scans give false negatives</when>
 <when trigger="someone hands you a 'places to get backlinks' list">the "Reading a third-party list" section of references/instant-publish.md — a Dofollow column is an assertion about a platform, never an observation of a link</when>
 <when trigger="the ask is about paid placement">references/paid-platforms.md</when>
