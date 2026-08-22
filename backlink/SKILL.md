@@ -3,7 +3,7 @@ name: backlink
 description: OpenCLI-first backlink discovery, profile analysis, opportunity qualification, safe browser-assisted form filling, evidence-based verification, and bulk data harvesting from logged-in dashboards. Use for backlinks, external links, competitor link research, blog-comment opportunities, directory submissions, Similarweb/Semrush/Ahrefs discovery, Search Console verification, anchor analysis, toxic-link review, disavow review, outreach templates, scraping SaaS report tables that have no API, driving the owner's logged-in Chrome from a script, or Chinese requests such as 反链、外链、找外链、发外链、评论外链、外链分析、抓后台数据、导出报表、数据面板、数据勘测.
 ---
 
-<skill name="backlink" version="3.0" body-format="xml">
+<skill name="backlink" version="3.1" body-format="xml">
 
 <why-xml>
 The frontmatter above stays YAML because the Skill loader reads it for
@@ -758,6 +758,21 @@ route that exists** and the validator rejects those fields there. A target
 graduates from the second into the first the moment an actual anchor is
 observed; until then it makes no promise about `rel`, anchor text, or
 indexability, and the report must not imply one.
+</rule>
+<rule id="closed-loop-volume-check">
+Two volume sources disagreeing by more than ~3× is not evidence that "volume
+is unreliable" — it is a resolvable arithmetic question, and you MUST resolve
+it before either number enters a decision. Pick a domain ranking #1 for the
+disputed keyword, get its real traffic and Organic-Search share from
+Similarweb, and get its ranked keywords with volumes from Semrush. Divide
+observed organic clicks by the candidate volume total to get an implied CTR:
+under 40% is plausible, over 100% falsifies that volume. This validates
+**volume only, never intent** — a keyword can clear the CTR check and still be
+worthless if the SERP shows the searchers do not want what you sell. A
+falsification of one function of a tool (its volume model) says nothing about
+another function of the same tool (e.g. SERP-composition reads have no
+estimation model and are unaffected). Full worked example:
+<ref file="references/authorized-data-sources.md"/>.
 </rule>
 </rules>
 
