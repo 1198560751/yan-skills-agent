@@ -224,6 +224,32 @@ Cloudflare 后台点"用该身份登录"会失败，表现为**控制台整个�
 此时应分别探测身份提供商与 Cloudflare 各自的可达性，而不是断定 Cloudflare 不可用——
 改用邮箱密码登录通常即可解决。
 
+## 8.6 品牌邮箱：Cloudflare Email Routing
+
+域名在 Cloudflare 上之后，用 **Email Routing** 给站点加一个官方邮箱（如 `hello@<domain>`），
+零成本把收到的邮件转发到个人邮箱。Wrangler 4.x 已有完整 CLI（open beta）。
+
+```bash
+wrangler email routing settings <domain>          # 查看状态
+wrangler email routing enable <domain>            # 启用（自动配 MX/SPF/DKIM）
+wrangler email routing addresses list             # 已验证的目标地址
+wrangler email routing addresses create <email>   # 注册目标（首次需点确认链接）
+wrangler email routing rules create <domain> \    # 创建转发规则
+  --match-type literal --match-field to \
+  --match-value "hello@<domain>" \
+  --action-type forward --action-value "<email>"
+wrangler email routing rules list <domain>        # 验证规则
+wrangler email routing dns get <domain>           # 验证 DNS 记录
+```
+
+**冲突风险**：`enable` 会写入 Cloudflare 自己的 MX 记录。如果域名已有 MX
+（Google Workspace / Zoho 等），启用前先确认不会抢走现有邮箱的收件。
+
+**只管收件**：Email Routing 只做转发，不提供发件能力。
+需要用域名邮箱发信要配付费邮箱服务。内容站通常只需收件。
+
+详见 `lifecycle.md` 阶段 7.5 A2 节的完整操作指南与注意事项。
+
 ## 9. 部署
 
 部署命令应来自项目锁定的脚本或 Wrangler 配置，不在不知道环境的情况下猜测命令。典型顺序：

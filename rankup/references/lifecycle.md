@@ -432,6 +432,66 @@
    脚手架自带的 manifest 常常指向不存在的 `logo192.png`／`logo512.png`，
    并留着框架自己的名字——它是 Android 添加到主屏时用户看到的东西。
 
+**A2. 品牌邮箱：用域名邮箱做官方联系点**
+
+站点上线后，`contactPoint`、`/about` 页面和任何对外投放（目录提交、外链联络）
+都需要一个**看起来属于这个站的邮箱**——用个人 Gmail 会让 E-E-A-T 信任信号打折，
+也会让外链站主怀疑你是不是真的运营这个站。
+
+域名已在 Cloudflare 上的站点，**零成本做法是 Cloudflare Email Routing**：
+它在 Cloudflare 边缘接收发往你域名的邮件，然后转发到你的个人邮箱。
+不需要另外买邮箱服务，不需要配 SMTP，不需要 cookie/同意横幅。
+
+Wrangler 4.x 已有完整 CLI 支持（open beta），**不需要打开控制台**：
+
+```bash
+# 1. 查看当前状态
+wrangler email routing settings <domain>
+
+# 2. 启用 Email Routing（自动配 MX + SPF + DKIM DNS 记录）
+wrangler email routing enable <domain>
+
+# 3. 注册目标转发地址（首次需要去邮箱点确认链接）
+wrangler email routing addresses create <personal-email>
+
+# 4. 查看已验证的目标地址
+wrangler email routing addresses list
+
+# 5. 创建转发规则
+wrangler email routing rules create <domain> \
+  --name "Forward hello@ to personal" \
+  --match-type literal \
+  --match-field to \
+  --match-value "hello@<domain>" \
+  --action-type forward \
+  --action-value "<personal-email>" \
+  --enabled \
+  --priority 0
+
+# 6. 验证规则
+wrangler email routing rules list <domain>
+
+# 7. 验证 DNS 记录已自动配好
+wrangler email routing dns get <domain>
+```
+
+注意事项：
+
+- **`enable` 会自动配 MX、SPF 和 DKIM DNS 记录**——如果域名已有 MX（比如用着 Google Workspace），
+  启用前先确认不会冲突，否则会中断现有邮箱收件。
+- **目标地址需要验证**：`addresses create` 之后，目标邮箱会收到一封确认邮件，
+  点了才能用作转发目标。同一个 Cloudflare 账号下已验证过的地址**跨域名共用**，不需要重新验证。
+- **这只解决收件**。如果需要用 `hello@<domain>` 发信（不只是收），
+  需要 Google Workspace / Zoho / Fastmail 等付费邮箱服务。
+  对于内容站，通常只需要收件（接外链联络、接用户反馈），发件走个人邮箱即可。
+- **邮箱地址选择**：`hello@` 或 `contact@` 是最通用的，
+  不要用 `admin@`（暗示管理入口）或 `info@`（垃圾邮件重灾区）。
+
+设好之后，把邮箱地址填入：
+1. Organization JSON-LD 的 `contactPoint.email`
+2. `/about` 页面的可见联系方式
+3. 外链投放和目录提交时的联系邮箱
+
 **B. 测量接入：按"是否依赖第三方账号"排序，先做不依赖的**
 
 6. **先接不需要任何第三方账号的那个**。托管平台自带的分析（如 Cloudflare Web Analytics）
