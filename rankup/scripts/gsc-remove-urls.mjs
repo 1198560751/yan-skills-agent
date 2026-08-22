@@ -17,7 +17,7 @@
  *     --file urls.txt
  *
  * 标志：
- *   --property <id>   GSC 资源 ID（默认：sc-domain:intabtools.com）
+ *   --property <id>   GSC 资源 ID（必填，如 sc-domain:example.com）
  *   --file <路径>      从文件读取 URL，每行一个（空行和 # 开头的行忽略）
  *   --session <名>     opencli 浏览器会话名（默认：gsc-remove-<pid>）
  *   --keep-session     完成后不关闭浏览器会话
@@ -51,7 +51,8 @@ const L = {
 
 // ── 参数解析 ──────────────────────────────────────────────
 const argv = process.argv.slice(2)
-let property = "sc-domain:intabtools.com"
+let property = null // 必填。**不给默认值**：默认成某个具体站点既是项目泄漏，
+// 也会让忘记传 --property 的调用静默操作到错误的资源上。
 let session = `gsc-remove-${process.pid}`
 let urlFile = null
 let keepSession = false
@@ -79,6 +80,12 @@ if (urlFile) {
   }
 }
 
+if (!property) {
+  console.error("错误：缺少 --property（如 sc-domain:example.com）")
+  usage()
+  process.exit(1)
+}
+
 if (urls.length === 0) {
   console.error("错误：至少提供一个 URL（命令行参数或 --file）")
   usage()
@@ -86,7 +93,7 @@ if (urls.length === 0) {
 }
 
 function usage() {
-  console.log(`用法: node gsc-remove-urls.mjs [--property sc-domain:xxx] [--file urls.txt] <url1> <url2> ...
+  console.log(`用法: node gsc-remove-urls.mjs --property sc-domain:xxx [--file urls.txt] <url1> <url2> ...
        node gsc-remove-urls.mjs --help`)
 }
 

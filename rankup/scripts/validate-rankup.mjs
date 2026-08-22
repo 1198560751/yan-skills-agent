@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.34.0";
+const expectedVersion = "2.35.0";
 const requiredReferences = [
   "lifecycle.md",
   "cloudflare-stack.md",
@@ -18,6 +18,7 @@ const requiredReferences = [
   "seo-growth.md",
   "evolution.md",
   "trends.md",
+  "search-platforms.md",
 ];
 
 const requiredContent = {
@@ -34,6 +35,8 @@ const requiredContent = {
     "### `rankup init`",
     "### `rankup review`",
     "scripts/sessions.mjs",
+    "scripts/indexnow-submit.mjs",
+    "scripts/webmaster-sitemap.mjs",
     "断言绝不能被 git 追踪",
     "--new-only",
     "review-state.json",

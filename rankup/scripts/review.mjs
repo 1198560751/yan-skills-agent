@@ -82,6 +82,28 @@ const LIFECYCLE_CHECKS = [
     why: "数据越早接越值钱——历史数据晚接一天永久少一天",
   },
   {
+    id: "indexnow",
+    name: "索引推送（IndexNow）",
+    group: "上线后",
+    evidence: "integrations.md",
+    // 按内容判定而不是按体积:integrations.md 记着一堆别的平台时体积早就够了,
+    // 而"IndexNow 到底接没接"仍然是未知。体积检查在这里会给出一个假的绿灯。
+    mustContain: ["IndexNow", "indexnow"],
+    fix: "node <rankup>/scripts/indexnow-submit.mjs --generate-key，然后按 search-platforms.md 接",
+    tool: "indexnow-submit.mjs",
+    why: "唯一一个零账号的索引通道——一个密钥文件就是全部凭据，没有理由不接",
+  },
+  {
+    id: "sitemap-submitted",
+    name: "两边站长工具的 sitemap 已提交",
+    group: "上线后",
+    evidence: "integrations.md",
+    mustContain: ["sitemap"],
+    fix: "node <rankup>/scripts/webmaster-sitemap.mjs <gsc|bing> submit …，结果记进 integrations.md",
+    tool: "webmaster-sitemap.mjs",
+    why: "资源验证通过 ≠ sitemap 已提交，这两件事经常只做了前一件",
+  },
+  {
     id: "infrastructure",
     name: "基础设施记录",
     group: "上线后",
@@ -182,6 +204,14 @@ async function checkLifecycle(rankupDir) {
         } catch {
           /* ignore */
         }
+      }
+    } else if (check.mustContain) {
+      // 内容检查:文件在、体积够,不代表这一项真的做了。
+      try {
+        const text = await readFile(path.join(rankupDir, check.evidence), "utf8");
+        done = check.mustContain.some((needle) => text.includes(needle));
+      } catch {
+        done = false;
       }
     } else {
       const size = await fileBytes(path.join(rankupDir, check.evidence));

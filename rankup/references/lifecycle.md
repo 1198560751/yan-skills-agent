@@ -514,6 +514,18 @@ wrangler email routing dns get <domain>
 11. **域名有"前世"时，上线后第一件事是提交首页请求编入索引**，
     把搜索引擎对该域名的旧记忆（停放页、旧站）尽快覆盖掉。
 
+11b. **索引推送与 sitemap 提交这一整段，走 [`search-platforms.md`](search-platforms.md)，
+    不要现摸。** 那份文档给的是顺序表 + 两个脚本 + 每个坑的判据：
+
+    - `scripts/indexnow-submit.mjs` —— 生成密钥、按 sitemap 全量推、按路径增量推。
+      **它排在站长工具前面**：IndexNow 一样账号都不欠，一个密钥文件就是全部凭据，
+      排到后面等于白等账号问题解决的那几天。
+    - `scripts/webmaster-sitemap.mjs` —— 在 GSC 与 Bing 里读/提交 sitemap（`status` / `submit`）。
+
+    这一段有两条**必须由用户本人点**、不得代做的：站长工具的「授权访问你的 DNS 服务商账号」，
+    以及 Bing 的「从 Google Search Console 导入」——后者省下几分钟，换来的是 Bing 对用户
+    Google 账号的长期 OAuth，而一行 meta 标签达到完全相同的效果。
+
 **C. 平台清单：域名配好之后必须一次接完的那一批**
 
 这一批的共同点是「越早接越值钱」——它们记的是历史数据，晚接一天就永久少一天。
@@ -522,9 +534,9 @@ wrangler email routing dns get <domain>
 | 类别 | 平台 | 依赖 | 它独有的东西 |
 |---|---|---|---|
 | 托管方分析 | 托管平台自带的 Web Analytics | 只要托管账号 | **无 cookie、无同意门槛，counts everyone** |
-| 索引推送 | IndexNow | 只要一个密钥文件 | 内容一变就主动推给支持的引擎，不等爬 |
-| 搜索平台 | Google Search Console | Google 账号 + DNS 验证 | 查询词、曝光、平均排名、索引状态、人工处置 |
-| 搜索平台 | Bing Webmaster | 微软账号 | Bing/Yahoo/DuckDuckGo 一侧的收录 |
+| 索引推送 | IndexNow | 只要一个密钥文件 | 内容一变就主动推给支持的引擎，不等爬。`indexnow-submit.mjs`；密钥文件必须由应用层路由提供，**放静态目录会被静态资源绑定永久遮蔽**，之后轮换密钥要重新构建 |
+| 搜索平台 | Google Search Console | Google 账号 + DNS 验证 | 查询词、曝光、平均排名、索引状态、人工处置。sitemap 用 `webmaster-sitemap.mjs gsc submit` |
+| 搜索平台 | Bing Webmaster | 微软账号 | Bing/Yahoo/DuckDuckGo 一侧的收录。**用 HTML meta 验证，不要用「从 GSC 导入」**（那是给 Bing 一个对 Google 账号的长期 OAuth）。sitemap 用 `webmaster-sitemap.mjs bing submit` |
 | 产品分析 | GA4 | Google 账号 | 事件、渠道归因、留存 |
 | 行为分析 | 会话录制/热图工具 | 该平台账号 | 录像与点击热图，回答「为什么不转化」 |
 | 外链视角 | 站长版外链工具 | 该平台账号 | 免费看自己的引荐域名与 rel 分布 |
@@ -600,6 +612,8 @@ wrangler email routing dns get <domain>
 - **上表每一行的状态逐条写进 `.rankup/integrations.md`**：已接入 / 卡住（附阻塞原因与需要用户做什么），
   并附各自的资源 ID。
 - 搜索平台资源已创建（已验证，或明确记录卡在哪一步、需要用户做什么）。
+- IndexNow 密钥文件线上返回密钥本身，且至少完成一次全量推送（记下条数与 HTTP 状态）；
+  两边站长工具的 sitemap 已提交，**并记下它是快照日期而不是实时值**。
 - 上线前闸门七行（0 站点身份 / 1 技术 SEO / 2 TDK / 3 关键词密度 / 4 GEO·AI Agent 就绪度 / 5 哥飞 AI 审阅 / 6 性能·CWV）逐行的通过证据，按上表落进 `.rankup/audit.md`、`.rankup/agentic/`、`.rankup/baseline.md`。
 - `is-agentic.mjs scan --save` 产出的基线报告；哥飞 AI 审阅与 `is-agentic` 发现的采纳/拒绝记录，拒绝项附理由。
 - `.rankup/integrations.md`、`.rankup/infrastructure.md`
@@ -608,7 +622,10 @@ wrangler email routing dns get <domain>
 
 图标集每个文件线上返回 `200` 且 `manifest.json` 的引用全部命中真实文件；
 标记经过 16px 实测；至少一个分析通道的 beacon 能在**线上原始 HTML** 中被 grep 到；
-搜索平台资源状态（已验证／未验证及其阻塞原因）已写入 `.rankup/`。
+搜索平台资源状态（已验证／未验证及其阻塞原因）已写入 `.rankup/`，
+**记的是资源 ID 不是资源名字**——网域资源覆盖全部子域，用错父级资源时单条 URL 的操作照样成功，
+只有聚合数字是别的站的，全程零报错；
+IndexNow 密钥文件经线上校验（正文逐字节等于密钥），且首次推送已被接受。
 控制台显示"已启用"不算完成。
 上线前闸门七行（0-6）全部在真实线上域名核验通过，且每行都留下了表中要求的证据文件；
 TDK 与内链检查覆盖**全站每一个 URL** 而非抽样；关键词密度检查里「声明的短语」与「测量的短语」
