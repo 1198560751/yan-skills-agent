@@ -75,6 +75,7 @@ opencli browser "$S" --window background eval '(async()=>{ /* fetch(..., {creden
 | 用 Claude in Chrome / 手动 OpenCLI 操作 Semrush 面板 | `node semrush-overview.mjs` / `semrush-keyword.mjs` 等 | 同上 |
 | OpenCLI 会话名用字面常量如 `work`、`backlink-panel` | `defaultSession('base')` 或会话名带 `$$` 后缀 | 多任务同时跑时撞名 → 拿到别人的页面，全程零报错 |
 | 用沙箱浏览器访问需要登录的数据面板 | 用户的浏览器（通过 OpenCLI 或 Claude in Chrome） | 沙箱没有 cookie，返回的数据是匿名态，看起来正常但内容不同 |
+| 用 Claude in Chrome 手动逐个点 GSC 移除工具 | `node gsc-remove-urls.mjs --property sc-domain:xxx url1 url2 ...` | 脚本已存在，手操 6 个 URL 要点 30+ 次按钮且每次按钮位置漂移 |
 
 ### 本 Skill 自带
 
@@ -88,6 +89,7 @@ opencli browser "$S" --window background eval '(async()=>{ /* fetch(..., {creden
 | `scripts/is-agentic.mjs` | AI Agent 就绪度：`scan` 评分+待修项、`diff` 与上次对比、`history` 历史。**先打 is-agentic.com 的报告 API，404 才回退 `npx is-agentic` 触发扫描**——两条路都只取「最新已存在的报告」，**没有强制重扫**，详见 `seo-growth.md` | 上线后评估 AI 代理友好度、每轮优化收尾对比改进。结果可 `--save` 存入 `.rankup/agentic/` |
 | `scripts/cf-agent-baseline.mjs` | Cloudflare Radar「AI Agent Readiness」**全网基线**——不是站点扫描器（无 `url` 参数），返回全网聚合通过率 | 给 `is-agentic.mjs` 的单站分数配分母。`--compare` 把某次单站扫描的失败项与全网通过率并排 |
 | `scripts/gefei-ask.mjs` + `gefei-chat.browser.js` | 驱动**用户已登录的浏览器**问哥飞 SEO Agent 并取回全文，不需要 `SEO_WEBCAFE_COOKIE`（那枚是 httpOnly） | 需要问哥飞但拿不到 Cookie 时。与 `seo-webcafe.mjs chat` 是两条路径，选哪个见 `references/seo-webcafe.md` |
+| `scripts/gsc-remove-urls.mjs` | **GSC 批量提交「暂时移除网址」请求**。驱动用户已登录的浏览器操作 GSC 移除工具，逐个提交 URL。支持 `--file` 从文件读 URL 列表、`--property` 指定 GSC 资源、`--dry-run` 预览 | 废弃页面需要从 Google 搜索结果中移除时。GSC 没有公开的移除 API，只能通过 UI 操作 |
 | `scripts/registry.mjs` | 扫描各项目 `.rankup/` 重建跨项目资产登记表 | 开工前查「别的项目有没有现成的」；收工时刷新 |
 | `scripts/review.mjs` | 项目记忆体检：缺失文件、超期记录、脚本体检、**生命周期检查点**（查漏补缺——哪些工具和环节还没跑过）、经验库信号 | `rankup review` 第一步；新引入 Skill 的老站第一件事就跑它 |
 | `scripts/sessions.mjs` | 找出并浓缩本项目的 Claude Code / Codex 会话，供 review 提取信号 | `rankup review` 第二步，默认加 `--new-only` |
@@ -481,6 +483,7 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | **新域名接入 Cloudflare、拿 NS、切 NS、DNSSEC** | [`cloudflare-stack.md`](references/cloudflare-stack.md) 的「8.5 接入域名」 | 优先驱动**用户的浏览器**点 Add a domain；不可用时 `scripts/cf-zone-setup.mjs` |
 | 支付、订阅、账单、Stripe | [`integrations.md`](references/integrations.md)、[`project-memory.md`](references/project-memory.md) | stripe-best-practices |
 | SEO、GSC、排名、关键词、CTR、索引、内容 | [`seo-growth.md`](references/seo-growth.md)、[`trends.md`](references/trends.md)、[`project-memory.md`](references/project-memory.md) | SEO 或研究能力 |
+| **GSC 移除 URL、废弃页面从搜索结果中去掉** | — | `scripts/gsc-remove-urls.mjs`（驱动用户浏览器批量提交，GSC 没有公开 API） |
 | **AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化** | [`seo-growth.md`](references/seo-growth.md) section 三-B「2026 AI 搜索范式」 | 无需额外工具——Google 官方定论：AEO/GEO 就是 SEO |
 | **AI Agent 就绪度、is-agentic、agent readiness、llms.txt、AI 代理优化、agentic score** | [`seo-growth.md`](references/seo-growth.md) section 三-B「AI Agent 就绪度」 | `scripts/is-agentic.mjs`（`scan` 评分、`diff` 对比、`history` 历史，零配置可跑） |
 | 关键词难度、SERP 盘面、页面体检、域名与外链估值 | [`seo-webcafe.md`](references/seo-webcafe.md) | `scripts/seo-webcafe.mjs`（一个脚本覆盖全部工具，零配置可跑） |
