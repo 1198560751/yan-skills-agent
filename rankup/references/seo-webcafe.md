@@ -188,6 +188,52 @@ Reddit / X / Instagram / DeviantArt）。两个数字都不能直接当收益看
 建站进不去这类盘面，Google 也不打算把这个意图交给独立站。
 判据是看 `details` 的域名构成，不是看 `score`。
 
+### 两条取答路径怎么选：`chat` 命令 vs `gefei-ask.mjs`
+
+上面的 `seo-webcafe.mjs chat` 走 HTTP，需要 `SEO_WEBCAFE_COOKIE`——但那枚会话
+Cookie 是 HttpOnly，脚本读不到，要拿就得去翻浏览器的 Cookie 存储，等于把用户的
+登录凭据抠出来落盘。`scripts/gefei-ask.mjs`（配 `scripts/gefei-chat.browser.js`）
+是另一条路：**把请求发到用户已登录的浏览器页面上下文里**，Cookie 由浏览器自动
+附带，脚本全程碰不到它。两者服务不同前提，不是谁取代谁：
+
+| 场景 | 用哪个 |
+|---|---|
+| 已经愿意把会话 Cookie 存进 `SEO_WEBCAFE_COOKIE` | `seo-webcafe.mjs chat --ask "..."`，纯 HTTP，不用开浏览器 |
+| 不想 / 不能保存会话 Cookie，但有一个已登录的浏览器可用 | `gefei-ask.mjs`，驱动那个浏览器，全程不碰凭据 |
+| 要跑无人值守批量任务、没有浏览器可用 | 只能用 `seo-webcafe.mjs chat`，先解决 Cookie 怎么来 |
+
+`gefei-ask.mjs` 用法：
+
+```bash
+opencli browser <名> --window background open https://seo.web.cafe/chat/   # 会话名描述性且唯一，先 tab list 确认没被占用
+node rankup/scripts/gefei-ask.mjs --session <名> --slice <名> \
+  --question "一次问完，别指望靠追问补"
+```
+
+标志：`--session`（必需）`--slice`（必需，落盘名）`--question` / `--question-file` /
+`--continue-from` / `--resume`（四选一给问题来源）`--out-dir`（默认 `./gefei-out`）
+`--timeout`（分钟，默认 10）。不需要额外起任何本机进程——脚本自己从磁盘读取
+`gefei-chat.browser.js` 的源码注入进页面。
+
+必须遵守的规则（都是实测踩出来的，不是猜的）：
+
+- **配额不是按消息计的，问题要一次问完。** 一次带调研的长回答实测扣 **52 分**
+  （它自己要跑 DR / SERP / 知识库检索），日额度上限见页面「今日已用 N/M」
+  （VIP 档 500）。「再顺手多问几句」不是小决定，开工前先按额度预算好整场对话。
+  历史回答重新取回不扣费，别为了拿全文重新提问。
+- **判完成不能只看发送按钮的文案。**「停止」这个文案在流结束后会滞留一会儿，
+  中间过程（如「让我换几个角度继续挖」）的长度也会长时间不变。唯一可靠的判据是
+  **回答长度连续两次不变，且按钮文案恰好回到「发送」**，两条都满足才算完；
+  只满足一条都会给出假完成。
+- **重抓要换 `--slice` 名，同名文件不会被覆盖。** `gefei-ask.mjs` 在写入前会先
+  查重，文件已存在直接报错退出——不会像"接收端返回 200 但不覆盖"那种设计一样
+  只在响应体里说实话、状态码骗人。但效果等价：**同名 slice 永远拿不到新内容**，
+  以为刷新了数据、实际磁盘上还是旧的那份，这个坑本身与实现方式无关。
+- **回答会被服务端拦腰截断，而按钮照样回到「发送」。** 落盘前必须看结尾是不是
+  完整句子——`gefei-ask.mjs` 会自己检查（剥掉 Markdown 收尾标记后看末字符）
+  并在 `truncated` 字段报出来。截断了就续问（`--continue-from`），不要重新提问：
+  续问保留着已查到的数据，重问要再扣一次积分且从零开始。
+
 ## 认证与配额
 
 ### 第零层：不带 `User-Agent` 一律 403

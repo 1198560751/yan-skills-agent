@@ -1,6 +1,6 @@
 ---
 name: rankup
-description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain 时使用。
+description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
 metadata:
   version: "2.34.0"
 ---
@@ -70,7 +70,7 @@ opencli browser "$S" --window background eval '(async()=>{ /* fetch(..., {creden
 
 | 错误做法 | 正确做法 | 为什么是错的 |
 |---|---|---|
-| 用 `chatbot-drive.browser.js` 问哥飞 AI（seo.web.cafe） | `node seo-webcafe.mjs chat --ask "..."` | webcafe 有 HTTP API，chat 命令已封装，零浏览器操作 |
+| 用通用 `chatbot-drive.browser.js` 问哥飞 AI（seo.web.cafe） | 有 Cookie 用 `seo-webcafe.mjs chat`；没有就用 `gefei-ask.mjs` | 两条专用路径都封装过配额与完成判定；通用驱动会重踩已解决的坑 |
 | 用 Claude in Chrome / 手动 OpenCLI 操作 Similarweb 面板 | `node similarweb-query.mjs` / `similarweb-batch.mjs` | 脚本已存在，手操浪费上下文且结果不可复现 |
 | 用 Claude in Chrome / 手动 OpenCLI 操作 Semrush 面板 | `node semrush-overview.mjs` / `semrush-keyword.mjs` 等 | 同上 |
 | OpenCLI 会话名用字面常量如 `work`、`backlink-panel` | `defaultSession('base')` 或会话名带 `$$` 后缀 | 多任务同时跑时撞名 → 拿到别人的页面，全程零报错 |
@@ -85,8 +85,11 @@ opencli browser "$S" --window background eval '(async()=>{ /* fetch(..., {creden
 | `scripts/chatbot-drive.browser.js` | 驱动只有网页形态的 AI Chatbot（要登录、按条扣费、**且确实没有 HTTP API**）。**seo.web.cafe 有 HTTP API，用 `seo-webcafe.mjs chat`，不要用这个** | 确认目标聊天工具没有 HTTP API 后才使用 |
 | `scripts/cf-analytics-setup.mjs` | **开通 Cloudflare Web Analytics 并读回 beacon**。`status` 只读探测，`enable` 开启 | 新站上线后接测量时。不依赖任何第三方账号，应排在 GSC/GA 之前做 |
 | `scripts/cf-zone-setup.mjs` | **把域名加进 Cloudflare（zone onboarding）并读回 NS 对**——Wrangler 没有 zone 命令，这是补它的缺口。`status` 只读探测，`create` 建 zone | 新域名接入 Cloudflare 时。**优先仍是操作用户浏览器**，本脚本是浏览器不可用时的退路 |
+| `scripts/is-agentic.mjs` | AI Agent 就绪度：`scan` 评分+待修项、`diff` 与上次对比、`history` 历史。**先打 is-agentic.com 的报告 API，404 才回退 `npx is-agentic` 触发扫描**——两条路都只取「最新已存在的报告」，**没有强制重扫**，详见 `seo-growth.md` | 上线后评估 AI 代理友好度、每轮优化收尾对比改进。结果可 `--save` 存入 `.rankup/agentic/` |
+| `scripts/cf-agent-baseline.mjs` | Cloudflare Radar「AI Agent Readiness」**全网基线**——不是站点扫描器（无 `url` 参数），返回全网聚合通过率 | 给 `is-agentic.mjs` 的单站分数配分母。`--compare` 把某次单站扫描的失败项与全网通过率并排 |
+| `scripts/gefei-ask.mjs` + `gefei-chat.browser.js` | 驱动**用户已登录的浏览器**问哥飞 SEO Agent 并取回全文，不需要 `SEO_WEBCAFE_COOKIE`（那枚是 httpOnly） | 需要问哥飞但拿不到 Cookie 时。与 `seo-webcafe.mjs chat` 是两条路径，选哪个见 `references/seo-webcafe.md` |
 | `scripts/registry.mjs` | 扫描各项目 `.rankup/` 重建跨项目资产登记表 | 开工前查「别的项目有没有现成的」；收工时刷新 |
-| `scripts/review.mjs` | 项目记忆体检：缺失文件、超期记录、脚本体检、经验库信号 | `rankup review` 第一步 |
+| `scripts/review.mjs` | 项目记忆体检：缺失文件、超期记录、脚本体检、**生命周期检查点**（查漏补缺——哪些工具和环节还没跑过）、经验库信号 | `rankup review` 第一步；新引入 Skill 的老站第一件事就跑它 |
 | `scripts/sessions.mjs` | 找出并浓缩本项目的 Claude Code / Codex 会话，供 review 提取信号 | `rankup review` 第二步，默认加 `--new-only` |
 | `scripts/check-version.mjs` | Skill 版本检查与自更新 | 每次激活 |
 | `scripts/validate-rankup.mjs` | 项目中立性与凭据泄露的机械门禁 | 改完 Skill 必跑 |
@@ -400,15 +403,38 @@ node "<rankup-skill-dir>/scripts/registry.mjs" list
 
 已有 `.rankup/` 时 `init` 不覆盖，转为补齐缺失文件并提示用 `review`。
 
-### `rankup review` — 回顾、筛选、补做
+### `rankup review` — 回顾、查漏补缺、筛选
 
-定期或阶段结束时执行。先跑体检脚本拿机械结论，再处理需要判断的部分。
+两种场景：**定期回顾**（阶段结束时）和**接手补齐**（已有网站新引入 Skill 后立刻跑一次）。先跑体检脚本拿机械结论，再处理需要判断的部分。
 
 ```bash
 node "<rankup-skill-dir>/scripts/review.mjs" --project-root . --days 30
 ```
 
-脚本只读不改，给出：缺失文件、超期未更新的记录、脚本体检（有无已验证日期、是否参数化）、经验库信号（重复条目、候选回流 Skill 的条目）。
+脚本只读不改，给出五块报告：
+
+1. **缺失文件**：必需与建议的 `.rankup/` 文件。
+2. **陈旧记录**：超过 N 天未更新的文件，对比同期提交数判断记忆是否落后于代码。
+3. **脚本体检**：项目自有脚本有无已验证日期、是否参数化。
+4. **生命周期检查点**：Skill 全部关键环节有没有走过——缺了哪个、用什么命令补、为什么需要。已上线项目（有 `infrastructure.md`/`integrations.md`/`agentic/` 任一）会额外检查上线后环节：
+
+   | 检查项 | 证据文件 | 修复工具 |
+   |---|---|---|
+   | 关键词规划 | `keywords.md` ≥50B | `seo-webcafe.mjs kd` |
+   | 路线图 | `roadmap.md` ≥50B | 手写 |
+   | AI Agent 就绪度基线 | `agentic/*/` 有 JSON | `is-agentic.mjs scan --save` |
+   | 技术审计（闸门 7 项）| `audit.md` ≥500B | `is-agentic.mjs` + `seo-webcafe.mjs audit/chat` |
+   | 性能与流量基线 | `baseline.md` ≥200B | Lighthouse |
+   | 平台接入记录 | `integrations.md` ≥100B | `cf-analytics-setup.mjs status` |
+   | 基础设施记录 | `infrastructure.md` ≥50B | 手写 |
+   | 迭代记录 | `iterations.md` | 手写 |
+   | 优化实验记录 | `experiments.md` | `is-agentic.mjs diff` |
+
+   **这张表就是 Skill 的"宝藏工具"发现机制**——新用户跑一次 review 就知道还有哪些零配置可跑的工具没用过。
+
+5. **经验库信号**：重复条目、候选回流 Skill 的条目。
+
+拿到报告后，**按生命周期检查点的待补清单顺序执行**——每补一个就产出真实证据，不是只建空文件。
 
 再挖会话记录——**最有价值的经验往往还留在对话里，从没进过 `.rankup/`**：
 
@@ -437,12 +463,13 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 在此之上完成：
 
 1. **对账**：`plan.md` 的勾选是滞后指标，与 `git log`、路由清单、线上 `sitemap.xml` 三方交叉；不一致先回写再继续。
-2. **筛信号**：`experience.md` 里合并重复、删除已过时、修订被证伪的条目——**修订原条目，不并列保留冲突结论**。未验证的猜测直接删。
-3. **提炼回流**：剥离站点后仍成立的规则回流本 Skill，证据出处与数字留在项目侧。回流内容不得含站名、域名、流量数字、property ID。
-4. **补脚本**：本轮有没有第二次重复的操作却没固化？脚本头部的已验证日期是否过期、还能不能跑？坏了就修，不绕过。
-5. **补缺口**：`roadmap.md` 是否断更、`iterations.md` 是否漏记失败轮次（失败必须写清被证伪的假设）。
-6. **刷新名单**：`node "<rankup-skill-dir>/scripts/registry.mjs" scan --roots <存放项目的目录>`。
-7. **产出**：一页结论——修了什么、删了什么、回流了什么、下一轮唯一改进。能当场修的直接修，不要只列清单。
+2. **补生命周期缺口**：按体检报告「生命周期检查点」的待补清单，**逐项执行**——每项产出真实证据落进 `.rankup/` 对应文件，不是只建空文件。已上线项目典型补法：先跑 `is-agentic.mjs scan --save`（零配置，秒出），再跑 `cf-analytics-setup.mjs status`，再按 lifecycle.md 闸门逐项走。这一步是新引入 Skill 的老站最大的价值：一次 review 就能用上 Skill 里全部零配置工具。
+3. **筛信号**：`experience.md` 里合并重复、删除已过时、修订被证伪的条目——**修订原条目，不并列保留冲突结论**。未验证的猜测直接删。
+4. **提炼回流**：剥离站点后仍成立的规则回流本 Skill，证据出处与数字留在项目侧。回流内容不得含站名、域名、流量数字、property ID。
+5. **补脚本**：本轮有没有第二次重复的操作却没固化？脚本头部的已验证日期是否过期、还能不能跑？坏了就修，不绕过。
+6. **补文件缺口**：`roadmap.md` 是否断更、`iterations.md` 是否漏记失败轮次（失败必须写清被证伪的假设）。
+7. **刷新名单**：`node "<rankup-skill-dir>/scripts/registry.mjs" scan --roots <存放项目的目录>`。
+8. **产出**：一页结论——修了什么、删了什么、回流了什么、下一轮唯一改进。能当场修的直接修，不要只列清单。
 
 ## 任务路由
 
@@ -455,12 +482,13 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | 支付、订阅、账单、Stripe | [`integrations.md`](references/integrations.md)、[`project-memory.md`](references/project-memory.md) | stripe-best-practices |
 | SEO、GSC、排名、关键词、CTR、索引、内容 | [`seo-growth.md`](references/seo-growth.md)、[`trends.md`](references/trends.md)、[`project-memory.md`](references/project-memory.md) | SEO 或研究能力 |
 | **AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化** | [`seo-growth.md`](references/seo-growth.md) section 三-B「2026 AI 搜索范式」 | 无需额外工具——Google 官方定论：AEO/GEO 就是 SEO |
+| **AI Agent 就绪度、is-agentic、agent readiness、llms.txt、AI 代理优化、agentic score** | [`seo-growth.md`](references/seo-growth.md) section 三-B「AI Agent 就绪度」 | `scripts/is-agentic.mjs`（`scan` 评分、`diff` 对比、`history` 历史，零配置可跑） |
 | 关键词难度、SERP 盘面、页面体检、域名与外链估值 | [`seo-webcafe.md`](references/seo-webcafe.md) | `scripts/seo-webcafe.mjs`（一个脚本覆盖全部工具，零配置可跑） |
 | 老站救不救、多语言怎么上、多站会不会自我重复、品牌名不显示、KGR 怎么算、页面下限 | [`webcafe-experiences.md`](references/webcafe-experiences.md) | 无需工具，是裁定集 |
 | 搜索热度对比、地区分布、相关飙升词、每日热搜、模糊方向扩词并收敛成可做站的词 | [`trends.md`](references/trends.md) | `scripts/gt.py`（首次运行自动建 venv 装 pytrends） |
 | 从登录态后台批量取数（没有 API / API 收费 / 导出扣点数） | [`integrations.md`](references/integrations.md) | **加载 backlink**（`/backlink`），读 `references/harvest.md`。未安装：`npx skills add yan-labs/yan-skills --skill backlink -g -y` |
 | **「数据面板」「数据勘测」「查一下这个站/这个词的数据」** —— 用户说这些词时指的是第三方数据平台 | — | **直接跑脚本**（见上方「数据面板的脚本速查」），不要打开浏览器手操。首次使用或遇到问题时**加载 backlink** 读 `authorized-data-sources.md` |
-| **问哥飞 AI / seo.web.cafe 的 SEO Agent** | [`seo-webcafe.md`](references/seo-webcafe.md) | `seo-webcafe.mjs chat --ask "..."`（纯 HTTP，不开浏览器）。**不要用 `chatbot-drive.browser.js`** |
+| **问哥飞 AI / seo.web.cafe 的 SEO Agent** | [`seo-webcafe.md`](references/seo-webcafe.md) 的「两条取答路径怎么选」 | 有 `SEO_WEBCAFE_COOKIE` → `seo-webcafe.mjs chat`（纯 HTTP，可无人值守）；只有登录态浏览器 → `gefei-ask.mjs`（那枚 Cookie 是 httpOnly，取不出来）。**两条是互补不是替代**；都不要用通用 `chatbot-drive.browser.js` |
 | 其他只有聊天网页形态的 AI 工具（要登录、按条扣费、**确认没有 HTTP API**） | [`integrations.md`](references/integrations.md) 的「网页版 AI Chatbot 取答」 | `scripts/chatbot-drive.browser.js`——仅限确认没有 HTTP API 的工具 |
 | **发 Product Hunt / 产品发布平台、排期上线、画廊图上传** | [`product-launch.md`](references/product-launch.md) | 需要能设置 file input 的浏览器连接器；**不要点上传按钮**（会弹系统对话框冻死标签页） |
 | 外链、分发、竞品引用域 | [`integrations.md`](references/integrations.md)、[`seo-growth.md`](references/seo-growth.md) | **加载 backlink**（`/backlink`）。未安装：`npx skills add yan-labs/yan-skills --skill backlink -g -y` |
@@ -515,7 +543,9 @@ pnpm dlx shadcn@latest init \
 
 ## `.rankup/` 项目记忆
 
-`.rankup/` 是当前网站的长期项目日志和事实库，不是 Skill 发布目录。完整结构和模板见 [`references/project-memory.md`](references/project-memory.md)。
+`.rankup/` 是当前网站的**一部持续维护的 Wiki**，不是日志堆，也不是 Skill 发布目录。
+日志回答「某天发生了什么」，只追加；Wiki 回答「现在什么是真的、为什么」，**就地修订**——
+被推翻的说法要在它原来的位置改掉，而不是在更新的地方另说一遍。完整结构、时效契约和提升路径见 [`references/project-memory.md`](references/project-memory.md)。
 
 最低要求：
 
