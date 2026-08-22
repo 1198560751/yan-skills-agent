@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain 时使用。
 metadata:
-  version: "2.33.0"
+  version: "2.34.0"
 ---
 
 # Rankup 2.0
@@ -91,24 +91,57 @@ opencli browser "$S" --window background eval '(async()=>{ /* fetch(..., {creden
 | `scripts/check-version.mjs` | Skill 版本检查与自更新 | 每次激活 |
 | `scripts/validate-rankup.mjs` | 项目中立性与凭据泄露的机械门禁 | 改完 Skill 必跑 |
 
-### 兄弟 Skill：`backlink`（登录态后台取数与外链）
+### backlink Skill：数据调研、浏览器自动化与外链的专项能力
 
-**任何「从一个要登录的 SaaS 后台把表格数据拿下来」的需求，入口都是这里，不要自己写提取器。**
+**backlink 是 rankup 最重要的专项 Skill。** 下面列出它覆盖的全部能力领域，
+你可以只用 rankup 来路由，到需要深入操作时再加载 backlink。
 
-| 脚本 | 干什么 |
-|---|---|
-| `backlink/scripts/harvest.browser.js` | **通用虚拟滚动表格提取器**，贴进浏览器代码执行工具跑。`HARVEST.init()` → `start()`（不要 await）→ `status()` 轮询 → `save()`；批量用 `HARVEST.crawl([{name,seed,type,hash}])` 再轮询 `HARVEST.log`。现代数据网格没有 `<table>/<tr>`，它按 Y 坐标聚类重建行，列位自适应 |
-| `backlink/scripts/harvest-collect.sh` | 等下载落齐（文件数达标 **且** 大小连续两次采样不变）再收拢，防静默丢文件 |
-| `backlink/scripts/harvest-merge.mjs` | 合并抓下来的 TSV 成干净 CSV，带重名副本检测 |
-| `backlink/scripts/similarweb-query.mjs` | 走 OpenCLI 的流量面板查询（performance / similar-sites）。需要 `TOOLS_SHARE_DASHBOARD_URL` 与 `TOOLS_SHARE_APP_ORIGIN` 两个环境变量，未设置会直接报错而不是猜 |
-| `backlink/scripts/similarweb-batch.mjs` | **几百个域名批量测流量**：登录只做一次，之后只换 SPA 的 hash 路由，单域名 5 秒；同步前台跑、逐条追加写盘、按已有输出续跑。要筛一批域名值不值得做时用它，不要用单域名脚本循环，更不要退回 Tranco 这类流行度名单（站群能刷高流行度，实测 73 个站群域名有 48 个在 Tranco top-1M 里）|
-| `backlink/scripts/inspect-page.mjs` | 探一个页面有没有可提交的表单/入口 |
-| `backlink/scripts/safe-fill.mjs` | 受控填表，带提交前护栏 |
-| `backlink/scripts/discovery-queue.mjs` / `ledger.mjs` | 外链机会队列与投放台账 |
-| `backlink/scripts/paid-platform-registry.mjs` | 跨项目累积的付费外链平台登记表 |
-| `backlink/scripts/validate-data.mjs` | 数据层机械门禁，改数据必跑 |
+```bash
+# 如果还没安装 backlink，先装上：
+npx skills add yan-labs/yan-skills --skill backlink -g -y
 
-配套读物：`backlink/references/harvest.md`（表格采集技巧与反爬约束）、`paid-platforms.md`。
+# 需要深入操作时加载它（在对话中）：
+/backlink
+```
+
+#### 能力一览：什么时候需要加载 backlink
+
+| 你要做什么 | 对应脚本 | 是否需要加载 backlink |
+|---|---|---|
+| **查一个站的流量、渠道、同类站** | `similarweb-query.mjs` | 直接跑脚本即可；复杂场景或首次使用加载 backlink 读 `authorized-data-sources.md` |
+| **批量筛几百个域名的流量** | `similarweb-batch.mjs` | 直接跑；首次使用加载 backlink 了解配额与续跑机制 |
+| **查关键词搜索量、KD、CPC** | `semrush-keyword.mjs` | 直接跑脚本 |
+| **查域名自然流量、引荐域、关键词库** | `semrush-overview.mjs` | 直接跑脚本 |
+| **导 Semrush 的四个无导出报表** | `semrush-report.mjs` | 加载 backlink 读 `authorized-data-sources.md` 了解分页与解析陷阱 |
+| **批量 Semrush 有机流量** | `semrush-batch.mjs` | 直接跑脚本 |
+| **从登录态后台抓表格（无 API）** | `harvest.browser.js` + `harvest-collect.sh` + `harvest-merge.mjs` | **必须加载 backlink** 读 `harvest.md`——虚拟滚动、节流、静默丢行的陷阱全在那里 |
+| **探一个页面有没有提交入口** | `inspect-page.mjs` | 加载 backlink 读 `safety-policy.md` |
+| **受控填表** | `safe-fill.mjs` + `release-submit-guard.mjs` | **必须加载 backlink** 读 `submission-lanes.md` + `safety-policy.md` |
+| **外链机会发现、竞品反链分析** | `discovery-queue.mjs` + `harvest-commenters.mjs` | **必须加载 backlink** 读 `discovery-loop.md` |
+| **外链投放台账** | `ledger.mjs` | **必须加载 backlink** 了解证据阶梯（submitted/public/indexed 每级都要证据） |
+| **付费外链平台登记** | `paid-platform-registry.mjs` | 加载 backlink 读 `paid-platforms.md` |
+| **外链质量评估、毒性检测** | 无专用脚本，靠参考文档 | **必须加载 backlink** 读 `link-quality-rubric.md` + `analysis-templates.md` |
+| **100+ 行的批量提交 campaign** | `targets-select.mjs` + `submit-directory.mjs` | **必须加载 backlink** 读 `batch-campaign.md` |
+| **引用第三方给的外链清单** | `third-party-list-ingest.mjs` | 加载 backlink 读 `instant-publish.md` 的第三方清单章节 |
+| **OpenCLI 浏览器自动化的法律与陷阱** | `opencli-core.mjs`（defaultSession、batchBrowser） | 加载 backlink 读 `browser-runtime.md`——5 条法律与实测数据 |
+| **只是用 OpenCLI 打开一个页面看一下** | 直接用 `opencli browser` | 不需要加载 backlink，按本 Skill 的会话命名规则即可 |
+
+**判断原则：直接跑脚本不需要加载 backlink；需要读参考文档（法律、陷阱、流程）或操作外链相关工作流时必须加载。**
+
+#### 数据面板的脚本速查
+
+用户说「数据面板」「数据勘测」「查一下数据」「用 Similarweb 看看」「Semrush 拉一下」时，直接用脚本，不要打开浏览器手动操作：
+
+| 问题 | 用哪个脚本 | 拿得到什么 |
+|---|---|---|
+| 这个站多大、流量从哪来、还有哪些同类站 | `node backlink/scripts/similarweb-query.mjs` | 总访问量、渠道构成、相似站、地理分布 |
+| 几百个域名批量筛流量 | `node backlink/scripts/similarweb-batch.mjs` | 逐域名追加写盘，单域名 5 秒，可续跑 |
+| 这个词多少量、多难 | `node backlink/scripts/semrush-keyword.mjs` | 分国家搜索量与 KD、CPC |
+| 这个站自然流量多大、有多少外链 | `node backlink/scripts/semrush-overview.mjs` | AS、自然流量、引荐域名数、关键词数 |
+| 这个站排了哪些词、主要页面、反链详情 | `node backlink/scripts/semrush-report.mjs` | 自然排名、主要页面、反链概览、关键词报表 |
+| 批量域名有机流量 | `node backlink/scripts/semrush-batch.mjs` | 逐域名，与 similarweb-batch 同模式 |
+
+**两边的「流量」口径不同：** Similarweb 给总访问量，Semrush 给自然搜索流量估算。同一个站差三倍以上是常态，写结论必须标明口径。
 
 ### 落盘：抓到的数据不许留在下载目录
 
@@ -425,13 +458,13 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | 关键词难度、SERP 盘面、页面体检、域名与外链估值 | [`seo-webcafe.md`](references/seo-webcafe.md) | `scripts/seo-webcafe.mjs`（一个脚本覆盖全部工具，零配置可跑） |
 | 老站救不救、多语言怎么上、多站会不会自我重复、品牌名不显示、KGR 怎么算、页面下限 | [`webcafe-experiences.md`](references/webcafe-experiences.md) | 无需工具，是裁定集 |
 | 搜索热度对比、地区分布、相关飙升词、每日热搜、模糊方向扩词并收敛成可做站的词 | [`trends.md`](references/trends.md) | `scripts/gt.py`（首次运行自动建 venv 装 pytrends） |
-| 从登录态后台批量取数（没有 API / API 收费 / 导出扣点数） | [`integrations.md`](references/integrations.md) | backlink（读 `references/harvest.md`） |
-| **「数据面板」「数据勘测」「查一下这个站/这个词的数据」** —— 用户说这些词时指的是第三方数据平台 | — | **backlink**（读 `references/authorized-data-sources.md`）。**必须用脚本**：流量 → `similarweb-query.mjs` / `similarweb-batch.mjs`；关键词 → `semrush-keyword.mjs`；有机流量 → `semrush-overview.mjs`；报表 → `semrush-report.mjs`。不要用 Claude in Chrome 或手动 OpenCLI 去操作面板 |
+| 从登录态后台批量取数（没有 API / API 收费 / 导出扣点数） | [`integrations.md`](references/integrations.md) | **加载 backlink**（`/backlink`），读 `references/harvest.md`。未安装：`npx skills add yan-labs/yan-skills --skill backlink -g -y` |
+| **「数据面板」「数据勘测」「查一下这个站/这个词的数据」** —— 用户说这些词时指的是第三方数据平台 | — | **直接跑脚本**（见上方「数据面板的脚本速查」），不要打开浏览器手操。首次使用或遇到问题时**加载 backlink** 读 `authorized-data-sources.md` |
 | **问哥飞 AI / seo.web.cafe 的 SEO Agent** | [`seo-webcafe.md`](references/seo-webcafe.md) | `seo-webcafe.mjs chat --ask "..."`（纯 HTTP，不开浏览器）。**不要用 `chatbot-drive.browser.js`** |
 | 其他只有聊天网页形态的 AI 工具（要登录、按条扣费、**确认没有 HTTP API**） | [`integrations.md`](references/integrations.md) 的「网页版 AI Chatbot 取答」 | `scripts/chatbot-drive.browser.js`——仅限确认没有 HTTP API 的工具 |
 | **发 Product Hunt / 产品发布平台、排期上线、画廊图上传** | [`product-launch.md`](references/product-launch.md) | 需要能设置 file input 的浏览器连接器；**不要点上传按钮**（会弹系统对话框冻死标签页） |
-| 外链、分发、竞品引用域 | [`integrations.md`](references/integrations.md)、[`seo-growth.md`](references/seo-growth.md) | backlink |
-| 付费外链平台、「竞品在哪买的链接」、投放平台估价 | [`integrations.md`](references/integrations.md) 的「抓完竞品反链，必须回流到 `backlink` 的平台登记表」 | backlink（读 `references/paid-platforms.md`，喂 `data/paid-platforms.json`） |
+| 外链、分发、竞品引用域 | [`integrations.md`](references/integrations.md)、[`seo-growth.md`](references/seo-growth.md) | **加载 backlink**（`/backlink`）。未安装：`npx skills add yan-labs/yan-skills --skill backlink -g -y` |
+| 付费外链平台、「竞品在哪买的链接」、投放平台估价 | [`integrations.md`](references/integrations.md) | **加载 backlink**（读 `references/paid-platforms.md`，喂 `data/paid-platforms.json`） |
 | 复盘、经验沉淀、自我进化、规则升级 | [`evolution.md`](references/evolution.md)、[`project-memory.md`](references/project-memory.md) | 必要时使用独立 checker |
 | 已有项目下一步、迭代、排障 | [`project-memory.md`](references/project-memory.md) 加任务相关参考 | 按缺口选择 |
 
