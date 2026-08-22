@@ -51,6 +51,15 @@ const falsePositiveTraps = [
   "Get Paid to Write Reviews",
   "As Said in the Press",
   "Available Now: Startup Launch Directory",
+  // The Chinese branch of AI_DIRECTORY_RE needs its own leading \b: a plain
+  // \w before "ai" is not a word boundary, but Chinese characters are not
+  // \w either, so the ORIGINAL (unanchored) branch matched "ai" fused into
+  // the tail of an unrelated Latin word right before a Chinese AI-directory
+  // noun. Reproduced and reported by an independent reviewer.
+  "Shanghai网站导航", // 上海 — a city, not an AI directory
+  "Chennai应用市场", // 金奈 — a city, not an AI directory
+  "Kai软件下载站", // a brand name, not an AI directory
+  "外卖waimai导航网", // pinyin brand + 导航, not an AI directory
 ];
 
 test("classifyKind does not over-match domains/titles that merely contain the letters 'ai'", () => {

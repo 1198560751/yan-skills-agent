@@ -188,8 +188,16 @@ function analyse(html) {
 // "人工智能" on its own, alongside the broadened English set. \b already
 // keeps this off false positives like chain/email/domain/maintainer/retail/
 // air/paid/said/available — none of them has a word boundary immediately
-// before "ai", and none is followed by a Chinese character.
-const AI_DIRECTORY_RE = /\bai[\s-]?(?:tools?|directory|software|apps?|websites?|platforms?)\b|\bartificial intelligence\b|\bai-powered\b|ai(?:工具|导航|产品|软件|应用|网站|平台)|人工智能/;
+// before "ai", and none is followed by a Chinese character. The Chinese
+// branch also needs its OWN leading \b: without it, "ai" embedded inside a
+// longer Latin word right before a Chinese noun still matched — e.g.
+// "Shanghai网站导航" (a city), "Chennai应用市场" (a city), "Kai软件下载站"
+// (a brand), "外卖waimai导航网" (pinyin brand + 导航) all false-positived as
+// ai-directory. \b is defined on \w (ASCII alnum + underscore) and Chinese
+// characters are not \w, so the boundary on the *trailing* side (between
+// "ai" and the following Chinese character) already existed for free; the
+// bug was the missing boundary on the *leading* side.
+const AI_DIRECTORY_RE = /\bai[\s-]?(?:tools?|directory|software|apps?|websites?|platforms?)\b|\bartificial intelligence\b|\bai-powered\b|\bai(?:工具|导航|产品|软件|应用|网站|平台)|人工智能/;
 
 function classifyKind(title, html) {
   const t = `${title || ''} ${stripScripts(html).slice(0, 4000)}`.toLowerCase();
