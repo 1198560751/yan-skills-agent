@@ -228,7 +228,7 @@ The canonical check after every navigation, and the one Law 4 exists to make
 possible:
 <cmd><![CDATA[
 opencli browser "$S" --window background get url    # one page per session: safe
-opencli browser "$S" --window background state      # same, plus title + elements
+opencli browser "$S" --window background state      # same, plus title + elements (AX snapshot by default)
 ]]></cmd>
 </confirm-identity>
 </instead>

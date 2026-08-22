@@ -118,6 +118,11 @@ session still acknowledged.
 **Use `state --tab <id>` when you need a read that names its target**, and
 prefer one session per page so the question does not arise.
 
+`state` defaults to `--source ax` (accessibility-tree snapshot: compact
+`[N]role "name"` format, far fewer tokens than the full DOM). The wrapper in
+`scripts/opencli-core.mjs` injects this automatically; pass `--source dom`
+explicitly when you need the full DOM tree.
+
 ---
 
 <a id="law-3"></a>

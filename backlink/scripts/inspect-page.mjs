@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { writeFile } from 'node:fs/promises';
-import { defaultSession, firstJson, opencli, parseFlags, printJson, required, validateSession } from './opencli-core.mjs';
+import { defaultSession, firstJson, openAndEval, parseFlags, printJson, required, validateSession } from './opencli-core.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 const url = new URL(required(flags, 'url'));
@@ -116,13 +116,12 @@ const scanFunction = `(() => {
   };
 })()`;
 
-await opencli(['browser', session, 'open', url.toString()], {
-  env: { OPENCLI_WINDOW: windowMode },
-  timeoutMs: 60_000,
+const evalResult = await openAndEval(session, url.toString(), scanFunction, {
+  wait: waitSeconds,
+  windowMode,
+  timeoutMs: 120_000,
 });
-if (waitSeconds > 0) await opencli(['browser', session, 'wait', 'time', String(waitSeconds)], { timeoutMs: 30_000 });
-const evaluated = await opencli(['browser', session, 'eval', scanFunction], { timeoutMs: 60_000 });
-const scan = firstJson(evaluated.stdout);
+const scan = typeof evalResult === 'string' ? JSON.parse(evalResult) : evalResult;
 const output = { session, ...scan };
 if (typeof flags.out === 'string') await writeFile(flags.out, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
 printJson(output);

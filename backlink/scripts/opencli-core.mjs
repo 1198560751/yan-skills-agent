@@ -93,6 +93,13 @@ export async function opencli(args, options = {}) {
     const windowMode = requested === 'foreground' ? 'foreground' : 'background';
     resolved.splice(2, 0, '--window', windowMode);
   }
+  // Default `state` snapshots to AX (accessibility-tree) format — compact,
+  // fewer tokens than the full DOM tree.  Callers can still override with an
+  // explicit `--source dom`.
+  if (resolved[0] === 'browser' && !resolved.includes('--source')) {
+    const sub = resolved.findIndex((a, i) => i >= 2 && a === 'state');
+    if (sub >= 0) resolved.splice(sub + 1, 0, '--source', 'ax');
+  }
   return await run('opencli', resolved, options);
 }
 
@@ -123,6 +130,37 @@ export function firstJson(text) {
 
 export function printJson(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+/**
+ * Execute multiple browser operations in a single CLI call. Each command is
+ * {cmd, args} matching the `opencli browser <session> batch` contract.
+ * Returns the parsed results array; each element has {cmd, index, ok, result?, error?}.
+ */
+export async function batchBrowser(session, commands, options = {}) {
+  const windowMode = options.windowMode || options.env?.OPENCLI_WINDOW || 'background';
+  const result = await run('opencli', [
+    'browser', session, '--window', windowMode === 'foreground' ? 'foreground' : 'background',
+    'batch', '--commands', JSON.stringify(commands),
+  ], options);
+  return JSON.parse(result.stdout);
+}
+
+/**
+ * Open a URL, optionally wait, then eval an expression — the most common
+ * three-step browser sequence, collapsed into one CLI call.
+ */
+export async function openAndEval(session, url, expression, options = {}) {
+  const wait = options.wait ?? 3;
+  const commands = [
+    { cmd: 'open', args: { url } },
+    ...(wait > 0 ? [{ cmd: 'wait', args: { seconds: wait } }] : []),
+    { cmd: 'eval', args: { js: expression } },
+  ];
+  const results = await batchBrowser(session, commands, options);
+  const last = results[results.length - 1];
+  if (!last.ok) throw new Error(last.error || 'eval failed in openAndEval');
+  return last.result;
 }
 
 export async function closeSession(session) {

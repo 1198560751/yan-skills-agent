@@ -17,7 +17,7 @@
  *   node page-read.mjs --url https://example.com/pricing [--wait 6] [--links /plan] [--out x.json]
  */
 import { writeFile } from 'node:fs/promises';
-import { defaultSession, firstJson, opencli, parseFlags, printJson, required, validateSession } from './opencli-core.mjs';
+import { defaultSession, openAndEval, parseFlags, printJson, required, validateSession } from './opencli-core.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 const url = new URL(required(flags, 'url'));
@@ -38,11 +38,7 @@ const PRICE_PATTERNS = [
   ['CNY', String.raw`[0-9][0-9,]*\s*元(?!素|气|旦)`],
 ];
 
-await opencli(['browser', session, 'open', url.href], { env, timeoutMs: 90_000 });
-await new Promise((r) => setTimeout(r, waitSeconds * 1000));
-
-const captured = firstJson(
-  (await opencli(['browser', session, 'eval', `(() => {
+const evalExpression = `(() => {
     const text = (document.body?.innerText || '').replace(/\\n{3,}/g, '\\n\\n');
     return JSON.stringify({
       url: location.href,
@@ -55,8 +51,14 @@ const captured = firstJson(
         text: (a.innerText || '').trim().slice(0, 60),
       })).filter((l) => l.href && !l.href.startsWith('javascript:')).slice(0, 200),
     });
-  })()`], { env, timeoutMs: 60_000 })).stdout,
-);
+  })()`;
+
+const evalResult = await openAndEval(session, url.href, evalExpression, {
+  wait: waitSeconds,
+  windowMode: env.OPENCLI_WINDOW,
+  timeoutMs: 120_000,
+});
+const captured = typeof evalResult === 'string' ? JSON.parse(evalResult) : evalResult;
 
 const prices = {};
 for (const [currency, pattern] of PRICE_PATTERNS) {
