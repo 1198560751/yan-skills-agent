@@ -376,6 +376,7 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | 从登录态后台批量取数（没有 API / API 收费 / 导出扣点数） | [`integrations.md`](references/integrations.md) | backlink（读 `references/harvest.md`） |
 | **「数据面板」「数据勘测」「查一下这个站/这个词的数据」** —— 用户说这些词时指的是第三方数据平台 | — | **backlink**（读 `references/authorized-data-sources.md`）。问「站多大、流量哪来、还有哪些同类」用一个产品，问「词多少量、多难、谁在排、外链长什么样」用另一个。两边的「流量」口径不同（自然搜索估算 vs 总访问量），写结论必须标明是哪个 |
 | 能力只有聊天网页形态（要登录、按条扣费、无 API），需反复提问并取回全文 | [`integrations.md`](references/integrations.md) 的「网页版 AI Chatbot 取答」 | `scripts/chatbot-drive.browser.js` |
+| **发 Product Hunt / 产品发布平台、排期上线、画廊图上传** | [`product-launch.md`](references/product-launch.md) | 需要能设置 file input 的浏览器连接器；**不要点上传按钮**（会弹系统对话框冻死标签页） |
 | 外链、分发、竞品引用域 | [`integrations.md`](references/integrations.md)、[`seo-growth.md`](references/seo-growth.md) | backlink |
 | 付费外链平台、「竞品在哪买的链接」、投放平台估价 | [`integrations.md`](references/integrations.md) 的「抓完竞品反链，必须回流到 `backlink` 的平台登记表」 | backlink（读 `references/paid-platforms.md`，喂 `data/paid-platforms.json`） |
 | 复盘、经验沉淀、自我进化、规则升级 | [`evolution.md`](references/evolution.md)、[`project-memory.md`](references/project-memory.md) | 必要时使用独立 checker |
