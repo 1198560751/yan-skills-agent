@@ -4,7 +4,7 @@
 //   node scripts/review.mjs --project-root <项目目录> [--days 30] [--json]
 //
 // 只读,不修改任何文件。输出缺口清单交给 review 流程去补。
-// 报告分四块:缺失文件、陈旧记录、脚本体检、经验库信号。
+// 报告分五块:缺失文件、陈旧记录、脚本体检、生命周期检查点、经验库信号。
 
 import { readdir, readFile, stat } from "node:fs/promises";
 import { execFile } from "node:child_process";
@@ -15,6 +15,103 @@ const execFileAsync = promisify(execFile);
 
 const REQUIRED = ["INDEX.md", "PROJECT.md", "plan.md", "decisions.md"];
 const RECOMMENDED = ["roadmap.md", "iterations.md", "experience.md", "baseline.md"];
+
+// 生命周期检查点：review 不仅看文件有没有，还看关键环节有没有走过。
+// 已上线的站缺这些 = 应该做但没做；新引入 Skill 的老站靠这张表查漏补缺。
+const LIFECYCLE_CHECKS = [
+  // -- 通用基础（任何阶段都适用）--
+  {
+    id: "keywords",
+    name: "关键词规划",
+    group: "基础",
+    evidence: "keywords.md",
+    minBytes: 50,
+    fix: "node <rankup>/scripts/seo-webcafe.mjs kd <keyword>",
+    tool: "seo-webcafe.mjs",
+    why: "SEO 的基底——目标词定了，密度/排名/进度才有锚点",
+  },
+  {
+    id: "roadmap",
+    name: "路线图",
+    group: "基础",
+    evidence: "roadmap.md",
+    minBytes: 50,
+    fix: "写 .rankup/roadmap.md：阶段目标与放弃条件",
+    tool: null,
+    why: "阶段目标不写下来就会漂移，放弃条件不写就永远不会放弃",
+  },
+  // -- 上线后（项目有部署/域名/扫描记录时才检查）--
+  {
+    id: "agentic",
+    name: "AI Agent 就绪度基线",
+    group: "上线后",
+    evidence: "agentic/",
+    checkDir: true,
+    fix: "node <rankup>/scripts/is-agentic.mjs scan <domain> --save",
+    tool: "is-agentic.mjs",
+    why: "AI 代理能否发现和使用站点——零配置可跑，有基线才能量化后续改进",
+  },
+  {
+    id: "audit",
+    name: "技术审计（上线前闸门 7 项）",
+    group: "上线后",
+    evidence: "audit.md",
+    minBytes: 500,
+    fix: "执行 lifecycle.md 阶段 7.5 D 节 0-6 检查项",
+    tool: "is-agentic.mjs + seo-webcafe.mjs audit/chat",
+    why: "站点身份/SEO/TDK/密度/GEO/哥飞审阅/性能——逐项要证据",
+  },
+  {
+    id: "baseline",
+    name: "性能与流量基线",
+    group: "上线后",
+    evidence: "baseline.md",
+    minBytes: 200,
+    fix: "Lighthouse 跑线上 URL，记录 LCP/CLS/INP 到 baseline.md",
+    tool: null,
+    why: "没有基线的「优化」只是猜测——改了不知道改了多少",
+  },
+  {
+    id: "integrations",
+    name: "平台接入记录",
+    group: "上线后",
+    evidence: "integrations.md",
+    minBytes: 100,
+    fix: "node <rankup>/scripts/cf-analytics-setup.mjs status <domain>",
+    tool: "cf-analytics-setup.mjs",
+    why: "数据越早接越值钱——历史数据晚接一天永久少一天",
+  },
+  {
+    id: "infrastructure",
+    name: "基础设施记录",
+    group: "上线后",
+    evidence: "infrastructure.md",
+    minBytes: 50,
+    fix: "记录域名/zone/NS/部署配置到 infrastructure.md",
+    tool: null,
+    why: "部署验证的事实源——缺了就不知道该在哪个环境核对",
+  },
+  {
+    id: "iterations",
+    name: "迭代记录",
+    group: "上线后",
+    evidence: "iterations.md",
+    minBytes: 1,
+    fix: "每轮优化后记录假设、改动、结果到 iterations.md",
+    tool: null,
+    why: "失败轮次不写清被证伪的假设，下次会重走弯路",
+  },
+  {
+    id: "experiments",
+    name: "优化实验记录",
+    group: "上线后",
+    evidence: "experiments.md",
+    minBytes: 1,
+    fix: "node <rankup>/scripts/is-agentic.mjs diff <domain> + Lighthouse 重测",
+    tool: "is-agentic.mjs diff",
+    why: "进步或倒退要用对比数字说话，不能只断言「应该更好了」",
+  },
+];
 
 function parseArgs(argv) {
   const options = { projectRoot: process.cwd(), days: 30, json: false };
@@ -46,6 +143,53 @@ async function ageInDays(file, now) {
   } catch {
     return null;
   }
+}
+
+async function fileBytes(filepath) {
+  try {
+    return (await stat(filepath)).size;
+  } catch {
+    return 0;
+  }
+}
+
+async function checkLifecycle(rankupDir) {
+  // 先判断项目是否已上线:有 infrastructure/integrations/agentic 任一即认为上线
+  const looksLive =
+    (await fileBytes(path.join(rankupDir, "infrastructure.md"))) > 0 ||
+    (await fileBytes(path.join(rankupDir, "integrations.md"))) > 0 ||
+    (await exists(path.join(rankupDir, "agentic")));
+
+  const results = [];
+  for (const check of LIFECYCLE_CHECKS) {
+    if (check.group === "上线后" && !looksLive) continue;
+
+    let done = false;
+    if (check.checkDir) {
+      // 检查目录下是否有域名子目录且含 JSON 快照
+      const dir = path.join(rankupDir, check.evidence);
+      if (await exists(dir)) {
+        try {
+          const entries = await readdir(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+            const files = await readdir(path.join(dir, entry.name));
+            if (files.some((f) => f.endsWith(".json"))) {
+              done = true;
+              break;
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+    } else {
+      const size = await fileBytes(path.join(rankupDir, check.evidence));
+      done = size >= (check.minBytes ?? 1);
+    }
+    results.push({ ...check, done });
+  }
+  return { checks: results, looksLive };
 }
 
 // 记录是否落后于代码:有提交而记忆没动,就是漂移信号。滞后指标不能当进度依据。
@@ -84,6 +228,7 @@ async function reviewProject(projectRoot, days) {
     stale: [],
     scripts: [],
     experience: { total: 0, malformed: false, duplicates: [], promotionCandidates: [] },
+    lifecycle: { checks: [], looksLive: false },
     commitsSince: null,
   };
   if (!report.hasRankup) return report;
@@ -155,6 +300,7 @@ async function reviewProject(projectRoot, days) {
     }
   }
 
+  report.lifecycle = await checkLifecycle(rankupDir);
   report.commitsSince = await commitsSince(projectRoot, `${days} days ago`);
   return report;
 }
@@ -200,6 +346,54 @@ function renderText(report, days) {
       );
     }
     lines.push("");
+  }
+
+  // 生命周期检查点
+  const { checks: lcChecks, looksLive } = report.lifecycle;
+  if (lcChecks.length > 0) {
+    const missing = lcChecks.filter((c) => !c.done);
+    const passed = lcChecks.filter((c) => c.done);
+
+    lines.push(
+      `## 生命周期检查点${looksLive ? "（已上线项目）" : ""}`,
+      "",
+    );
+
+    if (missing.length === 0) {
+      lines.push("✓ 全部检查点已有证据。", "");
+    } else {
+      lines.push(
+        `${passed.length}/${lcChecks.length} 已完成，${missing.length} 项待补：`,
+        "",
+      );
+
+      // 按 group 分组显示缺失项
+      const groups = new Map();
+      for (const check of missing) {
+        const g = groups.get(check.group) ?? [];
+        g.push(check);
+        groups.set(check.group, g);
+      }
+
+      for (const [group, items] of groups) {
+        lines.push(`### ${group}`, "");
+        lines.push(
+          "| 检查项 | 修复命令 | 为什么需要 |",
+          "|---|---|---|",
+        );
+        for (const item of items) {
+          const fixCmd = item.fix.replace(/</g, "\\<").replace(/>/g, "\\>");
+          lines.push(
+            `| ${item.name} | \`${fixCmd}\` | ${item.why} |`,
+          );
+        }
+        lines.push("");
+      }
+    }
+
+    if (passed.length > 0) {
+      lines.push("已完成：" + passed.map((c) => c.name).join("、"), "");
+    }
   }
 
   lines.push("## 经验库信号", "");
