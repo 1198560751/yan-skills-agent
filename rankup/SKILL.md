@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain 时使用。
 metadata:
-  version: "2.32.0"
+  version: "2.33.0"
 ---
 
 # Rankup 2.0
@@ -35,6 +35,34 @@ metadata:
 
 每一级向下的**唯一理由**是「上一级确实不存在」，不是「我对下一级更熟」。
 沙箱浏览器（Claude Browser pane）不在这个阶梯上——它没有登录态，用它查需要登录的面板必然拿到错误数据。
+
+### 配额前置检查（花配额之前的第一个动作）
+
+**凡是有配额的数据源，开工的第一个动作是问自己在哪一档，不是查第一个词。**
+
+真实事故（2026-08-22）：整场关键词调研按「匿名 10 次/日」规划，省着用，
+少测 4 个词，报告里写成「配额耗尽，无法验证」——**账号其实是 VIP 500/日，
+当天只用了 66 次**。没人去问过档位，文档里的默认值就被当成了事实。
+
+- seo.web.cafe：`node seo-webcafe.mjs <任意命令>` 现在会**自动先打印档位**
+  （`· 配额 VIP：已用 66/500，剩 434`），匿名档还会打印一整段提示。不用记，跑就行。
+- Similarweb / Semrush：档位与到期日在面板启动时打印一次；**会话复用会跳过启动，
+  配额读数就不再刷新**，所以整场调研的规模要在开工时定死。
+
+### 脚本没有登录态、而用户浏览器有：把请求发进浏览器，不要去抠 cookie
+
+httpOnly 会话**故意**不让 JS 读到，OpenCLI 也没有导出 cookie 的命令。
+遇到这种情况，正确解法不是想办法取出凭据，而是**把调用挪到已登录的页面里执行**——
+浏览器自动带会话，凭据全程不离开浏览器，不写 `.env`、不进日志、不进 git。
+
+```bash
+S="webcafe-serp-$$"
+opencli browser "$S" --window background open "https://seo.web.cafe/serp/"
+opencli browser "$S" --window background eval '(async()=>{ /* fetch(..., {credentials:"include"}) */ })()'
+```
+
+写法与令牌提取见 [`seo-webcafe.md`](references/seo-webcafe.md) 的「httpOnly 会话」一节。
+**eval 体一律包 IIFE**——本环境 eval 上下文跨调用持续，重复声明会抛错且那次调用根本没执行。
 
 ### 已证实的高频错误（禁止再犯）
 

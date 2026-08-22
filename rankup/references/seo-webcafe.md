@@ -414,3 +414,66 @@ Web.Cafe OAuth（`GET /api/oauth/me` 是全局登录态查询端点）**没有�
 - `/worth/api/estimate` 与 `/adsense/api/audit` 的成功响应字段：请求契约已确认
   （都是 `{input}`，worth 另带 `model`），但抓响应时被本地权限策略拦下，未强行绕过。
 - `/translate/api/domain`、`/domain/api/name`、`/mine/api/*` 的成功响应结构。
+
+---
+
+## 开工前必做：先问配额档位，再规划怎么花（2026-08-22，踩过）
+
+**症状**：整场调研按「匿名 10 次/日」规划，把配额当稀缺资源省着用，
+少测了 4 个词的 SERP，还在报告里写成「配额耗尽，无法验证」。
+**实际上账号是 VIP，500 次/日，当天只用了 66 次——还剩 434 次。**
+
+成因不是账号问题，是**从没去问过**。本文档写了三档配额（匿名 10 / 登录 100 / VIP 500），
+但没有任何一步要求「开工前先确认自己在哪一档」，于是默认值被当成了事实。
+
+**规矩：任何要花配额的调研，第一个动作是查档位，不是查词。**
+
+```bash
+# 不耗配额、不需令牌，在浏览器页面里发：
+fetch("/serp/api/me",{credentials:"include"}).then(r=>r.json())
+# → {"login":true,"vip":true,"quota":{"used":66,"limit":500,"tier":"VIP",
+#    "tiers":{"anon":10,"user":100,"vip":500}}}
+```
+
+`/<tool>/api/me` 每个工具都有，返回真实档位与已用量。**先读它再排计划。**
+
+## httpOnly 会话：不要去取凭据，把请求发到页面里去
+
+`seo-webcafe.mjs` 是 node 侧 HTTP 脚本，没有浏览器会话，所以**永远跑在匿名档**，
+除非显式给 `SEO_WEBCAFE_COOKIE`。而这个 cookie **取不出来**：
+
+- `document.cookie` 只有统计 cookie（`_clck`、`_pv_*`），会话 cookie 是 **httpOnly**；
+- OpenCLI 1.8.6 **没有** cookie 导出命令（`get` 只有 title/url/text/value/html/attributes）；
+- `browser network` 抓的是请求体形状，不给请求头。
+
+**正确解法是绕开取凭据这件事本身：在已登录的页面上下文里 `fetch`。**
+浏览器会自动带上 httpOnly 会话，凭据从头到尾没有离开浏览器，
+不写进 `.env`、不进日志、不进 git。
+
+```bash
+S="webcafe-serp-$$"                       # 唯一且描述性，绝不用 work 这种字面量
+opencli browser "$S" --window background open "https://seo.web.cafe/serp/"
+# 等 ~5 秒加载完，然后：
+opencli browser "$S" --window background eval '(async()=>{
+  const h=document.documentElement.outerHTML;
+  const m=h.match(/[0-9]{13}\.[0-9a-f]{64}/);       // 页面 HTML 里的 X-<TOOL>-Token
+  if(!m) return JSON.stringify({err:"no token"});
+  const r=await fetch("/serp/api/serp",{method:"POST",credentials:"include",
+    headers:{"content-type":"application/json","X-SR-Token":m[0]},
+    body:JSON.stringify({keyword:"メンヘラ診断",gl:"jp"})});
+  return JSON.stringify(await r.json());
+})()'
+opencli browser "$S" close && opencli browser "$S" tab list   # 期望 []
+```
+
+两个必须注意的点：
+
+1. **eval 体一律包成 IIFE**。本环境的 eval 上下文跨调用持续，重复声明同名 `const`
+   会抛 `Identifier already declared`，而那次调用**根本没执行**——
+   报错信息和「请求失败」长得毫不相干。
+2. 每个工具的令牌前缀不同（`X-SR-Token`、`X-AUDIT-Token`、`X-TR-Token`…），
+   见上方接口表；但**正则是同一个**，令牌值就明文躺在页面 HTML 里。
+
+**可推广的形式**：凡是「脚本没有登录态、而用户浏览器有」的场景，
+第一反应不该是「把 cookie 抠出来喂给脚本」——httpOnly 本来就是为了防这个。
+应该是**把调用挪到浏览器里去执行**。前者要处理凭据存储、轮换、泄露；后者一样都不用。

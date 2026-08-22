@@ -331,6 +331,46 @@ chat 命令示例:
 **chat 强制登录**，匿名 401；其余命令匿名可用。
 /referring/* 不计入配额。7 天内重复查询命中缓存但仍计数。`;
 
+/**
+ * 开工前必做：先问配额档位，再决定这场调研怎么排。
+ *
+ * 2026-08-22 的真实事故：整场关键词调研按「匿名 10 次/日」规划，省着用，
+ * 少测了 4 个词的 SERP，还在报告里写成「配额耗尽，无法验证」——
+ * 而账号其实是 VIP 500/日，当天只用了 66 次。没人去问过档位，
+ * 于是文档里的默认值被当成了事实。
+ *
+ * `/<tool>/api/me` 不耗配额、不需令牌，所以这个检查是白拿的。
+ */
+async function quotaPreflight(tool) {
+  try {
+    const r = await fetch(`${BASE}/${tool}/api/me`, { headers: authHeaders() });
+    if (!r.ok) return;
+    const q = (await r.json())?.quota;
+    if (!q) return;
+    const left = q.unlimited ? "∞" : Math.max(0, (q.limit ?? 0) - (q.used ?? 0));
+    console.error(`· 配额 ${q.tier}：已用 ${q.used}/${q.limit}，剩 ${left}`);
+    // 档位名服务端返回的是中文（「游客」/「登录」/「VIP」），不要只匹配 "anon"。
+    // 更稳的判据是额度上限等于匿名档上限。
+    const anonLimit = q?.tiers?.anon ?? 10;
+    const isAnon = /anon|guest|游客/i.test(String(q.tier ?? "")) || (!q.unlimited && q.limit <= anonLimit);
+    if (isAnon) {
+      console.error(
+        "\n⚠️  当前是匿名档（10/日），而你的浏览器可能已经登录着更高的档位。\n" +
+        "    本脚本是 node 侧 HTTP 调用，拿不到浏览器的会话——\n" +
+        "    seo.web.cafe 的登录 cookie 是 httpOnly，document.cookie 读不到，\n" +
+        "    OpenCLI 也没有导出 cookie 的命令。\n\n" +
+        "    不要去抠这个 cookie。正确做法是把请求发到已登录的页面里执行：\n" +
+        "      S=\"webcafe-$$\"\n" +
+        "      opencli browser \"$S\" --window background open https://seo.web.cafe/serp/\n" +
+        "      opencli browser \"$S\" --window background eval '(async()=>{ …fetch(\"/serp/api/serp\",{credentials:\"include\"})… })()'\n" +
+        "    浏览器会自动带上会话，凭据全程不离开浏览器。\n" +
+        "    完整写法见 references/seo-webcafe.md「httpOnly 会话」一节。\n" +
+        "    （只有确实没有登录浏览器时，才继续用匿名档往下跑。）\n"
+      );
+    }
+  } catch { /* 探测失败不该挡住正事 */ }
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   if (!argv.length || argv.includes("--help")) { console.log(HELP); return; }
@@ -346,6 +386,9 @@ async function main() {
 
   const spec = TOOLS[cmd];
   if (!spec) die(`未知命令：${cmd}（用 --help 看全部命令）`);
+
+  // 先报档位再干活：不这么做就会按错误的配额假设去规划整场调研。
+  if (!spec.official) await quotaPreflight(spec.tool);
 
   const rows = a.batch
     ? readFileSync(a.batch, "utf8").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"))
