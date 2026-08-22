@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.30.0";
+const expectedVersion = "2.30.1";
 const requiredReferences = [
   "lifecycle.md",
   "cloudflare-stack.md",
@@ -63,6 +63,8 @@ const requiredContent = {
     "Maker–Checker",
     "通用规则晋升门",
     "no-promotion",
+    "一个匹配源代码文本的门禁,只要把它保护的那一行注释掉就能通过",
+    "风格门禁不能靠删掉实质内容来满足",
   ],
 };
 
@@ -276,6 +278,8 @@ async function validate() {
     "tests/registry.test.mjs",
     "tests/review.test.mjs",
     "tests/sessions.test.mjs",
+    "tests/eval-guard-source-match.test.mjs",
+    "tests/eval-guard-style-vs-substance.test.mjs",
   ]) {
     try {
       await read(requiredFile);
