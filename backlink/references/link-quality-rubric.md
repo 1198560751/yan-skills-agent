@@ -13,6 +13,14 @@
 
 Use this reference to score individual backlinks, audit link profiles, find competitive link gaps, and prepare disavow files without mistaking weak links for toxic links.
 
+> **[2026-08] The six factors below predate AI Overviews and underweight content
+> originality.** They are still the right sorting tool for authority, relevance,
+> and placement, but none of the six directly scores whether the linking page
+> carries genuinely new knowledge (first-hand data, original research, real
+> expertise) versus restated commodity content. Since the March 2026 Core Update
+> re-weighted that signal (Information Gain), treat it as a modifier alongside
+> the six factors — see the "AI Citation Potential" note after the table.
+
 ## 1. Individual Link Quality Score
 
 Score each link across six factors, multiply by weight, then sum the weighted values for the final **Link Quality Score (LQS)**. Use scores 4 and 2 for cases between the table anchors.
@@ -33,6 +41,19 @@ Score each link across six factors, multiply by weight, then sum the weighted va
 | 4.0-5.0 | Premium | High authority, relevant, editorial placement |
 | 2.5-3.9 | Acceptable | Provides value and fits a healthy profile |
 | 1.0-2.4 | Low quality | Minimal value; review for risk before acting |
+
+**AI Citation Potential — a modifier, not a seventh weighted factor [2026-08]**
+
+Do not fold this into the LQS formula or change the six weights above. Instead,
+apply it as a qualitative adjustment after computing LQS: a link from a page
+that carries genuinely new knowledge (first-hand data, original research, real
+expertise) is worth more than its LQS alone suggests, because that page is more
+likely to be cited in AI Overviews/AI Mode and more likely to rank well itself —
+both of which increase what the link passes on. A link from a commodity summary
+page (content that just restates what other pages already say) has lower
+citation-transfer value even at the same DR/relevance/position score. When two
+candidates tie on LQS, prefer the one whose linking page shows original data,
+a first-hand review, or genuine subject-matter expertise.
 
 **Healthy anchor/follow distribution**
 

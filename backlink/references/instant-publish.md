@@ -78,6 +78,19 @@ its effort re-discovering these.
   instance is on the vendor's own marketing page, which carries no third-party
   value. Find real embeds on real sites or skip the class.
 
+- **[2026-08] Back Button Hijacking** — Google's April 2026 spam policy
+  (enforcement began 2026-06-15) makes the site owner liable for third-party
+  scripts that hijack browser back-button navigation — trapping the visitor on
+  the site, or redirecting "back" into another page instead of the actual
+  previous page. A platform doing this, even through a third-party ad or widget
+  script, is penalized or at meaningful risk of being penalized. That makes it a
+  poor link target independent of any `rel`/`robots` reading: a page that gets
+  hit by this policy can lose its indexing entirely, taking the link with it.
+  Screen the same cheap way as the other family rejections above — before writing
+  any content, exercise the back button on the target page (or check for
+  `history.pushState` abuse / `beforeunload` redirects in its script) and treat a
+  hijack as a rejection on sight, same tier as `noindex` demo instances.
+
 ### Guestbooks are the most productive class currently known
 
 The classic `/guestbook` page still exists in quantity on personal sites, fan
@@ -519,6 +532,14 @@ same body across ten hosts creates a duplicate-content footprint that is easy to
 detect and easy to discount.
 
 One genuinely useful page carrying three contextual links beats ten thin ones.
+
+**[2026-08] This standard is now algorithmically enforced, not just a purge
+survival tactic.** The March 2026 Core Update re-weighted the Information Gain
+signal: pages that carry original data, first-hand experience, or genuine
+expertise are rewarded relative to pages that just restate what is already
+online. That is the same "real, self-contained" bar stated above — it now also
+affects whether the page itself ranks and gets crawled again, on top of whether
+it survives a manual purge.
 
 ## Which browser to drive
 

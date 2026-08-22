@@ -21,6 +21,19 @@ street address, city, ZIP, or company registration.** Those are local-business o
 B2B-vendor directories. A software product with no legal entity has nothing true
 to put there. Record `not applicable` and move on — never invent an address.
 
+**[2026-08] A fifth to check for, new since 2026-06-15: Back Button Hijacking.**
+Since Google's April 2026 spam policy took enforcement effect, a target site
+running a third-party script that hijacks the browser back button (traps the
+visitor, or redirects "back" somewhere other than the actual previous page) is
+penalized or at real risk of it — and the site owner is liable even when the
+offending script came from an embedded ad or widget, not their own code. This is
+observable during target qualification, before any content gets written: press
+back on the target page and confirm it actually returns you to the prior page,
+and grep the page's scripts for `history.pushState` abuse or a `beforeunload`
+handler that redirects. A site doing this is a bad link target regardless of
+how it scores on `rel`/`robots` — record it as a rejection, same as a CAPTCHA
+or a login wall.
+
 ## Landing-page scans give false negatives on CAPTCHAs
 
 Fetching a submit page and grepping for `recaptcha|hcaptcha|turnstile|captcha`

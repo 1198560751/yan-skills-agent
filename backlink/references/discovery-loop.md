@@ -35,6 +35,13 @@ Score candidates on:
 
 - topical relevance to the promoted page;
 - public page quality and recent maintenance;
+- content originality / Information Gain — does the page show original data,
+  first-hand experience, or genuine expertise, or does it just restate what
+  other pages already say? Post-March-2026-Core-Update, a page with real
+  Information Gain is a stronger link source: it is more likely to rank and
+  more likely to be cited in AI Overviews/AI Mode, both of which raise what a
+  link from it is worth. [2026-08] This supplements traffic, quality, and
+  maintenance below — it does not replace any of them;
 - visible organic traffic or ranking evidence when available;
 - outbound-domain saturation;
 - no-login/public form availability;
