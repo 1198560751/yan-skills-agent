@@ -4,3 +4,6 @@ __pycache__/
 # 令牌只放各 Skill 根目录的 .env，绝不入库（rankup 的 validate 会断言这一点）
 .env
 */.env
+
+# 各 Skill 的工作目录（中间产物、JSONL、探针输出等），不入库
+.backlink/

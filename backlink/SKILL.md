@@ -3,7 +3,7 @@ name: backlink
 description: OpenCLI-first backlink discovery, profile analysis, opportunity qualification, safe browser-assisted form filling, evidence-based verification, and bulk data harvesting from logged-in dashboards. Use for backlinks, external links, competitor link research, blog-comment opportunities, directory submissions, Similarweb/Semrush/Ahrefs discovery, Search Console verification, anchor analysis, toxic-link review, disavow review, outreach templates, scraping SaaS report tables that have no API, driving the owner's logged-in Chrome from a script, or Chinese requests such as 反链、外链、找外链、发外链、评论外链、外链分析、抓后台数据、导出报表、数据面板、数据勘测.
 ---
 
-<skill name="backlink" version="3.1" body-format="xml">
+<skill name="backlink" version="3.2" body-format="xml">
 
 <why-xml>
 The frontmatter above stays YAML because the Skill loader reads it for
@@ -64,13 +64,13 @@ backlink/
 │   ├── release-submit-guard.mjs    only after explicit per-submission approval
 │   ├── submit-directory.mjs        the single-target driver; one session per staged site
 │   ├── adapter-phpld.mjs           ★ reference implementation of one-session-per-site
-│   ├── ledger.mjs                  candidate → … → indexed → rel_verified
+│   ├── ledger.mjs                  candidate → … → indexed → rel_verified; stats + remaining
 │   ├── discovery-queue.mjs         recursive competitor/commenter expansion
 │   ├── harvest-commenters.mjs      pull commenter domains off an article
 │   ├── third-party-list-ingest.mjs someone else's list → screened leads + diff
 │   ├── probe-submission-targets.mjs leads → reachability, route, gate, price
 │   ├── merge-submission-targets.mjs fold a probe run into the two data files
-│   ├── targets-select.mjs          pick ONE batch: --cohort open | captcha | …
+│   ├── targets-select.mjs          pick ONE batch: --cohort open | captcha | … ; --ledger excludes submitted
 │   ├── paid-platform-registry.mjs  merge a harvest into the paid registry
 │   └── harvest-*.{sh,mjs,js}       bulk table extraction from logged-in dashboards
 │
@@ -655,10 +655,19 @@ truncates at roughly 1 KB.
 <workflow id="verify" when="closing the loop on any placement">
 <states>candidate → qualified → drafted → filled → submitted → public → indexed → rel_verified</states>
 <cmd><![CDATA[
+# Track a submission
 node scripts/ledger.mjs upsert --file .backlink/ledger.json --url https://target.example/page
 node scripts/ledger.mjs transition --file .backlink/ledger.json \
   --url https://target.example/page --state public \
   --evidence "Observed the exact public anchor on 2026-07-30"
+
+# Per-project progress: what have I submitted vs what's left?
+node scripts/ledger.mjs stats --file .backlink/ledger.json
+node scripts/ledger.mjs remaining --file .backlink/ledger.json --min-traffic 100
+node scripts/ledger.mjs remaining --file .backlink/ledger.json --cohort open --free-only
+
+# Select next batch, excluding already-submitted domains
+node scripts/targets-select.mjs --cohort open --min-traffic 100 --ledger .backlink/ledger.json
 ]]></cmd>
 <evidence-bar>
 `submitted`, `public`, `indexed`, and `rel_verified` each require an evidence

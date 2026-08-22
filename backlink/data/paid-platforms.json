@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-19T14:40:03.125Z",
+  "updatedAt": "2026-08-22T16:00:00.000Z",
   "note": "被观察到用于投放的平台登记表；sitesHit 越高越说明它真的在被使用",
   "platforms": {
     "microlaunch.net": {
@@ -229,10 +229,10 @@
       "totalUrls": 19
     },
     "toolify.ai": {
-      "tier": "unverified",
-      "price": null,
-      "priceCheckedAt": null,
-      "notes": null,
+      "tier": "paid-listing",
+      "price": "$99",
+      "priceCheckedAt": "2026-08-22",
+      "notes": " web.cafe 社区投票 40 票推荐。免费基础收录 + $99 付费推广位。哥飞评价值 $250。",
       "observedSites": [
         "capafy.ai",
         "fontvibe.ai"
@@ -410,10 +410,10 @@
       "totalUrls": 3
     },
     "creati.ai": {
-      "tier": "unverified",
-      "price": null,
-      "priceCheckedAt": null,
-      "notes": null,
+      "tier": "paid-listing",
+      "price": "$69",
+      "priceCheckedAt": "2026-08-22",
+      "notes": " web.cafe 社区投票 12 票推荐。能带来付费用户。",
       "observedSites": [
         "eimg.ai"
       ],
@@ -981,10 +981,10 @@
       "totalUrls": 10
     },
     "topai.tools": {
-      "tier": "unverified",
-      "price": null,
-      "priceCheckedAt": null,
-      "notes": null,
+      "tier": "paid-listing",
+      "price": "$47",
+      "priceCheckedAt": "2026-08-22",
+      "notes": " web.cafe 社区投票 10 票推荐。高质量导航站。",
       "observedSites": [
         "topview.ai"
       ],
@@ -2061,6 +2061,328 @@
         "what": "/submit-product describes a 3-step flow (free sign-in, AI-assisted draft, then \"Pay & go live: One-time $10 fee. Published immediately with a do-follow link and featured placement\") — no way to publish without paying.",
         "sourceUrl": "https://techbasedirectory.com/submit-product",
         "checkedAt": "2026-08-19"
+      }
+    },
+    "theresanaiforthat.com": {
+      "tier": "paid-listing",
+      "price": "$49 one-time (Website Only); $347 one-time (Maximum Exposure, incl. 2.5M newsletter)",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 37 票（#1）。AI 导航站龙头，最具性价比。$49 一次性付费（Website Only），人工审核严格，通过后永久收录。$347 含 2.5M+ 订阅量 newsletter 推荐。5M+ 月访问。哥飞、袁锐钦、江城子、kingluo、shine_forever 等多人实测推荐。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "first-party pricing page: Website Only $49 one-time (permanent listing, 100-1000 est. clicks, basic analytics, $100 PPC bonus); Maximum Exposure $347 one-time (everything in Website Only + 700-10000+ clicks, newsletter to 2.5M+ subscribers, priority review, $300 PPC bonus). Custom plans available. First-time launch on TAAFT gets up to $300 PPC bonus.",
+        "sourceUrl": "https://theresanaiforthat.com/launch/",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "peerpush.com": {
+      "tier": "paid-listing",
+      "price": "$39 one-time (Standard Launch); $89 one-time (Launch + 7d Promotion); $229 one-time (Launch + 30d Promotion)",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 3 票。一手确认 Standard Launch $39（Kent 报价一致）。DR 72，843K 月访问。多渠道分发：AI assistants (ChatGPT/Claude)、搜索引擎、Public API、MCP server、社区。8.3M AI assistant reads/30天。免费排队在付费用户之后。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "first-party pricing page: Standard Launch $39 one-time (instant live, permanent listing link, indexed by search/AI/community, auto-generated videos, +10 points, Full Visibility analytics); Launch + 7d Promotion $89 one-time (was $129, everything in Standard + 7 days featured, ~20K impressions, +20 points); Launch + 30d Promotion $229 one-time (was $499, everything in Standard + 30 days featured, ~100K impressions, +40 points); Free $0 (wait behind paid users). Outbid board from $5. DR72, 843K monthly visits, 8.3M AI assistant reads/30d.",
+        "sourceUrl": "https://peerpush.com/pricing",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "uneed.best": {
+      "tier": "paid-listing",
+      "price": "$14.99 one-time (Fast-track, ~14 days); $29.99 one-time (Skip the line, choose date); $15 (Relaunch)",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 8 票。免费排队通道已关闭。Fast-track $14.99（约 14 天上线）；Skip the line $29.99（选日期立即上线）；Relaunch $15（已上线产品二次曝光）。DR 75 dofollow。90K 月访问。另有 Pro 会员 $99/年含各种权益。高端广告位另售（Newsletter $399，Premium Spot from $197）。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "first-party pricing page: Free waiting line closed. Skip the line $29.99 one-time (choose launch date); Fast-track $14.99 one-time (~14 days slot); Relaunch $15 (existing products). All include do-follow backlink from 75DR domain, homepage visibility. Also: Uneed Pro $99/yr or $139 monthly (Discord, lists, vote multiplier). Advertising: Auto-Submit 100+ dirs $249, Newsletter $399, Premium Spot from $197, Main ad $297/mo (sold out). Review $147.",
+        "sourceUrl": "https://www.uneed.best/pricing",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "toolpilot.ai": {
+      "tier": "paid-listing",
+      "price": "Free (backlink required); Premium upgrade $39/mo + $199 setup; ads from $199/mo",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 6 票。社区报 $99 但一手页面未显示此价位。免费提交需挂 badge/logo。/advertise 页显示 Premium Listing Upgrade $39/月 + $199 一次性 setup，Homepage Ad $199/月（sold out），Categories Banner $199/月，Guest Post $299。社区报的 $99 可能是过往定价或特定套餐。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "first-party submit and advertise pages: Free listing (backlink/badge mandatory). Upgrade to Premium Listing $39/mo + $199 one-time setup. Homepage Big Ad $199/mo (sold out). Categories Banner $199/mo. Guest Post $299. Social Media Boost and Newsletter coming soon. Community-reported $99 not found on current public pages.",
+        "sourceUrl": "https://www.toolpilot.ai/pages/advertise-with-us",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "aitoptools.com": {
+      "tier": "paid-listing",
+      "price": "$69 one-time (Standard); $299 one-time (100+ Directory Submissions); $478/mo (Homepage Featured)",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 3 票。一手确认 Standard $69 一次性（Kent 报价一致）。100+ Directory Submissions $299 含代投 100+ 目录。Homepage Featured $478/月。DR 55+，500K+ 月访问，10K+ 工具已收录。24-48h 上线。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "first-party advertise.aitoptools.com: Standard $69 one-time (full profile page, category/tag placement, user reviews, permanent listing, 24-48h live, do-follow backlinks from DR55+ site); 100+ Directory Submissions $299 one-time (everything in Standard + submit to 100+ hand-picked directories, comprehensive report, save 50+ hours); Homepage Featured $478/mo (everything in Standard + homepage hero, boosted visibility badge, newsletter feature, priority category listing). 500K+ monthly visitors.",
+        "sourceUrl": "https://advertise.aitoptools.com/",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "betalist.com": {
+      "tier": "paid-listing",
+      "price": "$99/week (Boost); $199/mo (Boost monthly); $4,999/mo (Sponsorship)",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 9 票。/advertise 页显示 Boost $99/周或 $199/月（含首页位置+newsletter），Sponsorship $4,999/月（全服务）。提交入口 /submit 需登录，无法从公开页面确认基础提交是否收费。天铭称没有免费提交。60K+ newsletter 订阅者，500K+ 月浏览量。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "first-party /advertise page: Sponsorship $4,999/mo (homepage banner, newsletter 60k+ subscribers, social media coverage); Boost from $99/week or $199/mo (homepage placement, newsletter slot). Submit page requires login — cannot confirm base listing price from public pages. 24,000+ startups featured.",
+        "sourceUrl": "https://betalist.com/advertise",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "somi.ai": {
+      "tier": "paid-listing",
+      "price": "$9 one-time (Fast Track, was $19); $29 one-time (Growth Accelerator, was $59); $199 one-time (Spotlight Pro)",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 2 票。社区报 $19 是原价，当前促销 Fast Track $9。40K+ 月访问，10.5K newsletter 订阅。永久 listing + 终身 SEO backlink。Growth Accelerator $29 含详细 review + 无限 release updates。Spotlight Pro $199 含 newsletter spotlight + 视频上传。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "first-party /pricing page: Fast Track Launch $9 one-time (was $19, permanent listing, lifetime backlink, edit rights, public review, 1 image + 1 video link); Growth Accelerator $29 one-time (was $59, everything in Fast Track + standard support, 3 images, unlimited release updates, detailed review); Spotlight Pro $199 one-time (everything in Growth Accelerator + guaranteed newsletter spotlight, priority review, full page content control, 5 images + video upload). 40K+ monthly visitors, 10.5K newsletter subscribers.",
+        "sourceUrl": "https://somi.ai/pricing",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "gptbot.io": {
+      "tier": "paid-listing",
+      "price": "$29 one-time (Fast Track)",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 1 票。一手确认 Fast Track $29（安徒生报价一致）。48h 上线，do-follow backlink，Verified badge，被拒全额退款。免费提交也存在但无加速/badge。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "first-party /submit-ai-tool page: Fast Track $29 one-time (fast listing within 48 hours, full refund if rejected, do-follow backlink, verified tool badge, ongoing listing while eligible, higher visibility). Free submission also available but without expedited review. Tax may be added at checkout. NSFW tools not accepted.",
+        "sourceUrl": "https://gptbot.io/submit-ai-tool",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "nxgntools.com": {
+      "tier": "paid-listing",
+      "price": "$19",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 2 票。安徒生报 $19。2026-08-22 访问时站点返回 ERR_CONNECTION_CLOSED，无法从一手页面核实。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "site down (ERR_CONNECTION_CLOSED on 2026-08-22). Cannot verify first-party pricing. Community reports $19 (2 votes).",
+        "sourceUrl": "https://nxgntools.com",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "aiapps.com": {
+      "tier": "paid-listing",
+      "price": "$39/year (Listed); $99/year (Verified); $99/mo (Featured). Subscriptions, not one-time!",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 1 票。社区报 $9.9 可能指月付 Listed ($4.99/mo)，但年付最低 $39/年。注意全部为订阅制：取消后 listing 保留但链接暂停。Listed $39/年含 full review page + direct link；Verified $99/年增加 verified badge + 多分类；Featured $99/月（$990/年）含首页推荐 + 月度流量报告。2000+ 工具已收录。24h 上线。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "first-party /submit page: Listed $4.99/mo or $39/year (full review page, logo, direct link, edit anytime, cancel anytime); Verified $12/mo or $99/year (everything in Listed + verified badge, media, multiple categories); Featured $99/mo or $990/year (everything in Verified + top of category, homepage featured, monthly traffic report, 7-day money-back). All subscription-based — listing page stays up but link paused if cancelled. 2,100+ tools listed. 24h review.",
+        "sourceUrl": "https://www.aiapps.com/submit/",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "finetools.ai": {
+      "tier": "paid-listing",
+      "price": "$9.9 one-time (Paid Submission); Free Submission also available",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 1 票。一手确认 $9.9/submission（安徒生报价一致）。也有免费提交通道。提交页面简洁，只需填 URL 即自动抓取标题和描述。需登录才能提交。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "first-party /submit page: Paid Submission $9.9/submission (one-time); Free Submission also available. Submit form requires login, only needs Website URL — title and description auto-fetched.",
+        "sourceUrl": "https://finetools.ai/submit",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "allinai.tools": {
+      "tier": "paid-listing",
+      "price": "$49.9",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 1 票。BOYSO 报 DR65、$49.9、dofollow。优惠码 GEFEI 享9折。2026-08-22 访问 /pricing 返回 500 Internal Server Error，/submit 返回 404。首页链接 /pricing 存在但后端异常，无法从一手页面核实。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "/pricing returns 500 Internal Server Error, /submit returns 404 (2026-08-22). Homepage links to /pricing with '50%' discount label but backend is broken. Cannot verify first-party pricing. Community reports $49.9 with coupon GEFEI for 10% off (1 vote).",
+        "sourceUrl": "https://allinai.tools/pricing",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "launchigniter.com": {
+      "tier": "link-package",
+      "price": "$12 one-time (Basic Launch); $15 one-time (Pro Launch, 3 backlinks); Directory Submission from $99",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 1 票。一手确认 Pro Launch $15（行知报价一致）。Basic $12 含 1 个 DR74 dofollow；Pro $15 含 3 个 dofollow（DR74 LaunchIgniter + DR53 StartupTrusted + DR55 SaaSGrow）。首页展示 1 周，竞争 Winner 徽章（周 Top 3）。免费提交需挂 badge 排队。另有 Directory Submission Service from $99（代投 30-100+ 目录）。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "first-party /pricing page: Basic Launch $12 one-time (1 week homepage, lifetime dofollow backlink DR74, no badge required, no wait); Pro Launch $15 one-time (everything in Basic + lifetime dofollow from StartupTrusted DR53 + lifetime dofollow from SaaSGrow DR55 — 3 backlinks total). Free launch available on SaaSGrow.app and StartupTrusted (badge required). Sidebar permanent featured spot also available. Directory Submission Service from $99 (30-100+ directories).",
+        "sourceUrl": "https://launchigniter.com/pricing",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "aitoolly.com": {
+      "tier": "paid-listing",
+      "price": "$49.99 one-time (Listing); $69.99 one-time (Listing + Video)",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 5 票。社区报 $15.9 已过时，当前 Listing $49.99、Listing+Video $69.99。一次性付费。/submit 页直接提交含付费选项。注意：该站 /pricing 页显示的是 AI Chat 会员价（$0/$9.9/$19.9 月付），与工具提交定价无关。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "first-party /submit page: Two one-time packages — Listing $49.99 (directory listing); Listing + Video $69.99 (directory listing + English launch video after publication). Separate /pricing page shows AI Chat membership ($0/$9.9/$19.9 monthly), unrelated to tool submission. Community-reported $15.9 no longer matches current pricing.",
+        "sourceUrl": "https://aitoolly.com/submit",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "toolfolio.com": {
+      "tier": "paid-listing",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "web.cafe 社区投票 1 票。JsonChao 称最近3个月新崛起的品牌导航站，有付费用户，性价比尚可。价格待核实。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "web.cafe 悬赏帖 1 票。JsonChao 称最近3个月新崛起的品牌导航站，有付费用户，性价比尚可。",
+        "sourceUrl": "https://new.web.cafe/ask/bounty/wlhmhdaoqg",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "twelve.tools": {
+      "tier": "paid-listing",
+      "price": "$36 one-time (PRO); $25.20 with code FROGDR; Free (badge required)",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 7 票。PRO $36 一次性（code FROGDR 打七折 $25.20，已预填）。免费需挂 badge，仅 1 个 dofollow，72h 审核。PRO 含 3 个 dofollow、24h 审核、首页推荐、无需挂 badge。Lessur/谈小罗/哞咦等多人推荐。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "first-party pricing page: Free $0 (1 dofollow, 72h review, backlink to their site required on homepage/footer); PRO $36 one-time ($25.20 with pre-applied coupon FROGDR, 30% off). PRO includes: 3 dofollow links, 24h review, featured on homepage, permanent links, no backlink required. Secure Stripe checkout, VAT included.",
+        "sourceUrl": "https://twelve.tools/pricing",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "startupfa.me": {
+      "tier": "paid-listing",
+      "price": "$19/mo (Highlight); $149/mo (Spotlight); Free (Verified, badge required)",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 10 票。注意：$19 是月付而非一次性！免费 Verified 档挂 badge 等 7 天审核即给 10+ dofollow。Highlight $19/mo 即时发布无需 badge。Spotlight $149/mo 永久首页置顶。Geektao 实测确认免费档 dofollow。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "first-party pricing page: Verified Free (add badge, reviewed within 7 days, 10+ do-follow backlinks, featured badge); Highlight $19/mo (instant delivery, boost visibility, no badge required); Spotlight $149/mo (instant delivery, maximum exposure, permanent homepage placement, priority positioning). All paid plans include premium badge and auto-verification.",
+        "sourceUrl": "https://startupfa.me/pricing",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "dang.ai": {
+      "tier": "paid-listing",
+      "price": "$50",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 13 票。V. 报 $50，DR 81。免费提交需挂徽章排队。frank 称通过审核即代表站方认可，dofollow 已索引，含 logo/截图/完整描述，品牌展示最完整。358K 月访问。定价页 /pricing 需登录才能查看，无法从公开页面核实一手价格。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "pricing page behind login wall (/login?next=/pricing). Submit also requires sign-in. Homepage and public pages show no pricing. Community reports $50 (13 votes, multiple independent sources) but first-party verification not possible without account.",
+        "sourceUrl": "https://dang.ai",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "fazier.com": {
+      "tier": "paid-listing",
+      "price": "$29 one-time (Lite); $49 one-time (Premium, DR82+ dofollow); $119 one-time (Super, homepage top)",
+      "priceCheckedAt": "2026-08-22",
+      "notes": "web.cafe 社区投票 16 票。社区报 $19 已过时，当前最低 Lite $29。DR82，老牌 AI 目录站。免费提交需挂徽章且排队 30 天。Premium $49 含 DR82+ dofollow backlink + 15 天推广。sunboy 称收录较高，真人投票。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "first-party pricing page: Basic Free (badge required, 30-day review); Lite $29 (was $39, one-time, publish now, homepage featured, social promotion, no backlink required); Premium $49 (was $69, one-time, everything in Lite + 15-day platform promotion, DR82+ dofollow backlink, premium badge, PH launch checklist); Super $119 (was $149, one-time, top homepage placement 15 days, featured across platform).",
+        "sourceUrl": "https://fazier.com/submit",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "similarlabs.com": {
+      "tier": "paid-listing",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "web.cafe 社区投票 1 票。免费提交需挂徽章。价格待核实。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "web.cafe 悬赏帖 1 票。召唤兽称免费提交需挂徽章。",
+        "sourceUrl": "https://new.web.cafe/ask/bounty/wlhmhdaoqg",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "navfolders.com": {
+      "tier": "paid-listing",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "web.cafe 社区投票 1 票。山南见曦称高 DR 导航站收录速度快，免费提交需添加徽章，付费免徽章。价格待核实。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "web.cafe 悬赏帖 1 票。山南见曦称高 DR 导航站收录速度快，免费需挂徽章，付费免徽章。",
+        "sourceUrl": "https://new.web.cafe/ask/bounty/wlhmhdaoqg",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "codecanyon.net": {
+      "tier": "paid-listing",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "web.cafe 社区投票 1 票。路漫漫报 DR91，需上架一个商品（代码/模板），在商品简介里加自己的网站。非传统目录提交，需有实际产品。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "web.cafe 悬赏帖 1 票。路漫漫报 DR91，需上架商品（代码/模板），在简介里加网站链接。非传统目录。",
+        "sourceUrl": "https://new.web.cafe/ask/bounty/wlhmhdaoqg",
+        "checkedAt": "2026-08-22"
+      }
+    },
+    "gumroad.com": {
+      "tier": "paid-listing",
+      "price": null,
+      "priceCheckedAt": null,
+      "notes": "web.cafe 社区投票 1 票。路漫漫报 DR92，同 codecanyon.net，需上架商品并在简介中加网站链接。非传统目录。",
+      "observedSites": [],
+      "placements": [],
+      "totalUrls": 0,
+      "observedPrice": {
+        "what": "web.cafe 悬赏帖 1 票。路漫漫报 DR92，需上架商品并在简介中加网站链接。非传统目录。",
+        "sourceUrl": "https://new.web.cafe/ask/bounty/wlhmhdaoqg",
+        "checkedAt": "2026-08-22"
       }
     }
   }

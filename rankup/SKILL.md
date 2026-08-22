@@ -118,7 +118,7 @@ npx skills add yan-labs/yan-skills --skill backlink -g -y
 | **探一个页面有没有提交入口** | `inspect-page.mjs` | 加载 backlink 读 `safety-policy.md` |
 | **受控填表** | `safe-fill.mjs` + `release-submit-guard.mjs` | **必须加载 backlink** 读 `submission-lanes.md` + `safety-policy.md` |
 | **外链机会发现、竞品反链分析** | `discovery-queue.mjs` + `harvest-commenters.mjs` | **必须加载 backlink** 读 `discovery-loop.md` |
-| **外链投放台账** | `ledger.mjs` | **必须加载 backlink** 了解证据阶梯（submitted/public/indexed 每级都要证据） |
+| **外链投放台账与进度跟踪** | `ledger.mjs` (`stats` / `remaining` / `upsert` / `transition`) | **必须加载 backlink** 了解证据阶梯（submitted/public/indexed 每级都要证据）。`stats` 看覆盖率、`remaining` 看还差多少、`--ledger` 传给 `targets-select.mjs` 自动排除已发的 |
 | **付费外链平台登记** | `paid-platform-registry.mjs` | 加载 backlink 读 `paid-platforms.md` |
 | **外链质量评估、毒性检测** | 无专用脚本，靠参考文档 | **必须加载 backlink** 读 `link-quality-rubric.md` + `analysis-templates.md` |
 | **100+ 行的批量提交 campaign** | `targets-select.mjs` + `submit-directory.mjs` | **必须加载 backlink** 读 `batch-campaign.md` |

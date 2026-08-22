@@ -176,7 +176,7 @@ ScheduleWakeup({
       缺少上下文/信息。修复：扩大调查范围，读更多代码/日志/文档。
     </failure-type>
     <failure-type id="wrong-approach">
-      方案本身有问题。修复：回退到 plan 阶段，用 brainstorming 探索替代路径。
+      方案本身有问题。修复：回退到 plan 阶段，探索替代路径（多角度发散思考）。
     </failure-type>
     <failure-type id="environment-issue">
       环境/配置/依赖问题（非代码 bug）。修复：用项目 debug skill 排查环境。
@@ -440,21 +440,21 @@ autopilot 运行在不同产品上时，使用不同的 loop 命令：
 按阶段职能选 skill。**每个阶段必须通过 skill 完成，不允许裸手做。**
 
 Skill 发现顺序：
-1. 先用 `using-superpowers` / `find-skills` 扫描当前项目和全局可用的 skill
+1. 先用 `find-skills` 或直接读 `.agents/skills/` 扫描当前项目和全局可用的 skill
 2. 优先选项目级 skill（如 `dev-*`, `test-*`, `debug-*`, `review-*`）——它们包含项目特定的规则和上下文
 3. 项目没有专用 skill 时，退到全局 skill
 
 <skill-matrix>
-  <mapping phase="调查 / 根因定位"    primary="项目 dev skill"    fallback="systematic-debugging" />
-  <mapping phase="外部研究 / 文档"     primary="context7"         also="deep-research, anysearch, agent-reach" />
-  <mapping phase="方案规划"            primary="writing-plans"    also="planning-with-files, brainstorming" />
+  <mapping phase="调查 / 根因定位"    primary="项目 dev skill"    fallback="直接调查（读代码 + 日志 + git blame）" />
+  <mapping phase="外部研究 / 文档"     primary="deep-research"    also="anysearch, agent-reach" />
+  <mapping phase="方案规划"            primary="直接规划"          also="find-skills 按需发现" />
   <mapping phase="后端 / 逻辑实现"     primary="项目 dev skill"    fallback="直接编码（无可用 skill 时）" />
-  <mapping phase="前端 / UI 实现"      primary="frontend-design"  also="shadcn-ui" />
+  <mapping phase="前端 / UI 实现"      primary="项目 dev skill"    fallback="直接编码" />
   <mapping phase="本地验证"            primary="项目 test skill"   fallback="直接运行 tsc + test" />
   <mapping phase="部署"                primary="项目 debug/deploy skill" fallback="gh-cli + 手动推送" />
   <mapping phase="E2E 验证"            primary="项目 test skill"   also="agent-browser" />
   <mapping phase="代码审查"            primary="项目 review skill" fallback="simplify, code-review" />
-  <mapping phase="深度审查"            primary="thermo-nuclear-code-quality-review" also="" />
+  <mapping phase="深度审查"            primary="code-review (high/max)" also="" />
   <mapping phase="Issue 管理"          primary="gh-cli"           also="" />
 </skill-matrix>
 
@@ -732,8 +732,62 @@ loop-goal = <loop-goal> 定义的完成判定
 <subagent-rules>
 
   <rule id="self-contained-brief">
-    每个 subagent 任务翻成自包含英文 brief——
+    每个 subagent 任务翻成**自包含 brief**——
     subagent 没有主循环上下文，必须把它需要的一切都写进 brief。
+
+    **语言与格式建议（基于实测数据，供参考）**：
+
+    brief 的语言和格式会影响 subagent 的执行效率和质量。
+    以下是基于 SWE-bench 实测和 token 计数实验的建议，不是硬性规定：
+
+    1. **指令部分建议用英文**。Claude 内部以英文推理，英文 prompt 在
+       agentic/coding 任务上实测高出 5-10 个百分点。Token 成本方面
+       中英文在 Claude 4.7+ 分词器下已接近平价，不是决策因素。
+    2. **领域内容保留原语言**。中文研究用中文搜索词、日文市场用日文
+       关键词、韩文文案用韩文参考——强制翻译会丢失领域精度。
+    3. **输出语言显式指定**。不指定时模型会猜，猜错浪费整个 turn。
+    4. **格式按任务复杂度选择**。简单任务用自然语言即可；复杂多步骤
+       任务可用压缩格式节省 token（DSL 约省 47%，缩写英文约省 27%，
+       YAML 约省 25%；XML 反而贵 19%，仅适合组织分隔）。
+
+    主会话用什么语言与用户对话不影响 brief 的语言选择——
+    brief 的语言由 autopilot 自行决定，用户无需感知。
+  </rule>
+
+  <rule id="parallel-dispatch">
+    **并发分派规则**：当多个 phase 之间无数据依赖时，可以并行派多个 subagent。
+    但并发 subagent **必须互不干扰**——不告知隔离边界就派发是禁止行为。
+
+    **资源分区（强制）**：
+    每个并发 subagent 的 brief 必须包含 `CONFLICT-SCOPE` 字段，
+    明确声明它**独占**的文件/目录/资源范围。
+    同时告知它**不得触碰**的范围（其他 subagent 的 scope）。
+
+    ```
+    CONFLICT-SCOPE:
+      owns: src/auth/, src/middleware/jwt.ts
+      avoid: src/api/, src/db/  (另一个 subagent 正在修改)
+    ```
+
+    **隔离层级（按风险递增选择）**：
+
+    | 场景 | 隔离方式 |
+    | --- | --- |
+    | 只读任务（调查、研究、审查） | 无需隔离，可自由并发 |
+    | 写不同文件 | CONFLICT-SCOPE 声明 + 主循环验证无交叉 |
+    | 写同目录下不同文件 | 同上 + brief 中列出精确文件名 |
+    | 可能写同一文件 | **必须用 worktree 隔离**（`isolation: "worktree"`） |
+    | 操作同一浏览器 | **禁止并发**——串行执行，或分配不同 tab 并在 brief 中声明 tabId |
+    | 操作同一外部服务/API | brief 中声明调用端点和操作类型，避免竞态 |
+
+    **主循环职责**：
+    - 派发前：规划分区，确认无交叉
+    - 派发时：每个 brief 写入 CONFLICT-SCOPE + 并发 subagent 数量
+    - 回收时：检查是否有意外的文件交叉修改，有则回退后者
+    - 合并时：如果多个 subagent 的产出需要合并到同一分支，由主循环串行 commit
+
+    **并发上限**：同一迭代内最多 3 个并发写类 subagent（含 worktree 隔离的）。
+    只读 checker 不计入此限制。超过 3 个写类任务时排队串行。
   </rule>
 
   <rule id="model">
@@ -778,7 +832,8 @@ loop-goal = <loop-goal> 定义的完成判定
 
   <rule id="skill-first">
     每阶段开始前先确认要用的 skill，通过 skill 完成，不裸手做。
-    using-superpowers 在每轮开始时必须调用一次。
+    每轮开始时扫描当前项目和全局可用的 skill（`find-skills` 或直接读
+    `.agents/skills/` 目录），匹配当前 phase 所需能力。
     专项 skill 每个任务只发现和加载一次，把选择写进 progress.md 供后续 phase 复用。
   </rule>
 
@@ -837,7 +892,7 @@ phase 失败时，必须按这个顺序处理——不能跳过分类直接重�
   <step order="4">
     按分类选路径重试：
     - missing-context → 扩大调查（项目 debug skill 查远程日志 / deep-research）
-    - wrong-approach → 回 plan 阶段，brainstorming 探索替代方案
+    - wrong-approach → 回 plan 阶段，多角度发散探索替代方案
     - environment-issue → 项目 debug skill 排查环境配置，或手动检查
     - hallucinated-assumption → 回 investigate 验证假设
     - incomplete-output → 继续当前 phase（不从头开始）

@@ -39,6 +39,10 @@
  *                    batch gets filled. Use --unmeasured to list those instead.
  *   --unmeasured     invert: only rows with no traffic measurement yet (i.e. the
  *                    queue for the next screening run)
+ *   --ledger <path>  exclude domains already tracked in a project ledger file
+ *                    (any state >= submitted). The ledger is the project's own
+ *                    record of what it has already sent — the Skill database is
+ *                    shared, and "submitted" is always project-scoped.
  *   --stats          print the cohort × payment matrix and exit
  */
 
@@ -50,7 +54,7 @@ import { COHORTS, UNATTENDED } from './lib-cohort.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FILE = join(HERE, '..', 'data', 'submission-targets.json');
 
-const a = { cohort: [], kind: [], freeOnly: false, paidOk: false, maxAge: null, limit: Infinity, format: 'table', stats: false, unattended: false, minTraffic: null, unmeasured: false };
+const a = { cohort: [], kind: [], freeOnly: false, paidOk: false, maxAge: null, limit: Infinity, format: 'table', stats: false, unattended: false, minTraffic: null, unmeasured: false, ledger: null };
 for (let i = 2; i < process.argv.length; i++) {
   const f = process.argv[i];
   const v = () => process.argv[++i];
@@ -64,6 +68,7 @@ for (let i = 2; i < process.argv.length; i++) {
   else if (f === '--format') a.format = v();
   else if (f === '--min-traffic') a.minTraffic = Number(v());
   else if (f === '--unmeasured') a.unmeasured = true;
+  else if (f === '--ledger') a.ledger = v();
   else if (f === '--stats') a.stats = true;
   else { process.stderr.write(`unknown flag ${f}\n`); process.exit(2); }
 }
@@ -106,6 +111,22 @@ else if (a.minTraffic != null) {
 if (a.maxAge != null) {
   const cutoff = Date.now() - a.maxAge * 86_400_000;
   out = out.filter((t) => Date.parse(t.lastProbedAt) >= cutoff);
+}
+if (a.ledger) {
+  const SUBMITTED_OR_LATER = new Set(['submitted', 'public', 'indexed', 'rel_verified']);
+  try {
+    const ledgerData = JSON.parse(fs.readFileSync(a.ledger, 'utf8'));
+    const submitted = new Set(
+      (ledgerData.records || [])
+        .filter((r) => SUBMITTED_OR_LATER.has(r.state))
+        .map((r) => new URL(r.url).hostname.replace(/^www\./, ''))
+    );
+    const before = out.length;
+    out = out.filter((t) => !submitted.has(t.domain));
+    process.stderr.write(`ledger: excluded ${before - out.length} already-submitted domain(s)\n`);
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
 }
 out = out.slice(0, a.limit);
 

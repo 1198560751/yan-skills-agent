@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseFlags, printJson, required } from './opencli-core.mjs';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const TARGETS_FILE = join(HERE, '..', 'data', 'submission-targets.json');
 
 export const STATES = ['candidate', 'qualified', 'drafted', 'filled', 'submitted', 'public', 'indexed', 'rel_verified', 'rejected'];
 const EVIDENCE_REQUIRED = new Set(['submitted', 'public', 'indexed', 'rel_verified']);
@@ -89,6 +93,51 @@ if (command === 'init') {
 } else if (command === 'list') {
   const records = flags.state ? ledger.records.filter((record) => record.state === flags.state) : ledger.records;
   printJson({ version: ledger.version, records });
+} else if (command === 'stats') {
+  const byState = {};
+  for (const r of ledger.records) byState[r.state] = (byState[r.state] || 0) + 1;
+  const domains = new Set(ledger.records.map((r) => new URL(r.url).hostname.replace(/^www\./, '')));
+  let targetsTotal = 0;
+  try {
+    const targets = JSON.parse(await readFile(TARGETS_FILE, 'utf8'));
+    targetsTotal = targets.targets.length;
+  } catch { /* ok */ }
+  printJson({
+    ledgerRecords: ledger.records.length,
+    uniqueDomains: domains.size,
+    byState,
+    skillTargetsTotal: targetsTotal,
+    coverage: targetsTotal ? `${domains.size}/${targetsTotal} (${Math.round(domains.size / targetsTotal * 100)}%)` : 'n/a',
+  });
+} else if (command === 'remaining') {
+  const SUBMITTED_OR_LATER = new Set(['submitted', 'public', 'indexed', 'rel_verified']);
+  const submittedDomains = new Set(
+    ledger.records
+      .filter((r) => SUBMITTED_OR_LATER.has(r.state))
+      .map((r) => new URL(r.url).hostname.replace(/^www\./, ''))
+  );
+  const allDomains = new Set(ledger.records.map((r) => new URL(r.url).hostname.replace(/^www\./, '')));
+  const targets = JSON.parse(await readFile(TARGETS_FILE, 'utf8'));
+  let eligible = targets.targets.filter((t) => t.status === 'usable' || t.status === 'gated');
+  if (flags['min-traffic']) {
+    const min = Number(flags['min-traffic']);
+    eligible = eligible.filter((t) => t.traffic && t.traffic.verdict === 'pass' && (t.traffic.monthlyVisits ?? 0) >= min);
+  }
+  if (flags['free-only']) eligible = eligible.filter((t) => t.payment !== 'required');
+  if (flags.cohort) eligible = eligible.filter((t) => t.cohort === flags.cohort);
+  const remaining = eligible.filter((t) => !submittedDomains.has(t.domain));
+  const inProgress = eligible.filter((t) => allDomains.has(t.domain) && !submittedDomains.has(t.domain));
+  const fmt = flags.format || 'table';
+  if (fmt === 'json') {
+    printJson({ eligible: eligible.length, submitted: eligible.length - remaining.length, remaining: remaining.length, inProgress: inProgress.length, targets: remaining });
+  } else {
+    process.stdout.write(`eligible: ${eligible.length}  submitted: ${eligible.length - remaining.length}  remaining: ${remaining.length}  in-progress: ${inProgress.length}\n\n`);
+    for (const t of remaining) {
+      const tr = t.traffic ? (t.traffic.monthlyVisits == null ? '   n/a' : String(Math.round(t.traffic.monthlyVisits)).padStart(9)) : '  unmeas.';
+      const pay = t.payment === 'none-seen' ? '' : `  [${t.payment}${t.price ? ` ${t.price}` : ''}]`;
+      process.stdout.write(`${tr}  ${t.cohort.padEnd(16)} ${t.domain.padEnd(30)} ${t.route}${pay}\n`);
+    }
+  }
 } else {
-  throw new Error(`Unknown command: ${command}`);
+  throw new Error(`Unknown command: ${command}. Known: init, upsert, transition, list, stats, remaining`);
 }
