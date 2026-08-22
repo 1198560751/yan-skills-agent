@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain 时使用。
 metadata:
-  version: "2.31.0"
+  version: "2.32.0"
 ---
 
 # Rankup 2.0
@@ -24,13 +24,37 @@ metadata:
 3. 当前项目的 `<project>/.rankup/scripts/`；
 4. 都没有 → 才新写。
 
+### 数据获取的强制优先级
+
+找到能力之后，**按此优先级选实现路径，禁止跳级**：
+
+1. **现有脚本**（`node scripts/xxx.mjs`）→ 直接跑，不要现写等价实现；
+2. **HTTP/REST API**（`fetch` / `curl`）→ 没脚本但服务有 API 时，先用 API，再固化成脚本；
+3. **用户浏览器 + 现有自动化脚本**（底层走 OpenCLI）→ 没有 API 且需要登录态时；
+4. **用户浏览器 + 手动 OpenCLI 或 Claude in Chrome** → 一次性探路或脚本不覆盖时。
+
+每一级向下的**唯一理由**是「上一级确实不存在」，不是「我对下一级更熟」。
+沙箱浏览器（Claude Browser pane）不在这个阶梯上——它没有登录态，用它查需要登录的面板必然拿到错误数据。
+
+### 已证实的高频错误（禁止再犯）
+
+以下错误在过去 14 天的会话中反复出现，多数来自跳过了上面的优先级。
+
+| 错误做法 | 正确做法 | 为什么是错的 |
+|---|---|---|
+| 用 `chatbot-drive.browser.js` 问哥飞 AI（seo.web.cafe） | `node seo-webcafe.mjs chat --ask "..."` | webcafe 有 HTTP API，chat 命令已封装，零浏览器操作 |
+| 用 Claude in Chrome / 手动 OpenCLI 操作 Similarweb 面板 | `node similarweb-query.mjs` / `similarweb-batch.mjs` | 脚本已存在，手操浪费上下文且结果不可复现 |
+| 用 Claude in Chrome / 手动 OpenCLI 操作 Semrush 面板 | `node semrush-overview.mjs` / `semrush-keyword.mjs` 等 | 同上 |
+| OpenCLI 会话名用字面常量如 `work`、`backlink-panel` | `defaultSession('base')` 或会话名带 `$$` 后缀 | 多任务同时跑时撞名 → 拿到别人的页面，全程零报错 |
+| 用沙箱浏览器访问需要登录的数据面板 | 用户的浏览器（通过 OpenCLI 或 Claude in Chrome） | 沙箱没有 cookie，返回的数据是匿名态，看起来正常但内容不同 |
+
 ### 本 Skill 自带
 
 | 脚本 | 干什么 | 什么时候用 |
 |---|---|---|
 | `scripts/seo-webcafe.mjs` | 一个脚本覆盖 seo.web.cafe 全部有后端的工具：`kd` 关键词难度+top9 盘面、`audit` 页面体检、`serp` 排名归因、`backlink` 外链估价、`worth` 网站估值、`history` 域名前世、`chat` 站内 SEO Agent | 问「这个词难不难做」「这盘面能不能进」「这条外链值不值」「这域名什么来历」。零配置可跑，匿名 10 次/日 |
 | `scripts/gt.py` | Google Trends：热度对比、地区分布、相关飙升词、每日热搜 | 问「XX 和 YY 哪个更火」「哪个国家有机会」「最近什么在涨」。首次运行自动建 venv |
-| `scripts/chatbot-drive.browser.js` | 驱动只有网页形态的 AI Chatbot（要登录、按条扣费、无 API），反复提问并**完整**取回长回答 | 需要向某个聊天式工具连续提问并保全全文时 |
+| `scripts/chatbot-drive.browser.js` | 驱动只有网页形态的 AI Chatbot（要登录、按条扣费、**且确实没有 HTTP API**）。**seo.web.cafe 有 HTTP API，用 `seo-webcafe.mjs chat`，不要用这个** | 确认目标聊天工具没有 HTTP API 后才使用 |
 | `scripts/cf-analytics-setup.mjs` | **开通 Cloudflare Web Analytics 并读回 beacon**。`status` 只读探测，`enable` 开启 | 新站上线后接测量时。不依赖任何第三方账号，应排在 GSC/GA 之前做 |
 | `scripts/cf-zone-setup.mjs` | **把域名加进 Cloudflare（zone onboarding）并读回 NS 对**——Wrangler 没有 zone 命令，这是补它的缺口。`status` 只读探测，`create` 建 zone | 新域名接入 Cloudflare 时。**优先仍是操作用户浏览器**，本脚本是浏览器不可用时的退路 |
 | `scripts/registry.mjs` | 扫描各项目 `.rankup/` 重建跨项目资产登记表 | 开工前查「别的项目有没有现成的」；收工时刷新 |
@@ -374,8 +398,9 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | 老站救不救、多语言怎么上、多站会不会自我重复、品牌名不显示、KGR 怎么算、页面下限 | [`webcafe-experiences.md`](references/webcafe-experiences.md) | 无需工具，是裁定集 |
 | 搜索热度对比、地区分布、相关飙升词、每日热搜、模糊方向扩词并收敛成可做站的词 | [`trends.md`](references/trends.md) | `scripts/gt.py`（首次运行自动建 venv 装 pytrends） |
 | 从登录态后台批量取数（没有 API / API 收费 / 导出扣点数） | [`integrations.md`](references/integrations.md) | backlink（读 `references/harvest.md`） |
-| **「数据面板」「数据勘测」「查一下这个站/这个词的数据」** —— 用户说这些词时指的是第三方数据平台 | — | **backlink**（读 `references/authorized-data-sources.md`）。问「站多大、流量哪来、还有哪些同类」用一个产品，问「词多少量、多难、谁在排、外链长什么样」用另一个。两边的「流量」口径不同（自然搜索估算 vs 总访问量），写结论必须标明是哪个 |
-| 能力只有聊天网页形态（要登录、按条扣费、无 API），需反复提问并取回全文 | [`integrations.md`](references/integrations.md) 的「网页版 AI Chatbot 取答」 | `scripts/chatbot-drive.browser.js` |
+| **「数据面板」「数据勘测」「查一下这个站/这个词的数据」** —— 用户说这些词时指的是第三方数据平台 | — | **backlink**（读 `references/authorized-data-sources.md`）。**必须用脚本**：流量 → `similarweb-query.mjs` / `similarweb-batch.mjs`；关键词 → `semrush-keyword.mjs`；有机流量 → `semrush-overview.mjs`；报表 → `semrush-report.mjs`。不要用 Claude in Chrome 或手动 OpenCLI 去操作面板 |
+| **问哥飞 AI / seo.web.cafe 的 SEO Agent** | [`seo-webcafe.md`](references/seo-webcafe.md) | `seo-webcafe.mjs chat --ask "..."`（纯 HTTP，不开浏览器）。**不要用 `chatbot-drive.browser.js`** |
+| 其他只有聊天网页形态的 AI 工具（要登录、按条扣费、**确认没有 HTTP API**） | [`integrations.md`](references/integrations.md) 的「网页版 AI Chatbot 取答」 | `scripts/chatbot-drive.browser.js`——仅限确认没有 HTTP API 的工具 |
 | **发 Product Hunt / 产品发布平台、排期上线、画廊图上传** | [`product-launch.md`](references/product-launch.md) | 需要能设置 file input 的浏览器连接器；**不要点上传按钮**（会弹系统对话框冻死标签页） |
 | 外链、分发、竞品引用域 | [`integrations.md`](references/integrations.md)、[`seo-growth.md`](references/seo-growth.md) | backlink |
 | 付费外链平台、「竞品在哪买的链接」、投放平台估价 | [`integrations.md`](references/integrations.md) 的「抓完竞品反链，必须回流到 `backlink` 的平台登记表」 | backlink（读 `references/paid-platforms.md`，喂 `data/paid-platforms.json`） |
