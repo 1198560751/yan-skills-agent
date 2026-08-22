@@ -177,14 +177,15 @@ Make names **describe the work** rather than merely being unique:
 that exists, so a unique but meaningless name still leaves you unable to answer
 "whose tab is this".
 
-**The Chrome tab group is not an identifier.** Every session's tabs land in a
-group carrying the same extension-supplied label, and there is no way to change
-it from here — no flag on `browser`, `open`, or `tab`, nothing in `opencli
---help` or `opencli profile`, and no `chrome.tabGroups` call anywhere in the CLI
-package. `tab list` does not report the group either. So never ask a person to
-tell tasks apart by looking at the tab group: watching one group fill with tabs
-from three tasks is exactly what a collision looks like from the outside, which
-makes a healthy run look broken and a broken run look healthy.
+**The Chrome tab group now shows active session names.** With the custom
+extension build (feat/batch-command branch, PR #2316), the interactive tab group
+title updates dynamically: `"OpenCLI: session-a, session-b"` when sessions are
+active, falling back to `"OpenCLI Browser"` when no sessions exist. This makes
+it possible for a person to tell which task owns which group. The title refreshes
+on session lifecycle events (lease set / lease released) and truncates at 5
+names. If you are running the stock extension from the Chrome Web Store, the
+title is still the fixed `"OpenCLI Browser"` — the feature requires the rebuilt
+extension.
 
 Release the lease with `opencli browser <session> close` when done. A session
 left open leaves a tab in the owner's Chrome that looks exactly like live work
@@ -249,6 +250,52 @@ several tasks writing to one shared page, which looks like thrashing and is
 really Law 1 being violated. Request foreground only when the user explicitly
 wants to watch. If a site cannot be operated without stealing focus, stop and
 report that constraint.
+
+---
+
+<a id="batch"></a>
+## Batch command — multiple operations in one CLI call
+
+`opencli browser <session> batch` executes multiple browser operations in a
+single CLI invocation, reusing one Page connection. This eliminates the
+connect → resolve → teardown overhead that each individual `opencli browser`
+call pays.
+
+```bash
+opencli browser my-session batch --commands '[
+  {"cmd": "open",  "args": {"url": "https://example.com"}},
+  {"cmd": "wait",  "args": {"seconds": 3}},
+  {"cmd": "eval",  "args": {"js": "document.title"}}
+]'
+```
+
+**16 supported commands:** `open`, `state`, `click`, `type`, `fill`, `eval`,
+`wait`, `extract`, `screenshot`, `scroll`, `find`, `keys`, `hover`, `select`,
+`back`.
+
+**Output:** JSON array of `{cmd, index, ok, result?, error?}`.
+
+By default, execution continues past errors; pass `--stop-on-error` to halt on
+the first failure. Input can come via `--commands <json>` or piped through stdin.
+
+**When to use batch vs sequential calls:**
+
+- **Fixed sequences** (open → wait → eval): always batch. The wrapper
+  `openAndEval()` in `opencli-core.mjs` covers the most common pattern.
+- **Conditional logic** (each step decides the next): sequential is correct.
+  `lib-tools-share.mjs` is a good example — the panel launch needs to read state
+  before deciding whether to retry, switch nodes, or proceed.
+- **Ongoing interaction** (the caller holds a session and issues commands over
+  time): sequential via `evalPage()` or direct `opencli` calls, as today.
+
+The `batchBrowser()` and `openAndEval()` helpers in `scripts/opencli-core.mjs`
+wrap the batch command for JS callers. `inspect-page.mjs` and `page-read.mjs`
+are already refactored to use them.
+
+This feature is available via the custom extension build (feat/batch-command
+branch, PR #2316). The batch command runs at the CLI/daemon level and does **not**
+require the rebuilt extension — it works with the stock Chrome Web Store
+extension.
 
 ---
 

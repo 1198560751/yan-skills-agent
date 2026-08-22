@@ -47,7 +47,7 @@ backlink/
 ├── scripts/              ← run these; do not re-derive their knowledge by hand
 │   ├── validate-data.mjs           PR gate. CI runs exactly this. Must exit 0.
 │   ├── health.mjs                  run before ANY browser task
-│   ├── opencli-core.mjs            ★ defaultSession(), run(), closeSession()
+│   ├── opencli-core.mjs            ★ defaultSession(), batchBrowser(), openAndEval(), run(), closeSession()
 │   ├── lib-tools-share.mjs         ★ the ONE panel launcher
 │   ├── tools-share-open.mjs        launch a tool by name; --goto for a deep link
 │   ├── similarweb-query.mjs        performance | channels | similar-sites
@@ -258,9 +258,11 @@ parallel agents, give each an explicit `--session` or a distinct
 </subagent-trap>
 <naming>
 Make names **describe the work**: `backlink-probe-&lt;suffix&gt;` beats `bl-1`. The
-session name is the only identifier that exists — the Chrome tab group carries
-one extension-supplied label for every session and cannot be changed from here,
-so never ask a person to tell tasks apart by looking at it.
+session name is the primary identifier. With the custom extension build
+(PR #2316), the Chrome tab group now shows active session names
+(`OpenCLI: session-a, session-b`), making groups distinguishable.
+On the stock Web Store extension the group title is still the fixed
+`"OpenCLI Browser"`.
 
 **A name needs two distinguishing parts, and it is easy to ship only one.** The
 suffix makes your task unique against *other* agents. It does nothing to
