@@ -177,9 +177,23 @@ function analyse(html) {
   };
 }
 
+// The old test was English-only and required a literal "ai tools"/"ai
+// directory" phrase. Chinese-language AI-nav sites — a whole class of them,
+// not a handful of stragglers — carry no such English string anywhere on the
+// page (e.g. "AI工具集官网", "AI工具导航站", "提交AI产品 | AI导航网站") and
+// classified as 'unknown', which is how ai-bot.cn, ai138.com, ai-nav.net and
+// aiheron.com survived a downstream filter that excludes by
+// kind === 'ai-directory'. Fix the class: match "ai" immediately fused to a
+// Chinese AI-directory noun (工具/导航/产品/软件/应用/网站/平台), plus
+// "人工智能" on its own, alongside the broadened English set. \b already
+// keeps this off false positives like chain/email/domain/maintainer/retail/
+// air/paid/said/available — none of them has a word boundary immediately
+// before "ai", and none is followed by a Chinese character.
+const AI_DIRECTORY_RE = /\bai[\s-]?(?:tools?|directory|software|apps?|websites?|platforms?)\b|\bartificial intelligence\b|\bai-powered\b|ai(?:工具|导航|产品|软件|应用|网站|平台)|人工智能/;
+
 function classifyKind(title, html) {
   const t = `${title || ''} ${stripScripts(html).slice(0, 4000)}`.toLowerCase();
-  if (/\bai tools?\b|ai directory|ai tool directory/.test(t)) return 'ai-directory';
+  if (AI_DIRECTORY_RE.test(t)) return 'ai-directory';
   if (/startup|indie hacker|product launch|launch your/.test(t)) return 'startup-launch';
   if (/saas|software (?:reviews?|alternatives)/.test(t)) return 'saas-review';
   if (/business directory|local business|company directory/.test(t)) return 'business-directory';
@@ -309,4 +323,8 @@ async function main() {
   process.stderr.write(`${results.length} probed\nstatus ${JSON.stringify(by('status'))}\ncohort ${JSON.stringify(by('cohort'))}\ngate ${JSON.stringify(by('gate'))}\npayment ${JSON.stringify(by('payment'))}\n`);
 }
 
-main();
+// Only run the live probe when invoked directly (`node scripts/probe-submission-targets.mjs`),
+// not when imported by a test for classifyKind/AI_DIRECTORY_RE.
+if (import.meta.url === `file://${process.argv[1]}`) main();
+
+export { classifyKind, AI_DIRECTORY_RE };

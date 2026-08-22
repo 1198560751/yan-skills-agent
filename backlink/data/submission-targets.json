@@ -533,7 +533,7 @@
       "domain": "ai-bot.cn",
       "route": "https://ai-bot.cn/",
       "name": "AI工具集官网 | 1000+ AI工具集合，国内外AI工具集导航大全",
-      "kind": "unknown",
+      "kind": "ai-directory",
       "gate": "open-form",
       "gates": [
         "open-form"
@@ -648,7 +648,7 @@
       "domain": "ai-nav.net",
       "route": "https://ai-nav.net/",
       "name": "AI工具导航站|AI写作,AI编程,AI绘画,AI论文,AI视频,AI生图,AI办公,AI学习,AI生成",
-      "kind": "unknown",
+      "kind": "ai-directory",
       "gate": "open-form",
       "gates": [
         "open-form"
@@ -705,7 +705,7 @@
       "domain": "ai138.com",
       "route": "https://www.ai138.com/",
       "name": "AI工具网 | AI工具集导航大全 | 精选AI人工智能工具推荐",
-      "kind": "unknown",
+      "kind": "ai-directory",
       "gate": "open-form",
       "gates": [
         "open-form"
@@ -876,7 +876,7 @@
       "domain": "aiheron.com",
       "route": "https://www.aiheron.com/promote",
       "name": "提交AI产品 | AI导航网站",
-      "kind": "unknown",
+      "kind": "ai-directory",
       "gate": "open-form",
       "gates": [
         "open-form"
