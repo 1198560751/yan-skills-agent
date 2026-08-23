@@ -165,6 +165,22 @@ Naver 虽然通过 IndexNow 被动接收 URL 推送，但 **Naver Search Advisor
 
 入口：`https://searchadvisor.naver.com/`
 
+自动化脚本：`scripts/naver-setup.mjs`（`status` / `register` / `submit-sitemap`）
+
+```bash
+# 查看注册状态
+node <rankup-skill-dir>/scripts/naver-setup.mjs status --site example.com
+
+# 注册站点并获取验证 meta 标签
+node <rankup-skill-dir>/scripts/naver-setup.mjs register --site example.com
+
+# 验证通过后提交 sitemap
+node <rankup-skill-dir>/scripts/naver-setup.mjs submit-sitemap --site example.com
+```
+
+**CAPTCHA 限制：** 所有权验证需要人机验证，脚本会取出 meta 标签内容但无法自动完成验证点击。
+用户部署 meta 标签后必须在浏览器中手动完成验证。
+
 #### 验证方式
 
 与 Bing/GSC 同理，优先 HTML meta 标签：
@@ -177,7 +193,8 @@ Naver 也支持 HTML 文件上传和 DNS TXT，选择逻辑与上面 GSC/Bing �
 
 #### 验证后要做的
 
-1. **提交 sitemap**——在 Search Advisor 后台「要求 > Sitemap 提交」里手动提交，
+1. **提交 sitemap**——`node <rankup-skill-dir>/scripts/naver-setup.mjs submit-sitemap --site example.com`，
+   或在 Search Advisor 后台「要求 > Sitemap 提交」里手动提交，
    地址格式与 GSC/Bing 一致（`https://example.com/sitemap.xml`）。
 2. **提交 RSS**——Naver 额外支持 RSS 订阅源提交，对博客/内容型站点有加速收录效果。
 3. **查看「网站诊断」**——Naver 有自己的一套诊断标准，与 Google Lighthouse 不完全重叠，

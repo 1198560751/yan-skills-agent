@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
 metadata:
-  version: "2.35.0"
+  version: "2.36.0"
 ---
 
 # Rankup 2.0
@@ -120,6 +120,7 @@ opencli browser "$S" --window background eval '(async()=>{ /* fetch(..., {creden
 | `scripts/indexnow-submit.mjs` | **把站点 URL 推给 IndexNow**（Bing/Yandex/Seznam/Naver 共用一张网，Google 不参与）。URL 列表默认从线上 sitemap 取，`--generate-key` 生成密钥。**提交前先校验密钥文件**——密钥不可达时整批被丢弃而接口照样回 200 | 新站上线接索引推送时；之后每次内容变更部署完成后。零账号、纯 HTTP，可进 CI |
 | `scripts/webmaster-sitemap.mjs` | **在 GSC 与 Bing Webmaster 里读/提交 sitemap**，驱动用户已登录的浏览器。`gsc\|bing status` 只读，`gsc\|bing submit` 提交 | 站长工具资源验证通过之后。GSC 无零配置 API；Bing 若已有 API key 则改走纯 HTTP，见 `search-platforms.md` |
 | `scripts/clarity-setup.mjs` | **在 Microsoft Clarity 里建项目并拿到 project ID**（会话录制 / 热图），驱动用户已登录的浏览器。`status` 只读，`create` 新建 | 上线后接行为分析时。Clarity 的 REST API 只读不建项目，只能走 UI |
+| `scripts/naver-setup.mjs` | **在 Naver Search Advisor 里注册站点、获取验证 meta 标签、提交 sitemap**。`status` / `register` / `submit-sitemap`。CAPTCHA 无法自动化，需要用户手动完成验证 | 韩国市场站点上线后接 Naver 站长工具时。Naver 内部 API 有 CSRF 保护，注册和 sitemap 提交走 UI 更稳定 |
 | `scripts/ahrefs-setup.mjs` | **在 Ahrefs 里建项目、经 GSC 验证所有权、启用 Web Analytics 并取回 `data-key`**。`status` / `create` / `verify` / `enable-wa` | 上线后接外链视角与总访问量时。Ahrefs API v3 只有数据查询，项目管理只能走 UI |
 | `scripts/registry.mjs` | 扫描各项目 `.rankup/` 重建跨项目资产登记表 | 开工前查「别的项目有没有现成的」；收工时刷新 |
 | `scripts/review.mjs` | 项目记忆体检：缺失文件、超期记录、脚本体检、**生命周期检查点**（查漏补缺——哪些工具和环节还没跑过）、经验库信号 | `rankup review` 第一步；新引入 Skill 的老站第一件事就跑它 |
@@ -253,13 +254,30 @@ node "<rankup-skill-dir>/scripts/check-version.mjs" \
 | **不请示、不确认、不汇报选项**。发现问题就修，发现缺口就补，补完在回复里说一句做了什么 | 请示的成本不是一句话，是用户切回来看、理解、回复、你再继续的整条链路 | 「发现某站的 key 是错的。要不要我修？」——废话，当然修 |
 | 连锁任务不截断。A 做完发现 B 需要做，B 做完发现 C 需要做——**一路做到底** | 截断让用户变成人肉任务队列 | 修了 key，发现脚本有 bug，汇报 bug 然后等用户说「那你修一下」 |
 
+### 人机验证：自动化到最后一步，不许甩给用户从头来
+
+| 规则 | 为什么 | 反面教材 |
+|---|---|---|
+| 遇到 CAPTCHA / 人机验证 / 短信验证码等**无法自动化的节点**，**把前面所有能自动完成的步骤全部做完**——表单填好、选项选好、页面打开好——只把那一下点击留给用户 | 用户不应该重复做机器能做的事；一个 CAPTCHA 不是放弃整条流程的理由 | 「Naver 需要人机验证，请您手动去 searchadvisor.naver.com 注册站点、填入域名、选择验证方式、获取 meta 标签……」——把整条 SOP 甩给用户 |
+| **必须用用户的浏览器打开到那个页面**（OpenCLI 或 Claude in Chrome），不是告诉用户一个 URL 让他自己打开 | 用户看到的应该是一个已经填好的表单，只差点一下；不是一段操作指南 | 在回复里写「请前往 https://xxx，然后输入 yyy，然后点击 zzz」 |
+| 做完能做的之后，**明确告诉用户现在浏览器里哪个标签页、需要点什么** | 用户切到浏览器应该一眼就知道该干什么 | 「已打开页面，请完成验证」——没说在哪个标签页、没说点哪个按钮 |
+
+**典型流程（以 Naver Search Advisor 注册为例）**：
+1. 用 API 或浏览器自动化完成站点添加
+2. 获取验证 meta 标签的 content 值
+3. 把 meta 标签写进代码、构建、部署
+4. 打开验证页面，填好所有字段
+5. → **到这里才交给用户**：「浏览器里 Naver Search Advisor 标签页已打开，只需点击 CAPTCHA 然后点确认按钮」
+
+这条规则适用于所有平台，不仅限于 Naver：Cloudflare 的 Turnstile、Google reCAPTCHA、任何短信验证码、任何需要人眼识别的步骤。**目标是让用户的操作量从「一整套 SOP」降到「一次点击」。**
+
 ### 收尾不留尾巴
 
 做完之后的产出是**一段简报**，不是待办清单：
 
 - 做了什么（每项一行）
 - 验证结果（通过/失败）
-- 如果有**确实无法自动完成的事项**（需要 CAPTCHA、需要用户的物理操作、需要付费决策），列出来并说清为什么不能自动做
+- 如果有**确实无法自动完成的事项**（需要 CAPTCHA、需要用户的物理操作、需要付费决策），列出来并说清为什么不能自动做，**以及你已经自动化到了哪一步**（见上一节「人机验证」）
 
 「还有 X 没做，要不要做？」这种结尾**禁止出现**。
 
@@ -548,6 +566,29 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 8. **刷新名单**：`node "<rankup-skill-dir>/scripts/registry.mjs" scan --roots <存放项目的目录>`。
 9. **产出**：一页结论——修了什么、删了什么、回流了什么、下一轮唯一改进。能当场修的直接修，不要只列清单。
 
+## 经验库：规划与迭代之前先翻一遍
+
+`references/experiences/` 是本 Skill 的**经验层**——从业者用真金白银换来的裁定，
+按「规划网站 / 前期调研 / 后续迭代」三个使用时机组织。
+**它和方法层是两种东西**：方法层回答「怎么操作」，经验层回答「该怎么判断、别人踩过什么坑」。
+
+| 你现在在干什么 | 先读 |
+|---|---|
+| 还没定方向，在挖需求、找选题 | [`experiences/demand-discovery.md`](references/experiences/demand-discovery.md) |
+| 方向定了，在规划怎么做、排优先级、定阶段目标与止损线 | [`experiences/zero-to-one.md`](references/experiences/zero-to-one.md) |
+| 站已上线有流量，在决定这一轮改什么 | [`experiences/conversion.md`](references/experiences/conversion.md) |
+| 技术 SEO、站群、多语言、索引类决策 | [`experiences/webcafe-experiences.md`](references/experiences/webcafe-experiences.md) |
+| 要往经验库里加东西 | [`experiences/INDEX.md`](references/experiences/INDEX.md) 的「收录规则」 |
+
+三条硬约束：
+
+1. **经验层不带任何项目信息**——站名、域名、流量数字、account/property ID 一律不进这里；
+   验证过的真实数字留在项目的 `.rankup/experience.md`。
+2. **每条必须有出处与证据等级**（【实测】/【经验】/【猜测】）。
+   标为【猜测】的不得当作结论执行，只能当待验证假设。
+3. **这些是社群从业者的单点实践，不是官方文档。** 采纳前先问「我们这个站的前提条件
+   和它一样吗」，按小步验证执行，验证结果（成立或不成立）写回项目侧。
+
 ## 任务路由
 
 | 请求 | 必读参考 | 专项能力 |
@@ -563,8 +604,11 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | **AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化** | [`seo-growth.md`](references/seo-growth.md) section 三-B「2026 AI 搜索范式」 | 无需额外工具——Google 官方定论：AEO/GEO 就是 SEO |
 | **AI Agent 就绪度、is-agentic、agent readiness、llms.txt、AI 代理优化、agentic score** | [`seo-growth.md`](references/seo-growth.md) section 三-B「AI Agent 就绪度」 | `scripts/is-agentic.mjs`（`scan` 评分、`diff` 对比、`history` 历史，零配置可跑） |
 | 关键词难度、SERP 盘面、页面体检、域名与外链估值 | [`seo-webcafe.md`](references/seo-webcafe.md) | `scripts/seo-webcafe.mjs`（一个脚本覆盖全部工具，零配置可跑） |
-| 老站救不救、多站会不会自我重复、品牌名不显示、KGR 怎么算、页面下限 | [`webcafe-experiences.md`](references/webcafe-experiences.md) | 无需工具，是裁定集 |
-| **多语言怎么上、URL 结构、`<html lang>`、hreflang、语言检测与跳转、中文繁简分治** | [`webcafe-experiences.md`](references/webcafe-experiences.md) 三·五 + [`seo-growth.md`](references/seo-growth.md)「多语言站架构参考（Apple 模型）」+ [`lifecycle.md`](references/lifecycle.md) 阶段 3 第 5 条 | 无需工具，是规则集。**核心禁令：不得根据 IP 自动跳转语言** |
+| **前期调研、挖需求、「做什么方向」、反推别人在赚什么钱、选题验证** | [`experiences/demand-discovery.md`](references/experiences/demand-discovery.md) | 无需工具，是裁定集。配合 `scripts/gt.py` 与 `seo-webcafe.mjs kd` 收敛成词 |
+| **0→1 怎么排优先级、「1」怎么定义、虚荣指标、要不要重构、什么时候止损、新站上线执行清单** | [`experiences/zero-to-one.md`](references/experiences/zero-to-one.md) | 无需工具，是裁定集。**接到「优化一下这个站」时默认打磨转化链路，不是重构架构** |
+| **转化率上不去、访客不注册、注册不付费、定价怎么定、用户行为数据怎么提** | [`experiences/conversion.md`](references/experiences/conversion.md) | 无需工具，是裁定集。**动页面之前先查上游流量意图** |
+| 老站救不救、多站会不会自我重复、品牌名不显示、KGR 怎么算、页面下限 | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) | 无需工具，是裁定集 |
+| **多语言怎么上、URL 结构、`<html lang>`、hreflang、语言检测与跳转、中文繁简分治** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 三·五 + [`seo-growth.md`](references/seo-growth.md)「多语言站架构参考（Apple 模型）」+ [`lifecycle.md`](references/lifecycle.md) 阶段 3 第 5 条 | 无需工具，是规则集。**核心禁令：不得根据 IP 自动跳转语言** |
 | 搜索热度对比、地区分布、相关飙升词、每日热搜、模糊方向扩词并收敛成可做站的词 | [`trends.md`](references/trends.md) | `scripts/gt.py`（首次运行自动建 venv 装 pytrends） |
 | 从登录态后台批量取数（没有 API / API 收费 / 导出扣点数） | [`integrations.md`](references/integrations.md) | **加载 backlink**（`/backlink`），读 `references/harvest.md`。未安装：`npx skills add yan-labs/yan-skills --skill backlink -g -y` |
 | **「数据面板」「数据勘测」「查一下这个站/这个词的数据」** —— 用户说这些词时指的是第三方数据平台 | — | **直接跑脚本**（见上方「数据面板的脚本速查」），不要打开浏览器手操。首次使用或遇到问题时**加载 backlink** 读 `authorized-data-sources.md` |

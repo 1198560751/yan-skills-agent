@@ -62,7 +62,7 @@
   这是监管要求（ICP 备案），不是语言选择。
 
 详细的多语言 URL 结构、`<html lang>`、hreflang 实现规则见
-[`seo-growth.md`](seo-growth.md) 的「多语言站架构参考（Apple 模型）」条目。
+[`seo-growth.md`](../seo-growth.md) 的「多语言站架构参考（Apple 模型）」条目。
 
 ## 四、网站没做完，不要用正式域名上线
 

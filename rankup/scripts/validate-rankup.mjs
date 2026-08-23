@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.35.0";
+const expectedVersion = "2.36.0";
 const requiredReferences = [
   "lifecycle.md",
   "cloudflare-stack.md",
@@ -19,6 +19,11 @@ const requiredReferences = [
   "evolution.md",
   "trends.md",
   "search-platforms.md",
+  "experiences/INDEX.md",
+  "experiences/webcafe-experiences.md",
+  "experiences/demand-discovery.md",
+  "experiences/zero-to-one.md",
+  "experiences/conversion.md",
 ];
 
 const requiredContent = {
@@ -40,6 +45,12 @@ const requiredContent = {
     "断言绝不能被 git 追踪",
     "--new-only",
     "review-state.json",
+    "## 经验库：规划与迭代之前先翻一遍",
+  ],
+  "references/experiences/INDEX.md": [
+    "## 收录规则（强制）",
+    "### 证据等级标记",
+    "三层归属",
   ],
   "references/project-memory.md": [
     "## 沉淀义务",

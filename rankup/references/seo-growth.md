@@ -342,7 +342,7 @@ March 2026 Core Update 重新加权了 Information Gain——衡量一篇内容�
 **对我们的影响**：
 - 工具站的内容页不能只是同类工具页的改写，必须有独特切角。
 - 「原创数据」「一手测评」「独特方法论」是 Information Gain 的三大来源。
-- 与 webcafe-experiences.md 第九条（「已抓取但未编入索引」是内容问题）互证：
+- 与 experiences/webcafe-experiences.md 第九条（「已抓取但未编入索引」是内容问题）互证：
   Google 不只是不收低质量内容，它现在主动降权「没有新信息增量」的内容。
 
 ### Back Button Hijacking：新增 Spam 政策（2026-04 发布，06-15 执行）

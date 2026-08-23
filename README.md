@@ -165,7 +165,17 @@ node scripts/sessions.mjs --project-root . --days 14 --new-only --dump
 
 sitemap 提交走用户已登录的浏览器，因为这里**确实没有零配置 API**（GSC 那侧要建 GCP 项目跑 OAuth；Bing 有一键 API key，项目拿到了就该改走纯 HTTP）。文档里记着四个实测的坑，包括「`extract` 会把后台的 base64 内嵌图片一起吐出来，实测一次 127 万字符」和「`--name` 是包含匹配，GSC 上「提交」会和「提交反馈」撞词」。
 
-**`references/webcafe-experiences.md`** — 哥飞经验帖的十五条可执行裁定，已经译成 Agent 能直接照着判断的形式：
+### 经验库：`references/experiences/`
+
+这是 Skill 的**经验层**——从业者用真金白银换来的裁定，按使用时机分四本，
+和方法层（其余 `references/*.md`）分开放：方法层回答「怎么操作」，经验层回答「该怎么判断、别人踩过什么坑」。
+每条都带出处与证据等级（【实测】/【经验】/【猜测】），收录规则写在 `experiences/INDEX.md`。
+硬约束是经验层不带任何项目信息——站名、域名、流量数字一律留在项目侧的 `.rankup/experience.md`。
+
+- **`experiences/demand-discovery.md`** — 前期调研：反推「谁已经在赚钱」的六条通道（支付网关引荐流量算到达付费页比例、长尾支付网关、广告投放数据、应用商店付费榜与差评、淘宝闲鱼销量、大厂会员功能表）、一条可全自动的筛选流水线（榜单 → 流量面板 → 阈值 → 排除品牌词，实测约 300 个产品筛出 1 个）、判断需求值不值得做的五条认知。
+- **`experiences/zero-to-one.md`** — 0→1 的规划与迭代纪律：先把「1」定义死、三道关的顺序、**虚荣指标 vs 验证信号**（一批人 + 没优惠 + 没人工解释 + 自然付款不退，四条同时成立才算数）、漏斗卡点的三分法、**打磨 > 重构**、先手工跑通再自动化、一张含冲突裁定的上线执行清单。
+- **`experiences/conversion.md`** — 转化与行为数据：动页面之前先查上游流量意图、先用后注册、CTA 写结果不写动作、每访客收入 = 付费率 × 客单价、定价页手法按可采纳性分三档（含明确不采纳的暗黑模式）、低频刚需产品「上来就弹付费」的非共识及其边界。
+- **`experiences/webcafe-experiences.md`** — 哥飞经验帖的十五条可执行裁定，已经译成 Agent 能直接照着判断的形式：
 
 - 别救老站，换域名重开
 - 同一套模板换品牌词上 N 个站，等于把自己重复 N 次
@@ -502,7 +512,7 @@ node scripts/link-skills.mjs --check
 
 - **[flaqai/backlink_skills](https://github.com/flaqai/backlink_skills)**（MIT，Flaq AI）——`backlink` 的批量投放运维层来自这个项目：幂等键与队列分片、**验证优先**（先只读预检整批、把验证码集中成一个人工队列，而不是让整批卡在第一个验证码上）、逐动作授权、可断点恢复的状态集、锚文本策略，以及「已发布条目必须与已提交表单分开报」的报告纪律。见 [`backlink/references/batch-campaign.md`](backlink/references/batch-campaign.md)。他们公开的 `Free-backlink-list.md`（743 条渠道）也是本 Skill 迄今测过的最大一份第三方线索清单，归一化与差异对比的结果记在 [`backlink/references/instant-publish.md`](backlink/references/instant-publish.md)。需要说明的是，那份清单和那两个提交 Skill 在他们仓库里是分开的资产，Skill 本身不带渠道，URL 由使用者提供。
 - **[aaron-he-zhu/seo-geo-claude-skills](https://github.com/aaron-he-zhu/seo-geo-claude-skills)**（Apache-2.0）——`backlink/references/` 下的质量评分矩阵、分析模板与外联模板。
-- **[哥飞](https://seo.web.cafe)** —— `rankup` 的选词与体检能力建立在他做的 SEO 工具箱之上，`references/webcafe-experiences.md` 的十五条裁定也来自他公开的经验帖。
+- **[哥飞](https://seo.web.cafe)** —— `rankup` 的选词与体检能力建立在他做的 SEO 工具箱之上，`references/experiences/webcafe-experiences.md` 的十五条裁定也来自他公开的经验帖，经验库另外三本的素材来自 `new.web.cafe` 的悬赏问答。
 
 ### 已并入 `backlink` 的两个 Skill（2026-08-16）
 
