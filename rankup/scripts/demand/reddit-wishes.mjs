@@ -62,11 +62,19 @@ import { parseArgs, get, getJson, emit, die, sleep, readToken, asList } from './
 
 const execFileP = promisify(execFile);
 
-/** opencli 是否可用（reddit adapter 走 cookie 策略，需要浏览器桥绿） */
+/** opencli 是否可用（reddit adapter 走 cookie 策略，需要浏览器桥绿）
+ *
+ * 坑（2026-08-23 实测修正）：**不要匹配 "Everything looks good"**。
+ * doctor 只要有任何一条 Issue 就不再打印那句话，而 Issue 里包含
+ * 「扩展版本比 yan-labs 构建旧」这种**纯建议**——桥其实完全可用。
+ * 早先这里匹配那句话，导致扩展 1.0.27 + CLI 要求 1.0.28+ 时
+ * auto 链**静默跳过 opencli 退回 rss**，拿不到 score/评论数，且没有任何报错。
+ * 判据改成三行 [OK] 里最关键的 Connectivity —— 它绿就说明命令路径通。
+ */
 async function opencliReady(bin) {
   try {
     const { stdout } = await execFileP(bin, ['doctor'], { timeout: 30000 });
-    return /Everything looks good/i.test(stdout);
+    return /\[OK\]\s*Connectivity/i.test(stdout);
   } catch { return false; }
 }
 

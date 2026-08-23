@@ -27,6 +27,36 @@ opencli doctor          # -v 看详细
 
 ---
 
+## 事后要证据：守护进程的日志
+
+**问题往往是事后才发现的**——在另一个任务里跑坏了，回过头来查时那个终端早没了。
+守护进程会把每次派发、超时、断连，以及扩展转发上来的消息落盘，
+按类分在 `~/.opencli/logs/` 下：
+
+```bash
+opencli daemon logs                 # 默认读 errors —— 排障第一站
+opencli daemon logs commands        # 出问题的命令：超时、派发失败、结果因断连丢失
+opencli daemon logs extension       # 扩展转发上来的消息（[ext] ...）
+opencli daemon logs daemon          # 生命周期：启动、关闭、扩展连接与断开
+opencli daemon logs errors -n 50 --grep "timed out"
+opencli daemon logs --path          # 日志目录，想自己 grep 时用
+```
+
+**分四个流是有意的**：读日志时你每次只想回答一个很窄的问题，
+挤在一个流里会逼你把全部内容读进来——慢，而且对 agent 来说很贵。
+`errors` 故意与各分类重复，几 KB 换掉「先知道哪一类坏了才能开始查」。
+
+两条边界：
+
+- **只从守护进程的下一次启动开始记。** 之前发生的事没有留下来。
+  没有日志时它会告诉你路径和 `opencli daemon restart`。
+- **`commands` 只记失败**——守护进程没有逐条成功日志，一行一条会把真正要看的失败埋掉。
+- 需要页面级证据（DOM 快照、网络、截图）要另外开 `--trace`，见下面的自修复入口。
+
+日志里会出现 URL 和会话名，不含凭据。
+
+---
+
 ## 三层，从下往上查
 
 ```

@@ -333,6 +333,10 @@ opencli browser "$S" batch --commands '[
 
 ## 七、坏了怎么办
 
+**出问题之后回来查证据**：守护进程的日志按类落在 `~/.opencli/logs/`，
+`opencli daemon logs`（默认 errors）/ `commands` / `extension` / `daemon`，
+支持 `-n` 与 `--grep`。它从守护进程的下一次启动开始记，之前的没有留下来。
+
 | 症状 | 先看哪里 |
 |---|---|
 | `doctor` 红、`session_not_found`、守护进程/扩展问题 | [`references/troubleshooting.md`](references/troubleshooting.md) |
