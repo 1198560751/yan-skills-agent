@@ -2,7 +2,7 @@
 name: opencli
 description: 用 OpenCLI 驱动用户本机那个真实的、已登录的 Chrome，或调用它的 160+ 站点 adapter。任何需要登录态的页面操作都从这里开始——读登录后的后台、抓没有 API 的表格、填表提交、跑一个站点命令、把页面数据取回来。也覆盖会话命名与租约纪律（"我的标签页被别人抢了"）、批量取数与落盘、adapter 的编写与自修复、opencli doctor 排障。用户提到 opencli、浏览器自动化、用我的浏览器、驱动 Chrome、登录态、抓后台数据、抓表格、导出报表、填表、自动点击、截图、adapter、doctor 报错、session 撞名、标签页被抢、tab 泄漏，或说"打开这个页面看看""帮我登录后台查一下""这个站没有 API"时，务必使用本 Skill。只要动作会落在浏览器上，先读这里再动手。
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # OpenCLI
@@ -140,9 +140,36 @@ opencli browser <session> --window background open "https://..."
 放在子命令**后面**也能工作。
 
 背景模式跑的是用户真实的、已登录的 Chrome：`navigator.webdriver` 为 `false`、
-UA 不含 `Headless`、`plugins.length` 为 5、`visibilityState` 为 `visible`。
+UA 不含 `Headless`、`plugins.length` 为 5。
 **「后台模式会被反爬识破」不是真问题**，每一项无头特征都是负的。
-两种模式都不抢焦点——除非用户明确说要看着，否则没有理由用前台。
+
+### 绝不抢用户的浏览器焦点
+
+**这台机器上的 Chrome 是用户正在用的那一个。** 抢焦点不是「体验略差」，
+是直接打断他手上的活——他正在打字或看页面，窗口被抬起来、标签页被切走。
+
+| 错误做法 | 正确做法 | 为什么错 |
+|---|---|---|
+| `--window foreground`（任何理由） | `--window background` | 实测会把用户的**活动标签页切走**（从第 1 个跳到第 3 个）。注意最前端**应用**不变，所以只查应用焦点的测量看不见它 |
+| 调 adapter 时用前台「方便看页面」 | `--keep-tab true` + `screenshot` / `state` | 调试是高频动作，一轮能打断十几次。标签页留着，用户想看自己切过去 |
+| 只在 `open` 那次带 `--window background` | **每一条命令都带** | 漏带的那条会按默认走，而 adapter 命令的默认与 `browser` 不一定一致 |
+| adapter 命令（`opencli <site> <cmd>`）不带 window 标志 | 一样带 `--window background` | 这类命令也会开标签页，INTERCEPT 策略还会额外开自动化窗口 |
+| 崩溃后不清理，留下一堆孤儿标签页 | `finally` 里 `close` | 泄漏的会话在用户窗口里就是一堆莫名其妙的标签页，比抢一次焦点更烦 |
+
+**实测（2026-08-23，macOS + Chrome）**：后台模式下 `open` / `eval` / `screenshot` /
+`click` / `type` 全程——用户窗口的**活动标签页索引不变**，标签数在 `close` 之后回到基线，
+页面侧 `document.hasFocus()` 恒为 `false`、`visibilityState` 恒为 `hidden`。
+**同一台机器上换成 `--window foreground`，活动标签页立刻从第 1 个被切到第 3 个。**
+
+**这条推翻了本 Skill 到 2026-08-22 为止的旧结论「两种模式都不抢焦点」**——
+旧测量只查了「最前端应用」（前台模式下它确实不变），漏掉了「活动标签页」这一轴。
+完整对照表见 [`references/session-laws.md`](references/session-laws.md)。
+
+**已知的文档与实现不一致**：`--window` 的帮助文本把 `isolated` 描述成
+「background in its own window」，但实测 `opencli browser <s> --window isolated open`
+**并没有新开窗口**——Chrome 窗口数不变，标签页仍然加在用户当前窗口里，行为与
+`background` 一致。所以**目前没有办法把 agent 的标签页完全挪出用户的窗口**，
+少开会话、开完就关是唯一的减害手段。
 
 ---
 

@@ -76,9 +76,15 @@ Evidence:
 <a id="authoring"></a>
 ## 写：从骨架到 verify
 
-调试浏览器型 adapter 时直接带上 `--trace on --keep-tab true --window foreground`：
-每轮都落 trace artifact，`summary.md` 是复盘入口；保留 tab 租约 + 前台窗口
-方便核对最终页面状态。
+调试浏览器型 adapter 时直接带上 `--trace on --keep-tab true`：
+每轮都落 trace artifact，`summary.md` 是复盘入口；保留 tab 租约方便核对最终页面状态。
+
+**不要加 `--window foreground`。** 这台机器上的 Chrome 是用户正在用的那一个，
+前台模式会把窗口抬起来抢走焦点，用户正在打字/看页面时被打断，且调试是高频动作——
+一轮下来能打断十几次。**要核对页面状态就用 `screenshot` 或 `state`**，
+它们在后台模式下同样工作（实测：后台模式下 `screenshot`、`click`、`type` 之后
+用户的活动标签页与标签数都不变）。真的需要用眼睛看那一页时，
+`--keep-tab true` 已经把标签页留在那里了，用户自己切过去看即可。
 
 ```
 doctor 绿？ ─no→ 先修桥接（见 troubleshooting.md）
