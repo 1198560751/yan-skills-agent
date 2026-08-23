@@ -117,7 +117,7 @@ JS 里不要手搓后缀，用 `scripts/opencli-core.mjs` 的 `defaultSession(ba
 
 ```bash
 opencli browser <session> close     # 释放这一个
-opencli browser sessions            # 看现在还有谁活着
+opencli browser sessions            # 看现在还有谁活着，以及各自在哪个窗口
 opencli browser cleanup             # 释放**全部**——只有主线能跑，见下
 ```
 
@@ -128,16 +128,24 @@ sub agent 跑它会把兄弟 agent 正在用的标签页一起关掉，
 而那些 agent 只会看到自己的页面莫名其妙不见了。并行扇出时只有父级在全部收工后才跑它。
 留着的会话在用户 Chrome 里就是一个标签页，看起来和别人正在做的活儿一模一样。
 
-### 后台模式不是无头模式
+### 三个窗口模式，默认已经是不打扰的那个
 
-默认给每个会话加 `--window background`。标志位置在**会话名和子命令之间**：
+| `--window` | 行为 | 什么时候用 |
+|---|---|---|
+| `background` | **默认**。在用户当前那个窗口里开标签页，不抬窗口、不切活动标签页 | 几乎所有情况 |
+| `foreground` | 抬起窗口并选中标签页 | **只有**需要用户亲自完成验证码、或他明确说要看着的时候 |
+| `isolated` | 后台，但用它自己的独立窗口 | 长时间批量作业，不想在用户标签栏里堆东西 |
+
+标志位置在**会话名和子命令之间**（放在子命令后面也能工作）：
 
 ```bash
-opencli browser <session> --window background open "https://..."
+opencli browser <session> --window isolated open "https://..."
 ```
 
 放在会话名**前面**会报 `unknown command: <你的会话名>`，读起来像装坏了，其实是语法错。
-放在子命令**后面**也能工作。
+
+**需要扩展 ≥ 1.0.27**（`opencli doctor` 那行就是判据）。旧扩展上默认仍是前台、
+`isolated` 会被静默忽略——那正是下面那张表里的坑。
 
 背景模式跑的是用户真实的、已登录的 Chrome：`navigator.webdriver` 为 `false`、
 UA 不含 `Headless`、`plugins.length` 为 5。
@@ -150,11 +158,10 @@ UA 不含 `Headless`、`plugins.length` 为 5。
 
 | 错误做法 | 正确做法 | 为什么错 |
 |---|---|---|
-| `--window foreground`（任何理由） | `--window background` | 实测会把用户的**活动标签页切走**（从第 1 个跳到第 3 个）。注意最前端**应用**不变，所以只查应用焦点的测量看不见它 |
+| `--window foreground`（除非用户要亲自操作） | 什么都不加（默认就是 background） | 实测会把用户的**活动标签页切走**（从第 1 个跳到第 3 个）。注意最前端**应用**不变，所以只查应用焦点的测量看不见它 |
 | 调 adapter 时用前台「方便看页面」 | `--keep-tab true` + `screenshot` / `state` | 调试是高频动作，一轮能打断十几次。标签页留着，用户想看自己切过去 |
-| 只在 `open` 那次带 `--window background` | **每一条命令都带** | 漏带的那条会按默认走，而 adapter 命令的默认与 `browser` 不一定一致 |
-| adapter 命令（`opencli <site> <cmd>`）不带 window 标志 | `COOKIE` / `INTERCEPT` / `UI` 策略一样带 `--window background` | 这类命令也会开标签页，INTERCEPT 策略还会额外开自动化窗口 |
-| 给 `PUBLIC` / `LOCAL` 命令加 `--window background` | 不加 | 它们不接受这个标志，会报 `unknown option '--window'`；这类命令本来也不开浏览器 |
+| 在旧扩展（< 1.0.27）上省略 `--window background` | 先看 `doctor` 的扩展版本；旧版就每条命令都显式带 | 旧版两层默认都是前台，省略等于每条命令都抬一次窗口 |
+| 给 `PUBLIC` / `LOCAL` 命令加 `--window` | 不加 | 它们不接受这个标志，会报 `unknown option '--window'`；这类命令本来也不开浏览器 |
 | 崩溃后不清理，留下一堆孤儿标签页 | `finally` 里 `close` | 泄漏的会话在用户窗口里就是一堆莫名其妙的标签页，比抢一次焦点更烦 |
 
 **实测（2026-08-23，macOS + Chrome）**：后台模式下 `open` / `eval` / `screenshot` /
@@ -166,11 +173,16 @@ UA 不含 `Headless`、`plugins.length` 为 5。
 旧测量只查了「最前端应用」（前台模式下它确实不变），漏掉了「活动标签页」这一轴。
 完整对照表见 [`references/session-laws.md`](references/session-laws.md)。
 
-**已知的文档与实现不一致**：`--window` 的帮助文本把 `isolated` 描述成
-「background in its own window」，但实测 `opencli browser <s> --window isolated open`
-**并没有新开窗口**——Chrome 窗口数不变，标签页仍然加在用户当前窗口里，行为与
-`background` 一致。所以**目前没有办法把 agent 的标签页完全挪出用户的窗口**，
-少开会话、开完就关是唯一的减害手段。
+> **这条曾经是坏的，2026-08-23 修好了**（扩展 1.0.27）。当时 `--window isolated`
+> 不新开窗口，行为与 `background` 一模一样，于是文档写下了「没办法把 agent 的标签页
+> 挪出用户窗口」。真因是四层各自静默地否决它：运行时白名单只认两个值把 `isolated`
+> 丢掉了；「这窗口是不是我的」靠猜（全是非 http 页面就算我的）而把用户随手开的空窗口
+> 认成了容器；窗口建对了之后分组收敛又把标签页搬回用户窗口；以及挑「用户在哪个窗口」
+> 用了 `focused`，而 Chrome 不在最前面时所有窗口的 `focused` 都是 false。
+> **每一层都不报错**，所以每修一层都以为好了。
+
+**怎么确认自己拿到的是修好的版本**：`opencli browser <s> --window isolated open <url>`
+之后跑 `opencli browser sessions`，它那一行的 `windowId` 应该与默认模式会话的不同。
 
 ---
 
@@ -208,7 +220,7 @@ opencli <site> <command> --help    # 位置参数、专属标志、输出列
 | `-f, --format <fmt>` | `table`（TTY 默认）· `yaml`（非 TTY 默认）· `json` · `plain` · `md` · `csv`。**agent 基本都要 `-f json`** |
 | `--trace <mode>` | `off`（默认）· `on` · `retain-on-failure`。排障和写 adapter 时用 |
 | `-v, --verbose` | 调试日志 + 失败栈 |
-| `--window <mode>` | `foreground` / `background`。agent 用 background。**`PUBLIC` / `LOCAL` 策略的命令不接受它**——加了直接报 `unknown option '--window'`，读起来像装坏了，其实是这类命令根本不开浏览器（实测 342 个 public + 25 个 local 命令）。先看 `strategy` 再决定加不加 |
+| `--window <mode>` | `background`（默认）/ `foreground` / `isolated`。**`PUBLIC` / `LOCAL` 策略的命令不接受它**——加了直接报 `unknown option '--window'`，读起来像装坏了，其实是这类命令根本不开浏览器（实测 342 个 public + 25 个 local 命令）。先看 `strategy` 再决定加不加 |
 | `--site-session <mode>` | `ephemeral`（默认）/ `persistent`，命令结束后是否留着会话标签页 |
 | `--keep-tab <bool>` | 结束后是否保留标签页租约 |
 

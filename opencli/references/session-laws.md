@@ -12,6 +12,7 @@ SKILL.md 里只有法律本身，这里是支撑它们的实测数据、边界�
 - [法律 4 —— 开工前先把 handle 全部拿到](#law-4)
 - [后台模式不是无头模式](#background)
 - [batch：一次调用跑多步](#batch)
+- [「它到底开在哪个窗口」——直接问，别靠看](#which-window)
 - [诊断「有东西抢了我的标签页」](#diagnosing)
 
 ---
@@ -289,6 +290,27 @@ opencli browser <session> batch --commands '[
 batch 跑在 CLI/守护进程层，**不需要**重新构建的扩展，官方商店版扩展也能用。
 
 ---
+
+<a id="which-window"></a>
+## 「它到底开在哪个窗口」——直接问，别靠看
+
+```bash
+opencli browser sessions
+#  recon-pricing   browser  owned  win379220956  https://example.com/
+#  bulk-harvest    browser  owned  win379221782  https://panel.example.com/
+```
+
+**`windowId` 是所有标签页归属问题的最终落点**：两个会话共用一个 windowId
+就是共用一个窗口，这通常就是全部故事。
+
+**不要用操作系统那一侧的工具（AppleScript、窗口截图）当尺子。** 2026-08-23 实测：
+一台机器上同时跑着两个 Chrome 进程（其中一个是别的脚本起的 headless），
+`tell application "Google Chrome"` 数出来 1 个窗口 1 个标签页，
+而同一时刻扩展握着 3 个活标签页分布在 2 个窗口里。**两边看的根本不是同一个 Chrome。**
+扩展的视角才是自动化真正作用的那个，所以问扩展。
+
+想知道用户此刻在哪个窗口：`opencli browser <临时名> bind` 绑一下他的当前标签页，
+读它的 windowId，再 `unbind`。默认模式新开的会话应该落在同一个 windowId 上。
 
 <a id="diagnosing"></a>
 ## 诊断「有东西抢了我的标签页」
