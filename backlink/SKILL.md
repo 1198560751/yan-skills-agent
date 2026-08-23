@@ -783,6 +783,23 @@ another function of the same tool (e.g. SERP-composition reads have no
 estimation model and are unaffected). Full worked example:
 <ref file="references/authorized-data-sources.md"/>.
 </rule>
+
+<rule id="volume-durability-check">
+A closed-loop volume check validates **magnitude at one point in time**. It says
+nothing about whether that demand persists, and the two questions need separate
+evidence. Traffic tools report a trailing window, so a keyword measured during a
+viral spike passes the CTR check with real, correctly-computed, and
+already-obsolete numbers. Before a keyword is allowed to anchor a product line,
+a page build, or a link campaign, pull a multi-year **Google Trends** curve for
+it alongside a known-evergreen term in the same category. A term that is flat at
+zero until one month, spikes, and decays is a fad — entering it means fighting
+for a shrinking pool, and the incumbent's traffic collapse will be invisible in
+rank data. The diagnostic that separates the two causes: if the incumbent still
+holds #1 while its traffic falls, **demand fell, not rankings** — that is decay,
+not a penalty, and no amount of link building recovers it. Real case: a keyword
+verified closed-loop at 72k–143k/mo went to 2.2/100 on Trends within three
+months while the #1 site kept its position and lost 87% of its traffic.
+</rule>
 </rules>
 
 <escalation>

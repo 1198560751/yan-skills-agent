@@ -15012,11 +15012,11 @@
         "priceHitsUnscoped": []
       },
       "traffic": {
-        "monthlyVisits": 32,
-        "verdict": "fail",
-        "checkedAt": "2026-08-22T12:26:57.069Z",
-        "source": "semrush",
-        "globalRank": null
+        "monthlyVisits": 7714,
+        "verdict": "pass",
+        "checkedAt": "2026-08-23T03:17:44.998Z",
+        "source": "similarweb",
+        "globalRank": 2348199
       }
     },
     {
