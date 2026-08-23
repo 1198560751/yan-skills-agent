@@ -10,6 +10,9 @@
  *   # 为指定域名创建新项目
  *   node <rankup-skill-dir>/scripts/ahrefs-setup.mjs create --site shindan.co --name shindan
  *
+ *   # 通过 GSC 验证项目所有权
+ *   node <rankup-skill-dir>/scripts/ahrefs-setup.mjs verify --site shindan.co
+ *
  * 标志：
  *   --site <域名>     要追踪的域名（不带协议，例如 shindan.co）
  *   --name <名称>     项目显示名，默认取 --site 的二级域名
@@ -26,8 +29,10 @@
  * ── 关于所有权验证 ────────────────────────────────────────
  *
  * 项目创建后处于「冻结」状态，需要验证所有权才能使用 Site Audit 等功能。
- * 验证方式推荐 DNS TXT 记录（Cloudflare API 可自动添加）或 HTML 标签。
- * 即使冻结，Site Explorer / Backlinks / Keywords Explorer 等查询功能仍然可用。
+ * `verify` 子命令通过 GSC（谷歌搜索控制台）自动完成验证：
+ *   导航到所有权设置 → 展开 GSC 区域 → 选择 Google 账号 → 等待验证 → 保存。
+ * 前提：浏览器已登录 Google 且该 Google 账号在 GSC 中拥有目标站点。
+ * 如果 Google 弹出授权窗口，需要用户手动点击同意。
  *
  * 已验证：2026-08-23（中文界面）
  */
@@ -55,11 +60,12 @@ for (let i = 1; i < argv.length; i++) {
 function usage() {
   console.log(`用法:
   node ahrefs-setup.mjs status
-  node ahrefs-setup.mjs create --site <域名> [--name <项目名>]`)
+  node ahrefs-setup.mjs create --site <域名> [--name <项目名>]
+  node ahrefs-setup.mjs verify --site <域名>`)
 }
 
-if (!["status", "create"].includes(action)) { usage(); process.exit(1) }
-if (action === "create" && !site) { console.error("错误：create 需要 --site"); process.exit(1) }
+if (!["status", "create", "verify"].includes(action)) { usage(); process.exit(1) }
+if ((action === "create" || action === "verify") && !site) { console.error(`错误：${action} 需要 --site`); process.exit(1) }
 if (action === "create" && !name) name = site.split(".")[0]
 
 // ── OpenCLI 封装 ──────────────────────────────────────────
@@ -207,9 +213,138 @@ async function doCreate() {
   console.log(`  - 谷歌搜索控制台（如果已连接 Google 账号）`)
 }
 
+// ── verify：通过 GSC 验证所有权 ─────────────────────────────
+async function doVerify() {
+  // 先拿到项目 ID：打开 Dashboard，找到匹配域名的项目设置链接
+  open("https://app.ahrefs.com/dashboard")
+  sleep(8000)
+
+  const text = pageText(8000)
+  if (text.includes("Log in") || text.includes("Sign in")) {
+    console.error("❌ 未登录 Ahrefs。请先在浏览器中登录 app.ahrefs.com")
+    return process.exit(1)
+  }
+
+  // 从 Dashboard 提取项目 ID
+  const projectId = evalJs(`
+    const links = [...document.querySelectorAll('a[href*="/project-settings/"]')];
+    const card = links.find(a => {
+      const container = a.closest('[class*="Project"],[class*="project"],article,section,div');
+      return container?.textContent?.includes('${site}');
+    });
+    if (!card) {
+      const settingsLink = [...document.querySelectorAll('a')].find(a =>
+        a.href?.includes('/project-settings/') &&
+        document.body.textContent.includes('${site}')
+      );
+      if (settingsLink) return settingsLink.href.match(/project-settings\\/(\\d+)/)?.[1] || '';
+      return '';
+    }
+    return card.href.match(/project-settings\\/(\\d+)/)?.[1] || '';
+  `)
+
+  if (!projectId) {
+    // fallback: 从页面 HTML 中搜索包含该域名的项目链接
+    const fallbackId = evalJs(`
+      const html = document.body.innerHTML;
+      const sitePattern = '${site}'.replace(/\\./g, '\\\\.');
+      const re = new RegExp('project-settings/(\\\\d+).*?' + sitePattern + '|' + sitePattern + '.*?project-settings/(\\\\d+)');
+      const m = html.match(re);
+      return m?.[1] || m?.[2] || '';
+    `)
+    if (!fallbackId) {
+      console.error(`❌ 找不到域名 ${site} 对应的 Ahrefs 项目。请先用 create 创建。`)
+      return process.exit(1)
+    }
+    doVerifyWithId(fallbackId)
+    return
+  }
+
+  await doVerifyWithId(projectId)
+}
+
+async function doVerifyWithId(projectId) {
+  console.log(`项目 ID: ${projectId}，导航到所有权验证页面...`)
+
+  // 1. 导航到所有权验证设置页
+  open(`https://app.ahrefs.com/project-settings/${projectId}/ownership`)
+  sleep(5000)
+
+  // 2. 展开「谷歌搜索控制台（建议）」折叠区域
+  const alreadyExpanded = evalJs(`
+    const gsc = [...document.querySelectorAll('[class*="accordion"],[class*="Accordion"],details,section')]
+      .find(el => /谷歌搜索控制台|Google Search Console/i.test(el.textContent));
+    if (!gsc) return 'not_found';
+    const expanded = gsc.querySelector('[aria-expanded="true"]') ||
+                     gsc.querySelector('.open,[class*="expanded"],[class*="Expanded"]') ||
+                     gsc.hasAttribute('open');
+    return expanded ? 'expanded' : 'collapsed';
+  `)
+
+  if (alreadyExpanded === 'collapsed') {
+    stampAndClick(
+      `[...document.querySelectorAll('button,[role="button"],summary,h3,h4,div[class*="header"]')].find(el=>/谷歌搜索控制台|Google Search Console/i.test(el.textContent))`,
+      "GSC 折叠标题"
+    )
+    sleep(2000)
+  } else if (alreadyExpanded === 'not_found') {
+    console.error("❌ 找不到 GSC 验证区域。页面结构可能已变化。")
+    return process.exit(1)
+  }
+
+  // 3. 检查是否已验证
+  const verified = evalJs(`return document.body.innerText.includes('所有权已验证') || document.body.innerText.includes('Ownership verified')`)
+  if (verified === "true") {
+    console.log(`✅ ${site} 已通过 GSC 验证，无需再次操作。`)
+    return
+  }
+
+  // 4. 点击「选择谷歌账号」下拉框
+  stampAndClick(
+    `[...document.querySelectorAll('button,[role="button"],[role="listbox"],[class*="select"],[class*="Select"],[class*="dropdown"],[class*="Dropdown"]')].find(el=>/选择谷歌账号|Select.*Google.*account|选择帐号/i.test(el.textContent))`,
+    "选择谷歌账号下拉框"
+  )
+  sleep(3000)
+
+  // 5. 从下拉选项中选择第一个 Google 账号
+  stampAndClick(
+    `[...document.querySelectorAll('[role="option"],li[class*="option"],div[class*="option"],button[class*="option"]')].find(el => el.textContent.includes('@'))`,
+    "Google 账号选项"
+  )
+  sleep(8000)
+
+  // 6. 等待验证完成（绿色横幅出现）
+  let attempts = 0
+  let isVerified = false
+  while (attempts < 6 && !isVerified) {
+    const check = evalJs(`return document.body.innerText.includes('所有权已验证') || document.body.innerText.includes('Ownership verified') || document.body.innerText.includes('已通过谷歌搜索控制台验证')`)
+    if (check === "true") {
+      isVerified = true
+      break
+    }
+    sleep(5000)
+    attempts++
+  }
+
+  if (!isVerified) {
+    console.log("⚠️ 验证可能需要 Google 授权弹窗，请在浏览器中手动完成授权后重新运行。")
+    return process.exit(1)
+  }
+
+  // 7. 点击「保存」按钮
+  stampAndClick(
+    `[...document.querySelectorAll('button')].find(b=>/^保存$|^Save$/i.test(b.textContent.trim()))`,
+    "保存按钮"
+  )
+  sleep(3000)
+
+  console.log(`✅ ${site} 所有权验证完成并已保存`)
+}
+
 // ── 执行 ──────────────────────────────────────────────────
 try {
   if (action === "status") await doStatus()
+  else if (action === "verify") await doVerify()
   else await doCreate()
 } finally {
   if (!keepSession) {

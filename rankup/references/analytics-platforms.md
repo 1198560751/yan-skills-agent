@@ -10,7 +10,7 @@
 |---|---|---|---|
 | 1 | **Microsoft Clarity 创建项目 + 埋追踪代码** | 微软账号 | 半自动（`clarity-setup.mjs create` 拿 ID → 手动把代码写进 `<head>`） |
 | 2 | **Firebase 创建项目 + 添加 Web 应用** | Google 账号 | 半自动（`firebase` CLI 或控制台 UI → 手动把 config 写进代码） |
-| 3 | **Ahrefs 创建项目 + 所有权验证** | Ahrefs 账号 | 半自动（`ahrefs-setup.mjs create` → **验证按钮由用户点**） |
+| 3 | **Ahrefs 创建项目 + 所有权验证** | Ahrefs 账号 | 半自动（`ahrefs-setup.mjs create` → `verify` 通过 GSC 自动验证） |
 
 ## 1. Microsoft Clarity
 
@@ -117,6 +117,9 @@ node <rankup-skill-dir>/scripts/ahrefs-setup.mjs status
 
 # 创建新项目（所有权验证可稍后补）
 node <rankup-skill-dir>/scripts/ahrefs-setup.mjs create --site example.com --name mysite
+
+# 通过 GSC 验证所有权（需浏览器已登录 Google 且 GSC 拥有该站点）
+node <rankup-skill-dir>/scripts/ahrefs-setup.mjs verify --site example.com
 ```
 
 ### 所有权验证
@@ -136,7 +139,7 @@ node <rankup-skill-dir>/scripts/ahrefs-setup.mjs create --site example.com --nam
 |---|---|---|
 | intabtools.com | 活跃（健康 100） | ✅ 已验证 |
 | birthstonemeaning.com | 活跃（健康 100） | ✅ 已验证 |
-| shindan.co | 冻结 | ❌ 未验证（需补验证） |
+| shindan.co | 活跃 | ✅ 已验证（GSC） |
 
 ## 新站接入清单
 
@@ -145,7 +148,7 @@ node <rankup-skill-dir>/scripts/ahrefs-setup.mjs create --site example.com --nam
 ```
 □ 1. Clarity：clarity-setup.mjs create → 拿到 ID → 写进 <head>
 □ 2. Firebase：firebase projects:create → firebase apps:create web → 记录 config
-□ 3. Ahrefs：ahrefs-setup.mjs create → 验证所有权（DNS TXT 或 HTML 标签）
+□ 3. Ahrefs：ahrefs-setup.mjs create → ahrefs-setup.mjs verify（GSC 自动验证）
 □ 4. 部署站点（确认追踪代码上线）
 □ 5. 去各平台确认数据开始采集
 ```
