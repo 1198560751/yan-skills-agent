@@ -13,6 +13,9 @@
  *   # 通过 GSC 验证项目所有权
  *   node <rankup-skill-dir>/scripts/ahrefs-setup.mjs verify --site shindan.co
  *
+ *   # 启用 Web Analytics（总访问量监控）并获取追踪脚本
+ *   node <rankup-skill-dir>/scripts/ahrefs-setup.mjs enable-wa --site shindan.co
+ *
  * 标志：
  *   --site <域名>     要追踪的域名（不带协议，例如 shindan.co）
  *   --name <名称>     项目显示名，默认取 --site 的二级域名
@@ -33,6 +36,15 @@
  *   导航到所有权设置 → 展开 GSC 区域 → 选择 Google 账号 → 等待验证 → 保存。
  * 前提：浏览器已登录 Google 且该 Google 账号在 GSC 中拥有目标站点。
  * 如果 Google 弹出授权窗口，需要用户手动点击同意。
+ *
+ * ── 关于 Web Analytics ──────────────────────────────────────
+ *
+ * Ahrefs Web Analytics 是 Ahrefs 自有的流量追踪（独立于 GA4）。
+ * Dashboard「总访问量」列需要启用它才会显示数据。
+ * `enable-wa` 子命令：导航到 Web Analytics 设置 → 提取 data-key → 保存。
+ * 保存后需要将输出的 <script> 标签写入站点 <head> 并部署。
+ * 注意：TanStack Start 的 head() scripts 不支持 data-* 属性，
+ * 需要在 RootDocument 的 JSX <head> 中直接写 <script> 标签。
  *
  * 已验证：2026-08-23（中文界面）
  */
@@ -61,11 +73,12 @@ function usage() {
   console.log(`用法:
   node ahrefs-setup.mjs status
   node ahrefs-setup.mjs create --site <域名> [--name <项目名>]
-  node ahrefs-setup.mjs verify --site <域名>`)
+  node ahrefs-setup.mjs verify --site <域名>
+  node ahrefs-setup.mjs enable-wa --site <域名>`)
 }
 
-if (!["status", "create", "verify"].includes(action)) { usage(); process.exit(1) }
-if ((action === "create" || action === "verify") && !site) { console.error(`错误：${action} 需要 --site`); process.exit(1) }
+if (!["status", "create", "verify", "enable-wa"].includes(action)) { usage(); process.exit(1) }
+if (["create", "verify", "enable-wa"].includes(action) && !site) { console.error(`错误：${action} 需要 --site`); process.exit(1) }
 if (action === "create" && !name) name = site.split(".")[0]
 
 // ── OpenCLI 封装 ──────────────────────────────────────────
@@ -213,20 +226,18 @@ async function doCreate() {
   console.log(`  - 谷歌搜索控制台（如果已连接 Google 账号）`)
 }
 
-// ── verify：通过 GSC 验证所有权 ─────────────────────────────
-async function doVerify() {
-  // 先拿到项目 ID：打开 Dashboard，找到匹配域名的项目设置链接
+// ── 共通：Dashboard から項目 ID を取得 ──────────────────────
+function findProjectId() {
   open("https://app.ahrefs.com/dashboard")
   sleep(8000)
 
   const text = pageText(8000)
   if (text.includes("Log in") || text.includes("Sign in")) {
     console.error("❌ 未登录 Ahrefs。请先在浏览器中登录 app.ahrefs.com")
-    return process.exit(1)
+    process.exit(1)
   }
 
-  // 从 Dashboard 提取项目 ID
-  const projectId = evalJs(`
+  let projectId = evalJs(`
     const links = [...document.querySelectorAll('a[href*="/project-settings/"]')];
     const card = links.find(a => {
       const container = a.closest('[class*="Project"],[class*="project"],article,section,div');
@@ -244,22 +255,26 @@ async function doVerify() {
   `)
 
   if (!projectId) {
-    // fallback: 从页面 HTML 中搜索包含该域名的项目链接
-    const fallbackId = evalJs(`
+    projectId = evalJs(`
       const html = document.body.innerHTML;
       const sitePattern = '${site}'.replace(/\\./g, '\\\\.');
       const re = new RegExp('project-settings/(\\\\d+).*?' + sitePattern + '|' + sitePattern + '.*?project-settings/(\\\\d+)');
       const m = html.match(re);
       return m?.[1] || m?.[2] || '';
     `)
-    if (!fallbackId) {
-      console.error(`❌ 找不到域名 ${site} 对应的 Ahrefs 项目。请先用 create 创建。`)
-      return process.exit(1)
-    }
-    doVerifyWithId(fallbackId)
-    return
   }
 
+  if (!projectId) {
+    console.error(`❌ 找不到域名 ${site} 对应的 Ahrefs 项目。请先用 create 创建。`)
+    process.exit(1)
+  }
+
+  return projectId
+}
+
+// ── verify：通过 GSC 验证所有权 ─────────────────────────────
+async function doVerify() {
+  const projectId = findProjectId()
   await doVerifyWithId(projectId)
 }
 
@@ -341,10 +356,58 @@ async function doVerifyWithId(projectId) {
   console.log(`✅ ${site} 所有权验证完成并已保存`)
 }
 
+// ── enable-wa：启用 Web Analytics 并获取追踪脚本 ────────────
+async function doEnableWa() {
+  const projectId = findProjectId()
+  console.log(`项目 ID: ${projectId}，导航到 Web Analytics 设置...`)
+
+  // 1. 导航到 Web Analytics 设置页
+  open(`https://app.ahrefs.com/project-settings/${projectId}/web-analytics`)
+  sleep(5000)
+
+  // 2. 提取 data-key
+  const dataKey = evalJs(`
+    const codeBlock = document.querySelector('code,pre,[class*="code"],[class*="Code"]');
+    if (codeBlock) {
+      const m = codeBlock.textContent.match(/data-key="([^"]+)"/);
+      if (m) return m[1];
+    }
+    const text = document.body.innerText;
+    const m2 = text.match(/data-key="([^"]+)"/);
+    if (m2) return m2[1];
+    const m3 = text.match(/数据密钥值[：:] *([A-Za-z0-9+/=]+)/);
+    return m3?.[1] || '';
+  `)
+
+  if (!dataKey) {
+    console.error("⚠️ 无法提取 data-key，页面结构可能已变化。请手动查看浏览器。")
+    return process.exit(1)
+  }
+
+  console.log(`   data-key: ${dataKey}`)
+
+  // 3. 点击「保存」按钮
+  stampAndClick(
+    `[...document.querySelectorAll('button')].find(b=>/^保存$|^Save$/i.test(b.textContent.trim()))`,
+    "保存按钮"
+  )
+  sleep(5000)
+
+  console.log(`\n✅ Web Analytics 已启用`)
+  console.log(`   项目 ID: ${projectId}`)
+  console.log(`   域名:    ${site}`)
+  console.log(`   data-key: ${dataKey}`)
+  console.log(`\n追踪脚本（写入站点 <head>）:`)
+  console.log(`<script async src="https://analytics.ahrefs.com/analytics.js" data-key="${dataKey}"></script>`)
+  console.log(`\n⚠️  TanStack Start 注意: head() 的 scripts 不支持 data-* 属性，`)
+  console.log(`   需要在 RootDocument 的 JSX <head> 中直接写 <script> 标签。`)
+}
+
 // ── 执行 ──────────────────────────────────────────────────
 try {
   if (action === "status") await doStatus()
   else if (action === "verify") await doVerify()
+  else if (action === "enable-wa") await doEnableWa()
   else await doCreate()
 } finally {
   if (!keepSession) {

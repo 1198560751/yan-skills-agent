@@ -11,6 +11,7 @@
 | 1 | **Microsoft Clarity 创建项目 + 埋追踪代码** | 微软账号 | 半自动（`clarity-setup.mjs create` 拿 ID → 手动把代码写进 `<head>`） |
 | 2 | **Firebase 创建项目 + 添加 Web 应用** | Google 账号 | 半自动（`firebase` CLI 或控制台 UI → 手动把 config 写进代码） |
 | 3 | **Ahrefs 创建项目 + 所有权验证** | Ahrefs 账号 | 半自动（`ahrefs-setup.mjs create` → `verify` 通过 GSC 自动验证） |
+| 4 | **Ahrefs Web Analytics 启用 + 埋追踪脚本** | 步骤 3 完成 | 半自动（`ahrefs-setup.mjs enable-wa` 拿 data-key → 手动把脚本写进 `<head>`） |
 
 ## 1. Microsoft Clarity
 
@@ -120,6 +121,9 @@ node <rankup-skill-dir>/scripts/ahrefs-setup.mjs create --site example.com --nam
 
 # 通过 GSC 验证所有权（需浏览器已登录 Google 且 GSC 拥有该站点）
 node <rankup-skill-dir>/scripts/ahrefs-setup.mjs verify --site example.com
+
+# 启用 Web Analytics（Dashboard「总访问量」监控）并获取追踪脚本
+node <rankup-skill-dir>/scripts/ahrefs-setup.mjs enable-wa --site example.com
 ```
 
 ### 所有权验证
@@ -141,6 +145,29 @@ node <rankup-skill-dir>/scripts/ahrefs-setup.mjs verify --site example.com
 | birthstonemeaning.com | 活跃（健康 100） | ✅ 已验证 |
 | shindan.co | 活跃 | ✅ 已验证（GSC） |
 
+### Web Analytics（总访问量监控）
+
+Ahrefs 自有的流量追踪脚本，独立于 GA4。Dashboard「总访问量」列需要它才会显示数据。
+
+追踪脚本：
+
+```html
+<script async src="https://analytics.ahrefs.com/analytics.js" data-key="<DATA_KEY>"></script>
+```
+
+`<DATA_KEY>` 由 `enable-wa` 命令输出。这是公开值。
+
+> **TanStack Start 注意**：`head()` 的 `scripts` 数组不渲染 `data-*` 属性，
+> 需要在 `RootDocument` 的 JSX `<head>` 中直接写 `<script>` 标签。
+
+当前站点状态：
+
+| 站点 | data-key | 埋码位置 |
+|---|---|---|
+| intabtools.com | _(已接入)_ | — |
+| shindan.co | `I+1Q0ysMRvWi/UKWOOHF8w` | `apps/web/src/routes/__root.tsx` JSX `<head>` |
+| birthstonemeaning.com | _(待接入)_ | — |
+
 ## 新站接入清单
 
 每建一个新站，按此清单依次执行：
@@ -149,6 +176,7 @@ node <rankup-skill-dir>/scripts/ahrefs-setup.mjs verify --site example.com
 □ 1. Clarity：clarity-setup.mjs create → 拿到 ID → 写进 <head>
 □ 2. Firebase：firebase projects:create → firebase apps:create web → 记录 config
 □ 3. Ahrefs：ahrefs-setup.mjs create → ahrefs-setup.mjs verify（GSC 自动验证）
-□ 4. 部署站点（确认追踪代码上线）
-□ 5. 去各平台确认数据开始采集
+□ 4. Ahrefs WA：ahrefs-setup.mjs enable-wa → 拿到 data-key → 写进 <head>
+□ 5. 部署站点（确认追踪代码上线）
+□ 6. 去各平台确认数据开始采集
 ```
