@@ -25,6 +25,19 @@ opencli doctor          # -v 看详细
 
 正常输出是三行 `[OK]`：Daemon / Extension / Connectivity，外加 profile 列表。
 
+### 脚本里不要用 doctor 的文案当判据
+
+三行全 `[OK]` 时 doctor 会在结尾打一句 `Everything looks good!`，
+**但只要存在任何 `Issues:`（比如扩展版本偏低），那句话就不再打印**——
+桥其实完全可用。
+
+已验证事故（2026-08-24）：一个脚本用 `stdout.includes("Everything looks good")`
+决定走不走 OpenCLI，doctor 因为扩展版本提示而漏掉那句吉祥话，脚本**静默降级**
+到了公开 RSS 路径——输出少了两列字段，不报任何错，看起来只是"这个源就这些字段"。
+
+**判据要用结构化的行**，例如 `[OK] Connectivity`；
+或者干脆直接跑一条真实命令，失败了按 error code 分支。
+
 ---
 
 ## 事后要证据：守护进程的日志

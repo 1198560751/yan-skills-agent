@@ -96,7 +96,7 @@ node scripts/demand/boards.mjs traffic-cv --json \
 |---|---|
 | **Apple 新版 RSS 没有畅销榜** | `top-grossing` 直接 404，也不支持 genre 段。要 grossing/分类得走旧版 `itunes.apple.com/rss`，且**必须跟随 302**。旧版**没有弃用告示**（Apple 自己的 genres 接口至今仍在下发这套 URL），是当前最优路 |
 | **两套 RSS 的深度硬上限都是 100** | 旧版 250 起 400，新版 150 起 500——**Top 200 拿不到**。`ws/charts` 那条路只回 resultIds 且同样卡 100，无增益 |
-| **Google 侧的真榜单彻底走不通**（2026-08-23 穷举过） | `/store/apps/top` 302；Android UA 拿到的是推荐位不是榜单；`apps_mini_top_charts` cluster 在首屏 HTML 里只是 630 字节空壳；**注入 XHR/fetch 钩子后点 tab、滚屏，一次 batchexecute 都不发、DOM 恒为空**（钩子本身有效——站内 SPA 跳转时成功截到品类页分页 RPC）。**真名次改从第三方榜单站取**，见上表 |
+| ~~**Google 侧的真榜单彻底走不通**~~ **（2026-08-24 部分翻案）** | 原判据里「一次 batchexecute 都不发」**是错的观察**——那一轮跳过了 `network`、直接注入钩子。实测 `batchexecute?rpcids=vyAe2` **确实下发 50 条有序包名**，请求里的 base64 token 明文就是 `topselling_free_<CATEGORY>`，且认 `gl` 参数。PRODUCTIVITY/US 前三 = ChatGPT / com.facebook.stella / Microsoft Word，**与第三方榜单站这个独立来源一字不差**。原判据里对的那一半：**DOM 恒为空**（榜单 section 全文仅 25 字符）。**但没有脚本化**：8 次干净尝试只命中 2 次，触发条件复现不出。**生产路径不变，仍走第三方榜单站**——不把一条 8 次拿不到 6 次的路塞进脚本 |
 | 第三方榜单站的两个坑 | 约 **7 次连续请求后 429**；分品类页比总榜**少一列**（脚本已改成从末尾倒着数） |
 | **Google Play 商店页的 `position` 不是名次** | 只是版面顺序，脚本已标注。要名次必须用 `--ranking` |
 | **Toolify 的「收入榜」不给收入** | 真实 URL 是 `/Best-AI-Tools-revenue`，实为「检测到支付平台的 AI 工具」按月访问量排序（站方文案自己承认这个口径）。逐个核过 `__NUXT__` 全字段，匹配 `rev\|mrr\|arr\|income` 的只有评论数与评分。有价值的字段是它标出的**支付平台** |
@@ -289,7 +289,7 @@ node scripts/demand/boards.mjs producthunt --date 2026-08-22 --resolve-urls --js
 |---|---|---|---|---|
 | Reddit 许愿句式 | 标题（可直接当选题）、正文、子版、作者、时间 | RSS（零配置但限流狠）/ OAuth（CI 推荐）/ pullpush（兜底） | 否（CI 建议配 OAuth app） | `scripts/demand/reddit-wishes.mjs` |
 | Hacker News 评论 | Ask HN 下的整棵评论树 | 公开 JSON API | 否 | `scripts/demand/hn-signals.mjs --comments` |
-| **TAAFT 许愿区 `/requests/`** | **用户直接写下来的「我想要一个能做 X 的 AI」+ 票数 + 回答数**，实测 1,526 条 | OpenCLI 真实 Chrome | 否，但要真实浏览器 | `scripts/demand/boards.mjs taaft --board requests`（`--board requests-most-voted` 按票数排） |
+| **TAAFT 许愿区 `/requests/`** | **用户直接写下来的「我想要一个能做 X 的 AI」+ 票数 + 回答数**，实测 1,526 条 | OpenCLI 真实 Chrome | 否，但要真实浏览器 | `scripts/demand/boards.mjs taaft --board requests`（`--board requests-top` 按票数排） |
 | Google SERP（许愿句式限站搜） | organic 前十 + relatedSearches + peopleAlsoAsk | serper.dev API | 需 `SERPER_API_KEY` | `scripts/demand/serp-query.mjs` |
 
 **本节信号密度最高的是 TAAFT 许愿区**：别的源要你从吐槽里推断需求，
@@ -447,9 +447,22 @@ node scripts/demand/word-roots.mjs expand converter \
 ### 浏览器纪律
 
 凡是走 OpenCLI 的脚本，都必须遵守 `opencli` Skill 的会话法律：
-一个会话一个标签页、会话名用描述性字面常量（**Bash tool 里绝不用 `$$`**）、
+一个会话一个标签页、**会话名描述性但必须带并发后缀**、
 默认 `--window background`、用完 `close`、**sub agent 绝不跑 `cleanup`**。
 本目录的脚本已在 `finally` 里自动 close。
+
+**会话名不许是字面常量**（2026-08-24 修）：`boards.mjs` 曾把三个会话名写死成
+`demand-b-taaft` 这样的常量，两个 agent 同跑就共用同一个标签页，各自读回对方的页面——
+**导航报成功、数据是别人的、全程不报错**。现在统一走 `sessionName(base)`，
+后缀取 `OPENCLI_SESSION_SUFFIX` → `CLAUDE_CODE_SESSION_ID` → `CLAUDE_CODE_HOST_SESSION_ID`
+→ `ppid`。注意 `HOST_SESSION_ID` 是整个桌面端共用的，只能垫底；
+**Bash tool 里绝不用 `$$`**（每次调用都是新进程，PID 都不同）。
+
+**不要用 `opencli doctor` 的文案判断桥能不能用**（2026-08-24 实测坑）：
+`reddit-wishes.mjs` 原来匹配 `"Everything looks good"` 来决定走不走 OpenCLI，
+而 doctor 只要有任何 Issue 就不再打印那句话——哪怕三行全 `[OK]`、桥完全可用。
+结果是**静默降级回 RSS**：输出少了「赞 / 评论数」两列，不报任何错。
+判据应当用 `[OK] Connectivity` 这类结构化行，不是吉祥话。
 
 ---
 

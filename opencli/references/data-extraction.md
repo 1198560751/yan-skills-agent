@@ -64,6 +64,14 @@ opencli browser "$S" network --ttl <ms>               # 缓存 TTL，默认 24h
 列表条目形如 `{key, method, status, url, ct, size, shape, body_truncated?}`。
 缓存在 `~/.opencli/cache/browser-network/`，**可以反复取而不用重新触发请求**。
 
+> **缓存按 `key` 命中，而 `key` 可能不含你以为的那个变量**（2026-08-24 实测事故）。
+> 某站所有分类的数据都走同一个 RPC 端点，于是**每个分类的 key 都相同**：
+> 换了分类再 `--detail`，24h 内拿回的是**上一个分类的 body**——字段齐全、格式正确、
+> 不报任何错，看起来完全像成功了。当时据此写下的「命中率很高」结论，
+> 加上 `--ttl 1` 复跑后全部变回 `NO CAPTURE`。
+> **凡是同一个端点带参数区分内容的场景，`--detail` 必须带 `--ttl 1`**，
+> 或者每轮换一个会话。
+
 默认输出保留 JSON/XML/纯文本和类 API 的 JS 响应，丢掉明显的静态资源和埋点。
 **预期中的接口没出现时，先跑一次 `network --all`**，看是不是被不常见的
 content-type 或 URL 过滤挡掉了。

@@ -203,6 +203,21 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 /* -------------------------------------------------------------- opencli io */
 
+function sessionName(base) {
+  // 会话名就是标签页的所有权声明：两个任务挑同一个名字就共用同一个标签页，
+  // 于是各自读回对方打开的页面——导航报成功，数据是别人的，全程不报错。
+  // 所以这里绝不能返回字面常量。后缀取「真正会并发的那个单位」：
+  // 一次对话 = 一个 CLAUDE_CODE_SESSION_ID。HOST_SESSION_ID 是整个桌面端共用的，
+  // 拿它当第一顺位等于把同一个标签页发给两个并行任务，只能垫底。
+  const suffix = (
+    process.env.OPENCLI_SESSION_SUFFIX ||
+    process.env.CLAUDE_CODE_SESSION_ID ||
+    process.env.CLAUDE_CODE_HOST_SESSION_ID ||
+    String(process.ppid)
+  ).replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || "local";
+  return `${base}-${suffix}`;
+}
+
 function opencli(args, timeoutMs = 180000) {
   const r = spawnSync("opencli", args, { encoding: "utf8", timeout: timeoutMs });
   if (r.error) throw new Error(`opencli 调不起来（装了吗？）：${r.error.message}`);
@@ -467,7 +482,7 @@ async function cmdProducthunt(args) {
   const limit = num(args.limit, 30);
   const token = envVar("PRODUCTHUNT_TOKEN");
   const wantBrowser = args.noBrowser !== true && args.browser !== "false";
-  const session = "demand-b-producthunt";
+  const session = sessionName("demand-producthunt");
 
   let rows = null;
   let needSession = false;
@@ -558,7 +573,7 @@ async function cmdToolify(args) {
   if (!path) die(`--board 只认 ${Object.keys(TOOLIFY_BOARDS).join(" / ")}，或用 --path /任意路径`);
   const limit = num(args.limit, 50);
   const pages = num(args.pages, 1);
-  const session = "demand-b-toolify";
+  const session = sessionName("demand-toolify");
   const date = today();
   const rows = [];
   try {
@@ -669,7 +684,7 @@ async function cmdTaaft(args) {
   if (!spec) die(`--board 只认 ${Object.keys(TAAFT_BOARDS).join(" / ")}`);
   const limit = num(args.limit, 50);
   const pages = num(args.pages, 1);
-  const session = "demand-b-taaft";
+  const session = sessionName("demand-taaft");
   const date = today();
   const rows = [];
 

@@ -2,7 +2,7 @@
 name: opencli
 description: 用 OpenCLI 驱动用户本机那个真实的、已登录的 Chrome，或调用它的 160+ 站点 adapter。任何需要登录态的页面操作都从这里开始——读登录后的后台、抓没有 API 的表格、填表提交、跑一个站点命令、把页面数据取回来。也覆盖会话命名与租约纪律（"我的标签页被别人抢了"）、批量取数与落盘、adapter 的编写与自修复、opencli doctor 排障。用户提到 opencli、浏览器自动化、用我的浏览器、驱动 Chrome、登录态、抓后台数据、抓表格、导出报表、填表、自动点击、截图、adapter、doctor 报错、session 撞名、标签页被抢、tab 泄漏，或说"打开这个页面看看""帮我登录后台查一下""这个站没有 API"时，务必使用本 Skill。只要动作会落在浏览器上，先读这里再动手。
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # OpenCLI
@@ -151,7 +151,7 @@ sub agent 跑它会把兄弟 agent 正在用的标签页一起关掉，
 |---|---|---|
 | `background` | **默认**。在用户当前那个窗口里开标签页，不抬窗口、不切活动标签页 | 几乎所有情况 |
 | `foreground` | 抬起窗口并选中标签页 | **只有**需要用户亲自完成验证码、或他明确说要看着的时候 |
-| `isolated` | 后台，但用它自己的独立窗口 | 长时间批量作业，不想在用户标签栏里堆东西 |
+| `isolated` | 后台，但用它自己的独立窗口 | 长时间批量作业，不想在用户标签栏里堆东西。**全机同时只能有一个，见下** |
 
 标志位置在**会话名和子命令之间**（放在子命令后面也能工作）：
 
@@ -163,6 +163,20 @@ opencli browser <session> --window isolated open "https://..."
 
 **需要扩展 ≥ 1.0.28**（`opencli doctor` 那行就是判据）。旧扩展上默认仍是前台、
 `isolated` 会被静默忽略——那正是下面那张表里的坑。
+
+#### `isolated` 的两条限制（2026-08-24 实测于扩展 1.0.27，1.0.28 上尚未复测）
+
+**一、全机同时只能有一个 isolated 会话，第二个会把第一个静默打掉。**
+干净复现：`w1` 开出独立窗口 `win379221860` → 再开 `w2` → `w2` 落回共用窗口
+`win379220956`，**且 `w1` 整条会话从 `sessions` 里蒸发**，再访问返回 `session_not_found`，
+而创建 `w2` 的那一方毫无报错。跨 agent 也一样——一个 agent 开 isolated，
+会打掉兄弟 agent 已有的那个。**所以多 agent 并行时不要用 `isolated`，用默认的 `background`。**
+
+**二、adapter 命令根本不接受 `isolated`。**
+`opencli <site> <cmd> --window isolated` 报 `--window must be one of: foreground, background`。
+只有 `opencli browser <session>` 那条路认三个值。这是 CLI 侧的遗漏
+（`src/execution.ts` 的 `normalizeWindowMode` 与 `src/help.ts` 的 `choices` 只列两个，
+而同一份 help 文案却在宣传 isolated），不是你用错了。
 
 背景模式跑的是用户真实的、已登录的 Chrome：`navigator.webdriver` 为 `false`、
 UA 不含 `Headless`、`plugins.length` 为 5。
