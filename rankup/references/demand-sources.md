@@ -28,6 +28,7 @@
 | 竞品正在往哪儿下注 | [九](#九竞品正在往哪儿下注) |
 | 我盯上了一个跑通的站，想把它整个站群拆开 | [九·二](#九二一个站背后的整个站群) |
 | 我连方向都没有，只有一个词根 | [九·五](#九五从词根出发) |
+| **同行已经把答案写出来了，我只是没去读** | [九·八](#九八已经有人替你调研过了哥飞社区) |
 | 拿到候选之后怎么验证 | [十](#十候选验证链路) |
 
 **一条通则**：任何一节拿到的候选，最终都要汇成一份**域名清单**或**关键词清单**，
@@ -144,6 +145,22 @@ node scripts/demand/boards.mjs traffic-cv --json \
 已知边界：单次上限 100 条；**翻页 token 不可复用**。
 
 > 国内投放侧（内容平台的素材库、短视频投放平台）没有可自动化的公开入口，属人工动作。
+
+### 另一条入口：谁在给应用商店买词（手工，但便宜）
+
+Google 广告透明度中心覆盖的是**网页广告主**。想看**谁在给 App 买搜索词**，
+哥飞 2024-08-22 在群里给过一条路子（`chat-search "付费搜索"` 可复现原话）：
+
+1. Similarweb 里输入 **`apps.apple.com`**，在「自然搜索」下方找到**「付费搜索」**，
+   点进去就是**正在给 App Store 落地页投广告的关键词与广告主**，分桌面/移动两份。
+2. 看到投得猛的 App，记下它的 **App ID**（一串数字），
+   自己拼 `https://app.sensortower.com/overview/<ID>` 查真名与收入
+   ——**很多 App 会改名，商店里搜不到，但 ID 不变**。
+3. 广告词里混着品牌词和需求词，**需求词才是你要的**。
+
+**为什么值得单列**：它给的是「有人愿意为这个词付点击费」，
+和第二节的「有人已经收到钱」是两条独立证据，交叉命中的方向可信度最高。
+目前**没有脚本**——Similarweb 那一屏要登录且是图表渲染，属人工动作。
 
 ---
 
@@ -375,6 +392,57 @@ node scripts/demand/site-network.mjs --domain <种子域名> --confirm --max 10
 
 ---
 
+## 九·八、已经有人替你调研过了（哥飞社区）
+
+前面八节都是**你去挖**。这一节是**别人挖完了，把结论和踩过的坑公开写了出来**——
+`new.web.cafe` 上几百人在同一个问题下众筹提问、竞答、按票排名。
+成本比自己从零跑一遍榜单低一个量级，而且带着「哪条真的有效」的投票信号。
+
+脚本：[`../scripts/webcafe-forum.mjs`](../scripts/webcafe-forum.mjs)，
+完整接口地图与坑见 [`webcafe-forum.md`](webcafe-forum.md)。
+
+| 你要什么 | 命令 |
+|---|---|
+| 现在有哪些悬赏在问（18 场全站） | `webcafe-forum.mjs bounties --transport http` |
+| 一场悬赏的全部答案正文 | `webcafe-forum.mjs bounty <uid> --transport browser --md` |
+| **众人投票投出来的网站清单**（征集型） | `webcafe-forum.mjs bounty <uid> --transport browser`（读 `collect.board[]`） |
+| **群里到底怎么说的**（原话，不是转述） | `webcafe-forum.mjs chat-search "挖掘需求"` |
+| 站内搜经验帖/教程 | `webcafe-forum.mjs search "关键词"` |
+| 哥飞的 91 条经验全文 | `webcafe-forum.mjs experiences --pages 10 --transport browser` |
+
+### 已经沉淀进本库的几场
+
+| 悬赏 | 主题 | 已收录到 |
+|---|---|---|
+| `fd0wrgx7fh` | 你有哪些私藏的挖掘需求的好方法（23 答 / 3760 元） | [`experiences/demand-discovery.md`](experiences/demand-discovery.md) |
+| `fpswv8z126` | 从 0 到 1 哪三件事最重要（19 答） | [`experiences/zero-to-one.md`](experiences/zero-to-one.md) |
+| `il1fmki1ih` | 访客→注册转化率 | [`experiences/conversion.md`](experiences/conversion.md) |
+| `wlhmhdaoqg` | 去哪儿提交外链（**588 条榜单**） | [`../../backlink/references/authorized-data-sources.md`](../../backlink/references/authorized-data-sources.md) |
+| `0jch5yv6g7` | 你都在哪些网站挖掘需求（**盲征中**，109 条待开榜） | 未开榜，`board` 还取不到 |
+| `k3ivgzypq1` | 被验证过的找需求方法（**盲征中**，46 条） | 同上 |
+
+**后两场值得盯**：它们正在征集，一旦状态变成 `open` 就能一次性拿到
+一百多条「别人实际在用的需求挖掘站点」——那正是本文件第一节那张表的众包版本。
+查状态：`webcafe-forum.mjs bounties --status open --transport http`。
+
+### 三条必须知道的（否则你会拿到空结果且不报错）
+
+1. **匿名不会 401。** 它返回 200 和完整条目，只把正文抹成空串、票数归零。
+   判据是正文空不空，不是状态码。
+2. **征集型的内容在 `collect.board[]`，不在 `answers[]`。** 只读 answers
+   会对着 588 条榜单报「0 条答案」。
+3. **`fold_count` > 0 不等于没价值。** `fd0wrgx7fh` 的 23 条里 17 条被折叠，
+   而本库收录的最可执行的几条方法恰恰出自被折叠的答案。
+   **按票排序读，但别按折叠丢弃。**
+
+### 想要素材就搜群聊，别去问 AI
+
+站内哥飞.ai（`/chat`）的知识库**就是**「哥飞的朋友们」14 个微信群的归档 + 站内教程。
+`chat-search` 直接搜那份归档，拿到的是**原话**——不经模型转述、不消耗任何额度。
+只有需要「让它替你跨来源综合归纳」时才值得走 `ask`（而且它默认 dry-run，要 `--send`）。
+
+---
+
 ## 九·五、从词根出发
 
 前面九节都是「先有站/先有信号，再有词」。这一节是反方向：**先有词根，扩成候选串，再去撞盘面。**
@@ -425,6 +493,52 @@ node scripts/demand/word-roots.mjs expand converter \
    ↓ ④ 这个方向在涨还是在跌
    scripts/gt.py                                    # Google Trends
 ```
+
+### ⓪-前置：如果候选是「要注册的新域名」，先过三步闸门
+
+上面那条链路的 ⓪ 问的是「这个**已经存在**的站什么来历」。
+如果你手上是一批**打算注册**的域名，先过下面三步——**顺序不能换，一步都不能省**。
+
+| 步 | 动作 | 它排除什么 | 别的方法看不看得见 |
+|---|---|---|---|
+| 1 | `whois -h <该 TLD 的注册局 whois 服务器> <域名>` | **注册局保留名单** | RDAP 完全看不见 |
+| 2 | IANA bootstrap 给出的 per-TLD RDAP 端点，404=未注册 | 已被注册 | whois 也能看，但 RDAP 更规整 |
+| 3 | 注册商结算页看该域名自己的价格行 | **溢价档**（注册价=续费价，可到常规价的数十倍） | 前两步都看不见 |
+
+三条各自独立，任何一条单独通过都不等于"能买"。
+
+**实测教训（2026-08-24）**：某个 TLD 的 28 个通用英文词候选，RDAP 全部 404，
+按"未注册"报成可注册；whois 直连该注册局后发现 **23 个返回
+`Second level domain name is reserved.`**。错误报告读起来完全自洽——
+RDAP 是权威源、确实返回 404、逻辑无误——只有真去下单时才暴露。
+
+另一类：某商业注册局把旗下短通用词整片划进溢价档，RDAP 同样 404，
+结算页上却是常规价的 25–100 倍年费，且注册价与续费价相同。
+
+两个必须记住的操作细节：
+
+- **`whois` 不带 `-h` 会回退到 IANA 的 TLD 记录**，那份记录里永远有一行
+  `domain: <TLD>`，于是每个域名看起来都被注册了。必须显式指定注册局服务器。
+- **注册商结算页多为瀑布流布局**，域名与价格在纯文本里相邻，但相邻的那个价格
+  也可能属于**下一个**域名。必须按 DOM 结构取（找 textContent 精确等于该域名的
+  叶子节点，再上溯若干层取 innerText），不能按文本切片。
+
+最省事的交叉验证：直接看主流注册商的搜索结果页——保留域名会显示
+`TAKEN / Make offer`，可注册的显示 `$X/yr · Add to cart`，一屏同时覆盖三条。
+
+### 域名有没有黑历史：用 Wayback CDX 自证，不要只信 AI 总结
+
+带 LLM 总结的"域名前世"类工具**取数失败时不报错，而是把「没取到」叙述成
+「不存在历史」**——这个失败形态最危险，因为结论读起来完全正常。
+
+```bash
+curl -s "http://web.archive.org/cdx/search/cdx?url=<域名>&matchType=domain&output=json&filter=statuscode:200&collapse=timestamp:6"
+curl -s "http://web.archive.org/web/<timestamp>id_/<url>"   # 取当年内容判断用途
+```
+
+实测：某工具对一个域名断言"Internet Archive 中无任何历史快照记录"，
+CDX 直查是 **41 条 200 快照，跨 2002–2010**，且能取回当年正文判断它当初是正经站
+还是停放页/灰产。
 
 ### ⓪ 这一步的供应商选择
 

@@ -2,6 +2,32 @@
 
 Use this reference for logged-in research surfaces.
 
+## 哥飞社区的众筹外链榜（可脚本刷新）
+
+`new.web.cafe` 上有一场**征集型悬赏**「网站上线之后，你会去哪些地方提交外链？」
+（`/ask/bounty/wlhmhdaoqg`），162 人提交、汇成一个 **588 条**的按票排序榜单，
+**每条还带提交者写的理由**（免费/付费、价格、能不能被 GSC 收录、有没有真实流量）。
+这是一份**众人真金白银试过之后投票投出来的**外链目标清单，
+比任何一份「100 个外链平台」的博客汇总都可信。
+
+刷新它不需要人肉抄：
+
+```bash
+node ../../rankup/scripts/webcafe-forum.mjs bounty wlhmhdaoqg \
+     --transport browser --json --out board.json
+```
+
+**三件必须知道的事：**
+
+1. 内容在 `collect.board[]`，**不在 `answers[]`**。只读 answers 会得到「0 条答案」
+   ——不报错、不为空，就是答错了数组。
+2. **匿名拿不到**：`board` 会是空数组（HTTP 仍是 200）。必须 `--transport browser`。
+3. 榜单要到状态 `open`（已开榜）才可见；`collecting` 阶段登录也是空的。
+
+字段与全站接口地图见 [`../../rankup/references/webcafe-forum.md`](../../rankup/references/webcafe-forum.md)。
+**注意那是只读的**——脚本对该站只发 GET，绝不解锁/支付/提交。
+
+
 ## Tools Share dashboard
 
 Entry point, hardcoded because it is a public URL and every owner of this Skill

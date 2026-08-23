@@ -8,6 +8,14 @@
 **这一章只回答「往哪儿看」和「怎么判断」。「用哪个脚本把数据取回来」在
 [`../demand-sources.md`](../demand-sources.md)——那是一张源→脚本的路由表。**
 
+> **这份收录现在可以一条命令重放**（2026-08-24 起）：
+> `node ../scripts/webcafe-forum.mjs bounty fd0wrgx7fh --transport browser --md`。
+> 用它复核过一次：23 条答案全部取回、共 19,651 字，与本章收录逐条对得上。
+> 未被本章引用的三条是 `颜飞`（本库作者本人）、`Adrian`（iOS/Google Play 付费榜
+> ＋差评挖掘，方法已并入本章「差评矿」与 `appstore-charts.mjs`/`gplay-charts.mjs`）、
+> `HelloLeo`（PH / GitHub Trending / HN / Toolify，四条均已有脚本覆盖）。
+> **原帖仍在 `voting` 阶段，之后可能新增答案——重跑上面那条命令即可增量比对。**
+
 这一整章回答的是同一个问题：**在写第一行代码之前，怎么知道这件事有人要、且有人愿意付钱。**
 贯穿全章的一条主线是——**不要空想需求，去反推已经拿到结果的人**。
 空想的验证成本是几个月，反推的成本是几个小时。

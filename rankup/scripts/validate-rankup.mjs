@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.39.0";
+const expectedVersion = "2.40.0";
 const requiredReferences = [
   "lifecycle.md",
   "cloudflare-stack.md",

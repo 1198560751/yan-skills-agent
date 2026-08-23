@@ -1,8 +1,8 @@
 ---
 name: rankup
-description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、挖需求、找需求、需求挖掘、找方向、找选题、"最近有什么能做的"、"找几个关键词"、"挖个新词的工具站"、"看看有什么游戏站能做"、竞品调研、榜单调研、差评挖掘、反查谁在赚钱、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
+description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、挖需求、找需求、需求挖掘、找方向、找选题、"最近有什么能做的"、"找几个关键词"、"挖个新词的工具站"、"看看有什么游戏站能做"、竞品调研、榜单调研、差评挖掘、反查谁在赚钱、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 哥飞、web.cafe、哥飞论坛、哥飞的朋友们、悬赏、悬赏问答、经验帖、"群里怎么说的"、"社群里有没有讲过"、"论坛里搜一下"、"哥飞说过什么"、哥飞.ai，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
 metadata:
-  version: "2.39.0"
+  version: "2.40.0"
 ---
 
 # Rankup 2.0
@@ -70,6 +70,9 @@ opencli browser "$S" eval '(async()=>{ /* fetch(..., {credentials:"include"}) */
 
 | 错误做法 | 正确做法 | 为什么是错的 |
 |---|---|---|
+| 为了拿哥飞论坛的内容去问 `ask`（哥飞.ai） | 先用 `webcafe-forum.mjs chat-search`/`search` 拿原文 | 哥飞.ai 的语料**就是**群聊归档 + 站内教程，直接搜拿到的是原文，不经模型转述、不消耗额度 |
+| 拿 `new.web.cafe` 的 HTTP 200 当「取到了」 | 看 `access` 字段 / 正文空不空 | 该站匿名**不返回 401**：照样给全部条目和作者名，只把正文抹成空串、票数归零 |
+| 对 `kind:collect` 的悬赏只读 `answers[]` | 读 `collect.board[]` | 征集型的内容不在 answers 里；只读 answers 会对着 588 条榜单报「0 条答案」且不报错 |
 | 用通用 `chatbot-drive.browser.js` 问哥飞 AI（seo.web.cafe） | 有 Cookie 用 `seo-webcafe.mjs chat`；没有就用 `gefei-ask.mjs` | 两条专用路径都封装过配额与完成判定；通用驱动会重踩已解决的坑 |
 | 用 Claude in Chrome / 手动 OpenCLI 操作 Similarweb 面板 | `node similarweb-query.mjs` / `similarweb-batch.mjs` | 脚本已存在，手操浪费上下文且结果不可复现 |
 | 用 Claude in Chrome / 手动 OpenCLI 操作 Semrush 面板 | `node semrush-overview.mjs` / `semrush-keyword.mjs` 等 | 同上 |
@@ -117,6 +120,7 @@ opencli browser "$S" eval '(async()=>{ /* fetch(..., {credentials:"include"}) */
 | `scripts/cf-zone-setup.mjs` | **把域名加进 Cloudflare（zone onboarding）并读回 NS 对**——Wrangler 没有 zone 命令，这是补它的缺口。`status` 只读探测，`create` 建 zone | 新域名接入 Cloudflare 时。**优先仍是操作用户浏览器**，本脚本是浏览器不可用时的退路 |
 | `scripts/is-agentic.mjs` | AI Agent 就绪度：`scan` 评分+待修项、`diff` 与上次对比、`history` 历史。**先打 is-agentic.com 的报告 API，404 才回退 `npx is-agentic` 触发扫描**——两条路都只取「最新已存在的报告」，**没有强制重扫**，详见 `seo-growth.md` | 上线后评估 AI 代理友好度、每轮优化收尾对比改进。结果可 `--save` 存入 `.rankup/agentic/` |
 | `scripts/cf-agent-baseline.mjs` | Cloudflare Radar「AI Agent Readiness」**全网基线**——不是站点扫描器（无 `url` 参数），返回全网聚合通过率 | 给 `is-agentic.mjs` 的单站分数配分母。`--compare` 把某次单站扫描的失败项与全网通过率并排 |
+| **`scripts/webcafe-forum.mjs`** + `webcafe-transport.mjs` + `webcafe-rsc.mjs` | **new.web.cafe（哥飞论坛）全站取数**：`get <任意站内 URL>` 万能入口；悬赏问答（含 `collect` 征集榜单与提交理由）、经验 91 条 / 帖子 722 条 / 教程专栏 40 个、站内搜索、**14 个微信群归档搜索**、哥飞.ai 历史对话 | 要哥飞社区里的原始素材、经验帖、悬赏答案、群里的原话时。**先读 [`webcafe-forum.md`](references/webcafe-forum.md)**——这个站匿名不会 401，它返回 200 但把正文抹成空串 |
 | `scripts/gefei-ask.mjs` + `gefei-chat.browser.js` | 驱动**用户已登录的浏览器**问哥飞 SEO Agent 并取回全文，不需要 `SEO_WEBCAFE_COOKIE`（那枚是 httpOnly） | 需要问哥飞但拿不到 Cookie 时。与 `seo-webcafe.mjs chat` 是两条路径，选哪个见 `references/seo-webcafe.md` |
 | `scripts/gsc-remove-urls.mjs` | **GSC 批量提交「暂时移除网址」请求**。驱动用户已登录的浏览器操作 GSC 移除工具，逐个提交 URL。支持 `--file` 从文件读 URL 列表、`--property` 指定 GSC 资源、`--dry-run` 预览 | 废弃页面需要从 Google 搜索结果中移除时。GSC 没有公开的移除 API，只能通过 UI 操作 |
 | `scripts/indexnow-submit.mjs` | **把站点 URL 推给 IndexNow**（Bing/Yandex/Seznam/Naver 共用一张网，Google 不参与）。URL 列表默认从线上 sitemap 取，`--generate-key` 生成密钥。**提交前先校验密钥文件**——密钥不可达时整批被丢弃而接口照样回 200 | 新站上线接索引推送时；之后每次内容变更部署完成后。零账号、纯 HTTP，可进 CI |
@@ -521,6 +525,8 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | 搜索热度对比、地区分布、相关飙升词、每日热搜、模糊方向扩词并收敛成可做站的词 | [`trends.md`](references/trends.md) | `scripts/gt.py`（默认走 `gt-browser.mjs` 的浏览器路由，零 venv；`--via pytrends` 可切回匿名 HTTP） |
 | 从登录态后台批量取数（没有 API / API 收费 / 导出扣点数） | [`integrations.md`](references/integrations.md) | **加载 backlink**（`/backlink`），读 `references/harvest.md`。未安装：`npx skills add yan-labs/yan-skills --skill backlink -g -y` |
 | **「数据面板」「数据勘测」「查一下这个站/这个词的数据」** —— 用户说这些词时指的是第三方数据平台 | — | **直接跑脚本**（见上方「数据面板的脚本速查」），不要打开浏览器手操。首次使用或遇到问题时**加载 backlink** 读 `authorized-data-sources.md` |
+| **哥飞论坛（new.web.cafe）的任何内容**：悬赏答案、经验帖、教程、帖子、站内搜索 | [`webcafe-forum.md`](references/webcafe-forum.md) —— **先看第一节**：匿名不报错，只是把正文换成空串 | `scripts/webcafe-forum.mjs get <url>`（万能入口，认不出的 URL 也能退回通用抓取） |
+| **「哥飞群里怎么说的」「社群里有没有讲过 X」** | [`webcafe-forum.md`](references/webcafe-forum.md) 第八节 | `webcafe-forum.mjs chat-search "词"` —— 14 个微信群归档，**就是哥飞.ai 的知识库**。拿原文、不消耗任何 AI 额度，优先于 `ask` |
 | **问哥飞 AI / seo.web.cafe 的 SEO Agent** | [`seo-webcafe.md`](references/seo-webcafe.md) 的「两条取答路径怎么选」 | 有 `SEO_WEBCAFE_COOKIE` → `seo-webcafe.mjs chat`（纯 HTTP，可无人值守）；只有登录态浏览器 → `gefei-ask.mjs`（那枚 Cookie 是 httpOnly，取不出来）。**两条是互补不是替代**；都不要用通用 `chatbot-drive.browser.js` |
 | 其他只有聊天网页形态的 AI 工具（要登录、按条扣费、**确认没有 HTTP API**） | [`integrations.md`](references/integrations.md) 的「网页版 AI Chatbot 取答」 | `scripts/chatbot-drive.browser.js`——仅限确认没有 HTTP API 的工具 |
 | **发 Product Hunt / 产品发布平台、排期上线、画廊图上传** | [`product-launch.md`](references/product-launch.md) | 需要能设置 file input 的浏览器连接器；**不要点上传按钮**（会弹系统对话框冻死标签页） |
