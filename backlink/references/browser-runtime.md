@@ -29,7 +29,7 @@ window the person is already using, never raises a window, and never switches th
 are looking at. It is **not** headless — every headless tell reads negative, so there is no
 reason to reach for foreground. `--window foreground` *does* steal the active tab; use it
 only when the person has to finish something by hand (a CAPTCHA). `--window isolated` keeps
-automation in its own window. Requires the OpenCLI extension at 1.0.27 or newer — on older
+automation in its own window. Requires the OpenCLI extension at 1.0.28 or newer — on older
 builds the default is foreground and every command needs `--window background` spelled out.
 
 If a read returns a page you did not navigate to, **suspect a session-name collision first**,

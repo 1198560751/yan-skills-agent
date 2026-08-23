@@ -74,10 +74,10 @@ opencli doctor
 | 观察到 | 该做什么 |
 |---|---|
 | 命令成功但窗口/焦点行为与本文档不符 | 跑 `opencli doctor`，看 `Extension` 那行的版本 |
-| 版本 < 1.0.27 | **告诉用户他装的是应用商店版**，需要换成 [yan-labs 的 Release](https://github.com/yan-labs/OpenCLI/releases/latest) 里的 zip，并把商店版移除或停用 |
+| 版本 < 1.0.28 | **告诉用户他装的是应用商店版**，需要换成 [yan-labs 的 Release](https://github.com/yan-labs/OpenCLI/releases/latest) 里的 zip，并把商店版移除或停用 |
 | `doctor` 自己就报了这条 | 照它说的做——它会打印下载地址和加载步骤 |
 
-`doctor` 会在扩展低于 1.0.27 时主动报这个问题，**不要跳过它的输出**。
+`doctor` 会在扩展低于 1.0.28 时主动报这个问题，**不要跳过它的输出**。
 
 红了先看 [`references/troubleshooting.md`](references/troubleshooting.md)。
 排障的第一步永远是 **`npm ls -g @jackwener/opencli` 确认 CLI 是发布版还是本地源码 link**——
@@ -161,7 +161,7 @@ opencli browser <session> --window isolated open "https://..."
 
 放在会话名**前面**会报 `unknown command: <你的会话名>`，读起来像装坏了，其实是语法错。
 
-**需要扩展 ≥ 1.0.27**（`opencli doctor` 那行就是判据）。旧扩展上默认仍是前台、
+**需要扩展 ≥ 1.0.28**（`opencli doctor` 那行就是判据）。旧扩展上默认仍是前台、
 `isolated` 会被静默忽略——那正是下面那张表里的坑。
 
 背景模式跑的是用户真实的、已登录的 Chrome：`navigator.webdriver` 为 `false`、
@@ -177,7 +177,7 @@ UA 不含 `Headless`、`plugins.length` 为 5。
 |---|---|---|
 | `--window foreground`（除非用户要亲自操作） | 什么都不加（默认就是 background） | 实测会把用户的**活动标签页切走**（从第 1 个跳到第 3 个）。注意最前端**应用**不变，所以只查应用焦点的测量看不见它 |
 | 调 adapter 时用前台「方便看页面」 | `--keep-tab true` + `screenshot` / `state` | 调试是高频动作，一轮能打断十几次。标签页留着，用户想看自己切过去 |
-| 在旧扩展（< 1.0.27）上省略 `--window background` | 先看 `doctor` 的扩展版本；旧版就每条命令都显式带 | 旧版两层默认都是前台，省略等于每条命令都抬一次窗口 |
+| 在旧扩展（< 1.0.28）上省略 `--window background` | 先看 `doctor` 的扩展版本；旧版就每条命令都显式带 | 旧版两层默认都是前台，省略等于每条命令都抬一次窗口 |
 | 给 `PUBLIC` / `LOCAL` 命令加 `--window` | 不加 | 它们不接受这个标志，会报 `unknown option '--window'`；这类命令本来也不开浏览器 |
 | 崩溃后不清理，留下一堆孤儿标签页 | `finally` 里 `close` | 泄漏的会话在用户窗口里就是一堆莫名其妙的标签页，比抢一次焦点更烦 |
 
@@ -190,7 +190,7 @@ UA 不含 `Headless`、`plugins.length` 为 5。
 旧测量只查了「最前端应用」（前台模式下它确实不变），漏掉了「活动标签页」这一轴。
 完整对照表见 [`references/session-laws.md`](references/session-laws.md)。
 
-> **这条曾经是坏的，2026-08-23 修好了**（扩展 1.0.27）。当时 `--window isolated`
+> **这条曾经是坏的，2026-08-23 修好了**（扩展 1.0.28）。当时 `--window isolated`
 > 不新开窗口，行为与 `background` 一模一样，于是文档写下了「没办法把 agent 的标签页
 > 挪出用户窗口」。真因是四层各自静默地否决它：运行时白名单只认两个值把 `isolated`
 > 丢掉了；「这窗口是不是我的」靠猜（全是非 http 页面就算我的）而把用户随手开的空窗口
@@ -398,13 +398,13 @@ OpenCLI 本体分两半，**两半都要装我们的构建**，来源是
 
 ```bash
 # 1) CLI
-npm i -g https://github.com/yan-labs/OpenCLI/releases/download/v1.8.6-yan.1/opencli-cli-1.8.6-yan.1.tgz
+npm i -g https://github.com/yan-labs/OpenCLI/releases/download/v1.8.7-yan.1/opencli-cli-1.8.7-yan.1.tgz
 
 # 2) 浏览器扩展：下载 opencli-extension-v*.zip 解压，
 #    chrome://extensions → 开启开发者模式 → 加载已解压的扩展程序
 #    ⚠️ 先移除或停用 Chrome 应用商店那个 OpenCLI
 
-# 3) 验证：三行都要 [OK]，Extension 那行的版本 ≥ 1.0.27
+# 3) 验证：三行都要 [OK]，Extension 那行的版本 ≥ 1.0.28
 opencli doctor
 ```
 

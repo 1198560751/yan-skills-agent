@@ -54,7 +54,7 @@ opencli browser sessions    # 当前活跃的租约
 | 症状 | 大概率原因 | 修法 |
 |---|---|---|
 | `Extension: not connected` | 扩展没装 / 被禁用 / Chrome 没开 | 从 [Release](https://github.com/yan-labs/OpenCLI/releases/latest) 下载 zip 解压后在 `chrome://extensions` 加载已解压的扩展程序，确认 Chrome 在跑。**不要装应用商店版** |
-| 行为与本 Skill 描述不符（默认前台、`isolated` 无效） | 装的是应用商店版或旧构建 | `opencli doctor` 看 Extension 版本，< 1.0.27 就换成 [Release](https://github.com/yan-labs/OpenCLI/releases/latest) 里的 zip |
+| 行为与本 Skill 描述不符（默认前台、`isolated` 无效） | 装的是应用商店版或旧构建 | `opencli doctor` 看 Extension 版本，< 1.0.28 就换成 [Release](https://github.com/yan-labs/OpenCLI/releases/latest) 里的 zip |
 | `attach failed: chrome-extension://...` | 别的扩展抢 CDP | 临时禁用 1Password 一类占用 CDP 的扩展 |
 | Daemon 版本比 CLI 老 | 升级后没重启 | `opencli daemon restart` |
 | `unknown command: <你的会话名>` | `--window` 放在了会话名**前面** | 挪到会话名和子命令**之间** |

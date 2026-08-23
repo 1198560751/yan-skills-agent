@@ -20,13 +20,23 @@
 
 ## 一、素材：先备齐再开表单
 
+下表的字数与尺寸**在 2026-08-24 复核过**：字数上限来自发布表单自己渲染的计数器
+（`56/60`、`492/500`、`12/40`），图片尺寸来自平台帮助中心「How to post a product」原文。
+不是二手转述。
+
 | 素材 | 要求 | 备注 |
 |---|---|---|
-| 缩略图 | 240×240，JPG/PNG/GIF，≤2MB | 平台常会自动从站点抓一个，多半够用 |
-| 画廊图 | **至少 3 张**（PH 明写 recommend at least 3） | 第一张会被当作社交分享预览图 |
-| tagline | 严格卡字数（PH 60） | 写完数一遍，超一个字保存不了 |
-| description | 严格卡字数（PH 500） | |
+| 名称 | **40 字**（表单计数器 `12/40`） | 只写产品名，别塞描述和 emoji |
+| tagline | **60 字**（表单计数器 `56/60`） | 写完数一遍，超一个字保存不了 |
+| description | **500 字**（表单计数器 `492/500`） | |
+| 标签 | **最多 3 个**（表单原文 Select up to three launch tags） | |
+| 缩略图 | 正方形，**推荐 240×240**；GIF **要 <3MB** | 官方只对 GIF 给了体积数字，静态图没写上限。平台常会自动从站点抓一个，多半够用 |
+| 画廊图 | **推荐 1270×760**；**2 张起才会显示**，表单建议 3 张以上 | 第一张会被当作社交分享预览图 |
+| 图片格式 | 上传控件 `accept` 实测为 `image/gif, image/jpeg, image/png, image/webp` | **webp 是收的**，旧文只写 JPG/PNG/GIF |
 | 首条评论 | 由 maker 本人视角写 | 这是转化率最高的一块，不要省 |
+
+**这些数字只在发布/编辑表单里看得到**，产品公开页上没有。要复核就打开
+`/posts/<slug>/edit`（需登录 maker 账号）读计数器，别去猜。
 
 **画廊图用真实产品截图，不要用做好的宣传图。**
 截 1270×760 左右，每张展示一个具体功能，不叠字不加边框。
@@ -49,6 +59,17 @@
 2. 用 `find` 或 `read_page` 定位 **file input 元素本身**，拿它的 ref。
 3. 用连接器的**专用文件上传工具**，把本地路径直接写进那个 ref。
    一次可以传多个文件（实测 4 个文件 786KB 一次成功）。
+
+**在我们这套栈里，「专用文件上传工具」有名有姓，照着敲就行：**
+
+| 驱动 | 命令 |
+|---|---|
+| OpenCLI | `opencli browser <session> upload [target] <files...>`<br>（`opencli browser --help` 原文：`Attach local files to a file input — JSON envelope {uploaded, files, file_names, target, matches_n}`；`target` 省略时取页面上第一个 file input） |
+| Chrome 连接器 | `file_upload` |
+
+PH 的两个上传控件（缩略图、画廊）实测都是
+`<input type="file" accept="image/gif, image/jpeg, image/png, image/webp" multiple>`，
+`multiple` 为真，所以画廊那几张可以一次 `upload` 全推进去。
 
 **能力差异是真实存在的，所以「换一个连接器」是标准动作，不是碰运气**：
 走 CDP 直接写 file input 的路径会返回 `-32000 Not allowed`（隐藏、改成可见、
@@ -92,6 +113,27 @@
 
 上线后抓**渲染后**的产品页，实测 `rel` 再入账。
 不采信平台自己的 Dofollow 声明，也不因为「一般都是 nofollow」就跳过实测。
+
+**这一步必须走浏览器，`curl` 一定失败。** producthunt.com 对纯 HTTP 客户端一律
+`403` + `cf-mitigated: challenge`（2026-08-24 实测：带完整 Chrome UA 请求
+`/products/<slug>`，返回 `HTTP/2 403`、`server: cloudflare`、`cf-mitigated: challenge`；
+`help.producthunt.com` 同样被挡）。所以「抓渲染后的产品页」要用 OpenCLI 驱动真实 Chrome，
+不要写成一条 `curl` 就当验过了。
+
+**先记住两个 URL 形状，能省一轮摸索（均为 2026-08-24 实测）：**
+
+| 形状 | 是什么 |
+|---|---|
+| `/products/<slug>` | 产品页。**不是**老的 `/posts/<slug>`（老形状现在只剩发布编辑页 `/posts/<slug>/edit` 在用） |
+| `/r/p/<id>` | 外链跳转端点。它不出现在产品页 DOM 里，只在页面 hydrate 的 Apollo store 的 `Post.shortenedUrl` 字段里。实测跟到底：`/r/p/1209555` → `https://toplify.app/?ref=producthunt` |
+
+**产品页上外链的实测形态（两个产品页各测一次）**：maker 自己的官网链接是
+**直链**，不走 `/r/p/`，形如 `https://<你的域名>/?ref=producthunt`，
+`rel="noreferrer noopener ugc"`——**没有 `nofollow`，但有 `ugc`**。
+同一页上评论区之类的外链才是 `rel="nofollow noopener noreferrer"`。
+入账时按 `ugc` 记，别照抄「PH 全 nofollow」这个流传很广的说法，也别就此当成 dofollow：
+`ugc` 和 `nofollow` 一样是「不传递权重」的提示信号。
+每次发布仍要自己重测一遍，PH 改过不止一次。
 
 `nofollow` 不等于零：把它算作提示信号与外链盘自然度的一部分，
 不当权重来源，也不当没有。
