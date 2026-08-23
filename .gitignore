@@ -7,3 +7,10 @@ __pycache__/
 
 # 各 Skill 的工作目录（中间产物、JSONL、探针输出等），不入库
 .backlink/
+
+# 当 Skill 源码目录被当作「项目」激活 rankup 时，版本检查会在根目录建 .rankup/skill-state.json
+# 这是运行时产物，不入库
+.rankup/
+
+# skill-creator 的评测工作目录（agent 输出、评分、benchmark），不入库
+*-workspace/

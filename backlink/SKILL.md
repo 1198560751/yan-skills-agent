@@ -158,9 +158,12 @@ own logged-in Chrome through the OpenCLI extension. No Playwright, no headless
 instance, no remote runtime. That identity is the entire reason this Skill
 exists, and it is why the laws below matter.
 
-**Read <ref file="references/browser-runtime.md"/> before any browser work.** It
-carries the measurements behind every law here, the two other drivers and what
-they cost, and an ordered checklist for diagnosing "something stole my tab".
+**Read <ref file="references/browser-runtime.md"/> before any browser work.** The
+detailed laws, the measurements behind them, the two other drivers and what they
+cost, and the ordered checklist for diagnosing "something stole my tab" now live in
+the `opencli` Skill — that file points at the exact reference for each, and keeps the
+backlink-specific residue (`scripts/opencli-core.mjs`, subagent session fan-out).
+Load `/opencli` when you need the detail: `npx skills add yan-labs/yan-skills --skill opencli -g -y`.
 </summary>
 
 <default-driver>

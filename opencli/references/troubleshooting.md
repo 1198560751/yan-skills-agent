@@ -1,0 +1,156 @@
+# 排障：桥接、守护进程、扩展
+
+`doctor` 红、连不上、命令报的错自相矛盾时读这一篇。
+
+页面层面的错（`selector_not_found`、`stale_ref`）在
+[`browser-driving.md`](browser-driving.md)；标签页归属问题在
+[`session-laws.md`](session-laws.md)；adapter 因站点改版失败在
+[`adapters.md`](adapters.md)。
+
+---
+
+## 先跑 doctor，并且知道它管什么
+
+```bash
+opencli doctor          # -v 看详细
+```
+
+它诊断的**只是浏览器桥**：守护进程 + 扩展 + Chrome 连线。
+
+| 需要 doctor 绿 | 不需要 |
+|---|---|
+| `opencli browser *` 的一切 | `opencli list` / `validate` / `verify` |
+| `COOKIE` / `INTERCEPT` / `UI` 策略的 adapter | `PUBLIC` / `LOCAL` 策略的 adapter |
+| | 外部 CLI 透传（`opencli gh`、`opencli docker`……） |
+
+正常输出是三行 `[OK]`：Daemon / Extension / Connectivity，外加 profile 列表。
+
+---
+
+## 三层，从下往上查
+
+```
+Chrome + OpenCLI 扩展
+        ↕  WebSocket
+本地守护进程（默认端口 19825）
+        ↕  HTTP（带 X-OpenCLI 头，裸 curl 会 403）
+opencli CLI
+```
+
+```bash
+opencli daemon status       # PID、版本、运行时长、内存、端口、扩展连接状态
+opencli daemon restart      # 会断开扩展，扩展应自动重连
+opencli profile list        # 已连接的 Chrome profile
+opencli browser sessions    # 当前活跃的租约
+```
+
+守护进程的 HTTP 接口要求 `X-OpenCLI` 头，直接 `curl http://127.0.0.1:19825/status`
+会返回 `403 Forbidden: missing X-OpenCLI header`——**这是正常的，不是故障**。
+
+---
+
+## 症状表
+
+| 症状 | 大概率原因 | 修法 |
+|---|---|---|
+| `Extension: not connected` | 扩展没装 / 被禁用 / Chrome 没开 | 装[扩展](https://chromewebstore.google.com/detail/opencli/ildkmabpimmkaediidaifkhjpohdnifk)，确认 Chrome 在跑 |
+| `attach failed: chrome-extension://...` | 别的扩展抢 CDP | 临时禁用 1Password 一类占用 CDP 的扩展 |
+| Daemon 版本比 CLI 老 | 升级后没重启 | `opencli daemon restart` |
+| `unknown command: <你的会话名>` | `--window` 放在了会话名**前面** | 挪到会话名和子命令**之间** |
+| 每条命令都 `session_not_found` | 见下一节 | |
+| 改了扩展源码但行为没变 | Chrome 加载的还是旧构建 | `chrome://extensions` 里手动 reload；**CLI 侧改动重启守护进程即可，扩展侧不会自动生效** |
+| 读回来的页面不是你导航的那个 | 会话撞名 | 先 `opencli browser sessions` 看有没有别人的名字 |
+
+---
+
+## `session_not_found`：先确认你在跑哪个构建
+
+这个错误的正常含义是：**你对一个还不存在的会话执行了不带 URL 的命令**
+（`state`、`eval`、`click`……）。这是一道有意加的护栏，
+挡的是「会话名每次调用都不一样 → 制造一堆孤儿空白标签页」那个坑
+（见 [`session-laws.md`](session-laws.md) 法律 3）。正常修法就是先 `open` 一个 URL。
+
+**但如果挂掉的是 `open` 本身，提示就自相矛盾了**——它叫你去做的正是失败的那件事。
+这时不要照着提示打转，按下面的顺序走。
+
+### 第一步：确认 CLI 是从哪来的
+
+```bash
+opencli --version
+npm ls -g @jackwener/opencli
+```
+
+`npm ls -g` 的输出指向一个**本地路径** → CLI 是从源码 link 过来的，
+**行为等于那个仓库的当前构建**，版本号说明不了什么。
+指向 `node_modules` 里的实体目录 → 跑的是发布版。
+
+**这一步决定后面往哪查，跳过它会浪费一整轮。**
+
+### 情况 A：本地源码构建（我们的 fork）
+
+优先怀疑最近的提交引入了回归。
+
+```bash
+cd <npm ls -g 指出的路径>
+git log --oneline -10
+git status --short
+```
+
+**已验证的一次回归（2026-08-23，我们的 fork）**：护栏用「这条命令带没带 URL」
+来推断「这是不是导航命令」，误杀了三类天生不带 URL 的调用——
+`open` 自己（它先开网络捕获再导航）、`doctor` 的 `evaluate('1 + 1')` 探针、
+以及所有走浏览器的 adapter 租约（`COOKIE` / `INTERCEPT` / `UI`）。
+症状就是 `doctor` 前两行 `[OK]`、Connectivity FAIL，`open` 报 `session_not_found`。
+已在 `af08a636` 修复，护栏收窄到只管 `opencli browser <session>` 这条用户通道。
+
+`git log` 里没有这个提交就 `git pull` 一下；有了还挂，说明是**另一个**回归，
+按同样的思路去看最近改过 `src/browser/`、`src/cli.ts`、`extension/src/` 的提交。
+
+### 情况 B：npm 发布版
+
+上面那段与你无关。按常规的桥接故障查：
+
+1. **扩展的连接是不是幽灵记录**——Chrome 关过、service worker 被回收，
+   守护进程那边的注册还在。**重启 Chrome 或在 `chrome://extensions` reload 扩展**，
+   不是重启守护进程（`doctor` 说它是 OK 的）。
+2. **profile 不匹配**——扩展挂在一个 profile 上，CLI 默认走另一个。
+   `opencli profile list` 看有几个，用显式 profile 再试一次。
+3. **跑着两个守护进程 / 陈旧的 socket 与 pid 文件**——CLI 连 A、扩展连 B。
+   这条专门解释「`daemon restart` 为什么没用」。
+4. **CLI 与扩展版本错配**——升级了一边没升另一边。
+
+每做一步重跑一次 `doctor`，别一次改三样。还不行就 `opencli doctor -v` 看详细，
+用它区分「请求根本没发出去」和「发出去了没人回」。
+
+### 这次事故留下的通用判据
+
+- **`doctor` 前两行绿、第三行红**，说明守护进程和扩展这两个**组件**都活着，
+  坏的是它们之间那条命令路径。重启守护进程通常没用——它正是唯一确认健康的那个。
+- **提示信息在逻辑上自相矛盾时，先确认你在跑哪个构建**，再决定是查代码还是查环境。
+
+## adapter 的自修复入口
+
+```bash
+opencli <site> <command> --trace retain-on-failure 2>trace-error.yaml
+```
+
+失败时 stderr 会多一个 `trace` 块，`summaryPath` 是入口。完整流程见
+[`adapters.md`](adapters.md) 的「修」那一节。
+
+**两个硬停条件**：`AUTH_REQUIRED`（叫用户去登录）和 `BROWSER_CONNECT`（叫用户跑 doctor）
+——这两个都**不要改代码**。
+
+---
+
+## 收工清理
+
+```bash
+opencli browser sessions     # 还有谁活着
+opencli browser cleanup      # 释放全部并关掉它们的标签页——主线专用
+```
+
+**Sub agent 必须在 finally 块或退出前显式 `close` 自己的会话**——崩溃时不会自动回收。
+**但 sub agent 不能跑 `cleanup`**：它释放的是全部租约，会把兄弟 agent 正在用的
+标签页一起关掉，而那些 agent 只会看到自己的页面莫名其妙不见了。
+留下的会话在用户 Chrome 里看起来和别人正在做的活儿一模一样，
+而且下一个任务如果撞上同名，会直接读到这个残留页面。

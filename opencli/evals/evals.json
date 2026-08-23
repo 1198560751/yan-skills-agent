@@ -1,0 +1,26 @@
+{
+  "skill_name": "opencli",
+  "evals": [
+    {
+      "id": 0,
+      "name": "harvest-no-api",
+      "prompt": "我们要从一个第三方 SaaS 的后台里把一张报表拉下来。那个后台必须登录才能看，官方没有 API，客服说要企业版才给。表大概三四千行，我需要每周拉一次做对比。你给我一套可复用的方案，包含脚本骨架，我要能直接落到项目里跑。",
+      "expected_output": "先找站点自己的免费导出按钮（含同名控件/静默下载/SVG 图标/翻页重挂载的坑）；用户已登录的真实浏览器而不是沙箱；会话命名纪律；本地接收端优先于下载目录且端口按项目派生；落盘校验与 manifest；脚本参数化。",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "bridge-broken-diagnosis",
+      "prompt": "opencli 现在全挂了。opencli doctor 打出来 Daemon 那行是 [OK]，Extension 那行也是 [OK]，profile 也列出来了，但第三行 Connectivity 是 [FAIL]，写着 No active session \"__doctor__\". No active sessions. 我随便跑 opencli browser mytest open https://example.com 也报 session_not_found，提示说 Open a URL first with \"opencli browser <session> open <url>\"。daemon restart 试过了没用。这什么情况，怎么修？",
+      "expected_output": "识别出提示自相矛盾（挂掉的正是 open 本身）→ 不是用户用法问题；不要去重装扩展/重启 Chrome 打转；怀疑本地构建/最近提交引入的回归；用 npm ls -g 确认 CLI 是否 link 到本地源码并去看 git log；理解 doctor 只诊断浏览器桥。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "parallel-fanout-plan",
+      "prompt": "我要一次性调研 5 个竞品，每个竞品都要看它的两个后台页面（一个流量总览、一个关键词页）。打算开 5 个 subagent 并行跑。帮我把执行方案写清楚，我怕又出现上次那种情况——agent 说打开成功了，结果读回来的是别人的页面。",
+      "expected_output": "10 个页面就要 10 个会话名（N 页 N 名）；名字描述工作且不硬编码；subagent 继承父环境所以必须给每个显式 --session 或不同后缀；开工前先把会话全开好再进工作循环；--window background；每个 agent 退出前显式 close；不要用 tab new/tab select/open --tab。",
+      "files": []
+    }
+  ]
+}
