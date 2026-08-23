@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、挖需求、找需求、需求挖掘、找方向、找选题、"最近有什么能做的"、"找几个关键词"、"挖个新词的工具站"、"看看有什么游戏站能做"、竞品调研、榜单调研、差评挖掘、反查谁在赚钱、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
 metadata:
-  version: "2.38.1"
+  version: "2.39.0"
 ---
 
 # Rankup 2.0
@@ -109,7 +109,7 @@ opencli browser "$S" eval '(async()=>{ /* fetch(..., {credentials:"include"}) */
 | 脚本 | 干什么 | 什么时候用 |
 |---|---|---|
 | `scripts/seo-webcafe.mjs` | 一个脚本覆盖 seo.web.cafe 全部有后端的工具：`kd` 关键词难度+top9 盘面、`audit` 页面体检、`serp` 排名归因、`backlink` 外链估价、`worth` 网站估值、`history` 域名前世、`chat` 站内 SEO Agent、`referring`/`referringMonth`/`referringSite` Stripe 引荐流量榜（不计配额） | 问「这个词难不难做」「这盘面能不能进」「这条外链值不值」「这域名什么来历」。零配置可跑，匿名 10 次/日 |
-| **`scripts/demand/` 一整组（20 个）** | **需求挖掘取数**：榜单、差评、外包、广告、新词平台、竞品 sitemap、词根库、域名画像。全部零依赖、`--json`/`--out` 统一 | 用户说「找几个关键词」「挖点需求」「最近有什么能做的」时。**先读 [`demand-sources.md`](references/demand-sources.md) 那张源→脚本路由表，不要逐个翻脚本** |
+| **`scripts/demand/` 一整组（20 个）** | **需求挖掘取数**：榜单、差评、外包、广告、新词平台、竞品 sitemap、站群反查、词根库、域名画像。全部零依赖、`--json`/`--out` 统一 | 用户说「找几个关键词」「挖点需求」「最近有什么能做的」时。**先读 [`demand-sources.md`](references/demand-sources.md) 那张源→脚本路由表，不要逐个翻脚本** |
 | `scripts/gt.py` | Google Trends 统一入口：热度对比、地区分布、相关飙升词、每日热搜 | 问「XX 和 YY 哪个更火」「哪个国家有机会」「最近什么在涨」。**默认走浏览器路由，不需要 venv** |
 | `scripts/gt-browser.mjs` | gt 的 OpenCLI 取数层：驱动已登录 Chrome，在 trends.google.com 页面里 fetch Trends 内部 widget 接口 | 一般不直接调，由 `gt.py` 转发。pytrends 的 429 就是靠它绕开的；要它工作先 `opencli doctor` |
 | `scripts/chatbot-drive.browser.js` | 驱动只有网页形态的 AI Chatbot（要登录、按条扣费、**且确实没有 HTTP API**）。**seo.web.cafe 有 HTTP API，用 `seo-webcafe.mjs chat`，不要用这个** | 确认目标聊天工具没有 HTTP API 后才使用 |

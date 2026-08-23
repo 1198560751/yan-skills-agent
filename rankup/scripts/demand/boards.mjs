@@ -1023,9 +1023,13 @@ columbus：
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const source = args._[0];
-  if (args.h || args.help || !source) {
+  const askedForHelp = Boolean(args.h || args.help);
+  if (askedForHelp || !source) {
     console.log(HELP);
-    process.exit(source ? 0 : 1);
+    // 显式 `--help` 是成功，退出码 0；什么都不给才是用法错误，退出码 1。
+    // 原来写成 `source ? 0 : 1`，于是 `boards.mjs --help` 退 1——
+    // 任何 set -e 的批处理或「所有脚本 --help 都要能跑」的自检都会误判成脚本坏了。
+    process.exit(askedForHelp ? 0 : 1);
   }
   const fn = SOURCES[source];
   if (!fn) die(`未知 source「${source}」。可选：${Object.keys(SOURCES).join(", ")}`);
