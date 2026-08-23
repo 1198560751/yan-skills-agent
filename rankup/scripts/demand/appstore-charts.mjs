@@ -29,6 +29,19 @@
  *   - 榜单**不含下载量、收入、价格**。价格/评分要额外走 iTunes Lookup API
  *     （https://itunes.apple.com/lookup?id=...&country=xx），用 --lookup 开启，
  *     Lookup 有软限流（约 20 次/分），脚本按 100 个 id 一批批量查并串行 sleep。
+ *   - **旧版这条路的边界（2026-08-23 实测）**：
+ *     · 深度上限 100。旧版 limit=100 回 99 条，limit=200 回的还是那 99 条，
+ *       limit>=250 直接 HTTP 400（body 是 gzip 二进制，别指望读到人话）。
+ *       新版 v2 limit=100 可用、150/200 一律 500。**两条路都拿不到 Top 200。**
+ *     · 没有任何弃用告示：Apple 自己的品类树接口
+ *       `MZStoreServices.woa/ws/genres?id=36&cc=<cc>` 至今仍在为每个 genre
+ *       下发 `rssUrls`（全部是 itunes.apple.com/<cc>/rss/... 这套旧版 URL），
+ *       说明旧版 RSS 仍是 Apple 现行对外接口，不是残留。用 `--list-genres` 看。
+ *     · genre id 枚举：同一个接口。App Store 根节点 id=36，一级品类 27 个，
+ *       只有 Games(6014) 有 18 个二级子类（7001 Action / 7002 Adventure ...）。
+ *     · 还有一条 `MZStoreServices.woa/ws/charts?cc=<cc>&g=<genre>&name=AppsByRevenue`，
+ *       实测可用但**只回 resultIds 数组、不带任何字段**，且同样卡在 100 条，
+ *       还要再走一次 Lookup 才有名字 —— 相比旧版 RSS 没有增益，脚本没有采用。
  *   - 无官方文档、无正式配额；批量跑多国家时脚本自动 sleep，别把并发拉满。
  *   - country 用两位小写 ISO 码（us / gb / de / jp / cn ...）。
  */
@@ -42,13 +55,20 @@ appstore-charts.mjs — Apple App Store 榜单（付费/免费/畅销，多国�
   node appstore-charts.mjs [选项]
 
 选项:
-  --chart <c>      top-paid | top-free | top-grossing（默认 top-paid）
+  --chart <c>      top-paid | top-free | top-grossing
+                   | top-paid-ipad | top-free-ipad | top-grossing-ipad | top-free-mac
+                   | new | new-free | new-paid（后三个是「最近上架」，忽略 --limit）
+                   （默认 top-paid；只有前两个能走新版 v2 API）
   --country <c>    两位国家码，逗号分隔可多国（默认 us）
-  --limit <n>      每个榜单取多少（默认 50；新版 API 支持 10/25/50/100）
+  --limit <n>      每个榜单取多少（默认 50）
+                   **上限就是 100**：新版 v2 传 150/200 直接 500；
+                   旧版传 200 仍只回 99 条，传 250 起直接 HTTP 400
   --genre <id>     品类 id（会自动切到旧版 RSS）。常用：
                    6007 Productivity / 6002 Utilities / 6000 Business /
                    6017 Education / 6015 Finance / 6012 Lifestyle / 6008 Photo&Video
   --api <a>        v2 | legacy（默认自动选）
+  --list-genres    不取榜单，改为列出该国家全部 genre id（走 Apple 自己的品类树接口），
+                   这是枚举 --genre 可用值的唯一权威做法
   --lookup         额外查价格/评分/品类/更新时间（走 iTunes Lookup API）
   --json / --out <f>
   --help
@@ -62,7 +82,42 @@ const LEGACY_FEED = {
   'top-paid': 'toppaidapplications',
   'top-free': 'topfreeapplications',
   'top-grossing': 'topgrossingapplications',
+  // 2026-08-23 实测同样可用的旧版 feed（新版 v2 一个都没有）：
+  'top-paid-ipad': 'toppaidipadapplications',
+  'top-free-ipad': 'topfreeipadapplications',
+  'top-grossing-ipad': 'topgrossingipadapplications',
+  'top-free-mac': 'topfreemacapps',
+  // new* 三个是「最近上架」，**忽略 limit**，固定回 ~100 条
+  'new': 'newapplications',
+  'new-free': 'newfreeapplications',
+  'new-paid': 'newpaidapplications',
 };
+
+/** Apple 自己的品类树接口：id=36 是 App Store 根节点，返回全部 genre id + 每个 genre
+ *  当前**有效**的 rssUrls / chartUrls 清单（这就是「genre id 怎么枚举」的官方答案）。 */
+const GENRES_WS = 'https://itunes.apple.com/WebObjects/MZStoreServices.woa/ws/genres';
+
+async function listGenres(country) {
+  const d = await getJson(`${GENRES_WS}?id=36&cc=${country}`);
+  const root = d['36'] ?? {};
+  const rows = [];
+  const walk = (node, depth, parent) => {
+    for (const [id, g] of Object.entries(node.subgenres ?? {})) {
+      rows.push({
+        country,
+        genreId: id,
+        name: g.name,
+        depth,
+        parent,
+        url: g.url ?? '',
+        feeds: Object.keys(g.rssUrls ?? {}),
+      });
+      walk(g, depth + 1, g.name);
+    }
+  };
+  walk(root, 1, root.name ?? 'App Store');
+  return rows;
+}
 
 async function v2Chart(country, chart, limit) {
   const url = `https://rss.marketingtools.apple.com/api/v2/${country}/apps/${chart}/${limit}/apps.json`;
@@ -85,7 +140,8 @@ async function legacyChart(country, chart, limit, genre) {
   const g = genre ? `genre=${genre}/` : '';
   const url = `https://itunes.apple.com/${country}/rss/${feed}/limit=${limit}/${g}json`;
   const d = await getJson(url);
-  return (d.feed?.entry ?? []).map((e, i) => ({
+  // new* 三个 feed 忽略 URL 里的 limit，固定回 ~100 条，这里补一刀本地截断
+  return (d.feed?.entry ?? []).slice(0, limit).map((e, i) => ({
     rank: i + 1,
     country,
     chart,
@@ -138,14 +194,30 @@ async function main() {
   const args = parseArgs();
   if (args.help || args.h) { console.log(HELP); return; }
 
+  if (args['list-genres']) {
+    const country = String(args.country ?? 'us').split(',')[0].trim().toLowerCase();
+    const rows = await listGenres(country);
+    emit(rows, args, [
+      { key: 'genreId', label: 'id', max: 7 },
+      { key: 'name', label: '品类', max: 30 },
+      { key: 'parent', label: '父级', max: 20 },
+      { key: 'depth', label: '层', max: 3 },
+    ]);
+    return;
+  }
+
   const chart = String(args.chart ?? 'top-paid');
   if (!LEGACY_FEED[chart]) die(`--chart 只能是 ${Object.keys(LEGACY_FEED).join(' / ')}`);
   const countries = String(args.country ?? 'us').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
   const limit = Number(args.limit ?? 50);
   const genre = args.genre ? String(args.genre) : '';
 
-  let api = args.api ? String(args.api) : (chart === 'top-grossing' || genre ? 'legacy' : 'v2');
-  if (api === 'v2' && chart === 'top-grossing') die('新版 RSS 没有 top-grossing，请用 --api legacy（脚本默认已自动切）');
+  // 新版 v2 只有 top-free / top-paid 两个榜、且不支持 genre；其余一律走旧版
+  const V2_CHARTS = new Set(['top-free', 'top-paid']);
+  let api = args.api ? String(args.api) : (V2_CHARTS.has(chart) && !genre ? 'v2' : 'legacy');
+  if (api === 'v2' && !V2_CHARTS.has(chart)) {
+    die(`新版 RSS 只有 ${[...V2_CHARTS].join(' / ')}，--chart ${chart} 请用 --api legacy（脚本默认已自动切）`);
+  }
 
   const rows = [];
   for (const c of countries) {

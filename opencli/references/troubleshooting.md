@@ -154,3 +154,38 @@ opencli browser cleanup      # 释放全部并关掉它们的标签页——主�
 标签页一起关掉，而那些 agent 只会看到自己的页面莫名其妙不见了。
 留下的会话在用户 Chrome 里看起来和别人正在做的活儿一模一样，
 而且下一个任务如果撞上同名，会直接读到这个残留页面。
+
+## 「TLS 握手被切断」/ `ERR_CONNECTION_CLOSED`：先查 DNS 是不是 fake-IP
+
+**这条能省一整轮，而且它的错误结论特别贵**——很容易被写成「这个站不可达」结案。
+
+已验证事故（2026-08-23）：某站被判定「环境级不可达」——apex 域 TLS 握手直接被切断，
+`www` 全路径 403，连真实 Chrome 都报 `ERR_CONNECTION_CLOSED`，于是结论写成
+「浏览器也救不回来」。**真因是本机 DNS 把它解析到了 `198.18.0.0/15`——
+代理软件（Clash 一类）的 fake-IP 网段。** 那个地址本来就不存在，
+只有走代理的请求才会被翻译回真实目标；某条没走 `HTTPS_PROXY` 的请求直接去连它，
+表现就是握手被切断。
+
+诊断顺序：
+
+```bash
+# 1. 本机解析到哪儿了？落在 198.18.x.x / 198.19.x.x 就是 fake-IP
+dig +short <域名>
+
+# 2. 拿真实记录对照
+curl -s -H 'accept: application/dns-json'   'https://1.1.1.1/dns-query?name=<域名>&type=A'
+
+# 3. 走代理再试一次
+curl -sI --max-time 20 -x "$HTTPS_PROXY" https://<域名>/robots.txt | head -1
+
+# 4. 用真实 Chrome 打开一次
+opencli browser dns-probe --window background open "https://<域名>/"
+opencli browser dns-probe --window background state
+opencli browser dns-probe close
+```
+
+**判据**：第 4 步能打开 → 站点是可达的，前面的失败是我们的请求路径问题；
+只有第 4 步也打不开，才允许写「不可达」。
+
+顺带一条：`robots.txt` 返回 200 而所有 HTML 路径 403 + `cf-mitigated: challenge`，
+这不是「不可达」，是**站点在挡非浏览器客户端**——正是该上真实浏览器的场景。

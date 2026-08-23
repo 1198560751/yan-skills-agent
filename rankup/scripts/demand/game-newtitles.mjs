@@ -48,7 +48,21 @@
  *     不是 JSON；速率限制 4 请求/秒。
  *   - steamdb：https://steamdb.info/ 全站 Cloudflare 托管挑战，curl / fetch 一律 403
  *     （返回 "Just a moment..." 页，2026-08-23 实测 /upcoming/ 与站点根路径均 403）。
- *     所以 --source steamdb 走 OpenCLI 驱动用户本机真实 Chrome（不需要 SteamDB 账号，
+ *   - Steam「全量 app 清单」实测结论（2026-08-23 复测）：
+ *     `api.steampowered.com/ISteamApps/GetAppList/v2/` → 404
+ *     `Method 'GetAppList' not found in interface 'ISteamApps'`；
+ *     `IStoreService/GetAppList/v1/` → 403（要 Steam Web API key）。
+ *     key 的门槛：需要一个已登录的 Steam 账号 + 该账号必须**不是受限账号**
+ *     （即累计消费达到 Valve 的解锁门槛）+ 填一个域名并同意 Web API 条款，
+ *     领取页 `steamcommunity.com/dev/apikey` 匿名访问只会拿到登录页。
+ *     免 key 的替代是 `--source steam-applist`（公开镜像快照，**有滞后**）。
+ *   - `store.steampowered.com/feeds/newreleases.xml` 看着像「新品 RSS」，其实是
+ *     人工策展的 "Now Available" 新闻，实测 30 条里最新一条是几周前、最老到 2020 年，
+ *     **不能当新品清单用**。
+ *   - steamspy.com/api.php 整站在 Cloudflare 挑战后面，任何 UA 都 403 + "Just a moment"，
+ *     纯 HTTP 拿不到；要用得走真浏览器。
+ *   - search 端点 `count` 的真实上限是 **100**：传 200 也只回 100 行，脚本按 100 分页。
+ * *     所以 --source steamdb 走 OpenCLI 驱动用户本机真实 Chrome（不需要 SteamDB 账号，
  *     只是需要真浏览器过挑战）。列名随页面变（/upcoming/ 是 Name/%/Price/Rating/
  *     Release/Follows/7d Gain），脚本按表头名映射，换页面就换字段。
  *     价格按浏览器所在区服显示，不是美元。
@@ -71,7 +85,7 @@ const UA =
 const HELP = `game-newtitles.mjs — 新游戏标题批量取数（新游戏 = 新词 = 新需求）
 
 用法:
-  node game-newtitles.mjs --source <steam|itch|poki|igdb|steamdb> [选项]
+  node game-newtitles.mjs --source <steam|steam-featured|steam-applist|itch|poki|igdb|steamdb> [选项]
 
 通用:
   --count <n>        拉多少条            (默认 30)
@@ -91,6 +105,16 @@ steam:
   --lang <l>         语言                (默认 english)
   --details          对每条调 appdetails 补 type/genres/release (慢，有限流)
   --only-games       配合 --details，过滤掉 DLC / 原声带 / 软件
+
+steam-featured (Valve 自己排的策展榜，一次请求四组):
+  --bucket <b>       coming_soon | new_releases | top_sellers | specials
+                     逗号分隔可多组，不传则四组全要
+  --cc / --lang      同 steam
+
+steam-applist (全量 appid↔名称快照，GetAppList 下线后的替代):
+  --term <q>         只保留名字里含该词的（本地过滤）
+  --applist-url <u>  换一个镜像 URL
+                     ⚠️ 是快照不是实时，不能当「最近上架」用
 
 itch:
   --path <p>         列表路径            (默认 /games/newest)
@@ -162,6 +186,8 @@ function parseArgs(argv) {
       case '--tile-list': o.tileList = next(); break;
       case '--days': o.days = Number(next()); break;
       case '--platform': o.platform = next(); break;
+      case '--bucket': o.bucket = next(); break;
+      case '--applist-url': o.applistUrl = next(); break;
       case '--sdb-path': o.sdbPath = next(); break;
       case '--session': o.session = next(); break;
       case '--keep-open': o.keepOpen = true; break;
@@ -259,19 +285,95 @@ function normDate(s) {
   return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 }
 
+// ---------- steam-featured（Steam 官方策展榜，不是搜索结果） ----------
+// store.steampowered.com/api/featuredcategories 一次请求给回 6 个策展分组：
+//   coming_soon / new_releases / top_sellers / specials（另有若干横幅位）。
+// 和 --source steam（search 端点）的区别：这里是 Valve 自己排的序，
+// 「即将发售」和「新品」两块的口径比 sort_by=Released_DESC 干净（不含 DLC / 原声带堆量），
+// 但每组只有 10~30 条，要深翻仍然得回 --source steam。
+const STEAM_FEATURED_BUCKETS = ['coming_soon', 'new_releases', 'top_sellers', 'specials'];
+
+async function sourceSteamFeatured(o) {
+  const buckets = (o.bucket ? String(o.bucket).split(',') : STEAM_FEATURED_BUCKETS)
+    .map((s) => s.trim()).filter(Boolean);
+  const bad = buckets.filter((b) => !STEAM_FEATURED_BUCKETS.includes(b));
+  if (bad.length) throw new Error(`未知 --bucket ${bad.join(',')}；可选：${STEAM_FEATURED_BUCKETS.join(' / ')}`);
+
+  const res = await get(`https://store.steampowered.com/api/featuredcategories?cc=${o.cc}&l=${o.lang}`);
+  const data = await res.json();
+  const out = [];
+  for (const b of buckets) {
+    const items = data?.[b]?.items ?? [];
+    items.forEach((it, i) => {
+      const appid = it.id ?? it.appid;
+      out.push(rec('steam-featured', it.name, `https://store.steampowered.com/app/${appid}/`, {
+        appid,
+        bucket: b,
+        rankInBucket: i + 1,
+        discountPercent: it.discount_percent ?? null,
+        finalPrice: typeof it.final_price === 'number' ? it.final_price / 100 : null,
+        currency: it.currency ?? null,
+        // coming_soon 里这个字段是发售日的 unix 秒；其它组通常没有
+        releaseUnix: it.discount_expiration ?? null,
+      }));
+    });
+  }
+  return out.slice(0, o.count);
+}
+
+// ---------- steam-applist（全量 appid ↔ 名称，GetAppList 的替代） ----------
+// api.steampowered.com/ISteamApps/GetAppList/v2 已下线，IStoreService/GetAppList/v1 要 API key。
+// 唯一实测可用的免 key 全量表是 SteamCMD-AppID-List 这个公开镜像（~14MB JSON）。
+// **它是快照，不是实时的**：实测最大 appid 明显落后于 Steam 现网，只适合做
+// 「这个 appid 叫什么 / 这个名字有没有被占」的离线查表，不能当「最近上架」用。
+const STEAM_APPLIST_MIRROR =
+  'https://raw.githubusercontent.com/dgibbs64/SteamCMD-AppID-List/master/steamcmd_appid.json';
+
+async function sourceSteamApplist(o) {
+  const res = await get(o.applistUrl || STEAM_APPLIST_MIRROR);
+  const data = await res.json();
+  let apps = data?.applist?.apps ?? [];
+  if (o.term) {
+    const q = String(o.term).toLowerCase();
+    apps = apps.filter((a) => String(a.name || '').toLowerCase().includes(q));
+  }
+  // appid 越大越新，倒序更接近「近期」
+  apps = apps.slice().sort((a, b) => b.appid - a.appid);
+  return apps.slice(0, o.count).map((a) =>
+    rec('steam-applist', a.name, `https://store.steampowered.com/app/${a.appid}/`, {
+      appid: a.appid,
+      snapshot: true,
+    }));
+}
+
 // ---------- itch ----------
 function parseItchCells(html) {
+  // 2026-08-23 修：itch 把 <a> 的属性顺序换成了 href 在前、class 在后，
+  // 原来那条要求 `<a class="title game_link" ... href=` 的正则于是一条都匹配不上，
+  // 而失败形态是「返回 0 条」而不是报错——静默的空结果，最难自查。
+  // 现在改成先按 data-game_id 切块，再在块内按属性名各自取值，不依赖属性顺序。
   const out = [];
-  const re = /data-game_id="(\d+)"[\s\S]*?<a class="title game_link"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>([\s\S]*?)<div class="game_author">[\s\S]*?>([\s\S]*?)<\/a>/g;
-  let m;
-  while ((m = re.exec(html)) !== null) {
-    const tail = m[4];
-    const price = /<div class="price_value">([^<]*)<\/div>/.exec(tail)?.[1] ?? null;
-    const desc = /<div class="game_text">([\s\S]*?)<\/div>/.exec(tail)?.[1] ?? null;
+  const chunks = html.split(/<div[^>]*data-game_id="(\d+)"/).slice(1);
+  for (let i = 0; i + 1 < chunks.length; i += 2) {
+    const gameId = Number(chunks[i]);
+    const cell = chunks[i + 1];
+    const titleBlock = /<div class="game_title">([\s\S]*?)<\/div>/.exec(cell)?.[1] ?? '';
+    const titleA = /<a\b([^>]*)>([\s\S]*?)<\/a>/.exec(titleBlock);
+    if (!titleA) continue;
+    const url = /href="([^"]+)"/.exec(titleA[1])?.[1] ?? null;
+    const name = strip(titleA[2]);
+    if (!url || !name) continue;
+    const authorBlock = /<div class="game_author">([\s\S]*?)<\/div>/.exec(cell)?.[1] ?? '';
+    const author = strip(/<a\b[^>]*>([\s\S]*?)<\/a>/.exec(authorBlock)?.[1] ?? '') || null;
+    const price = /<div class="price_value">([^<]*)<\/div>/.exec(cell)?.[1] ?? null;
+    const desc = /<div class="game_text">([\s\S]*?)<\/div>/.exec(cell)?.[1] ?? null;
+    const genre = strip(/<div class="game_genre">([\s\S]*?)<\/div>/.exec(cell)?.[1] ?? '') || null;
+    const platform = strip(/<div class="game_platform">([\s\S]*?)<\/div>/.exec(cell)?.[1] ?? '') || null;
     out.push({
-      gameId: Number(m[1]), url: m[2], name: strip(m[3]),
-      author: strip(m[5]), price: price ? decode(price) : null,
+      gameId, url, name, author,
+      price: price ? decode(price) : null,
       summary: desc ? strip(desc) : null,
+      genre, platform,
     });
   }
   return out;
@@ -288,7 +390,8 @@ async function sourceItch(o) {
     for (const c of parseItchCells(html)) {
       // itch 也有 genre 字段，抓不到就算了
       out.push(rec('itch.io', c.name, c.url,
-        { gameId: c.gameId, author: c.author, price: c.price, summary: c.summary }));
+        { gameId: c.gameId, author: c.author, price: c.price, summary: c.summary,
+          genre: c.genre, platform: c.platform }));
       if (out.length >= o.count) break;
     }
     await sleep(o.sleep);
@@ -452,7 +555,9 @@ async function main() {
   if (o.help || !o.source) { console.log(HELP); if (!o.source && !o.help) process.exit(2); return; }
 
   const fn = {
-    steam: sourceSteam, itch: sourceItch, poki: sourcePoki,
+    steam: sourceSteam, 'steam-featured': sourceSteamFeatured,
+    'steam-applist': sourceSteamApplist,
+    itch: sourceItch, poki: sourcePoki,
     igdb: sourceIgdb, steamdb: sourceSteamdb,
   }[o.source];
   if (!fn) { console.error(`未知 --source ${o.source}\n${HELP}`); process.exit(2); }

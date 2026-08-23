@@ -49,8 +49,21 @@ node scripts/demand/boards.mjs traffic-cv --json \
 | Stripe 引荐流量榜 | 域名、送往 Stripe 的月引荐量、名次、份额、环比、是否新进榜，**31 个月历史** | 公开 GET ×3，**不计配额** | 否 | `scripts/demand/stripe-referring.mjs`（含派生指标）；原始端点在 `scripts/seo-webcafe.mjs referring` / `referringMonth --m YYYYMM` / `referringSite --domain` |
 | traffic.cv 流量榜/收入榜 | 名次、域名、月访问量与环比、Stripe 结账量、**域名注册时间**、TopKeywords | 纯 HTTP（解析 Next.js RSC flight） | 否 | `scripts/demand/boards.mjs traffic-cv` |
 | TrustMRR | MRR、30 天营收、总营收、增速、每访客收入（Stripe 实连） | 纯 HTTP，首页一次带回 5 个榜各 100 条 | 否 | `scripts/demand/boards.mjs trustmrr` |
-| Apple App Store 榜单 | 名次、App 名、开发者；`--lookup` 补价格/评分/评分数/品类 | 公开 RSS JSON | 否 | `scripts/demand/appstore-charts.mjs` |
-| Google Play | 包名、App 名、评分、安装量区间 | 公开 HTML（脆） | 否 | `scripts/demand/gplay-charts.mjs` |
+| Apple App Store 榜单 | 名次、App 名、开发者；`--lookup` 补价格/评分/评分数/品类。**`--list-genres` 枚举全部品类 id** | 公开 RSS JSON（脚本自动选新旧两套） | 否 | `scripts/demand/appstore-charts.mjs` |
+| Google Play **真榜单** | **名次 + 名次涨跌**、评分、总安装、近 30 天安装估算，分国家分品类 | 纯 HTTP，**改从第三方榜单站取**（Google 侧走不通，见下） | 否 | `scripts/demand/gplay-charts.mjs --ranking top_free\|top_paid\|top_grossing\|top_new_free\|top_new_paid` |
+| Google Play 商店页 | 包名、App 名、评分、安装量区间（**无名次**） | 公开 HTML（脆） | 否 | `scripts/demand/gplay-charts.mjs`（默认模式） |
+
+### 收入数字该信谁
+
+三个源给的「收入」不是一回事，**只有一个能当数字用**：
+
+| 源 | 口径 | 怎么用 |
+|---|---|---|
+| TrustMRR | **Stripe 实连**的 MRR / 营收 | 唯一能当数字用的 |
+| traffic.cv | 流量榜 + 自有 revenue 榜 | 定性信号 |
+| Toolify | 检测到支付平台 + 按访问量排 | 只能说明「这站在收钱」 |
+
+三家的域名集合几乎不相交，所以它们是**互补的候选池**，不是互相校验的三份证据。
 
 ### 派生指标：到达付费页比例
 
@@ -81,9 +94,14 @@ node scripts/demand/boards.mjs traffic-cv --json \
 
 | 坑 | 实测 |
 |---|---|
-| **Apple 新版 RSS 没有畅销榜** | `top-grossing` 直接 404，也不支持 genre 段；`limit=200` 返回 HTTP 500。要 grossing/分类得走旧版 `itunes.apple.com/rss`，且**必须跟随 302** |
-| **Google Play 拿不到真榜单** | 老榜单 URL 回 200/925KB，正文里一条 `details?id=` 都没有，全靠前端 RPC。品类页/搜索页能解析，但 `position` 只是**版面顺序不是名次**，脚本已标注，别当名次用 |
-| **Toolify 的「收入榜」不给收入** | 真实 URL 是 `/Best-AI-Tools-revenue`，实为「检测到支付平台的 AI 工具」按月访问量排序。有价值的字段是它标出的支付平台 |
+| **Apple 新版 RSS 没有畅销榜** | `top-grossing` 直接 404，也不支持 genre 段。要 grossing/分类得走旧版 `itunes.apple.com/rss`，且**必须跟随 302**。旧版**没有弃用告示**（Apple 自己的 genres 接口至今仍在下发这套 URL），是当前最优路 |
+| **两套 RSS 的深度硬上限都是 100** | 旧版 250 起 400，新版 150 起 500——**Top 200 拿不到**。`ws/charts` 那条路只回 resultIds 且同样卡 100，无增益 |
+| **Google 侧的真榜单彻底走不通**（2026-08-23 穷举过） | `/store/apps/top` 302；Android UA 拿到的是推荐位不是榜单；`apps_mini_top_charts` cluster 在首屏 HTML 里只是 630 字节空壳；**注入 XHR/fetch 钩子后点 tab、滚屏，一次 batchexecute 都不发、DOM 恒为空**（钩子本身有效——站内 SPA 跳转时成功截到品类页分页 RPC）。**真名次改从第三方榜单站取**，见上表 |
+| 第三方榜单站的两个坑 | 约 **7 次连续请求后 429**；分品类页比总榜**少一列**（脚本已改成从末尾倒着数） |
+| **Google Play 商店页的 `position` 不是名次** | 只是版面顺序，脚本已标注。要名次必须用 `--ranking` |
+| **Toolify 的「收入榜」不给收入** | 真实 URL 是 `/Best-AI-Tools-revenue`，实为「检测到支付平台的 AI 工具」按月访问量排序（站方文案自己承认这个口径）。逐个核过 `__NUXT__` 全字段，匹配 `rev\|mrr\|arr\|income` 的只有评论数与评分。有价值的字段是它标出的**支付平台** |
+| **Toolify 与 traffic.cv 用的是同一份上游数据** | 实测五个域名在两家的访问量**逐位相同**（如 197,235,347 ↔ 197.24M）。**拿这两家互相「交叉验证」等于自证**，不构成任何验证 |
+| **TrustMRR 的 `revenuePerVisitor` 分母不是站点流量** | 反推某站得到 9 个访客，而它在流量榜上是 73.45K。**不能当流量归一化指标用** |
 | **TrustMRR 榜单里 `website` 恒为 null** | 域名要再打 `/startup/<slug>` 才有，故 `--resolve-domains` 默认关 |
 
 ---
@@ -210,8 +228,8 @@ Wish it could…       I love this extension, but…   ← 最值钱的一句
 | Hacker News | Show HN 新产品、Ask HN 痛点原话、分数/评论数/评论全文 | 公开 JSON API（Algolia） | 否 | `scripts/demand/hn-signals.mjs` |
 | GitHub Trending | **期内新增 star（升温速度）**、仓库/简介/语言；`--issues` 挖产品化机会 | 公开 HTML（`/trending`） | 否 | `scripts/demand/github-trending.mjs` |
 | GitHub Search | 累计 star、创建/push 时间、topics、open issue 正文 | 公开 JSON API | 否（给 token 配额高 80 倍） | `scripts/demand/github-trending.mjs --source search` |
-| GitHub SKILL.md 反查 | 别人沉淀的 skill 名 + description（= 反复出现的真实需求） | JSON API，**code search 必须 token**；无 token 退到 repo search | code search 需 token | `scripts/demand/github-skill-search.mjs` |
-| There's An AI For That | —— | **取不到** | —— | `boards.mjs taaft`（明确报错，不编数据） |
+| GitHub SKILL.md 反查 | 别人沉淀的 skill 名 + description（= 反复出现的真实需求） | JSON API。**要「最近更新」用 `--mode recent`**：repo search `pushed:>` + Git Trees（一次请求拿全仓库文件清单，实测 34,019 节点 / 286 个 SKILL.md，**且不吃 code search 10 次/分的配额**） | code search 需 token | `scripts/demand/github-skill-search.mjs --mode recent\|repo\|code` |
+| There's An AI For That `/new/` | 工具名、**未经跳转的真实官网**、saves / views / 评分 / 定价，一页 205 条 | OpenCLI 真实 Chrome（纯 HTTP 全路径 CF 403） | 否，但要真实浏览器 | `scripts/demand/boards.mjs taaft --board new` |
 
 ### 关键字段：Product Hunt 的产品真实外链
 
@@ -226,10 +244,10 @@ node scripts/demand/boards.mjs producthunt --date 2026-08-22 --resolve-urls --js
 
 | 坑 | 实测 |
 |---|---|
-| **现成的 `opencli producthunt` adapter 是坏的** | `hot` 报 `No network capture within 5s`；`today` 只回 1 条且无名次无票数。用本节的脚本，不要用它 |
+| ~~现成的 `opencli producthunt` adapter 是坏的~~ **（2026-08-23 已修）** | 根因：`hot`/`browse` 装了网络拦截器等 XHR，但 **PH 是服务端渲染，导航后根本不会再发匹配的请求**，捕获必然超时——而超时发生在那段本来正确的 DOM 抓取之前；`today`/`posts` 的 Atom feed **按 `<updated>` 而非 `<published>` 排**，50 条横跨 17 个上线日。改为读页面自己 hydrate 的 Apollo store，四条命令均已出数 |
 | **PH Atom feed 不能替代榜单** | `/feed` 返回 200 但**无名次无票数**，默认按分类混排、日期跨周 |
-| **TAAFT 环境级不可达** | apex 域 TLS 握手被切断；www 全路径 CF 质询 403；真实 Chrome 直连 `ERR_CONNECTION_CLOSED`。**浏览器救不回来** |
-| **GitHub code search 限流 10 次/分** | 且 `sort=indexed` 已废弃并被**静默忽略**——你以为按时间排了，其实没有 |
+| ~~TAAFT 环境级不可达~~ **（2026-08-23 翻案，原判定是错的）** | 「TLS 握手被切断」的真因是**本机 DNS 把它解到了代理的 fake-IP 网段**，某条请求没走代理去连了个不存在的地址。DoH 查到的是正常记录。真实情况是**站点挡非浏览器客户端**（HTML 全 403 + `cf-mitigated: challenge`，只有 `robots.txt` 漏过），**真实 Chrome 一次就打开了**。诊断顺序见 `opencli` Skill 的 troubleshooting |
+| **GitHub code search 限流 10 次/分** | 且 `sort=indexed` 已废弃并被**静默忽略**——带与不带前 5 条 repo+path 逐条相同，不报错也不 422。走不通的替代都试过了：GraphQL **没有 CODE 这个枚举值**、`/search/code` 没有开排序的参数或 header、Events API 的 PushEvent payload **只有 commit message 没有文件路径**。能用的是 `--mode recent` |
 | **HN 不要用 Firebase API** | 它只回 id 数组，不能按关键词/时间过滤，捞最近 N 天要几百次请求。用 Algolia |
 | **Toolify `/new` 没有提交日期字段** | 想按「最近新增」筛只能靠列表顺序 |
 
@@ -271,7 +289,12 @@ node scripts/demand/boards.mjs producthunt --date 2026-08-22 --resolve-urls --js
 |---|---|---|---|---|
 | Reddit 许愿句式 | 标题（可直接当选题）、正文、子版、作者、时间 | RSS（零配置但限流狠）/ OAuth（CI 推荐）/ pullpush（兜底） | 否（CI 建议配 OAuth app） | `scripts/demand/reddit-wishes.mjs` |
 | Hacker News 评论 | Ask HN 下的整棵评论树 | 公开 JSON API | 否 | `scripts/demand/hn-signals.mjs --comments` |
+| **TAAFT 许愿区 `/requests/`** | **用户直接写下来的「我想要一个能做 X 的 AI」+ 票数 + 回答数**，实测 1,526 条 | OpenCLI 真实 Chrome | 否，但要真实浏览器 | `scripts/demand/boards.mjs taaft --board requests`（`--board requests-most-voted` 按票数排） |
 | Google SERP（许愿句式限站搜） | organic 前十 + relatedSearches + peopleAlsoAsk | serper.dev API | 需 `SERPER_API_KEY` | `scripts/demand/serp-query.mjs` |
+
+**本节信号密度最高的是 TAAFT 许愿区**：别的源要你从吐槽里推断需求，
+它是用户自己写好的一句需求 + 一个票数。**票数就是现成的排序**，
+不需要你再去猜哪条更值钱。
 
 ### 句式模板
 

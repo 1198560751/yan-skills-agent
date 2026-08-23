@@ -14,8 +14,14 @@
  *   node scripts/demand/reddit-wishes.mjs --topic "invoice" --time month --json --out wishes.jsonl
  *   node scripts/demand/reddit-wishes.mjs --source pullpush --template "alternative to" --limit 50
  *
- * 依赖 / 三条取数路径（--source 切换，默认 auto 依次降级）：
- *   1) rss（零配置，默认）：https://www.reddit.com/search/.rss?q=... 与
+ * 依赖 / 四条取数路径（--source 切换，默认 auto 依次降级）：
+ *   0) opencli（**推荐，2026-08-23 新增，auto 链第一站**）：`opencli reddit search`。
+ *      走用户本机已登录的真实 Chrome（adapter strategy=cookie），
+ *      **不用注册 OAuth app、不吃匿名限流**，直接给 score / comments / selftext 全字段。
+ *      代价：需要 `opencli doctor` 绿 + 本机 Chrome 已登录 Reddit，进不了 CI；
+ *      一次查询实测 ~13s（比 oauth 慢，比 rss 的 6s sleep 快）。
+ *      `--no-opencli` 可在 auto 链里跳过它。
+ *   1) rss（零配置，纯 HTTP 默认）：https://www.reddit.com/search/.rss?q=... 与
  *      https://www.reddit.com/r/<sub>/search/.rss?...
  *      **必须带浏览器 User-Agent**，脚本已内置；自定义 UA 想覆盖用 --ua。
  *   2) oauth（推荐用于 CI）：Reddit script app 的 client_credentials。
@@ -35,14 +41,34 @@
  *     429 时指数退避重试。想快就配 OAuth。
  *   - RSS 路径**拿不到 score / 评论数 / upvote ratio**（Atom feed 里没有这些字段），
  *     只有标题、作者、子版、正文 HTML、链接、时间。要排序打分必须走 oauth。
- *   - `old.reddit.com` 的 .rss 会 302 到 www，不要直接用。
+ *   - `old.reddit.com` **整站已经不再返回老界面**：2026-08-23 实测
+ *     `old.reddit.com/r/<sub>/new/.json` 和 `.rss` 都回 HTTP 200 + 320KB 的
+ *     新版 "Welcome to Reddit" 拦截页（`text/html`），既不是 JSON 也不是 Atom，
+ *     里面一条 `data-fullname="t3_` 都没有。**old.reddit 这条路彻底没了。**
+ *   - `np.reddit.com` 和 `oauth.reddit.com`（不带 Bearer）一律 403 + 189KB HTML。
+ *   - redlib / libreddit 公开实例前面挂了 Anubis 工作量证明（"Verifying your browser…"），
+ *     纯 HTTP 拿到的是挑战页；实例清单在
+ *     raw.githubusercontent.com/redlib-org/redlib-instances/main/instances.json（每日更新），
+ *     但实测 6 个实例里 2 个 403 挑战、1 个 503、3 个连不上。**不要依赖镜像。**
  *   - Reddit 搜索里引号短语匹配是「尽力而为」，会返回近似结果；脚本默认对标题+正文
  *     再做一次本地句式过滤（--no-strict 关掉）。
  *   - `--time` 只有 hour/day/week/month/year/all 六个值。
  *   - 别把并发拉满，Reddit 会按 IP 封一段时间。
  */
 
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { parseArgs, get, getJson, emit, die, sleep, readToken, asList } from './_lib.mjs';
+
+const execFileP = promisify(execFile);
+
+/** opencli 是否可用（reddit adapter 走 cookie 策略，需要浏览器桥绿） */
+async function opencliReady(bin) {
+  try {
+    const { stdout } = await execFileP(bin, ['doctor'], { timeout: 30000 });
+    return /Everything looks good/i.test(stdout);
+  } catch { return false; }
+}
 
 const DEFAULT_TEMPLATES = [
   'is there a tool that',
@@ -71,7 +97,9 @@ reddit-wishes.mjs — 用「许愿句式」在 Reddit 捞用户原话
   --time <t>         hour|day|week|month|year|all（默认 year）
   --sort <s>         new|relevance|top|comments（默认 new）
   --limit <n>        总共最多返回多少条（默认 40）
-  --source <s>       auto|rss|oauth|pullpush（默认 auto）
+  --source <s>       auto|opencli|rss|oauth|pullpush（默认 auto）
+  --no-opencli       auto 链里跳过 opencli 这一站
+  --opencli-bin <p>  opencli 可执行文件路径（默认 opencli）
   --no-strict        不做本地句式二次过滤
   --delay <ms>       每次请求之间的间隔（默认 6000，rss 路径限流很紧）
   --ua <ua>          自定义 User-Agent
@@ -83,7 +111,7 @@ ${DEFAULT_TEMPLATES.map((s) => `  "${s}"`).join('\n')}
 
 产出字段:
   template, subreddit, title, author, url, permalink, createdAt, text,
-  score/numComments（仅 --source oauth）
+  score/numComments（--source oauth / opencli / pullpush）
 `.trim();
 
 
@@ -210,6 +238,34 @@ async function viaPullpush({ query, subreddit, limit, template, ua }) {
   }));
 }
 
+/* ---------- 路径 4：OpenCLI reddit adapter（推荐，2026-08-23 新增） ----------
+ * 走用户本机那个真实的、已登录的 Chrome 里的 reddit 会话（strategy=cookie），
+ * 所以既不用注册 OAuth app，也不吃匿名 RSS 那套限流。
+ * 一次查询实测 ~13s，返回 score / comments / selftext 全字段。
+ * 纪律：命令必须带 `--window background`，绝不用 foreground，绝不跑 `browser cleanup`。
+ */
+async function viaOpencli({ query, subreddit, time, sort, limit, template, bin }) {
+  const args = ['reddit', 'search', query, '--window', 'background', '-f', 'json',
+    '--sort', sort, '--time', time, '--limit', String(Math.min(100, limit))];
+  if (subreddit) args.push('--subreddit', subreddit);
+  const { stdout } = await execFileP(bin, args, { maxBuffer: 64 * 1024 * 1024 });
+  const start = stdout.indexOf('[');
+  if (start === -1) throw new Error(`opencli 没有返回 JSON 数组：${stdout.slice(0, 200)}`);
+  const list = JSON.parse(stdout.slice(start));
+  return list.map((p) => ({
+    template,
+    subreddit: String(p.subreddit ?? '').replace(/^r\//, ''),
+    title: p.title ?? '',
+    author: p.author ?? '',
+    url: p.url ?? '',
+    permalink: String(p.url ?? '').split('?')[0],
+    createdAt: p.created_utc ? new Date(p.created_utc * 1000).toISOString() : '',
+    score: p.score,
+    numComments: p.comments,
+    text: String(p.selftext ?? '').replace(/\s+/g, ' ').trim().slice(0, 900),
+  }));
+}
+
 /* ---------- main ---------- */
 
 async function main() {
@@ -228,9 +284,18 @@ async function main() {
   const topic = args.topic ? String(args.topic) : '';
 
   let source = String(args.source ?? 'auto');
+  const bin = String(args['opencli-bin'] ?? 'opencli');
   let token = null;
   const id = readToken('REDDIT_CLIENT_ID');
   const secret = readToken('REDDIT_CLIENT_SECRET');
+
+  // auto 链第一站：OpenCLI reddit adapter（要浏览器桥绿）。不可用就静默降级。
+  if (source === 'auto' && !args['no-opencli']) {
+    if (await opencliReady(bin)) source = 'opencli';
+  } else if (source === 'opencli' && !(await opencliReady(bin))) {
+    die('--source opencli 需要 OpenCLI 浏览器桥可用。先跑 `opencli doctor` 看哪一行红了。');
+  }
+
   if ((source === 'auto' || source === 'oauth') && id && secret) {
     try { token = await getOauthToken(id, secret, ua); source = 'oauth'; }
     catch (e) {
@@ -260,7 +325,9 @@ async function main() {
       first = false;
       let batch = [];
       try {
-        if (source === 'oauth') {
+        if (source === 'opencli') {
+          batch = await viaOpencli({ query, subreddit: sub, time, sort, limit, template: tpl, bin });
+        } else if (source === 'oauth') {
           batch = await viaOauth({ query, subreddit: sub, time, sort, limit, token, ua, template: tpl });
         } else if (source === 'pullpush') {
           batch = await viaPullpush({ query, subreddit: sub, limit, template: tpl, ua });
@@ -287,7 +354,7 @@ async function main() {
       + '\n再不行用 --source pullpush（第三方历史镜像，数据有滞后）。');
   }
 
-  emit(rows, args, source === 'oauth' || source === 'pullpush'
+  emit(rows, args, source === 'oauth' || source === 'pullpush' || source === 'opencli'
     ? [
       { key: 'score', label: '赞', max: 5 },
       { key: 'numComments', label: '评', max: 4 },

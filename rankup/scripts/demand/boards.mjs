@@ -12,7 +12,7 @@
  * 子命令（source）：
  *   producthunt   每日新品榜（名次 / 票数 / 上线日期，可解析产品真实外链域名）
  *   toolify       最新收录的 AI 工具 + 「有收入」榜（按月访问量排，带支付平台标记）
- *   taaft         There's An AI For That（**本机网络下取不到**，见下方「已知坑」）
+ *   taaft         There's An AI For That：最新收录的 AI 工具 + 许愿区（requests）
  *   traffic-cv    流量榜 / 收入榜，可按年月与榜单类型参数化
  *   trustmrr      Stripe 实连的 SaaS 收入榜（MRR / 增长 / 流量 / 总营收 / 每访客收入）
  *   columbus      AI 站外链榜（哪些目录站被最多 AI 工具站引用，DR / dofollow / 频次）
@@ -43,18 +43,29 @@
  *   producthunt（浏览器路径）/ toolify（浏览器路径）/ traffic-cv / trustmrr / columbus
  *   都真跑出数。producthunt 的 GraphQL 路径**未验证**（手上没有 token），
  *   代码按官方文档写，首次使用请以浏览器路径的结果为准做交叉核对。
- *   taaft **取不到**：见下。
+ *   taaft（浏览器路径）也真跑出数（工具榜 + 许愿区，两块都验证过）。
  *
  * 已知坑（都踩过）：
- *   - taaft：apex 域直接 TLS 握手被切断（ERR_CONNECTION_CLOSED），www 域返回
- *     Cloudflare `cf-mitigated: challenge` 403。本机 Chrome 走直连也连不上，
- *     curl 走代理只能拿到质询页。结论是**环境级不可达**，不是解析问题。
- *     脚本保留了 taaft 子命令，但它会明确报错而不是编造数据。
+ *   - taaft：**是站点在挡我们，不是环境不可达**（2026-08-23 更正了之前的判断）。
+ *     纯 HTTP 一律 403 + `cf-mitigated: challenge`（/new/ /requests/ /sitemap.xml
+ *     /api/ 全挂，只有 /robots.txt 能过），但 OpenCLI 驱动真实 Chrome 一次就打开了。
+ *     apex 域用 curl 直连时报的「TLS 握手被切断」是本机代理的 fake-IP（198.18.x.x）
+ *     假象，走 HTTPS_PROXY 就正常。判据：DNS 解到 198.18/15 网段 = 本机代理接管，
+ *     此时任何「连不上」的结论都要先换代理路径复验。
+ *   - taaft 只给相对时间（「Released 5mo ago」「25d ago」），没有绝对日期字段。
+ *   - taaft 工具榜一页就出 200 条上下、没有分页；许愿区每页 24 条，用
+ *     /requests/page/<n>/ 翻页，--pages 控制。
  *   - producthunt 的外链是 /r/p/<id> 跳转，纯 HTTP 跟随重定向同样被 CF 挡（403）。
  *     真实域名只能靠浏览器实际跳一次拿 location.href，所以 --resolve-urls 很慢
  *     （每个产品一次导航），默认关闭，用 --resolve-limit 控制条数。
- *   - toolify 的 `Best-AI-Tools-revenue` **不给收入数字**，它是「检测到支付平台的
- *     AI 工具」按月访问量排序，metric 因此是访问量，支付平台放在 extra.paymentPlatform。
+ *   - toolify 的 `Best-AI-Tools-revenue` **不给收入数字**，站方自己的说明就是
+ *     「基于支付平台检测 + 实际月访问量」的推断排名。整个 __NUXT__ 负载里没有任何
+ *     revenue / mrr / arr 字段（2026-08-23 逐字段核过），metric 因此只能是访问量，
+ *     支付平台放在 extra.paymentPlatform。要真收入数字去 trustmrr（Stripe 实连）。
+ *   - **toolify 与 traffic.cv 的访问量是同一份上游数据**：chatgpt.com / claude.ai /
+ *     openai.com / perplexity.ai / spicychat.ai 五个域名在两站的数字逐位相同
+ *     （如 openai.com toolify 197,235,347 ↔ traffic.cv 197.24M）。
+ *     **拿这两家互相「交叉验证」等于自证，没有独立性。**
  *   - toolify /new 没有提交日期字段，顺序即新旧，date 只能记成抓取日。
  *   - trustmrr 榜单本身不带官网域名（website 字段在列表里恒为 null），
  *     必须再打一次 /startup/<slug> 详情页才有，故 --resolve-domains 默认关闭。
@@ -202,7 +213,7 @@ function opencli(args, timeoutMs = 180000) {
 }
 
 function browserEval(session, code) {
-  const out = opencli(["browser", session, "eval", code]);
+  const out = opencli(["browser", session, "--window", "background", "eval", code]);
   const i = out.indexOf("{");
   const j = out.indexOf("[");
   const start = i < 0 ? j : j < 0 ? i : Math.min(i, j);
@@ -231,7 +242,7 @@ function browserOpen(session, url, { waitMs = 25000 } = {}) {
 
 function browserClose(session) {
   try {
-    opencli(["browser", session, "close"], 60000);
+    opencli(["browser", session, "--window", "background", "close"], 60000);
   } catch {
     /* 关不掉不该让整次取数失败，但也别静默到看不见 */
     console.error(`warn: 会话 ${session} 没关干净，手动跑 opencli browser ${session} close`);
@@ -509,9 +520,9 @@ const TOOLIFY_EXTRACT = `(()=>{
   let key = prefer.find(k=>Array.isArray(d[k]) && d[k].length && d[k][0] && d[k][0].website);
   if(!key) key = Object.keys(d).find(k=>Array.isArray(d[k]) && d[k].length && d[k][0] && d[k][0].website);
   if(!key) return {error:"payload 里找不到带 website 的列表，页面结构可能改了"};
-  // 「Payment Platform」（Stripe / Paypal / Paddle）只存在于渲染出来的表格里，
-  // __NUXT__ 负载里没有对应字段（social_media_site_id 是内部枚举，不可靠）。
-  // 所以按 website 单元格文本建一张映射再并回去。
+  // 「Payment Platform」优先从负载里的 t.payment_platform 数组取（2026-08-23 实测
+  // 这个字段确实存在，早期版本误判为「只在 DOM 里」）。渲染出来的表格作为兜底，
+  // 万一字段被改名还能救回来。social_media_site_id 是内部枚举，不可靠，别用。
   const ths=[...document.querySelectorAll("th")].map(x=>x.innerText.trim());
   const payIdx=ths.indexOf("Payment Platform");
   const payBy={};
@@ -528,7 +539,14 @@ const TOOLIFY_EXTRACT = `(()=>{
   return {key, total:d.total, rows: d[key].map(t=>({
     name:t.name||t.website_name, website:t.website, visits:t.month_visited_count,
     handle:t.handle, desc:t.what_is_summary||t.description,
-    payment: payBy[hostOf(t.website)] || null,
+    payment: (Array.isArray(t.payment_platform) && t.payment_platform.length)
+      ? t.payment_platform.join(", ")
+      : (payBy[hostOf(t.website)] || null),
+    traffic: t.traffic ? {
+      topRegion: t.traffic.top_region,
+      growthRate: t.traffic.growth_rate,
+      sources: t.traffic.top_traffic_sources
+    } : null,
     createdAt:t.created_at, isAd:!!t.is_ad,
     categories:(t.categories||[]).map(c=>c.name).slice(0,3)
   }))};
@@ -567,6 +585,7 @@ async function cmdToolify(args) {
             handle: t.handle,
             tagline: t.desc ? String(t.desc).slice(0, 160) : null,
             paymentPlatform: t.payment,
+            traffic: t.traffic,
             categories: t.categories,
             isAd: t.isAd,
             listKey: res.key,
@@ -582,29 +601,146 @@ async function cmdToolify(args) {
 
 /* =================================================================== TAAFT */
 
-async function cmdTaaft(args) {
-  const board = args.board && args.board !== true ? String(args.board) : "new";
-  const paths = { new: "/new/", requests: "/requests/", home: "/" };
-  const path = paths[board] || `/${String(board).replace(/^\/|\/$/g, "")}/`;
-  const url = `https://www.theresanaiforthat.com${path}`;
+/* 「最新收录的 AI 工具」列表页。每个条目是一个 <li class="li">，
+   真正有用的东西全在 data-* 属性上（含未经跳转的真实外链），统计数字在几个
+   有语义的 class 里。 */
+const TAAFT_TOOLS_EXTRACT = `(()=>{
+  const items = [...document.querySelectorAll("li.li")];
+  if(!items.length) return {error:"页面上没有 li.li，选择器改了或者页面还没渲染完"};
+  const txt = (el,sel) => { const e = el.querySelector(sel); return e ? e.innerText.trim() : null; };
+  const numOf = v => v==null ? null : (Number(String(v).replace(/[^0-9.]/g,"")) || null);
+  return {rows: items.map(li => {
+    // 「Released 5mo ago」里的相对时间：站点只给相对值，没有绝对日期
+    let released = null;
+    for(const r of li.querySelectorAll(".relative")){
+      const prev = r.previousElementSibling;
+      if(prev && /released/i.test(prev.innerText||"")){ released = r.innerText.trim(); break; }
+    }
+    return {
+      id: li.getAttribute("data-id"),
+      name: li.getAttribute("data-name"),
+      task: li.getAttribute("data-task"),
+      taskSlug: li.getAttribute("data-task_slug"),
+      rank: li.getAttribute("data-rank"),
+      website: li.getAttribute("data-url"),
+      featured: li.getAttribute("data-featured") === "true",
+      desc: txt(li, ".short_desc"),
+      views: numOf(txt(li, ".stats_views") || txt(li, ".views_count")),
+      saves: numOf(txt(li, ".saves")),
+      rating: numOf(txt(li, ".average_rating")),
+      pricing: txt(li, ".ai_launch_date"),
+      released,
+    };
+  })};
+})()`;
 
-  const r = await httpText(url).catch((e) => ({ status: 0, body: String(e.message) }));
-  if (isCfChallenge(r) || r.status !== 200) {
-    throw new Error(
-      [
-        `取不到 TAAFT（${url} → HTTP ${r.status || "连不上"}）。`,
-        "已实测（2026-08-23）：apex 域 TLS 握手被直接切断，www 域返回 Cloudflare",
-        "托管质询（cf-mitigated: challenge）；本机 Chrome 直连也是 ERR_CONNECTION_CLOSED。",
-        "这是环境级不可达，不是解析问题。可行做法：换一个能直连该站的出口再跑，",
-        "或人工在浏览器里导出。本脚本不编造字段。",
-      ].join("\n")
-    );
+/* 许愿区。每条 .row.request 带票数、回答数、分类、提交人、相对时间。 */
+const TAAFT_REQUESTS_EXTRACT = `(()=>{
+  const rows = [...document.querySelectorAll(".requests_wrap .row.request")];
+  if(!rows.length) return {error:"页面上没有 .requests_wrap .row.request"};
+  const txt = (el,sel) => { const e = el.querySelector(sel); return e ? e.innerText.trim() : null; };
+  const numOf = v => v==null ? null : (Number(String(v).replace(/[^0-9.]/g,"")) || 0);
+  const total = (()=>{ const e=document.querySelector(".requests-pg-hero-card strong"); return e?numOf(e.innerText):null; })();
+  const hasNext = [...document.querySelectorAll("a")].some(a => (a.innerText||"").trim().toLowerCase()==="next");
+  return {total, hasNext, rows: rows.map(r => {
+    const a = r.querySelector("a.request_title");
+    return {
+      id: (r.querySelector("[data-request]")||{}).getAttribute ? r.querySelector("[data-request]").getAttribute("data-request") : null,
+      title: a ? a.innerText.trim() : null,
+      url: a ? a.getAttribute("href") : null,
+      votes: numOf(txt(r, ".votes_count")),
+      answers: numOf(txt(r, ".votes_answers")),
+      type: txt(r, ".request_type"),
+      user: txt(r, ".request_user_link"),
+      age: txt(r, ".launch_date_top"),
+    };
+  })};
+})()`;
+
+const TAAFT_BOARDS = {
+  new: { path: "/new/", kind: "tools" },
+  requests: { path: "/requests/", kind: "requests" },
+  "requests-top": { path: "/requests/most-voted/", kind: "requests" },
+};
+
+async function cmdTaaft(args) {
+  const boardKey = args.board && args.board !== true ? String(args.board) : "new";
+  const spec = TAAFT_BOARDS[boardKey];
+  if (!spec) die(`--board 只认 ${Object.keys(TAAFT_BOARDS).join(" / ")}`);
+  const limit = num(args.limit, 50);
+  const pages = num(args.pages, 1);
+  const session = "demand-b-taaft";
+  const date = today();
+  const rows = [];
+
+  try {
+    if (spec.kind === "tools") {
+      browserOpen(session, `https://theresanaiforthat.com${spec.path}`);
+      const res = browserEval(session, TAAFT_TOOLS_EXTRACT);
+      if (!res || res.error) throw new Error(`taaft 取数失败：${res && res.error}`);
+      for (const t of res.rows) {
+        if (rows.length >= limit) break;
+        if (args.skipAds && t.featured) continue;
+        const url = stripTracking(t.website);
+        rows.push({
+          source: `taaft:${boardKey}`,
+          rank: rows.length + 1,
+          name: t.name,
+          url,
+          domain: hostOf(url),
+          metric: t.saves ?? null,
+          metricLabel: "saves",
+          // 站点只给「5mo ago」这种相对时间，没有绝对收录日期，date 记抓取日
+          date,
+          extra: {
+            id: t.id,
+            task: t.task,
+            taskSlug: t.taskSlug,
+            tagline: t.desc ? String(t.desc).slice(0, 160) : null,
+            views: t.views,
+            rating: t.rating,
+            pricing: t.pricing,
+            releasedAgo: t.released,
+            siteRank: t.rank ? Number(t.rank) : null,
+            featured: t.featured,
+          },
+        });
+      }
+    } else {
+      for (let page = 1; page <= pages && rows.length < limit; page++) {
+        const path = page > 1 ? `${spec.path}page/${page}/` : spec.path;
+        browserOpen(session, `https://theresanaiforthat.com${path}`);
+        const res = browserEval(session, TAAFT_REQUESTS_EXTRACT);
+        if (!res || res.error) throw new Error(`taaft 取数失败：${res && res.error}`);
+        for (const q of res.rows) {
+          if (rows.length >= limit) break;
+          rows.push({
+            source: `taaft:${boardKey}`,
+            rank: rows.length + 1,
+            name: q.title,
+            url: q.url,
+            domain: null, // 许愿条目还没有产品，本来就没有域名
+            metric: q.votes,
+            metricLabel: "request votes",
+            date,
+            extra: {
+              id: q.id,
+              answers: q.answers,
+              type: q.type,
+              user: q.user,
+              postedAgo: q.age ? q.age.replace(/^[\s·]+/, "") : null,
+              visibleRequestsTotal: res.total,
+              page,
+            },
+          });
+        }
+        if (!res.hasNext) break;
+      }
+    }
+  } finally {
+    browserClose(session);
   }
-  // 真到得了的环境里再补解析；此处不写未经验证的选择器。
-  throw new Error(
-    `TAAFT 这次返回了 HTTP 200（${r.body.length} 字节），但本脚本还没有经过验证的解析规则——` +
-      "写验证过的解析器需要先能稳定拿到页面。请把这段 HTML 存下来交给维护者补解析。"
-  );
+  return rows;
 }
 
 /* =============================================================== TRAFFIC.CV */
@@ -813,7 +949,7 @@ const HELP = `boards.mjs —— AI 工具榜单 / 新品发现站统一取数器
 source：
   producthunt   PH 每日新品榜（名次/票数/日期，可解析真实外链域名）
   toolify       Toolify 最新收录 / 有收入榜
-  taaft         There's An AI For That（本机网络不可达，会明确报错）
+  taaft         There's An AI For That 最新收录 + 许愿区
   traffic-cv    traffic.cv 流量榜 / 收入榜
   trustmrr      TrustMRR Stripe 实连收入榜
   columbus      columbus.tools AI 站外链榜
@@ -831,6 +967,14 @@ producthunt：
   --scrolls <n>         榜单页下滑几次以加载更多（默认 2）
   --no-browser          不用浏览器，只用官方 Atom feed 兜底（无名次、无票数）
   token：PRODUCTHUNT_TOKEN（环境变量 → rankup/.env）。有则走官方 GraphQL，无则走浏览器。
+
+taaft（需浏览器；不需要登录账号，只需要一个能过 CF 质询的真实 Chrome）：
+  --board <k>        new | requests | requests-top（默认 new）
+                     new          = 最新收录的 AI 工具（metric = saves）
+                     requests     = 许愿区最新（metric = 票数）
+                     requests-top = 许愿区按票数排（真实需求信号最强的一档）
+  --pages <n>        许愿区翻几页（每页 24 条，默认 1）
+  --skip-ads         工具榜过滤 data-featured 的推广位
 
 toolify：
   --board <k>        new | revenue | trending | most-saved | most-used（默认 new）

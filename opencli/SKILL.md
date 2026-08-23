@@ -153,7 +153,8 @@ UA 不含 `Headless`、`plugins.length` 为 5。
 | `--window foreground`（任何理由） | `--window background` | 实测会把用户的**活动标签页切走**（从第 1 个跳到第 3 个）。注意最前端**应用**不变，所以只查应用焦点的测量看不见它 |
 | 调 adapter 时用前台「方便看页面」 | `--keep-tab true` + `screenshot` / `state` | 调试是高频动作，一轮能打断十几次。标签页留着，用户想看自己切过去 |
 | 只在 `open` 那次带 `--window background` | **每一条命令都带** | 漏带的那条会按默认走，而 adapter 命令的默认与 `browser` 不一定一致 |
-| adapter 命令（`opencli <site> <cmd>`）不带 window 标志 | 一样带 `--window background` | 这类命令也会开标签页，INTERCEPT 策略还会额外开自动化窗口 |
+| adapter 命令（`opencli <site> <cmd>`）不带 window 标志 | `COOKIE` / `INTERCEPT` / `UI` 策略一样带 `--window background` | 这类命令也会开标签页，INTERCEPT 策略还会额外开自动化窗口 |
+| 给 `PUBLIC` / `LOCAL` 命令加 `--window background` | 不加 | 它们不接受这个标志，会报 `unknown option '--window'`；这类命令本来也不开浏览器 |
 | 崩溃后不清理，留下一堆孤儿标签页 | `finally` 里 `close` | 泄漏的会话在用户窗口里就是一堆莫名其妙的标签页，比抢一次焦点更烦 |
 
 **实测（2026-08-23，macOS + Chrome）**：后台模式下 `open` / `eval` / `screenshot` /
@@ -200,14 +201,14 @@ opencli <site> <command> --help    # 位置参数、专属标志、输出列
 **在退回裸 `opencli browser` 之前，先查一下有没有 adapter 已经覆盖了这个工作流。**
 在高频改版的登录站上尤其值得——adapter 里封装过的坑，现场驱动要重踩一遍。
 
-### 通用标志（每个 adapter 命令都有）
+### 通用标志（多数 adapter 命令有，浏览器相关的那几个例外）
 
 | 标志 | 作用 |
 |---|---|
 | `-f, --format <fmt>` | `table`（TTY 默认）· `yaml`（非 TTY 默认）· `json` · `plain` · `md` · `csv`。**agent 基本都要 `-f json`** |
 | `--trace <mode>` | `off`（默认）· `on` · `retain-on-failure`。排障和写 adapter 时用 |
 | `-v, --verbose` | 调试日志 + 失败栈 |
-| `--window <mode>` | `foreground` / `background`。agent 用 background |
+| `--window <mode>` | `foreground` / `background`。agent 用 background。**`PUBLIC` / `LOCAL` 策略的命令不接受它**——加了直接报 `unknown option '--window'`，读起来像装坏了，其实是这类命令根本不开浏览器（实测 342 个 public + 25 个 local 命令）。先看 `strategy` 再决定加不加 |
 | `--site-session <mode>` | `ephemeral`（默认）/ `persistent`，命令结束后是否留着会话标签页 |
 | `--keep-tab <bool>` | 结束后是否保留标签页租约 |
 

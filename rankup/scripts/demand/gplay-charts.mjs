@@ -34,7 +34,22 @@
  *   - 评分是 4.2 这种一位小数；没评分的新 App 该字段为 null。
  *   - --country / --lang 只影响榜单地区化，Google 也会看出口 IP，跨区结果未必准。
  *
- * 替代方案（要真名次/下载量时）：
+ * 要真名次怎么办（2026-08-23 复测后的结论）：
+ *   ✅ **用 `--ranking`**：AppBrain 的公开榜单页，每页 100 名，带名次涨跌 +
+ *      安装量区间 + 近 30 天安装量估算，分国家分品类，纯 HTTP 无登录。
+ *      代价：第三方估算（名次是抓来的，安装量是推算的）；连续请求约 7 次后 429。
+ *   ❌ Google 侧全部走不通，逐条实测过，别再试：
+ *      · `/store/apps/top`（桌面 UA）302 到 `/store/apps`；换 Android UA 回 1.8MB，
+ *        但里面 55 个包名是首页推荐位，不是榜单。
+ *      · `/store/apps/collection/topselling_free` 回 200/926KB，正文 0 条 `details?id=`。
+ *      · 品类页里那个带「Top free / Top grossing / Top paid」三个 tab 的
+ *        `apps_mini_top_charts` cluster，在初始 HTML 的 AF_initDataCallback 里
+ *        **只有一个 630 字节的空壳 + 一个 base64 token**，没有任何 App。
+ *        用 OpenCLI 开真浏览器、按 ads-transparency.mjs 那套注入 XHR/fetch 钩子后
+ *        点这三个 tab、滚到可视区，**既不触发任何 batchexecute，DOM 也始终是空的**
+ *        （`section` 里 0 条 App 链接）。这个 cluster 在桌面 web 上就是死的。
+ *      · 同一套钩子在做站内 SPA 跳转（换品类）时**能**截到
+ *        `rpcids=w3QCWb` / `w37aie`，但那是品类页正文的分页 RPC，不是榜单。
  *   1) Apple 那侧用 appstore-charts.mjs（有官方 RSS，名次可信），把品类结论迁移过来推断；
  *   2) 第三方榜单站（Sensor Tower / data.ai / AppBrain 等）多数要账号，走 OpenCLI 登录态；
  *   3) 单个 App 的详情（安装量区间、更新日志、评论）可以走 --detail <appId>，
@@ -58,6 +73,10 @@ gplay-charts.mjs — Google Play 商店页 App 清单（HTML 解析，非真榜�
   --lang <l>       界面语言（默认 en）
   --limit <n>      最多返回多少（默认 50）
   --min-rating <r> 只保留评分 >= r
+  --ranking <c>    **改为拉真排行榜名次**（走 AppBrain 的公开榜单页，非 Google 官方）
+                   c = top_free | top_paid | top_grossing | top_new_free | top_new_paid
+  --rank-category  --ranking 的品类，小写，如 all / productivity / game / tools
+                   （默认 all）
   --json / --out <f>
   --help
 
@@ -123,6 +142,49 @@ function parseDetail(html, appId) {
   }];
 }
 
+/* ---------- --ranking：AppBrain 的 Google Play 排行榜（真名次） ----------
+ * Google 自己不给榜单名次（见文件头），但 AppBrain 每天抓一份并按名次公开成静态 HTML。
+ * URL 语法：/stats/google-play-rankings/<chart>/<category>/<countryLower>
+ * 2026-08-23 实测：每页固定 100 名，带名次、名次涨跌、包名、开发者、
+ * 安装量区间、近 30 天安装量估算。**这是第三方估算，不是 Google 官方数字**，
+ * 名次可信度高（就是抓 Play 榜单），安装量是模型推算，只能当数量级看。
+ */
+const RANK_CHARTS = ['top_free', 'top_paid', 'top_grossing', 'top_new_free', 'top_new_paid'];
+
+function parseRanking(html, limit) {
+  const ent = (x) => String(x)
+    .replace(/&amp;/g, '&').replace(/&#39;|&#x27;/g, "'").replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#x3D;/g, '=');
+  const txt = (x) => ent(x.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+  const out = [];
+  for (const r of html.split('<tr>').slice(1)) {
+    const rank = (r.match(/ranking-rank"[^>]*>\s*(\d+)/) || [])[1];
+    if (!rank) continue;
+    const link = r.match(/ranking-app-cell"[\s\S]*?<a href="\/app\/[^/"]+\/([^"/]+)"[^>]*>([^<]*)</);
+    if (!link) continue;
+    // 列顺序（2026-08-23）：rank | 涨跌 | icon | App+by开发者 | [品类] | 评分 | 安装量 | 近30天
+    // **品类列只在 --rank-category=all 的总榜上出现**，分品类页少一列，
+    // 所以一律从**末尾**倒着数，不要按下标正着数。
+    const cells = [...r.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => txt(m[1]));
+    const at = (i) => cells[cells.length - i] ?? '';
+    const tail = [cells.length >= 8 ? at(4) : '', at(3), at(2), at(1)];
+    out.push({
+      rank: Number(rank),
+      change: (r.match(/ranking-(up|down|equal|new)/) || [])[1] ?? '',
+      appId: link[1],
+      name: ent(link[2]).trim(),
+      developer: txt((r.match(/ranking-app-cell-creator[\s\S]*?<a href="\/dev\/[^"]*"[^>]*>([^<]*)</) || [])[1] ?? ''),
+      category: tail[0] ?? '',
+      rating: tail[1] ?? '',
+      installs: tail[2] ?? '',
+      recentInstalls: tail[3] ?? '',
+      url: `https://play.google.com/store/apps/details?id=${link[1]}`,
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 async function main() {
   const args = parseArgs();
   if (args.help || args.h) { console.log(HELP); return; }
@@ -134,7 +196,32 @@ async function main() {
   const opts = { ua: BROWSER_UA, headers: { accept: 'text/html' }, timeout: 40000 };
 
   let rows, cols;
-  if (args.detail) {
+  if (args.ranking) {
+    const chart = String(args.ranking === true ? 'top_free' : args.ranking);
+    if (!RANK_CHARTS.includes(chart)) die(`--ranking 只能是 ${RANK_CHARTS.join(' / ')}`);
+    const cat = String(args['rank-category'] ?? 'all').toLowerCase();
+    const url = `https://www.appbrain.com/stats/google-play-rankings/${chart}/${cat}/${country.toLowerCase()}`;
+    const html = await getText(url, opts);
+    rows = parseRanking(html, limit).map((r) => ({ ...r, chart, rankCategory: cat, country }));
+    if (!rows.length) {
+      die([
+        `从 ${url} 一条名次都没解析出来。`,
+        '常见原因：(a) 连着请求太快被限流 —— 实测约 7 次连续请求后开始回 HTTP 429，',
+        '    等几十秒再跑，或用 --sleep 拉开；',
+        '(b) --rank-category 名字不对（用 all / productivity / game / tools ... 小写）；',
+        '(c) AppBrain 改了表格结构（本脚本是 HTML 解析）。',
+      ].join('\n'));
+    }
+    cols = [
+      { key: 'rank', label: '名次', max: 5 },
+      { key: 'change', label: '涨跌', max: 5 },
+      { key: 'name', label: 'App', max: 34 },
+      { key: 'rating', label: '评分', max: 4 },
+      { key: 'installs', label: '总安装', max: 8 },
+      { key: 'recentInstalls', label: '近30天', max: 8 },
+      { key: 'appId', label: '包名', max: 34 },
+    ];
+  } else if (args.detail) {
     const id = String(args.detail);
     const html = await getText(
       `https://play.google.com/store/apps/details?id=${encodeURIComponent(id)}&hl=${lang}&gl=${country}`, opts);
