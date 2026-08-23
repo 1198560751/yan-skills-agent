@@ -846,10 +846,21 @@ months while the #1 site kept its position and lost 87% of its traffic.
 <install>
 Source: [Skills.sh](https://skills.sh/yan-labs/yan-skills)
 <cmd><![CDATA[
+npx skills add yan-labs/yan-skills --skill opencli -g -y    # install this FIRST
 npx skills add yan-labs/yan-skills --skill backlink -g -y   # first install
 npx skills update backlink -g -y                            # update
 ]]></cmd>
 For a project-level install omit `-g`; update with `npx skills update backlink -p -y`.
+
+**`opencli` comes first.** Every browser action in this Skill runs through it, and
+it carries the rules this Skill only summarises.
+
+It also requires the OpenCLI binary **and browser extension** from
+[yan-labs/OpenCLI releases](https://github.com/yan-labs/OpenCLI/releases/latest) —
+**not the Chrome Web Store build**. The store build defaults to foreground: it raises
+a window and steals the tab the person is reading. That failure is silent — commands
+still succeed, only the behaviour is wrong — so `opencli doctor` flags an extension
+older than 1.0.27 explicitly. **When it does, act on it rather than working around it.**
 </install>
 
 </skill>

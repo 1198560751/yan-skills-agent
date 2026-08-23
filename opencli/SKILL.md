@@ -62,6 +62,23 @@ opencli doctor
 `PUBLIC` / `LOCAL` 策略的 adapter、`opencli list`、外部 CLI 透传都不需要它绿。
 `COOKIE` / `INTERCEPT` / `UI` 策略和所有 `opencli browser *` 才需要。
 
+### 行为和这份文档对不上时，第一件事是查扩展版本
+
+**本 Skill 描述的默认行为全部住在扩展里**——后台默认、标签页开在用户当前窗口、
+不切走活动标签页、`--window isolated`、`sessions` 报 windowId。
+装成 Chrome 应用商店那个版本的话，**每条命令都照样成功，只是行为回到上游**：
+默认前台、自己开一个窗口、抢走用户正在看的标签页、`isolated` 被忽略。
+
+**这类失败没有报错，只有「怎么和文档说的不一样」。** 所以：
+
+| 观察到 | 该做什么 |
+|---|---|
+| 命令成功但窗口/焦点行为与本文档不符 | 跑 `opencli doctor`，看 `Extension` 那行的版本 |
+| 版本 < 1.0.27 | **告诉用户他装的是应用商店版**，需要换成 [yan-labs 的 Release](https://github.com/yan-labs/OpenCLI/releases/latest) 里的 zip，并把商店版移除或停用 |
+| `doctor` 自己就报了这条 | 照它说的做——它会打印下载地址和加载步骤 |
+
+`doctor` 会在扩展低于 1.0.27 时主动报这个问题，**不要跳过它的输出**。
+
 红了先看 [`references/troubleshooting.md`](references/troubleshooting.md)。
 排障的第一步永远是 **`npm ls -g @jackwener/opencli` 确认 CLI 是发布版还是本地源码 link**——
 这一步决定后面是查代码还是查环境，跳过它会浪费一整轮。
@@ -376,13 +393,28 @@ npx skills add yan-labs/yan-skills --skill opencli -g -y
 npx skills update opencli -g -y
 ```
 
-OpenCLI 本体：
+OpenCLI 本体分两半，**两半都要装我们的构建**，来源是
+[yan-labs/OpenCLI 的 Release](https://github.com/yan-labs/OpenCLI/releases/latest)：
 
 ```bash
-npm install -g @jackwener/opencli     # 上游版；我们用的是 fork，见 references/our-fork.md
+# 1) CLI
+npm i -g https://github.com/yan-labs/OpenCLI/releases/download/v1.8.6-yan.1/opencli-cli-1.8.6-yan.1.tgz
+
+# 2) 浏览器扩展：下载 opencli-extension-v*.zip 解压，
+#    chrome://extensions → 开启开发者模式 → 加载已解压的扩展程序
+#    ⚠️ 先移除或停用 Chrome 应用商店那个 OpenCLI
+
+# 3) 验证：三行都要 [OK]，Extension 那行的版本 ≥ 1.0.27
 opencli doctor
 ```
 
-扩展装在 Chrome 里（[Chrome Web Store](https://chromewebstore.google.com/detail/opencli/ildkmabpimmkaediidaifkhjpohdnifk)），
+**为什么不能用应用商店那个版本**：本 Skill 描述的默认行为——后台模式默认、
+在用户当前窗口开标签页、不切走活动标签页、`--window isolated`、`sessions` 报 windowId——
+**全都只存在于我们的构建里**。商店版默认是前台，装了它本 Skill 的规则会与实际行为不符。
+两个同时装还会一起连上守护进程互相打架。
+
+差异清单见 [`references/our-fork.md`](references/our-fork.md)。
+
 **改过扩展源码之后必须在 `chrome://extensions` 手动 reload 一次**才生效——
-CLI 侧的改动重启守护进程即可，扩展侧的不会自动生效。
+CLI 侧的改动重启守护进程即可，扩展侧的不会自动生效。**`opencli doctor` 打印的扩展版本
+就是判据**：它显示什么，加载的就是什么。

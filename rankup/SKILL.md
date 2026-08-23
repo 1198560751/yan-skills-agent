@@ -190,6 +190,19 @@ npx skills add yan-labs/yan-skills --skill backlink -g -y
 
 来源：[Skills.sh](https://skills.sh/yan-labs/yan-skills)
 
+**先装 `opencli`。** 本 Skill 里凡是碰浏览器的动作——查数据面板、抓没有 API 的后台表格、
+提交 sitemap、验证站长工具、问哥飞 AI——都落在它那一层：
+
+```bash
+npx skills add yan-labs/yan-skills --skill opencli -g -y
+```
+
+它还要求 OpenCLI 本体（CLI + 浏览器扩展）装**我们的构建**，来源是
+[yan-labs/OpenCLI 的 Release](https://github.com/yan-labs/OpenCLI/releases/latest)，
+**不是 Chrome 应用商店那个版本**——商店版默认前台，会抬窗口、抢走用户正在看的标签页，
+而且这类失败不报错，只表现为「行为和文档不一样」。装法与判据见 `opencli` Skill。
+`opencli doctor` 会在扩展版本过低时主动报这一条，**看到就照它说的做**。
+
 ```bash
 # 全局安装
 npx skills add yan-labs/yan-skills --skill rankup -g -y

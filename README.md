@@ -311,7 +311,9 @@ candidate → qualified → filled → submitted → public → indexed@<engine>
 
 ## `opencli` — 浏览器与取数的底层
 
-版本 `1.0.0`。`rankup` 和 `backlink` 的浏览器动作全部落在这一层，规则集中在这里，那两个 Skill 只留判据和指针。
+版本 `1.0.0`。**用其它 Skill 之前先装它**——`rankup` 和 `backlink` 的浏览器动作全部落在这一层，规则集中在这里，那两个 Skill 只留判据和指针。
+
+配套的 OpenCLI 本体也是我们自己维护的构建（[yan-labs/OpenCLI](https://github.com/yan-labs/OpenCLI)，Apache-2.0），**不要用 Chrome 应用商店那个版本**，理由见[前置依赖](#装-opencli-cli--浏览器扩展)。
 
 它管的是**用户本机那个真实的、已登录的 Chrome**——通过浏览器扩展加一个本地守护进程。这一个事实决定了几乎所有规则：沙箱浏览器没有 cookie，它对需要登录的目标会返回**看起来正常但内容不同**的结果（配额更低、字段更少、国家库不同），而这种失败会伪装成「这个工具没有这项数据」。
 
@@ -363,7 +365,14 @@ Skill 装多了以后，「为什么这个 Skill 没生效」十次里有八次�
 
 ## 安装
 
+**先装 `opencli`。** `rankup` 和 `backlink` 的浏览器动作全部落在它那一层——
+查数据面板、抓没有 API 的后台表格、提交外链、验证站长工具，都要经过它。
+不装它，那两个 Skill 里凡是碰浏览器的部分都跑不起来。
+
 ```bash
+# 0) 先装这个：其余 Skill 的浏览器动作都依赖它
+npx skills add yan-labs/yan-skills --skill opencli -g -y
+
 # 交互式选择要装哪些
 npx skills add yan-labs/yan-skills
 
@@ -379,6 +388,9 @@ npx skills add yan-labs/yan-skills --skill backlink -g -y
 # 更新
 npx skills update rankup -g -y
 ```
+
+Skill 只是给 Agent 的操作规范，**OpenCLI 本体（CLI + 浏览器扩展）要单独装一次**，
+见下面「前置依赖」里的 OpenCLI 一节。
 
 装完之后，直接跟你的 Agent 说人话就行，Skill 会自己被触发：
 
@@ -397,8 +409,39 @@ rankup review
 |---|---|---|
 | Node.js 18+ | 两个 Skill 都要 | 全部脚本的运行时 |
 | Python 3.10+ | `rankup` 的 `gt.py`、`skill-link-check` | 首次运行 `gt.py` 自动建 venv |
-| [OpenCLI](https://github.com/) 及其 Chrome 扩展 | `backlink` 全部浏览器动作 | 复用你自己已登录的 Chrome |
+| [OpenCLI](https://github.com/yan-labs/OpenCLI) CLI + 浏览器扩展 | `opencli` / `backlink` / `rankup` 的全部浏览器动作 | 复用你自己已登录的 Chrome。**必须装我们的构建，不是 Chrome 应用商店那个**，见下 |
 | Wrangler / Stripe CLI | 按任务 | 只在真正走到那个阶段时才需要 |
+
+### 装 OpenCLI（CLI + 浏览器扩展）
+
+两半都要装**我们的构建**，来源是
+[yan-labs/OpenCLI 的 Release](https://github.com/yan-labs/OpenCLI/releases/latest)：
+
+```bash
+# 1) CLI
+npm i -g https://github.com/yan-labs/OpenCLI/releases/download/v1.8.6-yan.1/opencli-cli-1.8.6-yan.1.tgz
+```
+
+**2) 浏览器扩展** —— 下载 Release 里的 `opencli-extension-v*.zip`，解压到一个不会随手删掉的目录，
+然后 `chrome://extensions` → 右上角开启「开发者模式」→「加载已解压的扩展程序」→ 选中那个目录。
+
+```bash
+# 3) 验证：三行都要 [OK]，Extension 那行的版本应 ≥ 1.0.27
+opencli doctor
+```
+
+> **⚠️ 不要装 Chrome 应用商店里那个 OpenCLI。**
+>
+> 我们这个构建做了一件商店版没做的事：**自动化不抢你正在用的浏览器**——
+> 后台是默认值、标签页开在你当前那个窗口里、不切走你的活动标签页，
+> 另有 `--window isolated` 把自动化完全挪出你的窗口。
+> 商店版默认是前台，装了它这几个 Skill 里写的规则会与实际行为对不上。
+> **两个同时装还会一起连上本地守护进程互相打架**，装之前先把商店版移除或停用。
+>
+> `opencli doctor` 打印的扩展版本就是判据——它显示什么，加载的就是什么。
+
+源码、完整差异清单与 issue 都在 [yan-labs/OpenCLI](https://github.com/yan-labs/OpenCLI)
+（Apache-2.0，fork 自 [jackwener/opencli](https://github.com/jackwener/opencli)）。
 
 `backlink` 的任何浏览器任务开始之前，先跑一次健康检查：
 
