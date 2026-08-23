@@ -66,9 +66,57 @@
 | `/referring/` | `/referring/api/month?m=YYYYMM` | GET | `m` | 该月榜单数据 | `X-REF-Token`，不计配额 | 否 |
 | `/referring/` | `/referring/api/site?domain=` | GET | `domain` | `{domain, months:[...], stats{monthsOn,monthsTotal,firstMonth,lastMonth,bestPos,avgPos,totalSentK,latestPos,latestVisits,onLatest}}` | `X-REF-Token`，不计配额 | 否 |
 
-其余工具（`string` 文本长度、`money` 收入拆解、`influencer` 红人报价、`kgr` 关键词价值评估、
-`email` 邮箱提取、`traffic` 流量分析、`level` 进阶说明、`gsc` 模拟器）**没有对应端点**，
-见下方「纯前端」小节，不要再去探。
+### 2026-08-24 补全：`translate` / `mine` / `domain` 三个工具其实有后端
+
+上表长期缺了这三个，不是它们没后端，是早期探索时**配额先耗尽了**。
+2026-08-24 复查（靠零配额静态发现，见下）补齐：
+
+| 工具 | 端点 | 请求体 | 计配额 |
+|---|---|---|---|
+| `/translate/` | `api/search` | **`{query}`** | 计 1 |
+| | `api/page` · `api/aggregate` · `api/me` | `{url}` / `{pages,related,sites,query}` / — | **不计** |
+| | `api/domain` | `{domain}` | 每站 1，无数据自动退 |
+| `/mine/` | `api/search` | **`{keyword}`** | 计 1（同词命中缓存不重复扣） |
+| | `api/seed` · `api/page` · `api/report` | `{input}` / `{url}` / `?seed=` 或 `?id=` | **不计** |
+| | `api/domain` · `api/kd` | `{domain}` / `{keyword}` | 每站 1 / 已搜过的词免费 |
+| `/domain/` | `api/intent` · `api/sessions` | `{text,hasCandidates}` / — | 不计 |
+| | `api/name` · `api/review` | `{brief,models:[id],sessionId}` / `{brief,candidates}` | **按模型**：flash=1，pro=2 |
+| | `api/check` · `api/insight` · `api/audit` · `api/collision` | `{names:[],tlds:[]}` 等 | 计 |
+
+令牌头分别是 `X-TR-Token` / `X-MN-Token` / `X-DF-Token`，取法与其它工具一致。
+
+> **⚠️ 这个站最容易踩的坑：`translate/api/search` 的字段是 `query`，
+> `mine/api/search` 的字段是 `keyword`。** 两个工具几乎同构，字段名却不统一，
+> 抄错只会得到一句「参数错误」。而且 mine 的 `organic[]` 比 translate 多出
+> `domain` / `isHomepage` / **`skip`**（`skip:true` 是大站黑名单，实测 reddit.com、
+> play.google.com 被标记）——**两个端点不能共用解析器。**
+
+> **`domain` 的五个 SSE 端点事件名各不相同**：`name` 是 raw/names/model-error/done，
+> `check` 是 result，`insight` 是 dr/traffic/reg，`review` 是 item/summary，
+> `audit` 是 step/audit。**不要假设站内 SSE 都长一样**——连 `adsense`（step+done）
+> 和 `history`（delta 拼正文）、`chat`（session/delta/done）都是三套。
+> 脚本对这五个端点统一透传 `{event,data}[]`，不强行归一。
+
+> `domain/api/name` 模型侧失败会返回 `done{refunded:true}` **自动退配额**，
+> 别把 `model-error` 当成脚本 bug。BYOK 能免掉 name/review 的模型配额，
+> 但**域名核验（check）照常计**。
+
+### 确认没有后端的工具（有证据，不是漏做）
+
+`traffic` `kgr` `money` `influencer` `level` `string` `email` `gsc` —— 2026-08-24 复验，
+**8 个全部仍是纯前端**（页面 footer 明写「纯本地运算，数据不上传」；`level` 连
+一个 `<input>`/`<form>` 都没有）。
+
+`gsc` 值得单独说：它的 90 天模拟数据是浏览器里 `Math.random()` **现算的**，
+全文 `fetch(` 只命中两处——`/gsc/api/me`（**VIP 门禁**，不是登录即可）和
+`/gsc/api/tutorial`（16 步教程文案懒加载，返回的是可执行 JS 片段不是数据）。
+**没有数据接口可调。**
+
+其中 4 个的公式已从页面内联 JS 抓出并**复刻成本地命令**（零网络零配额、可批量）：
+`kgr`（KGR/EKGR/KDROI）、`string`（TDK 长度）、`money`（收入目标拆解）、`email`（邮箱提取）。
+另外 4 个不复刻，理由：`traffic` 算法强绑可视化曲线且单份 CSV 一次性用；
+`influencer` 是单次议价场景不是批量工作流；`level` 是静态说明页没有算法；
+`gsc` 复刻出来和站点免费展示的没有本质区别。跑 `tools` 命令可以看到这份清单和理由。
 
 ## 怎么用：一个脚本，零配置
 
@@ -87,9 +135,29 @@ node scripts/seo-webcafe.mjs history  --input example.com     # SSE，脚本已�
 # 批量：每行一组 key=value，自动按保险丝间隔
 node scripts/seo-webcafe.mjs kd --batch words.txt --out kd.json
 
-# 纯客户端工具清单（无后端，别去探）
+# 需求挖掘两条主线（translate 偏「一个词的 SERP 怎么拆」，mine 偏「顺着一个种子滚雪球」）
+node scripts/seo-webcafe.mjs translateSearch --query "markdown to pdf"   # 计 1
+node scripts/seo-webcafe.mjs translatePage   --url https://example.com   # 不计配额
+node scripts/seo-webcafe.mjs mineSeed        --input "ai image upscaler" # 不计配额
+node scripts/seo-webcafe.mjs mineSearch      --keyword "ai image upscaler"
+
+# 起名 + 域名核验（多数是 SSE，脚本统一透传 {event,data}[]）
+node scripts/seo-webcafe.mjs domainIntent --text "一个 AI 图片压缩工具站"
+node scripts/seo-webcafe.mjs domainCheck  --names '["pikaz","zipwise"]' --tlds '["com","ai"]'
+
+# 本地命令：零网络、零配额、可 --batch 批量
+node scripts/seo-webcafe.mjs kgr    --volume 1000 --intitle 5 --kd 20
+node scripts/seo-webcafe.mjs string --text "..." --title "..." --desc "..."
+node scripts/seo-webcafe.mjs money  --income 3000 --sites 2 --kd 40
+node scripts/seo-webcafe.mjs email  --file page.html --mode domain
+node scripts/seo-webcafe.mjs kgr    --batch words.txt        # 本地命令同样支持批量
+
+# 本地命令清单 + 确认无后端且不复刻的工具（附理由）
 node scripts/seo-webcafe.mjs tools
 ```
+
+**`kgr` 和 `kd` 串起来用最省事**：`kd` 给难度分，`kgr` 拿这个分算 KGR/EKGR/KDROI 和
+所需外链投入——后者纯本地、零配额，可以对着一整批词跑。
 
 **不需要任何配置就能跑。** 令牌由脚本自己从工具页 HTML 取；不带 Cookie 时配额停在
 匿名档 10 次/日，够做一次小范围核验。要提额再 `export SEO_WEBCAFE_COOKIE='...'`

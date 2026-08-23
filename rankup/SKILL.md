@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、挖需求、找需求、需求挖掘、找方向、找选题、"最近有什么能做的"、"找几个关键词"、"挖个新词的工具站"、"看看有什么游戏站能做"、竞品调研、榜单调研、差评挖掘、反查谁在赚钱、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 哥飞、web.cafe、哥飞论坛、哥飞的朋友们、悬赏、悬赏问答、经验帖、"群里怎么说的"、"社群里有没有讲过"、"论坛里搜一下"、"哥飞说过什么"、哥飞.ai，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
 metadata:
-  version: "2.40.0"
+  version: "2.41.0"
 ---
 
 # Rankup 2.0
@@ -71,6 +71,8 @@ opencli browser "$S" eval '(async()=>{ /* fetch(..., {credentials:"include"}) */
 | 错误做法 | 正确做法 | 为什么是错的 |
 |---|---|---|
 | 为了拿哥飞论坛的内容去问 `ask`（哥飞.ai） | 先用 `webcafe-forum.mjs chat-search`/`search` 拿原文 | 哥飞.ai 的语料**就是**群聊归档 + 站内教程，直接搜拿到的是原文，不经模型转述、不消耗额度 |
+| 以为 `seo.web.cafe` 只有 kd/audit/serp 那几个工具 | 跑 `seo-webcafe.mjs --help` 或 `tools` | 21 个工具全部有归属了：有后端的都有命令，没后端的 4 个复刻成了本地命令，另 4 个附理由标注不做 |
+| 为了算 KGR/TDK 去开网页或消耗配额 | 用本地命令 | `kgr`/`string`/`money`/`email` 是纯本地计算，零网络零配额且支持 `--batch` |
 | 拿 `new.web.cafe` 的 HTTP 200 当「取到了」 | 看 `access` 字段 / 正文空不空 | 该站匿名**不返回 401**：照样给全部条目和作者名，只把正文抹成空串、票数归零 |
 | 对 `kind:collect` 的悬赏只读 `answers[]` | 读 `collect.board[]` | 征集型的内容不在 answers 里；只读 answers 会对着 588 条榜单报「0 条答案」且不报错 |
 | 用通用 `chatbot-drive.browser.js` 问哥飞 AI（seo.web.cafe） | 有 Cookie 用 `seo-webcafe.mjs chat`；没有就用 `gefei-ask.mjs` | 两条专用路径都封装过配额与完成判定；通用驱动会重踩已解决的坑 |
@@ -111,7 +113,7 @@ opencli browser "$S" eval '(async()=>{ /* fetch(..., {credentials:"include"}) */
 
 | 脚本 | 干什么 | 什么时候用 |
 |---|---|---|
-| `scripts/seo-webcafe.mjs` | 一个脚本覆盖 seo.web.cafe 全部有后端的工具：`kd` 关键词难度+top9 盘面、`audit` 页面体检、`serp` 排名归因、`backlink` 外链估价、`worth` 网站估值、`history` 域名前世、`chat` 站内 SEO Agent、`referring`/`referringMonth`/`referringSite` Stripe 引荐流量榜（不计配额） | 问「这个词难不难做」「这盘面能不能进」「这条外链值不值」「这域名什么来历」。零配置可跑，匿名 10 次/日 |
+| `scripts/seo-webcafe.mjs` | **一个脚本覆盖 seo.web.cafe 全部 21 个工具**：`kd` 关键词难度+top9 盘面、`audit` 页面体检、`serp` 排名归因、`backlink` 外链估价、`worth` 网站估值、`history` 域名前世、`adsense` 过审预检、`chat` 站内 SEO Agent、`referring*` Stripe 引荐流量榜（不计配额）；**`translate*` 需求翻译器 / `mine*` 需求挖掘机 / `domain*` 起名+域名核验**（2026-08-24 补全）；**4 个本地命令 `kgr`/`string`/`money`/`email`**（纯本地计算、零网络零配额、可 `--batch` 批量）；`endpoints` 零配额普查、`tools` 列出确认无后端的工具及理由 | 问「这个词难不难做」「这盘面能不能进」「这条外链值不值」「这域名什么来历」「帮我想个站名」。零配置可跑，匿名 10 次/日。**本地那 4 个命令不消耗任何配额，可以放开批量跑** |
 | **`scripts/demand/` 一整组（20 个）** | **需求挖掘取数**：榜单、差评、外包、广告、新词平台、竞品 sitemap、站群反查、词根库、域名画像。全部零依赖、`--json`/`--out` 统一 | 用户说「找几个关键词」「挖点需求」「最近有什么能做的」时。**先读 [`demand-sources.md`](references/demand-sources.md) 那张源→脚本路由表，不要逐个翻脚本** |
 | `scripts/gt.py` | Google Trends 统一入口：热度对比、地区分布、相关飙升词、每日热搜 | 问「XX 和 YY 哪个更火」「哪个国家有机会」「最近什么在涨」。**默认走浏览器路由，不需要 venv** |
 | `scripts/gt-browser.mjs` | gt 的 OpenCLI 取数层：驱动已登录 Chrome，在 trends.google.com 页面里 fetch Trends 内部 widget 接口 | 一般不直接调，由 `gt.py` 转发。pytrends 的 429 就是靠它绕开的；要它工作先 `opencli doctor` |
@@ -527,6 +529,8 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | **「数据面板」「数据勘测」「查一下这个站/这个词的数据」** —— 用户说这些词时指的是第三方数据平台 | — | **直接跑脚本**（见上方「数据面板的脚本速查」），不要打开浏览器手操。首次使用或遇到问题时**加载 backlink** 读 `authorized-data-sources.md` |
 | **哥飞论坛（new.web.cafe）的任何内容**：悬赏答案、经验帖、教程、帖子、站内搜索 | [`webcafe-forum.md`](references/webcafe-forum.md) —— **先看第一节**：匿名不报错，只是把正文换成空串 | `scripts/webcafe-forum.mjs get <url>`（万能入口，认不出的 URL 也能退回通用抓取） |
 | **「哥飞群里怎么说的」「社群里有没有讲过 X」** | [`webcafe-forum.md`](references/webcafe-forum.md) 第八节 | `webcafe-forum.mjs chat-search "词"` —— 14 个微信群归档，**就是哥飞.ai 的知识库**。拿原文、不消耗任何 AI 额度，优先于 `ask` |
+| **需求翻译 / 需求挖掘 / 给新站起名并核验域名** | [`seo-webcafe.md`](references/seo-webcafe.md) 的「translate / mine / domain 补全」一节 | `seo-webcafe.mjs translateSearch`（字段是 `query`）· `mineSearch`（字段是 **`keyword`**，别抄反）· `domainIntent` → `domainName` → `domainCheck` |
+| **算 KGR/EKGR/KDROI、查 TDK 长度、拆解收入目标、批量提邮箱** | 同上「确认没有后端的工具」一节 | `seo-webcafe.mjs kgr` / `string` / `money` / `email` —— **纯本地、零配额、支持 `--batch`**，和 `kd` 串起来能对一整批词算投入产出 |
 | **问哥飞 AI / seo.web.cafe 的 SEO Agent** | [`seo-webcafe.md`](references/seo-webcafe.md) 的「两条取答路径怎么选」 | 有 `SEO_WEBCAFE_COOKIE` → `seo-webcafe.mjs chat`（纯 HTTP，可无人值守）；只有登录态浏览器 → `gefei-ask.mjs`（那枚 Cookie 是 httpOnly，取不出来）。**两条是互补不是替代**；都不要用通用 `chatbot-drive.browser.js` |
 | 其他只有聊天网页形态的 AI 工具（要登录、按条扣费、**确认没有 HTTP API**） | [`integrations.md`](references/integrations.md) 的「网页版 AI Chatbot 取答」 | `scripts/chatbot-drive.browser.js`——仅限确认没有 HTTP API 的工具 |
 | **发 Product Hunt / 产品发布平台、排期上线、画廊图上传** | [`product-launch.md`](references/product-launch.md) | 需要能设置 file input 的浏览器连接器；**不要点上传按钮**（会弹系统对话框冻死标签页） |
