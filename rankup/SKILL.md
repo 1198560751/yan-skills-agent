@@ -233,6 +233,36 @@ node "<rankup-skill-dir>/scripts/check-version.mjs" \
 
 已有项目没有 `.rankup/` 时，只补建项目记忆，不得因此重新初始化技术栈。只有用户确实要求创建新站时才执行建站脚手架。
 
+## 执行纪律（强制）
+
+**用了这个 Skill，就意味着全权委托。不存在「要不要继续」「需要我处理吗」的问题——答案永远是「做」。**
+
+### 主线只调度，sub agent 做事
+
+| 规则 | 为什么 | 反面教材 |
+|---|---|---|
+| **所有实际工作都派 sub agent**，主线只负责摸现状、分解任务、派发、收结果、回写 `.rankup/` | 主线上下文是全局视野，烧在一个站的构建日志里是浪费；sub agent 崩了不影响其他任务 | 在主线里跑 `pnpm run build`、`wrangler deploy`、逐行读源码改 key——把调度员变成了搬砖工 |
+| 独立任务**必须并行派发**（一条消息多个 Agent 调用），不许串行等一个完了再派下一个 | 三个站各自接 Ahrefs WA，互不依赖，串行跑等于白白浪费 2/3 的时间 | 先派 agent 做 A 站，等它完成，再派 agent 做 B 站，再等，再派 C 站 |
+| sub agent 的 prompt 必须**自包含**：要改哪个文件、改成什么、改完怎么验证、验证完怎么回写 `.rankup/` | sub agent 看不到主线上下文，信息不全就会猜，猜就会错 | prompt 只写「给某站接 Ahrefs WA」，没给项目路径、没给 data-key、没说怎么验证 |
+
+### 全量执行，不问不等
+
+| 规则 | 为什么 | 反面教材 |
+|---|---|---|
+| 用户一开口的目标、你中途发现的缺口、上轮留下的待办、本轮可能产生的新待办——**全部做完** | 这个 Skill 的用户不是在试探，是在执行；问一遍等于白白多一轮对话 | 做完主线任务后说「还有几项待办未处理，需要我继续处理吗？」 |
+| **不请示、不确认、不汇报选项**。发现问题就修，发现缺口就补，补完在回复里说一句做了什么 | 请示的成本不是一句话，是用户切回来看、理解、回复、你再继续的整条链路 | 「发现某站的 key 是错的。要不要我修？」——废话，当然修 |
+| 连锁任务不截断。A 做完发现 B 需要做，B 做完发现 C 需要做——**一路做到底** | 截断让用户变成人肉任务队列 | 修了 key，发现脚本有 bug，汇报 bug 然后等用户说「那你修一下」 |
+
+### 收尾不留尾巴
+
+做完之后的产出是**一段简报**，不是待办清单：
+
+- 做了什么（每项一行）
+- 验证结果（通过/失败）
+- 如果有**确实无法自动完成的事项**（需要 CAPTCHA、需要用户的物理操作、需要付费决策），列出来并说清为什么不能自动做
+
+「还有 X 没做，要不要做？」这种结尾**禁止出现**。
+
 ## 可复用操作必须落成脚本
 
 **任何需要第二次执行的操作，第一次跑通时就必须固化成脚本，不允许下次重新摸索。** 浏览器操作是最主要的适用对象：切换 GSC property、导出效果报告、在关键词工具里查一批词、抓 SERP 前十结构——这些每次重新试探都在重复烧上下文，且每次的做法都不一样，结果不可比。
@@ -423,7 +453,7 @@ node "<rankup-skill-dir>/scripts/registry.mjs" list
 
 1. **摸清现状再写字**：读 `package.json`、路由/页面清单、部署配置、`git log`，确认框架、技术栈、部署目标与真实生产域名。已上线的再取 `sitemap.xml`、`robots.txt`、首页与关键页的线上响应。
 2. **查外部系统**：域名是否解析、Cloudflare/托管方是否在跑、GSC 是否接入、是否有支付。**一律实时查询，不采信任何文档里的说法。**
-3. **建目录**：按 [`references/project-memory.md`](references/project-memory.md) 创建 `.rankup/` 全套。已有事实直接填，取不到的写 `待确认`，**不要猜**。
+3. **建目录**：按 [`references/project-memory.md`](references/project-memory.md) 创建 `.rankup/` 全套。已有事实直接填，取不到的写 `待确认`，**不要猜**。`integrations.md` 用「接入清单跟踪」的完整平台表初始化，已上线的逐项实测填状态，未上线的全部 ⬜。
 4. **已运行项目补基线**：记一次当前流量、索引、性能与收入基线到 `baseline.md`，作为后续对比的起点；同时做一轮技术体检写入 `audit.md`。
 5. **定方向**：`roadmap.md` 写阶段目标与放弃条件，`plan.md` 写 P0–P2 及完成判定。
 6. **建仓并推远端**（绿地项目在脚手架跑通后立刻做，不要等「做出点东西再说」）：
@@ -436,9 +466,11 @@ node "<rankup-skill-dir>/scripts/registry.mjs" list
 
 已有 `.rankup/` 时 `init` 不覆盖，转为补齐缺失文件并提示用 `review`。
 
-### `rankup review` — 回顾、查漏补缺、筛选
+### `rankup review` — 回顾、查漏补缺、全盘验证
 
-两种场景：**定期回顾**（阶段结束时）和**接手补齐**（已有网站新引入 Skill 后立刻跑一次）。先跑体检脚本拿机械结论，再处理需要判断的部分。
+**review 的核心价值：把一个陌生的、或已经偏离 Rankup 预期轨道的项目，重新拉回正轨。**
+
+三种场景：**定期回顾**（阶段结束时）、**接手补齐**（已有网站新引入 Skill 后立刻跑一次）和**轨道修正**（项目长期没有按 Skill 规范维护，一次 review 补全所有缺口）。先跑体检脚本拿机械结论，再全盘验证接入状态，最后处理需要判断的部分。
 
 ```bash
 node "<rankup-skill-dir>/scripts/review.mjs" --project-root . --days 30
@@ -497,12 +529,13 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 
 1. **对账**：`plan.md` 的勾选是滞后指标，与 `git log`、路由清单、线上 `sitemap.xml` 三方交叉；不一致先回写再继续。
 2. **补生命周期缺口**：按体检报告「生命周期检查点」的待补清单，**逐项执行**——每项产出真实证据落进 `.rankup/` 对应文件，不是只建空文件。已上线项目典型补法：先跑 `is-agentic.mjs scan --save`（零配置，秒出），再跑 `cf-analytics-setup.mjs status`，再按 lifecycle.md 闸门逐项走。这一步是新引入 Skill 的老站最大的价值：一次 review 就能用上 Skill 里全部零配置工具。
-3. **筛信号**：`experience.md` 里合并重复、删除已过时、修订被证伪的条目——**修订原条目，不并列保留冲突结论**。未验证的猜测直接删。
-4. **提炼回流**：剥离站点后仍成立的规则回流本 Skill，证据出处与数字留在项目侧。回流内容不得含站名、域名、流量数字、property ID。
-5. **补脚本**：本轮有没有第二次重复的操作却没固化？脚本头部的已验证日期是否过期、还能不能跑？坏了就修，不绕过。
-6. **补文件缺口**：`roadmap.md` 是否断更、`iterations.md` 是否漏记失败轮次（失败必须写清被证伪的假设）。
-7. **刷新名单**：`node "<rankup-skill-dir>/scripts/registry.mjs" scan --roots <存放项目的目录>`。
-8. **产出**：一页结论——修了什么、删了什么、回流了什么、下一轮唯一改进。能当场修的直接修，不要只列清单。
+3. **全盘验证接入**：对照上方「接入清单跟踪」的完整平台表，逐项线上实测。`curl` 首页 HTML grep 各平台 beacon、后台查验证状态、请求品牌资产路径。backlink 台账除外（无法自动验证）。SEO 元素（title / description / robots / OG / hreflang）、结构化数据、多语言标记在同一趟 `curl` 里一并检查。结果写回 `.rankup/integrations.md`：通过的 ✅ 记证据+日期，失效的改回 ⬜ 记原因，缺失的当场补接。**这是 review 把偏离轨道的项目拉回来的核心动作**——跑完这张表就知道差多少、从哪补。
+4. **筛信号**：`experience.md` 里合并重复、删除已过时、修订被证伪的条目——**修订原条目，不并列保留冲突结论**。未验证的猜测直接删。
+5. **提炼回流**：剥离站点后仍成立的规则回流本 Skill，证据出处与数字留在项目侧。回流内容不得含站名、域名、流量数字、property ID。
+6. **补脚本**：本轮有没有第二次重复的操作却没固化？脚本头部的已验证日期是否过期、还能不能跑？坏了就修，不绕过。
+7. **补文件缺口**：`roadmap.md` 是否断更、`iterations.md` 是否漏记失败轮次（失败必须写清被证伪的假设）。
+8. **刷新名单**：`node "<rankup-skill-dir>/scripts/registry.mjs" scan --roots <存放项目的目录>`。
+9. **产出**：一页结论——修了什么、删了什么、回流了什么、下一轮唯一改进。能当场修的直接修，不要只列清单。
 
 ## 任务路由
 
@@ -589,7 +622,7 @@ pnpm dlx shadcn@latest init \
 - `PROJECT.md`：用户、定位、商业模式、目标和非目标。
 - `architecture.md`：应用、数据、服务边界。
 - `infrastructure.md`：环境、域名、Cloudflare 资源和非敏感 bindings。
-- `integrations.md`：Stripe、邮件、分析和搜索平台状态。
+- `integrations.md`：**所有平台接入的唯一看板**。每项标 ✅（已接+证据+验证日期）/ ⬜（待做）/ ❌（不接+裁决依据）。完成一项立刻打勾，`rankup review` 逐项线上实测验证。格式和规则见下方「接入清单跟踪」。
 - `secrets.md`：只记录名称、用途、环境、保管位置、负责人、访问与轮换状态。
 - `skill-state.json`：本地版本、启用时间、检查与更新时间。
 - `roadmap.md`：长期方向、阶段目标、各阶段的判定条件与放弃条件。跨会话可续，不随单轮任务改写。
@@ -602,6 +635,37 @@ pnpm dlx shadcn@latest init \
 **沉淀义务与是否调用本 Skill 无关。** 只要项目里存在 `.rankup/`，该项目中任何任务——不限于 SEO，包括功能开发、重构、排障、发版——完成后都必须回写可复用结论、裁决与长期规划。判据是“下次遇到同类问题能否少走一遍”，不是“这轮有没有走 rankup 流程”。用户没有显式要求也要写，写完在回复里提一句即可，不必请示。
 
 严禁在 Skill、`.rankup/`、Git、测试或回复中保存真实密钥、token、密码、私钥、webhook secret、支付敏感数据或个人敏感信息。
+
+### 接入清单跟踪（强制）
+
+`.rankup/integrations.md` 是项目所有平台接入的**唯一看板**——做了什么、没做什么、为什么不做，一张表说清。和 backlink 台账同理：每完成一条外链就记一条，每完成一项接入就打一个勾。
+
+| 规则 | 为什么 | 反面教材 |
+|---|---|---|
+| 完成一项接入，**立刻**打 ✅ 并写证据和验证日期 | 不记就等于没做，下次 review 会重新来一遍 | 接完 Clarity 但没记，review 判定「未接入」又走一遍流程 |
+| `rankup review` 必须**线上实测**逐项验证，不采信勾 | 代码改了、键换了、部署覆盖了——✅ 不代表线上还活着 | 清单写着 GA4 ✅，线上 HTML 里 script 被删了三个月没人发现 |
+| `rankup init` 用完整清单初始化全部 ⬜ | 新项目一开始就知道要做多少事，不靠记忆 | 建站时忘了接 IndexNow，上线两个月没被 Bing 收录 |
+| 「不接」标 ❌ 并写裁决依据 | 区分「还没做」和「决定不做」，review 不会反复催 | AdSense 标了 ⬜，每次 review 都建议接入，其实早就决定不挂广告 |
+
+已上线站点的清单至少覆盖以下平台（`rankup review` 逐项验证）：
+
+| 类别 | 平台 | 验证方式 |
+|---|---|---|
+| 托管方分析 | Cloudflare Web Analytics | `curl` 线上 HTML grep `cloudflareinsights` |
+| 产品分析 | GA4 | `curl` 线上 HTML grep `gtag` 或 `googletagmanager` |
+| 行为分析 | Microsoft Clarity | `curl` 线上 HTML grep `clarity.ms` |
+| 外链视角 | Ahrefs Site Explorer | Ahrefs 后台查项目验证状态 |
+| 外链视角 | Ahrefs Web Analytics | `curl` 线上 HTML grep `analytics.ahrefs.com`；Dashboard「总访问量」的 **G** 图标是 Google 估算，WA 脚本是第一方实测，两者并存不冲突 |
+| 搜索平台 | Google Search Console | 后台查验证 + sitemap 状态 |
+| 搜索平台 | Bing Webmaster | 后台查验证 + sitemap 状态 |
+| 搜索平台 | Yandex Webmaster | `curl` 线上 HTML grep `yandex-verification` |
+| 搜索平台 | Naver Search Advisor | `curl` 线上 HTML grep `naver-site-verification` |
+| 索引推送 | IndexNow | `curl` 线上密钥文件 HTTP 200 |
+| 品牌资产 | favicon / manifest / icons | `curl` 各路径 HTTP 200 |
+| SEO 元素 | title / description / robots / OG | `curl` 线上 HTML grep 各标签 |
+| 结构化数据 | JSON-LD（WebSite / Organization） | `curl` 线上 HTML grep `application/ld+json` |
+| AI 就绪度 | is-agentic | `is-agentic.mjs scan` |
+| 多语言 | hreflang / `<html lang>` | `curl` 线上 HTML 检查标签存在且值正确（仅多语言站点） |
 
 ## 令牌统一放 Skill 根目录的 `.env`
 

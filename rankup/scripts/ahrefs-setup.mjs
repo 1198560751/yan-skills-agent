@@ -19,6 +19,7 @@
  * 标志：
  *   --site <域名>     要追踪的域名（不带协议，例如 example.com）
  *   --name <名称>     项目显示名，默认取 --site 的二级域名
+ *   --project-id <ID> 直接指定 Ahrefs 项目 ID，跳过 Dashboard 自动查找
  *   --session <名>    opencli 会话名（默认 ahs-<pid>）
  *   --keep-session    完成后不关闭会话
  *
@@ -56,6 +57,7 @@ if (argv.length === 0 || argv[0] === "-h" || argv[0] === "--help") { usage(); pr
 const action = argv[0]
 let site = null
 let name = null
+let projectId = null
 let session = `ahs-${process.pid}`
 let keepSession = false
 
@@ -63,6 +65,7 @@ for (let i = 1; i < argv.length; i++) {
   const a = argv[i]
   if (a === "--site" && argv[i + 1]) { site = argv[++i]; continue }
   if (a === "--name" && argv[i + 1]) { name = argv[++i]; continue }
+  if (a === "--project-id" && argv[i + 1]) { projectId = argv[++i]; continue }
   if (a === "--session" && argv[i + 1]) { session = argv[++i]; continue }
   if (a === "--keep-session") { keepSession = true; continue }
   if (a === "-h" || a === "--help") { usage(); process.exit(0) }
@@ -73,8 +76,8 @@ function usage() {
   console.log(`用法:
   node ahrefs-setup.mjs status
   node ahrefs-setup.mjs create --site <域名> [--name <项目名>]
-  node ahrefs-setup.mjs verify --site <域名>
-  node ahrefs-setup.mjs enable-wa --site <域名>`)
+  node ahrefs-setup.mjs verify --site <域名> [--project-id <ID>]
+  node ahrefs-setup.mjs enable-wa --site <域名> [--project-id <ID>]`)
 }
 
 if (!["status", "create", "verify", "enable-wa"].includes(action)) { usage(); process.exit(1) }
@@ -228,6 +231,11 @@ async function doCreate() {
 
 // ── 共通：Dashboard から項目 ID を取得 ──────────────────────
 function findProjectId() {
+  if (projectId) {
+    console.log(`使用指定的项目 ID: ${projectId}`)
+    return projectId
+  }
+
   open("https://app.ahrefs.com/dashboard")
   sleep(8000)
 
@@ -237,39 +245,42 @@ function findProjectId() {
     process.exit(1)
   }
 
-  let projectId = evalJs(`
+  let foundId = evalJs(`
     const links = [...document.querySelectorAll('a[href*="/project-settings/"]')];
-    const card = links.find(a => {
-      const container = a.closest('[class*="Project"],[class*="project"],article,section,div');
-      return container?.textContent?.includes('${site}');
-    });
-    if (!card) {
-      const settingsLink = [...document.querySelectorAll('a')].find(a =>
-        a.href?.includes('/project-settings/') &&
-        document.body.textContent.includes('${site}')
-      );
-      if (settingsLink) return settingsLink.href.match(/project-settings\\/(\\d+)/)?.[1] || '';
-      return '';
+    const results = [];
+    for (const link of links) {
+      const id = link.href.match(/project-settings\\/(\\d+)/)?.[1];
+      if (!id) continue;
+      let el = link.parentElement;
+      let depth = 0;
+      while (el && el !== document.body && depth < 8) {
+        depth++;
+        const count = el.querySelectorAll('a[href*="/project-settings/"]').length;
+        if (count > 1) break;
+        const ownText = el.textContent || '';
+        if (ownText.includes('${site}')) {
+          results.push({ id, depth });
+          break;
+        }
+        el = el.parentElement;
+      }
     }
-    return card.href.match(/project-settings\\/(\\d+)/)?.[1] || '';
+    if (results.length === 1) return results[0].id;
+    if (results.length > 1) {
+      results.sort((a, b) => a.depth - b.depth);
+      return results[0].id;
+    }
+    return '';
   `)
 
-  if (!projectId) {
-    projectId = evalJs(`
-      const html = document.body.innerHTML;
-      const sitePattern = '${site}'.replace(/\\./g, '\\\\.');
-      const re = new RegExp('project-settings/(\\\\d+).*?' + sitePattern + '|' + sitePattern + '.*?project-settings/(\\\\d+)');
-      const m = html.match(re);
-      return m?.[1] || m?.[2] || '';
-    `)
-  }
-
-  if (!projectId) {
-    console.error(`❌ 找不到域名 ${site} 对应的 Ahrefs 项目。请先用 create 创建。`)
+  if (!foundId) {
+    console.error(`❌ 找不到域名 ${site} 对应的 Ahrefs 项目。`)
+    console.error(`   请使用 --project-id <ID> 手动指定，或先用 create 创建。`)
+    console.error(`   项目 ID 可在 Ahrefs 项目设置页 URL 中找到。`)
     process.exit(1)
   }
 
-  return projectId
+  return foundId
 }
 
 // ── verify：通过 GSC 验证所有权 ─────────────────────────────

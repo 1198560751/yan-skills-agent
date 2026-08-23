@@ -108,6 +108,9 @@ node <rankup-skill-dir>/scripts/ahrefs-setup.mjs verify --site example.com
 
 # 启用 Web Analytics（Dashboard「总访问量」监控）并获取追踪脚本
 node <rankup-skill-dir>/scripts/ahrefs-setup.mjs enable-wa --site example.com
+
+# 如果已知项目 ID（见 .rankup/integrations.md），可直接指定以跳过 Dashboard 查找
+node <rankup-skill-dir>/scripts/ahrefs-setup.mjs enable-wa --site example.com --project-id 12345678
 ```
 
 ### 所有权验证
@@ -175,3 +178,5 @@ Project ID、measurementId、appId、`data-key`、埋码位置——这些**逐�
 □ 5. 部署站点（确认追踪代码上线）
 □ 6. 去各平台确认数据开始采集
 ```
+
+完成任一步骤后，**立刻回写到 `.rankup/integrations.md`** 打 ✅ 并附证据和日期。`rankup review` 会逐项线上实测验证这张清单——不记就等于没做。详见 `SKILL.md`「接入清单跟踪」。
