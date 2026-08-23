@@ -69,6 +69,11 @@ function parseArgs(argv) {
     else if (arg === "--dump") options.dump = true;
     else if (arg === "--new-only") options.newOnly = true;
     else if (arg === "--mark") options.mark = true;
+    else if (arg === "-h" || arg === "--help") {
+      // 显式 `--help` 是成功，不是用法错误——批处理里 set -e 会把非零码当脚本坏了。
+      console.log("用法: sessions.mjs [--project-root <路径>] [--days <n>] [--budget <n>] [--dump] [--new-only] [--mark]");
+      process.exit(0);
+    }
     else throw new TypeError(`未知参数: ${arg}`);
   }
   if (!Number.isFinite(options.days) || options.days <= 0) throw new TypeError("--days 必须是正数");

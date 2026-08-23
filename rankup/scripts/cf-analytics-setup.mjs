@@ -106,9 +106,12 @@ function reportSite(s) {
 }
 
 const [cmd, domain] = process.argv.slice(2)
-if (!cmd || !domain) {
-  console.error("用法: cf-analytics-setup.mjs <status|enable> <domain>")
-  process.exit(2)
+const askedForHelp = process.argv.slice(2).some((a) => a === "-h" || a === "--help")
+if (askedForHelp || !cmd || !domain) {
+  // 显式 `--help` 是成功，退出码 0；什么都不给才是用法错误。
+  const out = askedForHelp ? console.log : console.error
+  out("用法: cf-analytics-setup.mjs <status|enable> <domain>")
+  process.exit(askedForHelp ? 0 : 2)
 }
 
 const zones = await cf(`/zones?name=${encodeURIComponent(domain)}`)

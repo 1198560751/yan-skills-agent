@@ -142,6 +142,11 @@ function parseArgs(argv) {
     if (arg === "--project-root") options.projectRoot = argv[++index] ?? options.projectRoot;
     else if (arg === "--days") options.days = Number(argv[++index]);
     else if (arg === "--json") options.json = true;
+    else if (arg === "-h" || arg === "--help") {
+      // 显式 `--help` 是成功，不是用法错误——批处理里 set -e 会把非零码当脚本坏了。
+      console.log("用法: review.mjs [--project-root <路径>] [--days <n>] [--json]");
+      process.exit(0);
+    }
     else throw new TypeError(`未知参数: ${arg}`);
   }
   if (!Number.isFinite(options.days) || options.days <= 0) {

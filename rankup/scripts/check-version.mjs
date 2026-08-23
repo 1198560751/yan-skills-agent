@@ -521,6 +521,10 @@ function parseCliArgs(args) {
       options.apply = true;
     } else if (argument === "--json") {
       options.json = true;
+    } else if (argument === "-h" || argument === "--help") {
+      // 显式 `--help` 是成功，不是用法错误——批处理里 set -e 会把非零码当脚本坏了。
+      console.log("用法: check-version.mjs [--apply] [--json]");
+      process.exit(0);
     } else {
       throw new TypeError(`Unknown argument: ${argument}`);
     }
