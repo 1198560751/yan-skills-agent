@@ -1,0 +1,426 @@
+#!/usr/bin/env node
+/**
+ * naver-setup.mjs —— 在 Naver Search Advisor 里注册站点、获取验证信息、提交 sitemap，
+ * 驱动用户已登录的浏览器，不需要 API key。
+ *
+ * 用法：
+ *   # 查看当前已注册的站点列表和验证状态
+ *   node <rankup-skill-dir>/scripts/naver-setup.mjs status --site example.com
+ *
+ *   # 注册新站点并获取验证 meta 标签
+ *   node <rankup-skill-dir>/scripts/naver-setup.mjs register --site example.com
+ *
+ *   # 为已验证的站点提交 sitemap
+ *   node <rankup-skill-dir>/scripts/naver-setup.mjs submit-sitemap --site example.com
+ *
+ * 标志：
+ *   --site <域名>          要追踪的域名（不带协议，例如 example.com）（必须）
+ *   --sitemap-url <URL>    完整 sitemap 地址（默认 https://<site>/sitemap.xml）
+ *   --session <名>         opencli 会话名（默认 naver-<site 简写>）
+ *   --keep-session         完成后不关闭会话
+ *
+ * 依赖：opencli，且用户浏览器已登录 searchadvisor.naver.com。
+ *
+ * ── 为什么是浏览器而不是 API ────────────────────────────────
+ *
+ * Naver Search Advisor 内部 API 存在但 CSRF 保护严格：
+ * OAuth 重定向后 document.cookie 被 SecurityError 阻断，
+ * 导致所有 POST 操作（注册、验证、提交 sitemap）走纯 HTTP 不可靠。
+ * 注册和 sitemap 提交走 UI 更稳定。
+ *
+ * ── 关于所有权验证 ────────────────────────────────────────
+ *
+ * 所有权验证需要 CAPTCHA（人机验证），无法完全自动化。
+ * `register` 子命令会取得验证 meta 标签的 content 值，
+ * 用户部署标签后需要在浏览器中手动完成 CAPTCHA 验证。
+ *
+ * ── URL 格式（实测 2026-08-23）────────────────────────────
+ *
+ * - 站点列表：https://searchadvisor.naver.com/console/board
+ * - 站点摘要：https://searchadvisor.naver.com/console/site/summary?site=<编码URL>
+ * - Sitemap 提交：https://searchadvisor.naver.com/console/site/request/sitemap?site=<编码URL>
+ *   注意：参数是 ?site= 不是 ?url=
+ * - 设置：https://searchadvisor.naver.com/console/site/option?site=<编码URL>
+ *
+ * 已验证：2026-08-23（Nuxt.js/Vue SPA）
+ */
+import { execSync } from "node:child_process"
+
+// ── 参数 ──────────────────────────────────────────────────
+const argv = process.argv.slice(2)
+if (argv.length === 0 || argv[0] === "-h" || argv[0] === "--help") { usage(); process.exit(argv.length === 0 ? 1 : 0) }
+const action = argv[0]
+let site = null
+let sitemapUrl = null
+let session = null
+let keepSession = false
+
+for (let i = 1; i < argv.length; i++) {
+  const a = argv[i]
+  if (a === "--site" && argv[i + 1]) { site = argv[++i]; continue }
+  if (a === "--sitemap-url" && argv[i + 1]) { sitemapUrl = argv[++i]; continue }
+  if (a === "--session" && argv[i + 1]) { session = argv[++i]; continue }
+  if (a === "--keep-session") { keepSession = true; continue }
+  if (a === "-h" || a === "--help") { usage(); process.exit(0) }
+  console.error(`未知参数: ${a}`); usage(); process.exit(1)
+}
+
+function usage() {
+  console.log(`用法:
+  node naver-setup.mjs status --site <域名>
+  node naver-setup.mjs register --site <域名>
+  node naver-setup.mjs submit-sitemap --site <域名> [--sitemap-url <URL>]`)
+}
+
+if (!["status", "register", "submit-sitemap"].includes(action)) { usage(); process.exit(1) }
+if (!site) { console.error(`错误：${action} 需要 --site`); process.exit(1) }
+
+// 会话名用字面常量，不用 $$（Bash tool 每次调用 PID 不同）
+if (!session) session = `naver-${site.replace(/[^a-z0-9]/gi, "-").slice(0, 20)}`
+// sitemap 默认值
+if (!sitemapUrl) sitemapUrl = `https://${site}/sitemap.xml`
+
+const siteUrl = `https://${site}`
+const encodedSiteUrl = encodeURIComponent(siteUrl)
+
+// ── OpenCLI 封装 ──────────────────────────────────────────
+function cli(action_, { timeout = 30000 } = {}) {
+  try {
+    return execSync(`opencli browser "${session}" --window background ${action_}`,
+      { encoding: "utf-8", timeout, stdio: ["pipe", "pipe", "pipe"] }).trim()
+  } catch (e) {
+    const err = (e.stderr?.toString() || e.stdout?.toString() || e.message).trim()
+    throw new Error(`opencli 失败: ${action_}\n  ${err}`)
+  }
+}
+function evalJs(js) { return cli(`eval '${`(()=>{${js}})()`.replace(/'/g, "'\\''")}'`) }
+function open(url) { cli(`open "${url}"`) }
+function pageText(max = 4000) {
+  return evalJs(`return (document.querySelector('main')||document.body).innerText.replace(/\\n{2,}/g,'\\n').slice(0,${max})`)
+}
+function sleep(ms) { execSync(`sleep ${ms / 1000}`) }
+
+function stampAndClick(js, label) {
+  evalJs(`const el=${js};if(!el)throw new Error('找不到: ${label}');el.setAttribute('data-rankup-target','1')`)
+  cli('click "[data-rankup-target=\\"1\\"]"')
+  evalJs(`document.querySelector('[data-rankup-target]')?.removeAttribute('data-rankup-target')`)
+}
+
+// ── status：检查站点注册状态 ─────────────────────────────
+async function doStatus() {
+  open("https://searchadvisor.naver.com/console/board")
+  sleep(6000)
+
+  const text = pageText(8000)
+  if (text.includes("로그인") || text.includes("Log in") || text.includes("Sign in")) {
+    console.error("❌ 未登录 Naver。请先在浏览器中登录 searchadvisor.naver.com")
+    return process.exit(1)
+  }
+
+  console.log("── Naver Search Advisor 站点列表 ──")
+
+  // 尝试用内部 API 获取列表（不受 CSRF 限制的 GET 请求）
+  const listResult = evalJs(`
+    try {
+      const resp = await fetch('/api-board/list', { credentials: 'include' });
+      if (!resp.ok) return 'api_fail';
+      const data = await resp.json();
+      if (!data || !Array.isArray(data.result)) return 'api_fail';
+      return JSON.stringify(data.result.map(s => ({
+        url: s.siteUrl || s.site || '',
+        verified: s.verified || s.isVerified || false,
+        name: s.siteName || ''
+      })));
+    } catch { return 'api_fail'; }
+  `)
+
+  if (listResult !== "api_fail") {
+    try {
+      const sites = JSON.parse(listResult)
+      if (sites.length === 0) {
+        console.log("（暂无已注册站点）")
+      } else {
+        for (const s of sites) {
+          const status = s.verified ? "✅ 已验证" : "⏳ 未验证"
+          const found = s.url.includes(site) ? " ← 目标站点" : ""
+          console.log(`  ${status}  ${s.url}${found}`)
+        }
+      }
+
+      // 检查目标站点
+      const target = sites.find(s => s.url.includes(site))
+      if (target) {
+        console.log(`\n目标站点 ${site}: ${target.verified ? "已验证" : "未验证"}`)
+      } else {
+        console.log(`\n目标站点 ${site}: 未注册`)
+      }
+      return
+    } catch { /* fallthrough to page text */ }
+  }
+
+  // API 失败时回退到页面文本
+  const hasSite = text.includes(site)
+  console.log(text.slice(0, 3000))
+  if (hasSite) {
+    console.log(`\n目标站点 ${site}: 已注册（验证状态请查看上方列表）`)
+  } else {
+    console.log(`\n目标站点 ${site}: 未注册`)
+  }
+}
+
+// ── register：注册新站点 ─────────────────────────────────
+async function doRegister() {
+  open("https://searchadvisor.naver.com/console/board")
+  sleep(6000)
+
+  const text = pageText(8000)
+  if (text.includes("로그인") || text.includes("Log in") || text.includes("Sign in")) {
+    console.error("❌ 未登录 Naver。请先在浏览器中登录 searchadvisor.naver.com")
+    return process.exit(1)
+  }
+
+  // 检查是否已注册
+  if (text.includes(site)) {
+    console.log(`⚠️ ${site} 可能已注册。如需重新验证，请在浏览器中操作。`)
+    // 尝试导航到验证页获取 meta 标签
+    await tryGetVerificationMeta()
+    return
+  }
+
+  // 找到"사이트 추가"（添加站点）按钮并点击
+  try {
+    stampAndClick(
+      `[...document.querySelectorAll('button,a')].find(b=>/사이트.*추가|사이트 추가|Add site|添加站点/i.test(b.textContent))`,
+      "사이트 추가 按钮"
+    )
+  } catch {
+    // 也可能是输入框直接在页面上
+    const hasInput = evalJs(`return !!document.querySelector('input[type="url"],input[type="text"][placeholder*="http"],input[placeholder*="사이트"],input[placeholder*="site"]')`)
+    if (hasInput !== "true") {
+      console.error("❌ 找不到添加站点的入口。页面可能需要登录或结构已变化。")
+      return process.exit(1)
+    }
+  }
+  sleep(2000)
+
+  // 填写站点 URL —— 先尝试 https://example.com
+  const inputSelector = `document.querySelector('input[type="url"],input[type="text"][placeholder*="http"],input[placeholder*="사이트"],input[placeholder*="site"],input[placeholder*="URL"],input[placeholder*="url"]')`
+  evalJs(`const el=${inputSelector};if(!el)throw new Error('找不到 URL 输入框');el.focus();el.value='';`)
+  cli(`type "${siteUrl}"`)
+  sleep(1000)
+
+  // 点击确认/提交按钮
+  try {
+    stampAndClick(
+      `[...document.querySelectorAll('button')].find(b=>/확인|추가|등록|OK|Add|Submit/i.test(b.textContent.trim()))`,
+      "확인 按钮"
+    )
+  } catch {
+    // 有时按钮是 input[type=submit] 或其他形式
+    stampAndClick(
+      `document.querySelector('button[type="submit"],input[type="submit"]')`,
+      "提交按钮"
+    )
+  }
+  sleep(5000)
+
+  // 检查是否出现「호스트 단위」错误（需要不带协议的域名）
+  const afterText = pageText(4000)
+  if (afterText.includes("호스트") || afterText.includes("이미 등록")) {
+    console.log("⚠️ 可能需要以不同格式注册。尝试不带协议的域名...")
+    // 清空重填
+    evalJs(`const el=${inputSelector};if(el){el.focus();el.value='';}`)
+    cli(`type "${site}"`)
+    sleep(1000)
+    try {
+      stampAndClick(
+        `[...document.querySelectorAll('button')].find(b=>/확인|추가|등록|OK|Add|Submit/i.test(b.textContent.trim()))`,
+        "확인 按钮（重试）"
+      )
+    } catch { /* ignore */ }
+    sleep(5000)
+  }
+
+  // 尝试获取验证 meta 标签
+  await tryGetVerificationMeta()
+}
+
+// ── tryGetVerificationMeta：获取验证用 meta 标签 ─────────
+async function tryGetVerificationMeta() {
+  // 尝试通过 API 获取验证密钥
+  const verifyResult = evalJs(`
+    try {
+      // 先获取 enc_id
+      const listResp = await fetch('/api-board/list', { credentials: 'include' });
+      if (!listResp.ok) return 'api_fail';
+      const listData = await listResp.json();
+      if (!listData?.result) return 'api_fail';
+      const entry = listData.result.find(s => (s.siteUrl||s.site||'').includes('${site}'));
+      if (!entry) return 'not_found';
+      const encId = entry.encId || entry.enc_id || entry.id;
+      if (!encId) return 'no_enc_id';
+      // 用 enc_id 获取验证密钥
+      const verResp = await fetch('/api-board/verify/' + encId + '?site=' + encodeURIComponent('${siteUrl}'), { credentials: 'include' });
+      if (!verResp.ok) return 'api_fail';
+      const verData = await verResp.json();
+      return JSON.stringify(verData);
+    } catch(e) { return 'api_fail:' + e.message; }
+  `)
+
+  let metaContent = null
+  if (verifyResult && !verifyResult.startsWith("api_fail") && verifyResult !== "not_found" && verifyResult !== "no_enc_id") {
+    try {
+      const data = JSON.parse(verifyResult)
+      // 从验证数据中提取 meta 标签内容
+      metaContent = data.result?.metaTag || data.result?.content || data.metaTag || data.content
+      if (metaContent) {
+        // 如果拿到的是完整的 meta 标签，提取 content 值
+        const match = metaContent.match(/content="([^"]+)"/)
+        if (match) metaContent = match[1]
+      }
+    } catch { /* fallthrough */ }
+  }
+
+  // 如果 API 失败，尝试从页面读取
+  if (!metaContent) {
+    // 导航到站点设置页面查看验证选项
+    open(`https://searchadvisor.naver.com/console/site/option?site=${encodedSiteUrl}`)
+    sleep(5000)
+    const optionText = pageText(6000)
+
+    // 尝试从页面中找到 naver-site-verification 的值
+    const pageContent = evalJs(`
+      const text = document.body.innerText;
+      const m1 = text.match(/naver-site-verification.*?content="([^"]+)"/);
+      if (m1) return m1[1];
+      const m2 = text.match(/확인.*?([a-f0-9]{32,})/i);
+      if (m2) return m2[1];
+      const codes = document.querySelectorAll('code,pre,.code');
+      for (const c of codes) {
+        const m3 = c.textContent.match(/content="([^"]+)"/);
+        if (m3) return m3[1];
+      }
+      return '';
+    `)
+    if (pageContent) metaContent = pageContent
+  }
+
+  console.log(`\n── Naver 站点注册结果 ──`)
+  console.log(`   域名: ${site}`)
+
+  if (metaContent) {
+    console.log(`   验证 meta 标签:`)
+    console.log(`   <meta name="naver-site-verification" content="${metaContent}" />`)
+    console.log(`\n下一步:`)
+    console.log(`  1. 将上面的 meta 标签写入站点 <head> 并部署`)
+    console.log(`  2. 在浏览器中打开 https://searchadvisor.naver.com/console/board`)
+    console.log(`  3. 手动完成 CAPTCHA 验证（无法自动化）`)
+    console.log(`  4. 验证通过后提交 sitemap:`)
+    console.log(`     node naver-setup.mjs submit-sitemap --site ${site}`)
+  } else {
+    console.log(`   ⚠️ 无法自动提取验证 meta 标签内容`)
+    console.log(`\n下一步:`)
+    console.log(`  1. 在浏览器中打开 https://searchadvisor.naver.com/console/board`)
+    console.log(`  2. 点击站点进入验证页面，选择 HTML 标签验证方式`)
+    console.log(`  3. 复制 naver-site-verification 的 content 值`)
+    console.log(`  4. 将 meta 标签写入站点 <head> 并部署`)
+    console.log(`  5. 手动完成 CAPTCHA 验证（无法自动化）`)
+  }
+}
+
+// ── submit-sitemap：提交 sitemap ─────────────────────────
+async function doSubmitSitemap() {
+  // 直接导航到 sitemap 提交页面（参数是 ?site= 不是 ?url=）
+  open(`https://searchadvisor.naver.com/console/site/request/sitemap?site=${encodedSiteUrl}`)
+  sleep(6000)
+
+  const text = pageText(4000)
+  if (text.includes("로그인") || text.includes("Log in") || text.includes("Sign in")) {
+    console.error("❌ 未登录 Naver。请先在浏览器中登录 searchadvisor.naver.com")
+    return process.exit(1)
+  }
+
+  // 检查是否到达了正确的页面（是否有 sitemap 输入框）
+  if (text.includes("소유확인") || text.includes("소유 확인") || text.includes("ownership")) {
+    console.error("❌ 站点尚未完成所有权验证。请先完成验证再提交 sitemap。")
+    console.error("   运行: node naver-setup.mjs register --site " + site)
+    return process.exit(1)
+  }
+
+  // 找到 sitemap URL 输入框并填写
+  // Naver 的输入框要求完整 URL（例如 https://example.com/sitemap.xml）
+  const inputSelector = `document.querySelector('input[type="text"][placeholder*="sitemap" i],input[type="url"],input[type="text"][placeholder*="http"],input[type="text"][placeholder*="URL" i],input[type="text"][placeholder*="url"]')`
+  try {
+    evalJs(`const el=${inputSelector};if(!el)throw new Error('找不到 sitemap 输入框');el.focus();el.value='';`)
+  } catch {
+    // 更宽泛的查找：页面上的文本输入框（排除搜索框）
+    evalJs(`
+      const inputs = [...document.querySelectorAll('input[type="text"],input:not([type])')];
+      const el = inputs.find(i => {
+        const rect = i.getBoundingClientRect();
+        return rect.width > 100 && !i.classList.toString().includes('search');
+      });
+      if (!el) throw new Error('找不到 sitemap 输入框');
+      el.focus(); el.value = '';
+    `)
+  }
+  cli(`type "${sitemapUrl}"`)
+  sleep(1000)
+
+  // 点击「확인」（确认）按钮
+  try {
+    stampAndClick(
+      `[...document.querySelectorAll('button')].find(b=>/^확인$|^제출$|^Submit$|^OK$/i.test(b.textContent.trim()))`,
+      "확인 按钮"
+    )
+  } catch {
+    // 尝试更宽松的匹配
+    stampAndClick(
+      `[...document.querySelectorAll('button,input[type="submit"]')].find(b=>/확인|제출|submit|추가/i.test((b.textContent||b.value||'').trim()))`,
+      "提交按钮"
+    )
+  }
+  sleep(5000)
+
+  // 检查结果
+  // 注意：Naver SPA 在点击확인后 eval 可能会超时，这是已知行为
+  let resultText
+  try {
+    resultText = pageText(4000)
+  } catch {
+    // eval 超时是预期行为，不代表失败
+    resultText = ""
+  }
+
+  if (resultText.includes("등록") || resultText.includes("완료") || resultText.includes("success") || resultText === "") {
+    console.log(`✅ Sitemap 提交请求已发送`)
+    console.log(`   站点:    ${site}`)
+    console.log(`   Sitemap: ${sitemapUrl}`)
+    console.log(`\n注意:`)
+    console.log(`  - 「已提交」不等于「已处理」，Naver 处理 sitemap 需要时间`)
+    console.log(`  - 可在 Search Advisor 后台查看 sitemap 处理状态`)
+    console.log(`  - 如果页面显示错误，请在浏览器中手动确认`)
+  } else if (resultText.includes("오류") || resultText.includes("error") || resultText.includes("실패")) {
+    console.error(`❌ Sitemap 提交可能失败`)
+    console.error(`   页面内容: ${resultText.slice(0, 500)}`)
+    console.error(`\n请在浏览器中手动确认:`)
+    console.error(`   https://searchadvisor.naver.com/console/site/request/sitemap?site=${encodedSiteUrl}`)
+  } else {
+    console.log(`⚠️ 无法确认提交结果（页面可能已跳转）`)
+    console.log(`   站点:    ${site}`)
+    console.log(`   Sitemap: ${sitemapUrl}`)
+    console.log(`\n请在浏览器中确认:`)
+    console.log(`   https://searchadvisor.naver.com/console/site/request/sitemap?site=${encodedSiteUrl}`)
+  }
+}
+
+// ── 执行 ──────────────────────────────────────────────────
+try {
+  if (action === "status") await doStatus()
+  else if (action === "register") await doRegister()
+  else if (action === "submit-sitemap") await doSubmitSitemap()
+} finally {
+  if (!keepSession) {
+    try { cli("close") } catch {}
+  }
+}
