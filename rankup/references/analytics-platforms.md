@@ -45,13 +45,6 @@ node <rankup-skill-dir>/scripts/clarity-setup.mjs status
 node <rankup-skill-dir>/scripts/clarity-setup.mjs create --site example.com --name mysite
 ```
 
-### 当前站点状态
-
-| 站点 | Project ID | 埋码位置 |
-|---|---|---|
-| intabtools.com | `xzmumryb8r` | `apps/web/src/analytics.ts`（consent-gated） |
-| shindan.co | `y6pkwiitlr` | `apps/web/src/routes/__root.tsx` 行 88–90 |
-| birthstonemeaning.com | `xof2x9i52w` | `apps/web/src/analytics.tsx`（inline script） |
 
 ## 2. Firebase
 
@@ -75,27 +68,18 @@ Firebase 项目的主要价值是**把 GA4 property 归口到同一个 Google �
 firebase login
 
 # 创建项目（--id 如果被占用会报错，换一个）
-firebase projects:create --display-name "shindan" --id shindan-co
+firebase projects:create --display-name "example" --id example-com
 
 # 列出项目
 firebase projects:list
 
 # 添加 Web 应用（返回 config JSON）
-firebase apps:create web "shindan" --project shindan-co
-firebase apps:sdkconfig web --project shindan-co
+firebase apps:create web "example" --project example-com
+firebase apps:sdkconfig web --project example-com
 ```
 
 也可以走控制台 UI：`console.firebase.google.com` → 创建项目 → 添加应用 → Web `</>` → 复制 config。
 
-### 当前站点状态
-
-| 站点 | Firebase 项目 ID | measurementId | appId |
-|---|---|---|---|
-| intabtools.com | `intabtools` | `G-J0KH92GFCT` | `1:1029383685466:web:39a3569335d450e04b1f63` |
-| shindan.co | `shindan-co` | `G-FQF1K95VDW` | `1:228020203160:web:76cecdc39068b3d85d6aed` |
-| birthstonemeaning.com | `birthstone-meaning` | — | — |
-
-> birthstone-meaning 是之前已有的项目，config 见项目代码。
 
 ## 3. Ahrefs
 
@@ -137,13 +121,6 @@ node <rankup-skill-dir>/scripts/ahrefs-setup.mjs enable-wa --site example.com
 | HTML 文件 | 在根目录放置验证文件 | Workers 站点不方便（需要额外路由） |
 | Google Search Console | 连接 Google 账号自动验证 | GSC 已接入且愿意授权 Ahrefs 读 GSC 数据 |
 
-### 当前站点状态
-
-| 站点 | 项目状态 | 验证状态 |
-|---|---|---|
-| intabtools.com | 活跃（健康 100） | ✅ 已验证 |
-| birthstonemeaning.com | 活跃（健康 100） | ✅ 已验证 |
-| shindan.co | 活跃 | ✅ 已验证（GSC） |
 
 ### Web Analytics（总访问量监控）
 
@@ -157,16 +134,34 @@ Ahrefs 自有的流量追踪脚本，独立于 GA4。Dashboard「总访问量」
 
 `<DATA_KEY>` 由 `enable-wa` 命令输出。这是公开值。
 
+> **键必须与目标项目逐字核对，别的项目的键不会报任何错。**
+> 实测过一次事故：站点埋的 `data-key` 属于同账号下的另一个项目。
+> 表现是——HTML 里有 script（绿）、真实浏览器里请求确实发出（绿）、
+> 接口不报错，**数据只是流进了别人的面板**。两个最常用的验证手段全部失效。
+> 唯一有效判据：打开该项目的 **Web Analytics 设置页**，把上面显示的键和
+> 代码里的字符串**逐字比对**。
+>
+> 另有一个同源陷阱：判断某项目「有没有启用 Web Analytics」时，
+> 不要看别的项目的 Web Analytics 项目切换器——**那个下拉框只列已有数据的项目**，
+> 没数据的新项目不会出现，看起来就像「这个项目不存在」。
+> 要去**账号级的项目总览**确认。
+
 > **TanStack Start 注意**：`head()` 的 `scripts` 数组不渲染 `data-*` 属性，
 > 需要在 `RootDocument` 的 JSX `<head>` 中直接写 `<script>` 标签。
 
-当前站点状态：
 
-| 站点 | data-key | 埋码位置 |
-|---|---|---|
-| intabtools.com | _(已接入)_ | — |
-| shindan.co | `I+1Q0ysMRvWi/UKWOOHF8w` | `apps/web/src/routes/__root.tsx` JSX `<head>` |
-| birthstonemeaning.com | _(待接入)_ | — |
+## 各站的实际取值放哪里（不要写回本文档）
+
+Project ID、measurementId、appId、`data-key`、埋码位置——这些**逐站不同**，
+属于项目侧资产，一律记在 `<project>/.rankup/integrations.md`，
+**不进本 Skill**。本 Skill 由 `scripts/validate-rankup.mjs` 断言项目中立，
+把站点清单写回这里会直接让门禁失败。
+
+这条不只是洁癖。本文档一度维护过一张跨站的 `data-key` 清单，
+而其中一行记的是**错误的键**——那枚键属于另一个项目。
+错误的键在两个常用判据下和正确的键完全一样（HTML 里有 script、
+浏览器里请求确实发出），于是这个错误值被当成事实沿用，
+并且会被下一个建站的人照抄。**清单放在离事实最近的地方，才有人去修它。**
 
 ## 新站接入清单
 

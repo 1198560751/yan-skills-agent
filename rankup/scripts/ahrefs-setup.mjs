@@ -8,16 +8,16 @@
  *   node <rankup-skill-dir>/scripts/ahrefs-setup.mjs status
  *
  *   # 为指定域名创建新项目
- *   node <rankup-skill-dir>/scripts/ahrefs-setup.mjs create --site shindan.co --name shindan
+ *   node <rankup-skill-dir>/scripts/ahrefs-setup.mjs create --site example.com --name example
  *
  *   # 通过 GSC 验证项目所有权
- *   node <rankup-skill-dir>/scripts/ahrefs-setup.mjs verify --site shindan.co
+ *   node <rankup-skill-dir>/scripts/ahrefs-setup.mjs verify --site example.com
  *
  *   # 启用 Web Analytics（总访问量监控）并获取追踪脚本
- *   node <rankup-skill-dir>/scripts/ahrefs-setup.mjs enable-wa --site shindan.co
+ *   node <rankup-skill-dir>/scripts/ahrefs-setup.mjs enable-wa --site example.com
  *
  * 标志：
- *   --site <域名>     要追踪的域名（不带协议，例如 shindan.co）
+ *   --site <域名>     要追踪的域名（不带协议，例如 example.com）
  *   --name <名称>     项目显示名，默认取 --site 的二级域名
  *   --session <名>    opencli 会话名（默认 ahs-<pid>）
  *   --keep-session    完成后不关闭会话

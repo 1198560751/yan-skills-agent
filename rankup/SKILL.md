@@ -119,6 +119,8 @@ opencli browser "$S" --window background eval '(async()=>{ /* fetch(..., {creden
 | `scripts/gsc-remove-urls.mjs` | **GSC 批量提交「暂时移除网址」请求**。驱动用户已登录的浏览器操作 GSC 移除工具，逐个提交 URL。支持 `--file` 从文件读 URL 列表、`--property` 指定 GSC 资源、`--dry-run` 预览 | 废弃页面需要从 Google 搜索结果中移除时。GSC 没有公开的移除 API，只能通过 UI 操作 |
 | `scripts/indexnow-submit.mjs` | **把站点 URL 推给 IndexNow**（Bing/Yandex/Seznam/Naver 共用一张网，Google 不参与）。URL 列表默认从线上 sitemap 取，`--generate-key` 生成密钥。**提交前先校验密钥文件**——密钥不可达时整批被丢弃而接口照样回 200 | 新站上线接索引推送时；之后每次内容变更部署完成后。零账号、纯 HTTP，可进 CI |
 | `scripts/webmaster-sitemap.mjs` | **在 GSC 与 Bing Webmaster 里读/提交 sitemap**，驱动用户已登录的浏览器。`gsc\|bing status` 只读，`gsc\|bing submit` 提交 | 站长工具资源验证通过之后。GSC 无零配置 API；Bing 若已有 API key 则改走纯 HTTP，见 `search-platforms.md` |
+| `scripts/clarity-setup.mjs` | **在 Microsoft Clarity 里建项目并拿到 project ID**（会话录制 / 热图），驱动用户已登录的浏览器。`status` 只读，`create` 新建 | 上线后接行为分析时。Clarity 的 REST API 只读不建项目，只能走 UI |
+| `scripts/ahrefs-setup.mjs` | **在 Ahrefs 里建项目、经 GSC 验证所有权、启用 Web Analytics 并取回 `data-key`**。`status` / `create` / `verify` / `enable-wa` | 上线后接外链视角与总访问量时。Ahrefs API v3 只有数据查询，项目管理只能走 UI |
 | `scripts/registry.mjs` | 扫描各项目 `.rankup/` 重建跨项目资产登记表 | 开工前查「别的项目有没有现成的」；收工时刷新 |
 | `scripts/review.mjs` | 项目记忆体检：缺失文件、超期记录、脚本体检、**生命周期检查点**（查漏补缺——哪些工具和环节还没跑过）、经验库信号 | `rankup review` 第一步；新引入 Skill 的老站第一件事就跑它 |
 | `scripts/sessions.mjs` | 找出并浓缩本项目的 Claude Code / Codex 会话，供 review 提取信号 | `rankup review` 第二步，默认加 `--new-only` |

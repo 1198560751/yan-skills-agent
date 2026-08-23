@@ -11,12 +11,21 @@
  * 「全网基本没人做」。这份基线告诉你：webMcp 通过率是 0/107985——
  * 一个都没有。追一项全网 0.3% 都不到的检查，价值几乎总是低于它挤占的工作。
  *
- * 认证：零配置可跑。按以下顺序取 token：
+ * 认证：**不是零配置**（2026-08-23 订正，原文这么写过，是错的）。按以下顺序取 token：
  *   1. --token 参数
  *   2. CLOUDFLARE_API_TOKEN 环境变量
- *   3. 本机 wrangler OAuth token（~/.wrangler 或 ~/Library/Preferences/.wrangler
- *      下的 config/default.toml，字段名 oauth_token）——只要本机登录过 wrangler
- *      就有，零配置。
+ *   3. 本机 wrangler OAuth token —— **多数情况下这条走不通**，见下。
+ *
+ * **wrangler 的 OAuth 凭据通常不能调 Radar。** 它的 scopes 是围绕部署发的
+ * （workers:*、d1、pages、zone:read…），里面**没有 Radar 相关的 scope**，
+ * 而 Radar 需要一枚带 `Radar:Read` 的 API token。实测现象极具误导性：
+ * 接口回的是 `[10000] Authentication error`，读起来像「token 过期了」，
+ * 于是人会去重新 `wrangler login` —— 登多少次都没用，因为缺的是权限面不是新鲜度。
+ * 判据：拿同一枚 token 打 `/user/tokens/verify`，
+ *   - 回 `[1000] Invalid API Token` → 这枚 OAuth token 确实失效/不被当作 API token；
+ *   - 回成功但 Radar 仍 10000 → 是 scope 不够。
+ * 两种都要靠**新建一枚带 Radar:Read 的 API token**解决，而不是重登 wrangler。
+ *
  * token 只用于发起请求，绝不打印、绝不写入任何输出文件、绝不提交。
  *
  * 已验证：2026-08-22，实测调用 https://api.cloudflare.com/client/v4/radar/
@@ -166,8 +175,25 @@ async function fetchBaseline(token, { category } = {}) {
   }
 
   if (!res.ok || body.success === false) {
-    const msg = (body.errors || []).map(e => `[${e.code}] ${e.message}`).join("; ") || `HTTP ${res.status}`;
+    const errs = body.errors || [];
+    const msg = errs.map(e => `[${e.code}] ${e.message}`).join("; ") || `HTTP ${res.status}`;
     console.error(`Cloudflare API 返回失败：${msg}`);
+    // 10000/1000 都会以「Authentication error」的面貌出现，而它最常见的成因
+    // 不是过期，是**用了 wrangler 的 OAuth 凭据**——那套 scopes 里没有 Radar。
+    // 不点破的话，人会反复 wrangler login，而那条路永远走不通。
+    if (errs.some(e => e.code === 10000 || e.code === 1000)) {
+      console.error(
+        `\n认证失败最常见的成因不是 token 过期，而是**凭据类型不对**：\n` +
+        `  wrangler 的 OAuth 凭据是为部署发的，scopes 里没有 Radar 相关权限，\n` +
+        `  所以再怎么 wrangler login 也调不通这个端点。\n\n` +
+        `确认办法（把同一枚 token 打到验证端点）：\n` +
+        `  curl -s -H "Authorization: Bearer <token>" \\\n` +
+        `    https://api.cloudflare.com/client/v4/user/tokens/verify\n\n` +
+        `解决办法：在 Cloudflare 控制台新建一枚 **带 Radar:Read 权限的 API token**，\n` +
+        `然后用 --token 传入，或设进 CLOUDFLARE_API_TOKEN。\n` +
+        `（这一步需要账号持有者本人操作，不要代为创建。）`
+      );
+    }
     process.exit(1);
   }
 

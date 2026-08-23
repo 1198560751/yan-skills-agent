@@ -8,10 +8,10 @@
  *   node <rankup-skill-dir>/scripts/clarity-setup.mjs status
  *
  *   # 为指定域名创建新项目，返回 project ID
- *   node <rankup-skill-dir>/scripts/clarity-setup.mjs create --site shindan.co --name shindan
+ *   node <rankup-skill-dir>/scripts/clarity-setup.mjs create --site example.com --name example
  *
  * 标志：
- *   --site <域名>     要追踪的域名（不带协议，例如 shindan.co）
+ *   --site <域名>     要追踪的域名（不带协议，例如 example.com）
  *   --name <名称>     项目显示名，默认取 --site 的二级域名
  *   --session <名>    opencli 会话名（默认 cls-<pid>）
  *   --keep-session    完成后不关闭会话
