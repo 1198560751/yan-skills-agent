@@ -194,9 +194,9 @@ three agents told only to follow it scored **36/36 clean with zero leaked
 tabs**.
 </why>
 <correct><![CDATA[
-opencli browser recon-sw-notion --window background open "https://..."
-opencli browser recon-sw-figma  --window background open "https://..."
-opencli browser recon-sem-rival --window background open "https://..."
+opencli browser recon-sw-notion open "https://..."
+opencli browser recon-sw-figma  open "https://..."
+opencli browser recon-sem-rival open "https://..."
 ]]></correct>
 </law>
 
@@ -230,8 +230,8 @@ obey a rule that did not apply.
 The canonical check after every navigation, and the one Law 4 exists to make
 possible:
 <cmd><![CDATA[
-opencli browser "$S" --window background get url    # one page per session: safe
-opencli browser "$S" --window background state      # same, plus title + elements (AX snapshot by default)
+opencli browser "$S" get url    # one page per session: safe
+opencli browser "$S" state      # same, plus title + elements (AX snapshot by default)
 ]]></cmd>
 </confirm-identity>
 </instead>
@@ -279,8 +279,8 @@ Law 1. Vary both: `backlink-probe-p1-$$`, `-p2-$$`, `-p3-$$`.
 That is the literal collision name this law exists to prevent, printed by the
 tool itself, and an agent that consults `--help` for syntax after reading this
 law will see the CLI modelling the anti-pattern. Trust the law. The same help
-text also shows `--window background` trailing the URL, which does work — see
-<law-ref id="background-by-default"/>.
+text also shows a trailing `--window background`, which does work but is now
+redundant — see <law-ref id="background-by-default"/>.
 </help-text-bait>
 <cleanup>
 Release the lease with `opencli browser &lt;session&gt; close` when done. A session
@@ -314,21 +314,35 @@ whatever "current" happens to mean at that instant.
 
 <law id="background-by-default">
 <statement>
-Default every session to background mode. The flag sits **between** the session
-name and the subcommand: `opencli browser &lt;session&gt; --window background &lt;command&gt;`.
+Background is the default. Do not override it. `--window foreground` is for the
+one case where the person has to finish something by hand; `--window isolated`
+keeps automation in a window of its own. The flag, when you do pass one, sits
+**between** the session name and the subcommand:
+`opencli browser &lt;session&gt; --window isolated &lt;command&gt;`.
+
+Requires the OpenCLI extension at **1.0.27 or newer** (`opencli doctor` prints
+it). On older builds the default is foreground and every single command needs
+`--window background` spelled out.
 </statement>
 <why>
 Background mode runs the owner's real logged-in Chrome without raising the
-window. It is **not** headless — `navigator.webdriver` is `false`, the UA
-carries no `Headless`, `plugins.length` is 5, and `visibilityState` is
-`visible`. So "background will trip the site's bot defences" is not a real
-concern, and there is never a reason to reach for foreground to look more human.
+window, and opens its tab in the window they are already using. It is **not**
+headless — `navigator.webdriver` is `false`, the UA carries no `Headless`,
+`plugins.length` is 5. So "background will trip the site's bot defences" is not
+a real concern, and there is never a reason to reach for foreground to look more
+human.
 
-**Neither mode steals focus.** Nine concurrent agents across three drivers
-checked the frontmost app before and after every navigation on 2026-08-21; the
-host app stayed frontmost every time. If a person reports the screen "jumping
-around", the cause is several tasks writing to one shared page — that is
-<law-ref id="one-session-one-tab"/> being violated, not focus stealing.
+**Foreground does steal the person's attention, and an earlier version of this
+law said otherwise.** That claim rested on one measurement axis — the frontmost
+*application*, which foreground genuinely leaves alone. Re-measured 2026-08-23
+on the axis that was missing: under `--window foreground` the owner's **active
+tab** jumps away mid-task; under background it never moves and the tab count
+returns to baseline after `close`. A law that checks one axis and concludes
+"no harm" is worse than no law, because it licenses the harm.
+
+If a person reports the screen "jumping around" while everything ran in
+background, the cause is several tasks writing to one shared page — that is
+<law-ref id="one-session-one-tab"/> being violated.
 </why>
 <misplaced-flag>
 Before the session name it fails with `unknown command: &lt;yoursession&gt;`, which
@@ -453,9 +467,9 @@ Ad-hoc looking is still scripted work. Use OpenCLI so the look is replayable.
 # Name it after what you are looking at, per <law id="no-literal-session-name">:
 # a unique-but-meaningless name still cannot answer "whose tab is this".
 S="explore-pricing-$$"
-opencli browser "$S" --window background open "https://example.com/pricing"
-opencli browser "$S" --window background get url     # confirm you landed
-opencli browser "$S" --window background extract
+opencli browser "$S" open "https://example.com/pricing"
+opencli browser "$S" get url     # confirm you landed
+opencli browser "$S" extract
 opencli browser "$S" close
 opencli browser "$S" tab list                        # expect [] 
 ]]></cmd>

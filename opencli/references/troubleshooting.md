@@ -179,8 +179,8 @@ curl -s -H 'accept: application/dns-json'   'https://1.1.1.1/dns-query?name=<域
 curl -sI --max-time 20 -x "$HTTPS_PROXY" https://<域名>/robots.txt | head -1
 
 # 4. 用真实 Chrome 打开一次
-opencli browser dns-probe --window background open "https://<域名>/"
-opencli browser dns-probe --window background state
+opencli browser dns-probe open "https://<域名>/"
+opencli browser dns-probe state
 opencli browser dns-probe close
 ```
 

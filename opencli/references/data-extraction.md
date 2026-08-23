@@ -125,7 +125,7 @@ httpOnly 会话**故意**不让 JS 读到，OpenCLI 也没有导出 cookie 的�
 
 ```bash
 S="panel-query"
-opencli browser "$S" --window background open "https://panel.example.com/"
+opencli browser "$S" open "https://panel.example.com/"
 opencli browser "$S" eval '(async () => {
   const r = await fetch("/api/report?range=90d", { credentials: "include" });
   return JSON.stringify(await r.json());

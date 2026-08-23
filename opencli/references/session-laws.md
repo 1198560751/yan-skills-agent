@@ -26,9 +26,9 @@ SKILL.md 里只有法律本身，这里是支撑它们的实测数据、边界�
 2026-08-19 在 opencli 1.8.6 上实测：
 
 ```bash
-opencli browser isoA --window background open https://example.com/
-opencli browser isoB --window background open https://example.org/
-opencli browser isoA --window background open https://example.net/
+opencli browser isoA open https://example.com/
+opencli browser isoB open https://example.org/
+opencli browser isoA open https://example.net/
 # isoA -> https://example.net/    isoB -> https://example.org/
 ```
 
@@ -43,9 +43,9 @@ opencli browser isoA --window background open https://example.net/
 
 ```bash
 # 正确：三个页面，三个名字
-opencli browser recon-sw-notion  --window background open "https://..."
-opencli browser recon-sw-figma   --window background open "https://..."
-opencli browser recon-sem-rival  --window background open "https://..."
+opencli browser recon-sw-notion  open "https://..."
+opencli browser recon-sw-figma   open "https://..."
+opencli browser recon-sem-rival  open "https://..."
 ```
 
 ### 法律 1 保护的是标签页身份，不是站点的服务端状态
@@ -199,7 +199,7 @@ opencli browser <session> close
 默认给每个会话加后台模式。标志位置在**会话名和子命令之间**：
 
 ```bash
-opencli browser <session> --window background <command>
+opencli browser <session> <command>
 ```
 
 放在会话名**前面**会报 `unknown command: <你的会话名>`，读起来像装坏了，其实是语法错。
@@ -241,18 +241,41 @@ opencli browser <session> --window background <command>
 也就是说，前台模式的 raise + select 里，**select 那一半是真的会执行的**——
 用户正在看的那一页被换掉了，而 macOS 层面的应用焦点没动，所以只查前台应用的测量看不见它。
 
-**规矩：任何情况下都不要用 `--window foreground`。**
-包括调 adapter 时「方便看最终页面」——那用 `--keep-tab true` 把标签页留着，
-用户想看自己切过去；要机器看就用 `screenshot` / `state`，两者在后台模式下都正常工作。
+**规矩：后台是默认值，不要去覆盖它。** 你不需要显式传 `--window background`，
+传了也只是噪音——从扩展 1.0.27 起 CLI 与扩展两层的默认都是后台。
+
+**`--window foreground` 只有一个正当用途：把一件必须由用户亲手做完的事交给他**
+（验证码、短信验证码、他明确说要看着）。那种时候你本来就是要他的注意力。
+除此之外一律不用——包括调 adapter 时「方便看最终页面」，那用 `--keep-tab true`
+把标签页留着，用户想看自己切过去；要机器看就用 `screenshot` / `state`，
+两者在后台模式下都正常工作。
+
+**想让自动化完全离开用户的窗口用 `--window isolated`**（后台 + 独立窗口），
+不要为此去用前台。
 
 后台模式本身是干净的：实测 `open` / `eval` / `screenshot` / `click` / `type` 全程，
 页面侧 `document.hasFocus()` 恒为 `false`、`visibilityState` 恒为 `hidden`，
 用户的活动标签页索引不变。
 
-**另一个已知的文档与实现不一致**：`--window` 的帮助文本把 `isolated` 描述成
-「background in its own window」，实测 `opencli browser <s> --window isolated open`
-**并没有新开窗口**——Chrome 窗口数不变，标签页仍加在用户当前窗口，行为与 `background` 一致。
-所以目前没有办法把 agent 的标签页完全挪出用户的窗口，**少开会话、开完就关**是唯一的减害手段。
+**曾经的一个坑（2026-08-23 修好，扩展 1.0.27）**：`--window isolated` 当时**不新开窗口**，
+行为与 `background` 一模一样，于是这里一度写着「没办法把 agent 的标签页挪出用户窗口」。
+
+它值得留在这里，因为坏法很典型——**四层各自静默地否决同一个功能**：
+
+1. 运行时白名单只认 `foreground|background` 两个值，`isolated` 一路通过 CLI 解析、
+   传到扩展、然后被那个 `if` 丢掉。标志「生效」了，行为是默认值，**零报错**。
+2. 「这个窗口是不是我自己的」靠猜（全是非 http 页面就算我的），
+   于是用户随手开的一个只有 `chrome://newtab` 的空窗口被认成了容器。
+3. 窗口终于建对了，**分组收敛**又去认领用户窗口里那个规范分组，把标签页搬了回去。
+4. 挑「用户在哪个窗口」用的是 `getAll().find(w => w.focused)`，
+   而 **Chrome 不在最前面时所有窗口的 `focused` 都是 false**——agent 从终端驱动它时
+   永远如此，于是回退到「列表里最后一个」，随机挑。
+
+每一层都不报错，所以每修一层都以为好了。**判据：一个标志「不生效但也不报错」时，
+不要只查它最表层的实现，沿着整条链路每一层都问一遍「这里会不会把它悄悄丢掉」。**
+
+现在的自查方法：`--window isolated` 起的会话，它在 `opencli browser sessions` 里的
+`windowId` 应该与默认模式会话的不同。
 
 如果有人报告屏幕「一直在跳」，先查有没有人用了前台；排除之后再怀疑
 几个任务在写同一个共享页面——那看起来像抖动，实际是法律 1 被违反了。

@@ -230,7 +230,7 @@ opencli <site> <command> --help    # 位置参数、专属标志、输出列
 
 ```bash
 S="recon-pricing"            # 描述性常量，Bash tool 里不要用 $$
-opencli browser "$S" --window background open "https://example.com/pricing"
+opencli browser "$S" open "https://example.com/pricing"
 opencli browser "$S" state                       # 拿到带 [N] 编号的快照
 opencli browser "$S" click 7
 opencli browser "$S" wait selector "[data-loaded]" --timeout 15000
