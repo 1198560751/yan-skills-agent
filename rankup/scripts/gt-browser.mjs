@@ -1,0 +1,294 @@
+#!/usr/bin/env node
+/**
+ * gt-browser — Google Trends 的 OpenCLI 路由
+ *
+ * pytrends 走的是没有凭据的匿名请求，Google 对它限流极狠（429 是常态）。
+ * 这个脚本改走用户本机那个已登录的 Chrome：打开 trends.google.com，
+ * 在页面上下文里 fetch Trends 自己的内部 widget 接口（同源 + 带 cookie），
+ * 拿到的是和你肉眼在页面上看到的完全同一份数据。
+ *
+ * 子命令与 gt.py 一致，输出格式也一致，可以互相替换：
+ *   compare KW1 [KW2...]   热度对比曲线
+ *   region  KW1 [KW2...]   地区热度分布
+ *   related KW             相关查询（rising + top）
+ *
+ * 选项：--geo CODE  --time 1m|3m|12m|5y|all|START:END  --top N  --raw
+ *
+ * 依赖：opencli（浏览器桥要绿，先跑 opencli doctor）
+ */
+
+import { execFileSync } from "node:child_process";
+
+// 会话名必须是描述性常量。Bash tool 每次调用都是新进程，$$ / process.pid
+// 在那里会每次生成新名字，导致上一条命令开的标签页被遗弃。
+const SESSION = "rankup-gt-trends";
+const EXPLORE_URL = "https://trends.google.com/trends/explore?hl=en-US";
+
+const PRESETS = {
+  "1m": "today 1-m",
+  "3m": "today 3-m",
+  "12m": "today 12-m",
+  "1y": "today 12-m",
+  "5y": "today 5-y",
+  all: "all",
+};
+
+function die(msg) {
+  console.error(`[gt-browser] 错误：${msg}`);
+  process.exit(1);
+}
+
+function toTimeframe(t = "12m") {
+  if (PRESETS[t]) return PRESETS[t];
+  if (t.includes(":")) return t.split(":").join(" ");
+  return t;
+}
+
+function parseArgs(argv) {
+  const kws = [];
+  const opts = {};
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--raw") opts.raw = true;
+    else if (a.startsWith("--")) {
+      if (i + 1 >= argv.length) die(`选项 ${a} 缺少值`);
+      opts[a.slice(2)] = argv[++i];
+    } else kws.push(a);
+  }
+  return { kws, opts };
+}
+
+/** 在 Trends 页面上下文里跑的取数器。返回三个 widget 的原始数据。 */
+function extractor({ keywords, geo, timeframe, resolution }) {
+  return `(async () => {
+  const strip = t => JSON.parse(t.replace(/^\\)\\]\\}'?,?\\n?/, ''));
+  const tz = new Date().getTimezoneOffset();
+  const kws = ${JSON.stringify(keywords)};
+  const req = {comparisonItem: kws.map(k => ({keyword: k, geo: ${JSON.stringify(geo)}, time: ${JSON.stringify(timeframe)}})), category: 0, property: ""};
+  const eu = 'https://trends.google.com/trends/api/explore?hl=en-US&tz=' + tz + '&req=' + encodeURIComponent(JSON.stringify(req));
+  const er = await fetch(eu, {credentials: 'include'});
+  if (!er.ok) return {error: 'explore_' + er.status};
+  const j = strip(await er.text());
+  const pick = id => j.widgets.find(w => w.id === id);
+  const wd = async (path, w, patch) => {
+    if (!w) return null;
+    const rq = patch ? Object.assign({}, w.request, patch) : w.request;
+    const u = 'https://trends.google.com/trends/api/widgetdata/' + path
+      + '?hl=en-US&tz=' + tz
+      + '&req=' + encodeURIComponent(JSON.stringify(rq))
+      + '&token=' + encodeURIComponent(w.token);
+    const r = await fetch(u, {credentials: 'include'});
+    if (!r.ok) return {error: path + '_' + r.status};
+    return strip(await r.text());
+  };
+  const geoWidget = pick('GEO_MAP') || pick('GEO_MAP_0');
+  const out = {keywords: kws};
+  out.timeseries = await wd('multiline', pick('TIMESERIES'));
+  out.geo = await wd('comparedgeo', geoWidget, ${resolution ? JSON.stringify({ resolution }) : "null"});
+  out.related = [];
+  for (let i = 0; i < kws.length; i++) {
+    const w = pick('RELATED_QUERIES_' + i) || (kws.length === 1 ? pick('RELATED_QUERIES') : null);
+    out.related.push(await wd('relatedsearches', w));
+  }
+  return out;
+})()`;
+}
+
+// 租约还在、标签页已经没了的时候，opencli 报的是这个。它不会自愈，必须先 close
+// 把旧租约丢掉再重开——所以这里只重试一次，重试前无条件 close。
+const STALE = /stale page identity|Page not found|session_not_found/i;
+
+function runBatch(js, { retry = true } = {}) {
+  const commands = JSON.stringify([
+    { cmd: "open", args: { url: EXPLORE_URL } },
+    { cmd: "wait", args: { type: "time", value: "2000" } },
+    { cmd: "eval", args: { js } },
+  ]);
+  let raw;
+  try {
+    raw = execFileSync(
+      "opencli",
+      ["browser", SESSION, "--window", "background", "batch", "--commands", commands],
+      { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] },
+    );
+  } catch (e) {
+    const msg = (e.stderr || e.message || "").toString();
+    if (retry && STALE.test(msg)) {
+      closeSession();
+      return runBatch(js, { retry: false });
+    }
+    die(`opencli 调用失败：${msg.trim().slice(0, 400)}`);
+  }
+  // opencli 会在 stdout 里混 npm 升级提示，取第一个 JSON 数组
+  const start = raw.indexOf("[");
+  if (start < 0) die(`opencli 没有返回 JSON：${raw.slice(0, 300)}`);
+  let steps;
+  try {
+    steps = JSON.parse(raw.slice(start));
+  } catch {
+    die(`解析 opencli 输出失败：${raw.slice(0, 300)}`);
+  }
+  const evalStep = steps.find((s) => s.cmd === "eval");
+  if (!evalStep?.ok) {
+    const err = String(evalStep?.error || "eval 步骤缺失");
+    if (retry && STALE.test(err)) {
+      closeSession();
+      return runBatch(js, { retry: false });
+    }
+    die(`页面取数失败：${err}`);
+  }
+  const data = evalStep.result?.value ?? evalStep.result;
+  if (!data || data.error) {
+    if (String(data?.error).includes("_429")) {
+      die("Google 在浏览器里也限流了（429）。这次是真的要等，或者换网络");
+    }
+    die(`Trends 接口返回异常：${data?.error || "空结果"}`);
+  }
+  return data;
+}
+
+function closeSession() {
+  try {
+    execFileSync("opencli", ["browser", SESSION, "close"], { stdio: "ignore" });
+  } catch {
+    /* 关不掉不影响已经拿到的数据 */
+  }
+}
+
+function fetchTrends(keywords, opts, { resolution } = {}) {
+  if (keywords.length > 5) die("Google Trends 一次最多对比 5 个关键词");
+  const geo = opts.geo ?? "";
+  const timeframe = toTimeframe(opts.time);
+  try {
+    return { data: runBatch(extractor({ keywords, geo, timeframe, resolution })), geo, timeframe };
+  } finally {
+    closeSession();
+  }
+}
+
+function scopeLine(geo, timeframe) {
+  return `\n> 范围：${geo || "全球"} · ${timeframe} · 数值为 0-100 归一化热度（100=区间内峰值）\n`;
+}
+
+function mdTable(headers, rows) {
+  const widths = headers.map((h, i) =>
+    Math.max(String(h).length, ...rows.map((r) => String(r[i] ?? "").length)),
+  );
+  const line = (cells) => "| " + cells.map((c, i) => String(c ?? "").padEnd(widths[i])).join(" | ") + " |";
+  return [line(headers), "|" + widths.map((w) => "-".repeat(w + 2)).join("|") + "|", ...rows.map(line)].join("\n");
+}
+
+function cmdCompare(kws, opts) {
+  if (!kws.length) die("compare 需要至少 1 个关键词，最多 5 个");
+  const { data, geo, timeframe } = fetchTrends(kws, opts);
+  const tl = data.timeseries?.default?.timelineData;
+  if (!tl?.length) die("没有数据：关键词太冷门，或该地区/时间范围内无足够搜索量");
+
+  let rows;
+  let note = "";
+  if (!opts.raw && tl.length > 30) {
+    // 按月聚合。formattedAxisTime 的粒度随 timeframe 变，用 time 时间戳更可靠。
+    const buckets = new Map();
+    for (const p of tl) {
+      const key = new Date(Number(p.time) * 1000).toISOString().slice(0, 7);
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(p.value);
+    }
+    rows = [...buckets.entries()].map(([month, vals]) => [
+      month,
+      ...kws.map((_, i) => (vals.reduce((s, v) => s + v[i], 0) / vals.length).toFixed(1)),
+    ]);
+    note = "（月均值；--raw 查看原始数据）";
+  } else {
+    rows = tl.map((p) => [
+      new Date(Number(p.time) * 1000).toISOString().slice(0, 10),
+      ...p.value.map(String),
+    ]);
+  }
+
+  console.log(`## 热度对比：${kws.join(" vs ")} ${note}`);
+  console.log(scopeLine(geo, timeframe));
+  console.log(mdTable(["date", ...kws], rows));
+
+  const peaks = kws.map((k, i) => {
+    let best = rows[0];
+    for (const r of rows) if (Number(r[i + 1]) > Number(best[i + 1])) best = r;
+    return `${k} → ${best[i + 1]}（${best[0]}）`;
+  });
+  console.log(`\n**峰值**：${peaks.join("；")}`);
+}
+
+function cmdRegion(kws, opts) {
+  if (!kws.length) die("region 需要至少 1 个关键词");
+  const list = kws.slice(0, 5);
+  const { data, geo, timeframe } = fetchTrends(list, opts, {
+    resolution: opts.geo ? "REGION" : "COUNTRY",
+  });
+  const gm = data.geo?.default?.geoMapData;
+  if (!gm?.length) die("没有地区数据");
+  const topN = Number(opts.top || 15);
+  const rows = gm
+    .filter((g) => g.value.some((v) => v > 0))
+    .sort((a, b) => b.value[0] - a.value[0])
+    .slice(0, topN)
+    .map((g) => [g.geoName, ...g.value.map(String)]);
+  console.log(`## 地区热度分布：${list.join(" / ")}`);
+  console.log(scopeLine(geo, timeframe));
+  console.log(mdTable(["region", ...list], rows));
+}
+
+function cmdRelated(kws, opts) {
+  if (kws.length !== 1) die("related 只支持单个关键词");
+  const { data, geo, timeframe } = fetchTrends(kws, opts);
+  const ranked = data.related?.[0]?.default?.rankedList;
+  console.log(`## 相关查询：${kws[0]}`);
+  console.log(scopeLine(geo, timeframe));
+  const topN = Number(opts.top || 15);
+  // rankedList[0] = top（相对热度），[1] = rising（增长百分比）
+  const sections = [
+    ["飙升（value=增长百分比）", ranked?.[1]],
+    ["高频（value=相对热度）", ranked?.[0]],
+  ];
+  for (const [label, section] of sections) {
+    console.log(`### ${label}`);
+    const items = section?.rankedKeyword;
+    if (!items?.length) {
+      console.log("（无数据）\n");
+      continue;
+    }
+    console.log(
+      mdTable(
+        ["query", "value"],
+        items.slice(0, topN).map((k) => [k.query, k.formattedValue ?? String(k.value)]),
+      ),
+    );
+    console.log();
+  }
+}
+
+const COMMANDS = { compare: cmdCompare, region: cmdRegion, related: cmdRelated };
+
+function main() {
+  const argv = process.argv.slice(2);
+  if (!argv.length || ["-h", "--help", "help"].includes(argv[0])) {
+    console.log(
+      [
+        "gt-browser — Google Trends 的 OpenCLI 路由（走已登录 Chrome，避开 pytrends 的 429）",
+        "",
+        "  node gt-browser.mjs compare KW1 [KW2...]  热度对比",
+        "  node gt-browser.mjs region  KW1 [KW2...]  地区分布",
+        "  node gt-browser.mjs related KW            相关查询",
+        "",
+        "  --geo CODE   地区（留空=全球）   --time 1m|3m|12m|5y|all|START:END",
+        "  --top N      条数（默认 15）     --raw  compare 不做月度聚合",
+      ].join("\n"),
+    );
+    process.exit(0);
+  }
+  const cmd = argv[0];
+  if (!COMMANDS[cmd]) die(`未知子命令 ${cmd}，可用：${Object.keys(COMMANDS).join(", ")}`);
+  const { kws, opts } = parseArgs(argv.slice(1));
+  COMMANDS[cmd](kws, opts);
+}
+
+main();

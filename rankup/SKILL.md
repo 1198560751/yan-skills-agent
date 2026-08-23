@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、挖需求、找需求、需求挖掘、找方向、找选题、"最近有什么能做的"、"找几个关键词"、"挖个新词的工具站"、"看看有什么游戏站能做"、竞品调研、榜单调研、差评挖掘、反查谁在赚钱、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
 metadata:
-  version: "2.37.0"
+  version: "2.38.0"
 ---
 
 # Rankup 2.0
@@ -110,7 +110,8 @@ opencli browser "$S" --window background eval '(async()=>{ /* fetch(..., {creden
 |---|---|---|
 | `scripts/seo-webcafe.mjs` | 一个脚本覆盖 seo.web.cafe 全部有后端的工具：`kd` 关键词难度+top9 盘面、`audit` 页面体检、`serp` 排名归因、`backlink` 外链估价、`worth` 网站估值、`history` 域名前世、`chat` 站内 SEO Agent、`referring`/`referringMonth`/`referringSite` Stripe 引荐流量榜（不计配额） | 问「这个词难不难做」「这盘面能不能进」「这条外链值不值」「这域名什么来历」。零配置可跑，匿名 10 次/日 |
 | **`scripts/demand/` 一整组（20 个）** | **需求挖掘取数**：榜单、差评、外包、广告、新词平台、竞品 sitemap、词根库、域名画像。全部零依赖、`--json`/`--out` 统一 | 用户说「找几个关键词」「挖点需求」「最近有什么能做的」时。**先读 [`demand-sources.md`](references/demand-sources.md) 那张源→脚本路由表，不要逐个翻脚本** |
-| `scripts/gt.py` | Google Trends：热度对比、地区分布、相关飙升词、每日热搜 | 问「XX 和 YY 哪个更火」「哪个国家有机会」「最近什么在涨」。首次运行自动建 venv |
+| `scripts/gt.py` | Google Trends 统一入口：热度对比、地区分布、相关飙升词、每日热搜 | 问「XX 和 YY 哪个更火」「哪个国家有机会」「最近什么在涨」。**默认走浏览器路由，不需要 venv** |
+| `scripts/gt-browser.mjs` | gt 的 OpenCLI 取数层：驱动已登录 Chrome，在 trends.google.com 页面里 fetch Trends 内部 widget 接口 | 一般不直接调，由 `gt.py` 转发。pytrends 的 429 就是靠它绕开的；要它工作先 `opencli doctor` |
 | `scripts/chatbot-drive.browser.js` | 驱动只有网页形态的 AI Chatbot（要登录、按条扣费、**且确实没有 HTTP API**）。**seo.web.cafe 有 HTTP API，用 `seo-webcafe.mjs chat`，不要用这个** | 确认目标聊天工具没有 HTTP API 后才使用 |
 | `scripts/cf-analytics-setup.mjs` | **开通 Cloudflare Web Analytics 并读回 beacon**。`status` 只读探测，`enable` 开启 | 新站上线后接测量时。不依赖任何第三方账号，应排在 GSC/GA 之前做 |
 | `scripts/cf-zone-setup.mjs` | **把域名加进 Cloudflare（zone onboarding）并读回 NS 对**——Wrangler 没有 zone 命令，这是补它的缺口。`status` 只读探测，`create` 建 zone | 新域名接入 Cloudflare 时。**优先仍是操作用户浏览器**，本脚本是浏览器不可用时的退路 |
@@ -500,7 +501,7 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | **转化率上不去、访客不注册、注册不付费、定价怎么定、用户行为数据怎么提** | [`experiences/conversion.md`](references/experiences/conversion.md) | 无需工具，是裁定集。**动页面之前先查上游流量意图** |
 | 老站救不救、多站会不会自我重复、品牌名不显示、KGR 怎么算、页面下限 | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) | 无需工具，是裁定集 |
 | **多语言怎么上、URL 结构、`<html lang>`、hreflang、语言检测与跳转、中文繁简分治** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 三·五 + [`seo-growth.md`](references/seo-growth.md)「多语言站架构参考（Apple 模型）」+ [`lifecycle.md`](references/lifecycle.md) 阶段 3 第 5 条 | 无需工具，是规则集。**核心禁令：不得根据 IP 自动跳转语言** |
-| 搜索热度对比、地区分布、相关飙升词、每日热搜、模糊方向扩词并收敛成可做站的词 | [`trends.md`](references/trends.md) | `scripts/gt.py`（首次运行自动建 venv 装 pytrends） |
+| 搜索热度对比、地区分布、相关飙升词、每日热搜、模糊方向扩词并收敛成可做站的词 | [`trends.md`](references/trends.md) | `scripts/gt.py`（默认走 `gt-browser.mjs` 的浏览器路由，零 venv；`--via pytrends` 可切回匿名 HTTP） |
 | 从登录态后台批量取数（没有 API / API 收费 / 导出扣点数） | [`integrations.md`](references/integrations.md) | **加载 backlink**（`/backlink`），读 `references/harvest.md`。未安装：`npx skills add yan-labs/yan-skills --skill backlink -g -y` |
 | **「数据面板」「数据勘测」「查一下这个站/这个词的数据」** —— 用户说这些词时指的是第三方数据平台 | — | **直接跑脚本**（见上方「数据面板的脚本速查」），不要打开浏览器手操。首次使用或遇到问题时**加载 backlink** 读 `authorized-data-sources.md` |
 | **问哥飞 AI / seo.web.cafe 的 SEO Agent** | [`seo-webcafe.md`](references/seo-webcafe.md) 的「两条取答路径怎么选」 | 有 `SEO_WEBCAFE_COOKIE` → `seo-webcafe.mjs chat`（纯 HTTP，可无人值守）；只有登录态浏览器 → `gefei-ask.mjs`（那枚 Cookie 是 httpOnly，取不出来）。**两条是互补不是替代**；都不要用通用 `chatbot-drive.browser.js` |

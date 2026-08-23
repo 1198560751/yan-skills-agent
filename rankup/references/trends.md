@@ -21,11 +21,27 @@
 
 | 用户想要 | 子命令 | 数据源 |
 |---|---|---|
-| 热度对比 / 趋势曲线 / "XX 和 YY 哪个火" | `compare` | pytrends |
-| 地区分布 / "哪个国家搜得多" | `region` | pytrends |
-| 相关词 / 飙升查询 / "大家搜 XX 时还搜什么" | `related` | pytrends |
+| 热度对比 / 趋势曲线 / "XX 和 YY 哪个火" | `compare` | opencli（默认）· pytrends（`--via`） |
+| 地区分布 / "哪个国家搜得多" | `region` | opencli（默认）· pytrends（`--via`） |
+| 相关词 / 飙升查询 / "大家搜 XX 时还搜什么" | `related` | opencli（默认）· pytrends（`--via`） |
 | 今日热搜 / "美国现在在搜什么" | `hot` | opencli |
 | 关键词难度 / SERP 盘面 / "这个词能排上去吗" | `seo-webcafe.mjs kd` | Web.Cafe KD API |
+
+### 取数路由：为什么默认不是 pytrends
+
+`compare` / `region` / `related` 有两条实现，`gt.py` 用 `--via` 切换：
+
+| 路由 | 怎么取的 | 什么时候用 |
+|---|---|---|
+| `browser`（**默认**） | OpenCLI 打开 `trends.google.com/trends/explore`，在**页面上下文**里 fetch Trends 自己的 `api/explore` + `api/widgetdata/*`。同源、带 cookie、真实浏览器指纹 | 默认。要求 `opencli doctor` 绿 |
+| `pytrends` | 匿名 HTTP 打同一批接口，无凭据 | 只在浏览器桥不可用时。**Google 对它限流极狠，429 是常态而不是意外** |
+| `auto` | 先试 pytrends，撞 429 自动回落 browser | 想省一次浏览器开销又不想失败时 |
+
+判据和 opencli Skill 里那条一样：**无痕窗口打开是不是同一个东西？**
+Trends 的答案是「不是」——匿名请求会被限流、被降级，
+而失败会伪装成「这个词没有数据」，正确的结论其实是「你被 429 了」。
+
+`hot` 一直走 `opencli google trends` adapter，不受这个开关影响。
 
 ### Trends 查询（compare / region / related / hot）
 

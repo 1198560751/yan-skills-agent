@@ -14,8 +14,16 @@
   --top N        region/related 显示前 N 条（默认 15）
   --region CODE  hot 的地区（默认 US；不支持 CN）
   --limit N      hot 显示条数（默认 20）
+  --via ROUTE    取数路由：browser（默认）/ pytrends / auto
 
-首次运行自动在 ~/.cache/gt-skill/venv 创建虚拟环境并安装 pytrends。
+路由说明：
+  browser  走 gt-browser.mjs：OpenCLI 驱动已登录 Chrome，在 trends.google.com
+           页面上下文里 fetch Trends 内部 widget 接口。同源 + 带 cookie，
+           拿到的和你肉眼在页面上看到的是同一份数据。需要 opencli doctor 绿。
+  pytrends 匿名 HTTP。不用浏览器，但 Google 对它限流极狠，429 是常态。
+  auto     先试 pytrends，撞 429 自动回落到 browser。
+
+pytrends 路由首次运行会在 ~/.cache/gt-skill/venv 建虚拟环境。
 注意：pytrends 不能传 retries 参数（与 urllib3 v2 不兼容）。
 """
 
@@ -25,6 +33,14 @@ import sys
 
 VENV_DIR = os.path.expanduser("~/.cache/gt-skill/venv")
 VENV_PY = os.path.join(VENV_DIR, "bin", "python")
+BROWSER_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gt-browser.mjs")
+BROWSER_CMDS = ("compare", "region", "related")
+
+
+def run_browser(argv):
+    """把整条命令原样转给 gt-browser.mjs（选项名和输出格式都是一致的）。"""
+    r = subprocess.run(["node", BROWSER_SCRIPT] + argv)
+    sys.exit(r.returncode)
 
 
 def ensure_venv():
@@ -194,9 +210,24 @@ def main():
     cmd = argv[0]
     if cmd not in COMMANDS:
         die(f"未知子命令 {cmd}，可用：{', '.join(COMMANDS)}")
+
+    rest = argv[1:]
+    via = "browser"
+    if "--via" in rest:
+        i = rest.index("--via")
+        if i + 1 >= len(rest):
+            die("选项 --via 缺少值（browser / pytrends / auto）")
+        via = rest[i + 1]
+        rest = rest[:i] + rest[i + 2 :]
+    if via not in ("browser", "pytrends", "auto"):
+        die(f"未知路由 {via}，可用：browser / pytrends / auto")
+
+    if cmd in BROWSER_CMDS and via == "browser":
+        run_browser([cmd] + rest)
+
     if cmd != "hot":
         ensure_venv()
-    kws, opts = parse_args(argv[1:])
+    kws, opts = parse_args(rest)
     try:
         COMMANDS[cmd](kws, opts)
     except SystemExit:
@@ -204,7 +235,10 @@ def main():
     except Exception as e:
         msg = str(e)
         if "429" in msg:
-            die("被 Google 限流了（429），等 1-2 分钟再试，或换个网络")
+            if cmd in BROWSER_CMDS and via == "auto":
+                print("[gt] pytrends 被限流（429），回落到浏览器路由 ...", file=sys.stderr)
+                run_browser([cmd] + rest)
+            die("被 Google 限流了（429）。加 --via browser 走已登录 Chrome，或等 1-2 分钟再试")
         die(f"{type(e).__name__}: {msg}")
 
 
