@@ -25,7 +25,7 @@
  *   - 各工具令牌互不通用，必须各取各的。
  */
 
-import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -58,7 +58,25 @@ const TOOLS = {
   backlink: { tool: "backlink", path: "/backlink/api/evaluate", body: (a) => ({ input: req(a.input, "--input") }), desc: "外链报价评估" },
   adsense: { tool: "adsense", path: "/adsense/api/audit", body: (a) => ({ input: req(a.input, "--input") }), desc: "AdSense 过审预检" },
   history: { tool: "history", path: "/history/api/analyze", body: (a) => ({ domain: req(a.input, "--input") }), sse: true, desc: "域名前世，返回 SSE 流" },
-  referring: { tool: "referring", path: "/referring/api/summary", method: "GET", desc: "Stripe 引荐流量榜（不计配额）" },
+  referring: { tool: "referring", path: "/referring/api/summary", method: "GET", desc: "Stripe 引荐流量榜总览（不计配额）" },
+  /**
+   * 榜单三个端点都**不计配额**，是这个站里唯一能无限量取的真实商业数据。
+   * 单位坑：`visits` 的单位是**千次**（K），2692.6 表示 269 万次，不是 2692 次。
+   */
+  referringMonth: {
+    tool: "referring",
+    path: "/referring/api/month",
+    method: "GET",
+    query: (a) => ({ m: req(a.m, "--m") }),
+    desc: "某月榜单全量（--m YYYYMM），不计配额",
+  },
+  referringSite: {
+    tool: "referring",
+    path: "/referring/api/site",
+    method: "GET",
+    query: (a) => ({ domain: req(a.domain, "--domain") }),
+    desc: "单域名在榜历史（--domain），不计配额",
+  },
   /**
    * SEO Agent：站内十余个工具的对话入口，会自行调用它们查真实数据再给结论。
    *
@@ -182,6 +200,11 @@ async function callOfficial(spec, a) {
     headers: { Authorization: `Bearer ${t}`, "user-agent": UA },
   });
   const txt = await r.text();
+  // format=markdown 时服务端返回 text/markdown，不是 JSON。
+  // 之前这里一律 safeJson，于是 data 变成 null：终端打印「（非 JSON 响应）」，
+  // --out 落盘写进 "data": null —— 报告内容被静默丢掉，最坏的一种失败。
+  const ct = r.headers.get("content-type") || "";
+  if (/markdown|text\/plain/.test(ct)) return { status: r.status, data: { markdown: txt }, raw: txt };
   return { status: r.status, data: safeJson(txt), raw: txt };
 }
 
@@ -202,7 +225,10 @@ async function callSession(spec, a) {
     opt.headers["content-type"] = "application/json";
     opt.body = JSON.stringify(spec.body(a));
   }
-  const r = await fetch(`${BASE}${spec.path}`, opt);
+  // GET 端点的参数走 query string。之前这里只拼 spec.path，
+  // 于是 /referring/api/month 永远拿不到 ?m=，服务端回「参数错误」而不是数据。
+  const qs = method === "GET" && spec.query ? `?${new URLSearchParams(spec.query(a))}` : "";
+  const r = await fetch(`${BASE}${spec.path}${qs}`, opt);
   const txt = await r.text();
   if (spec.chatSse) return { status: r.status, data: parseChatSse(txt), raw: txt };
   if (spec.sse) return { status: r.status, data: { text: parseSse(txt) }, raw: txt };
@@ -277,6 +303,7 @@ async function discover() {
 function summarize(name, data) {
   if (!data) return "（非 JSON 响应）";
   if (name === "kd") {
+    if (data.markdown) return `Markdown 报告 ${data.markdown.length} 字（--out xxx.md 可原样落盘）`;
     // keywordType=brand 时 score 是「衍生内容进入难度」,与通用词不同口径,不标出来会被误读。
     // keywordTrend.ratio >= 1 表示有站正靠这个词快速上升,是时机信号,官方文档专门点名。
     const brand = data.keywordType === "brand" ? " · 品牌词(衍生口径)" : "";
@@ -285,11 +312,32 @@ function summarize(name, data) {
     const newcomer = (data.details || []).some((d) => typeof d.ageYears === "number" && d.ageYears < 2)
       ? " · 有新站进前十"
       : "";
-    return `KD ${data.score} ${data.level}${brand} · 月搜 ${data.keywordVolume ?? "—"} · 引用域中值 ${data.linkBudget?.quality?.mid ?? "—"}${rising}${newcomer}`;
+    // 盘面构成是选词时最常被追问的一件事，而它已经在 details 里躺着了。
+    // 首页多 = 大站拿主页硬顶，内页多 = 有靠单页切进去的缝；dedicated 是「专门经营这个词」的站数。
+    const det = data.details || [];
+    const home = det.filter((d) => d.isHomepage === true || d.pageType === "首页").length;
+    const ded = det.filter((d) => d.dedicated).length;
+    const shape = det.length ? ` · 盘面 ${det.length} 位（首页 ${home}/内页 ${det.length - home}，专营 ${ded}）` : "";
+    return `KD ${data.score} ${data.level}${brand} · 月搜 ${data.keywordVolume ?? "—"} · 引用域中值 ${data.linkBudget?.quality?.mid ?? "—"}${shape}${rising}${newcomer}`;
+  }
+  // visits 单位是千次（K）。不换算就会把 2692.6 读成两千次而不是二百六十九万次。
+  if (name === "referringMonth") {
+    const rows = data.rows || [];
+    const top = rows.slice(0, 3).map((r) => `${r.domain} ${Math.round(r.visits * 1000).toLocaleString()}`).join(" / ");
+    return `${data.month} · ${rows.length} 个域名 · 榜单外总量 ${data.total?.visits ?? "—"} · 前三 ${top}`;
+  }
+  if (name === "referringSite") {
+    const s = data.stats || {};
+    return `${data.domain} · 在榜 ${s.monthsOn}/${s.monthsTotal} 月 · 最好名次 ${s.bestPos} · 累计送出 ${s.totalSentK}K 次 · 最新在榜 ${s.onLatest ? "是" : "否"}`;
   }
   if (name === "audit") return `得分 ${data.score} ${data.grade} · 失败项 ${(data.categories || []).flatMap((c) => c.checks).filter((c) => c.status === "fail").length}`;
   if (name === "backlink") return `${data.domain} · 质量 ${data.quality?.score ?? "—"}/${data.quality?.level ?? "—"} · 判定 ${data.verdict?.label ?? data.verdict?.text ?? JSON.stringify(data.verdict ?? "—").slice(0, 60)}`;
-  if (name === "serp") return `top${(data.results || []).length} · KD ${data.kd ?? "—"}`;
+  if (name === "serp") {
+    // data.kd 实测是对象不是数字，直接插值会打出 "KD [object Object]"（看着像取到了值，其实没有）。
+    const k = data.kd;
+    const kd = k == null ? "—" : typeof k === "object" ? (k.score ?? k.value ?? k.difficulty ?? JSON.stringify(k).slice(0, 60)) : k;
+    return `top${(data.results || []).length} · KD ${kd}`;
+  }
   if (name === "chat") {
     if (data.error) return `解析失败：${data.error}`;
     const tc = Array.isArray(data.toolCalls) ? data.toolCalls.join(",") : (data.toolCalls ?? "—");
@@ -314,6 +362,14 @@ ${Object.entries(TOOLS).map(([k, v]) => `  ${k.padEnd(11)} ${v.desc}`).join("\n"
   --batch <file>     批量模式，每行一组参数（见下）
   --spacing-ms <ms>  批量时的请求间隔，默认按工具的保险丝取值
   --help             本帮助
+
+kd 专属选项（对齐 /kd/docs 的公开 API 参数表，无遗漏）:
+  --keyword <kw>     英文关键词，必填
+  --gl <cc>          Google 国家码，默认 us（gb/ca/au/de/jp/sg …）
+  --hl <lang>        语言码，默认 en
+  --force            跳过 7 天结论缓存强制重算（仍计配额）
+  --format markdown  返回自包含 Markdown 报告；不给 --out 就直接打到 stdout，
+                     --out xxx.md 原样落盘，--out xxx.json 包进 JSON
 
 批量文件格式：每行一条，用 key=value 空格分隔，例如
   keyword=markdown to pdf
@@ -371,6 +427,35 @@ async function quotaPreflight(tool) {
   } catch { /* 探测失败不该挡住正事 */ }
 }
 
+/**
+ * kd 走的是令牌制公开 API，档位跟着**令牌所属账号**走（登录 100/日、VIP 500/日），
+ * 和上面那套按 Cookie/IP 计数的会话档不是一回事。
+ *
+ * `/kd/api/me` 不耗配额也不要令牌，但它**只认 Cookie / IP，完全忽略 Bearer 令牌**
+ * （实测：带上有效 wc_mcp_ 令牌请求它，仍返回 `login:false, tier:游客`）。
+ * 所以不带 Cookie 时它报的数字是「这个 IP 的网页查询用量」，不是你令牌的余额——
+ * 当作下限看，别当作事实。这正是 2026-08-22 那次「以为只剩几次」的事故来源。
+ */
+async function officialQuotaPreflight() {
+  try {
+    const r = await fetch(`${BASE}/kd/api/me`, { headers: authHeaders() });
+    if (!r.ok) return;
+    const j = await r.json();
+    const q = j?.quota;
+    if (!q) return;
+    const left = q.unlimited ? "∞" : Math.max(0, (q.limit ?? 0) - (q.used ?? 0));
+    console.error(`· 配额 ${q.tier}：已用 ${q.used}/${q.limit}，剩 ${left}（三端共用：网页 + MCP + API）`);
+    if (!j.login) {
+      console.error(
+        "  ↑ 这是按 IP 计的网页档，**不是你 wc_mcp_ 令牌的余额**（/kd/api/me 不认 Bearer）。\n" +
+        "    令牌绑定的账号是登录档 100/日或 VIP 500/日，真实余额通常比这里显示的高得多。\n" +
+        "    想看准数：登录后 export SEO_WEBCAFE_COOKIE='...' 再跑，或直接去 /kd/docs 页面看。\n" +
+        "    不要因为这行数字小就自我限流、少测几个词。"
+      );
+    }
+  } catch { /* 探测失败不该挡住正事 */ }
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   if (!argv.length || argv.includes("--help")) { console.log(HELP); return; }
@@ -388,7 +473,8 @@ async function main() {
   if (!spec) die(`未知命令：${cmd}（用 --help 看全部命令）`);
 
   // 先报档位再干活：不这么做就会按错误的配额假设去规划整场调研。
-  if (!spec.official) await quotaPreflight(spec.tool);
+  if (spec.official) await officialQuotaPreflight();
+  else await quotaPreflight(spec.tool);
 
   const rows = a.batch
     ? readFileSync(a.batch, "utf8").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"))
@@ -410,12 +496,33 @@ async function main() {
     if (spacing && i < rows.length - 1) await new Promise((r) => setTimeout(r, spacing));
   }
 
+  // format=markdown 拿到的是给人读/存档/喂 AI 的报告正文。没给 --out 就直接打到 stdout，
+  // 否则用户只看到一行摘要，报告本身无处可去。
+  const mds = results.map((r) => r.data?.markdown).filter(Boolean);
+  if (mds.length && !a.out) console.log("\n" + mds.join("\n\n---\n\n"));
+
   if (a.out) {
     const path = a.out;
+    // .md 落盘写原文，不要把报告包进 JSON 再转义一遍。
+    if (mds.length && path.endsWith(".md")) {
+      writeFileSync(path, mds.join("\n\n---\n\n"));
+      console.error(`已写入 ${path}`);
+      return;
+    }
     if (path.endsWith("/")) { mkdirSync(path, { recursive: true }); writeFileSync(join(path, `${cmd}.json`), JSON.stringify(results, null, 2)); }
     else writeFileSync(path, JSON.stringify(results.length === 1 ? results[0] : results, null, 2));
     console.error(`已写入 ${path}`);
   }
 }
 
-main().catch((e) => die(`执行失败：${e?.message || e}`));
+/**
+ * 只有被当成命令行程序直接运行时才执行 main。
+ * 加这道闸是为了让别的脚本可以 `import { toolAuth, BASE, UA }` 复用取令牌那一段，
+ * 而不是把同一段正则和 User-Agent 再抄一份——抄一份就意味着站点改版时要改两处，
+ * 而漏改的那一处会静默失败。**导入本模块不会发任何请求。**
+ */
+export { BASE, UA, toolAuth, authHeaders };
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) {
+  main().catch((e) => die(`执行失败：${e?.message || e}`));
+}

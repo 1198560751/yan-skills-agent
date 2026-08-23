@@ -483,6 +483,38 @@ fetch("/serp/api/me",{credentials:"include"}).then(r=>r.json())
 
 `/<tool>/api/me` 每个工具都有，返回真实档位与已用量。**先读它再排计划。**
 
+### 补充根因（2026-08-23 实测，推翻上面「成因是从没去问过」的说法）
+
+上面写的成因只对了一半。真正的坑是：**`/kd/api/me` 完全忽略 `Authorization: Bearer` 令牌。**
+
+带一枚**有效的** `/kd` 令牌去打它，返回的仍然是：
+
+```json
+{"login": false, "tier": "游客", "limit": 10}
+```
+
+也就是说，**在 node 侧脚本里查档位，无论令牌配得多正确，答案永远是「游客 10 次」**。
+按这个读数排计划，必然重演 08-22 那次事故——而且这次连「去问了」都不管用。
+
+| 查档位的姿势 | 结果 |
+|---|---|
+| node 脚本带 Bearer 打 `/kd/api/me` | ❌ 恒为游客 10 次，**读数是假的** |
+| 在**已登录的浏览器页面里** `fetch("/<tool>/api/me",{credentials:"include"})` | ✅ 真实档位与已用量 |
+
+**规矩修订为：查档位必须在浏览器页面里查，不能在 node 脚本里查。**
+`seo-webcafe.mjs` 的配额前置检查已按此实现；看到脚本打印「游客 10」时，
+先确认它是不是走的 node 侧路径，再下「配额不够」的结论。
+
+### `kd` 的另外两个实测契约
+
+- **`format=markdown` 返回 `text/markdown` 而不是 JSON。** 早期脚本一律走 `safeJson`，
+  于是 4580 字节的报告被解析成 `null` **并且不报错**——静默丢数据。
+  现已按 `content-type` 分流，`--out xxx.md` 原样落盘。
+- **`details[]` 实测长度是 9 不是 10**，且文档的字段表漏了 5 个实际返回的字段
+  （`url`、`isHomepage`、`kwHitTerm`、`kwDataKnown`、`dataNote`）。**下游别硬编码长度。**
+- 批量端点**不存在**（`/batch`、`/kd/batch`、`/keywords` 全 404），只能客户端循环，
+  脚本的 `--batch` + 请求间隔已覆盖。
+
 ## httpOnly 会话：不要去取凭据，把请求发到页面里去
 
 `seo-webcafe.mjs` 是 node 侧 HTTP 脚本，没有浏览器会话，所以**永远跑在匿名档**，

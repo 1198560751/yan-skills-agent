@@ -1,0 +1,665 @@
+{
+  "version": 1,
+  "updatedAt": "2026-08-23",
+  "source": {
+    "name": "51 个挖掘需求时能用得上的工具类词根",
+    "url": "https://mp.weixin.qq.com/s/pFi683ZoT_WJXO_t770vSQ",
+    "note": "公开文章，原文按 1~51 编号，其中 4 组是成对给出的（15~16 / 20~21 / 24~25 / 26~27），因此展开后共 51 条词根。"
+  },
+  "patterns": [
+    {
+      "id": "x-root",
+      "template": "{seed} {root}",
+      "example": "pdf converter"
+    },
+    {
+      "id": "root-x",
+      "template": "{root} for {seed}",
+      "example": "converter for pdf"
+    },
+    {
+      "id": "online",
+      "template": "{seed} {root} online",
+      "example": "pdf converter online"
+    },
+    {
+      "id": "free",
+      "template": "free {seed} {root}",
+      "example": "free pdf converter"
+    },
+    {
+      "id": "ai",
+      "template": "ai {seed} {root}",
+      "example": "ai pdf converter"
+    },
+    {
+      "id": "a-to-b",
+      "template": "{seed} to {target} {root}",
+      "example": "pdf to word converter"
+    },
+    {
+      "id": "best",
+      "template": "best {seed} {root}",
+      "example": "best pdf converter"
+    },
+    {
+      "id": "bare",
+      "template": "{root}",
+      "example": "converter"
+    }
+  ],
+  "roots": [
+    {
+      "index": "1",
+      "root": "Translator",
+      "slug": "translator",
+      "zh": "翻译器",
+      "meaning": "Translator是用来将一种语言翻译成另一种语言的工具。",
+      "collocations": [
+        "Google Translator",
+        "Online Translator",
+        "Language Translator"
+      ]
+    },
+    {
+      "index": "2",
+      "root": "Generator",
+      "slug": "generator",
+      "zh": "生成器",
+      "meaning": "Generator是用来创建或生成各种内容，如文本、图像、密码等的工具。",
+      "collocations": [
+        "Password Generator",
+        "Name Generator",
+        "QR Code Generator"
+      ]
+    },
+    {
+      "index": "3",
+      "root": "Example",
+      "slug": "example",
+      "zh": "示例",
+      "meaning": "Example通常用来表示某种示例或范例，以帮助用户了解特定概念或问题。",
+      "collocations": [
+        "Code Example",
+        "Resume Example",
+        "Math Example"
+      ]
+    },
+    {
+      "index": "4",
+      "root": "Convert",
+      "slug": "convert",
+      "zh": "转换",
+      "meaning": "Convert指的是将一种数据或格式转换为另一种的过程。",
+      "collocations": [
+        "PDF to Word Convert",
+        "Currency Convert",
+        "Video Convert"
+      ]
+    },
+    {
+      "index": "5",
+      "root": "Online",
+      "slug": "online",
+      "zh": "在线",
+      "meaning": "Online表示与互联网连接或在互联网上执行的操作。",
+      "collocations": [
+        "Online Shopping",
+        "Online Banking",
+        "Online Learning"
+      ]
+    },
+    {
+      "index": "6",
+      "root": "Downloader",
+      "slug": "downloader",
+      "zh": "下载器",
+      "meaning": "Downloader用于下载文件、音乐、视频等内容到用户的设备。",
+      "collocations": [
+        "YouTube Downloader",
+        "MP3 Downloader",
+        "Video Downloader"
+      ]
+    },
+    {
+      "index": "7",
+      "root": "Maker",
+      "slug": "maker",
+      "zh": "制作器",
+      "meaning": "Maker表示用于制作或创建特定类型的内容或产品的工具。",
+      "collocations": [
+        "Logo Maker",
+        "Video Maker",
+        "Music Maker"
+      ]
+    },
+    {
+      "index": "8",
+      "root": "Creator",
+      "slug": "creator",
+      "zh": "创作者",
+      "meaning": "Creator指的是用于创作或生成各种类型的内容的工具或人。",
+      "collocations": [
+        "Content Creator",
+        "Logo Creator",
+        "Game Creator"
+      ]
+    },
+    {
+      "index": "9",
+      "root": "Editor",
+      "slug": "editor",
+      "zh": "编辑器",
+      "meaning": "Editor用于编辑文本、图像、视频等内容的工具。",
+      "collocations": [
+        "Photo Editor",
+        "Video Editor",
+        "Text Editor"
+      ]
+    },
+    {
+      "index": "10",
+      "root": "Processor",
+      "slug": "processor",
+      "zh": "处理器",
+      "meaning": "Processor表示用于处理数据或执行特定任务的工具。",
+      "collocations": [
+        "Data Processor",
+        "Image Processor",
+        "Word Processor"
+      ]
+    },
+    {
+      "index": "11",
+      "root": "Designer",
+      "slug": "designer",
+      "zh": "设计师",
+      "meaning": "Designer是指专门从事设计工作的人，也可以指设计软件工具。",
+      "collocations": [
+        "Graphic Designer",
+        "Web Designer",
+        "Logo Designer"
+      ]
+    },
+    {
+      "index": "12",
+      "root": "Compiler",
+      "slug": "compiler",
+      "zh": "编译器",
+      "meaning": "Compiler是一种将源代码转换为可执行代码或其他形式的工具。",
+      "collocations": [
+        "C++ Compiler",
+        "Java Compiler",
+        "Compiler Download"
+      ]
+    },
+    {
+      "index": "13",
+      "root": "Analyzer",
+      "slug": "analyzer",
+      "zh": "分析器",
+      "meaning": "Analyzer用于分析数据、文本或其他信息以提取有用的洞察。",
+      "collocations": [
+        "Data Analyzer",
+        "Text Analyzer",
+        "Performance Analyzer"
+      ]
+    },
+    {
+      "index": "14",
+      "root": "Evaluator",
+      "slug": "evaluator",
+      "zh": "评估器",
+      "meaning": "Evaluator用于评估、分析或审查特定事物的工具或人。",
+      "collocations": [
+        "Product Evaluator",
+        "Website Evaluator",
+        "Performance Evaluator"
+      ]
+    },
+    {
+      "index": "15～16",
+      "root": "Sender",
+      "slug": "sender",
+      "zh": "发件人",
+      "meaning": "Sender是指消息或数据的发送方，Receiver是指消息或数据的接收方。",
+      "collocations": [
+        "Email Sender",
+        "Bluetooth Receiver",
+        "Message Receiver"
+      ]
+    },
+    {
+      "index": "15～16",
+      "root": "Receiver",
+      "slug": "receiver",
+      "zh": "收件人",
+      "meaning": "Sender是指消息或数据的发送方，Receiver是指消息或数据的接收方。",
+      "collocations": [
+        "Email Sender",
+        "Bluetooth Receiver",
+        "Message Receiver"
+      ]
+    },
+    {
+      "index": "17",
+      "root": "Interpreter",
+      "slug": "interpreter",
+      "zh": "解释器",
+      "meaning": "Interpreter用于执行或解释编程语言中的脚本或代码。",
+      "collocations": [
+        "Python Interpreter",
+        "JavaScript Interpreter",
+        "PHP Interpreter"
+      ]
+    },
+    {
+      "index": "18",
+      "root": "Uploader",
+      "slug": "uploader",
+      "zh": "上传者",
+      "meaning": "Uploader用于上传文件、媒体或数据到网络或云存储。",
+      "collocations": [
+        "File Uploader",
+        "Image Uploader",
+        "Video Uploader"
+      ]
+    },
+    {
+      "index": "19",
+      "root": "Calculator",
+      "slug": "calculator",
+      "zh": "计算器",
+      "meaning": "Calculator是用于进行数学或科学计算的工具。",
+      "collocations": [
+        "Online Calculator",
+        "Scientific Calculator",
+        "Mortgage Calculator"
+      ]
+    },
+    {
+      "index": "20～21",
+      "root": "Sample",
+      "slug": "sample",
+      "zh": "样本",
+      "meaning": "Sample表示示例或样本，Template表示模板或样式。",
+      "collocations": [
+        "Resume Sample",
+        "Website Template",
+        "Email Template"
+      ]
+    },
+    {
+      "index": "20～21",
+      "root": "Template",
+      "slug": "template",
+      "zh": "模板",
+      "meaning": "Sample表示示例或样本，Template表示模板或样式。",
+      "collocations": [
+        "Resume Sample",
+        "Website Template",
+        "Email Template"
+      ]
+    },
+    {
+      "index": "22",
+      "root": "Format",
+      "slug": "format",
+      "zh": "格式",
+      "meaning": "Format用于指定数据、文本或媒体的特定布局或样式。",
+      "collocations": [
+        "Text Format",
+        "Image Format",
+        "Video Format"
+      ]
+    },
+    {
+      "index": "23",
+      "root": "Builder",
+      "slug": "builder",
+      "zh": "构建器",
+      "meaning": "Builder用于构建或创建项目、应用程序或系统。",
+      "collocations": [
+        "App Builder",
+        "Website Builder",
+        "Game Builder"
+      ]
+    },
+    {
+      "index": "24～25",
+      "root": "Scheme",
+      "slug": "scheme",
+      "zh": "方案",
+      "meaning": "Scheme表示计划或方案，Pattern表示模式、图案或设计。",
+      "collocations": [
+        "Business Scheme",
+        "Knitting Pattern",
+        "Design Pattern"
+      ]
+    },
+    {
+      "index": "24～25",
+      "root": "Pattern",
+      "slug": "pattern",
+      "zh": "模式",
+      "meaning": "Scheme表示计划或方案，Pattern表示模式、图案或设计。",
+      "collocations": [
+        "Business Scheme",
+        "Knitting Pattern",
+        "Design Pattern"
+      ]
+    },
+    {
+      "index": "26～27",
+      "root": "Checker",
+      "slug": "checker",
+      "zh": "检查器",
+      "meaning": "Checker用于检查或验证事物的正确性，Detector用于检测或发现特定物体或问题。",
+      "collocations": [
+        "Grammar Checker",
+        "Virus Detector",
+        "Plagiarism Checker"
+      ]
+    },
+    {
+      "index": "26～27",
+      "root": "Detector",
+      "slug": "detector",
+      "zh": "检测器",
+      "meaning": "Checker用于检查或验证事物的正确性，Detector用于检测或发现特定物体或问题。",
+      "collocations": [
+        "Grammar Checker",
+        "Virus Detector",
+        "Plagiarism Checker"
+      ]
+    },
+    {
+      "index": "28",
+      "root": "Scraper",
+      "slug": "scraper",
+      "zh": "爬虫",
+      "meaning": "Scraper用于从网页或数据源中提取信息。",
+      "collocations": [
+        "Web Scraper",
+        "Data Scraper",
+        "Email Scraper"
+      ]
+    },
+    {
+      "index": "29",
+      "root": "Manager",
+      "slug": "manager",
+      "zh": "管理器",
+      "meaning": "Manager用于管理或监督事物的工具或人。",
+      "collocations": [
+        "Project Manager",
+        "Task Manager",
+        "Property Manager"
+      ]
+    },
+    {
+      "index": "30",
+      "root": "Explorer",
+      "slug": "explorer",
+      "zh": "浏览器",
+      "meaning": "Explorer用于浏览或探索文件、数据或资源的工具。",
+      "collocations": [
+        "File Explorer",
+        "Web Explorer",
+        "Resource Explorer"
+      ]
+    },
+    {
+      "index": "31",
+      "root": "Dashboard",
+      "slug": "dashboard",
+      "zh": "仪表盘",
+      "meaning": "Dashboard是一种用于显示数据、指标或信息的可视化工具。",
+      "collocations": [
+        "Data Dashboard",
+        "Project Dashboard",
+        "Dashboard Design"
+      ]
+    },
+    {
+      "index": "32",
+      "root": "Planner",
+      "slug": "planner",
+      "zh": "计划器",
+      "meaning": "Planner用于创建和管理计划、日程或安排的工具。",
+      "collocations": [
+        "Event Planner",
+        "Trip Planner",
+        "Wedding Planner"
+      ]
+    },
+    {
+      "index": "33",
+      "root": "Tracker",
+      "slug": "tracker",
+      "zh": "追踪器",
+      "meaning": "Tracker用于跟踪信息、位置或进度的工具。",
+      "collocations": [
+        "Package Tracker",
+        "Project Tracker",
+        "Fitness Tracker"
+      ]
+    },
+    {
+      "index": "34",
+      "root": "Recorder",
+      "slug": "recorder",
+      "zh": "录制器",
+      "meaning": "Recorder用于录制音频、视频或其他数据的工具。",
+      "collocations": [
+        "Audio Recorder",
+        "Video Recorder",
+        "Screen Recorder"
+      ]
+    },
+    {
+      "index": "35",
+      "root": "Optimizer",
+      "slug": "optimizer",
+      "zh": "优化器",
+      "meaning": "Optimizer用于优化性能、资源或数据的工具。",
+      "collocations": [
+        "PC Optimizer",
+        "Website Optimizer",
+        "SEO Optimizer"
+      ]
+    },
+    {
+      "index": "36",
+      "root": "Scheduler",
+      "slug": "scheduler",
+      "zh": "调度器",
+      "meaning": "Scheduler用于安排任务、事件或活动的工具。",
+      "collocations": [
+        "Meeting Scheduler",
+        "Flight Scheduler",
+        "Work Schedule"
+      ]
+    },
+    {
+      "index": "37",
+      "root": "Converter",
+      "slug": "converter",
+      "zh": "转换器",
+      "meaning": "Converter用于将一种数据、格式或单位转换为另一种的工具。",
+      "collocations": [
+        "Currency Converter",
+        "PDF Converter",
+        "Image Converter"
+      ]
+    },
+    {
+      "index": "38",
+      "root": "Viewer",
+      "slug": "viewer",
+      "zh": "查看器",
+      "meaning": "Viewer用于查看文档、图像、视频或其他内容的工具。",
+      "collocations": [
+        "PDF Viewer",
+        "Image Viewer",
+        "Video Viewer"
+      ]
+    },
+    {
+      "index": "39",
+      "root": "Extractor",
+      "slug": "extractor",
+      "zh": "提取器",
+      "meaning": "Extractor用于从数据、文本或媒体中提取信息的工具。",
+      "collocations": [
+        "Text Extractor",
+        "Image Extractor",
+        "Audio Extractor"
+      ]
+    },
+    {
+      "index": "40",
+      "root": "Monitor",
+      "slug": "monitor",
+      "zh": "监视器",
+      "meaning": "Monitor用于监视、追踪或监控系统、活动或进程的工具。",
+      "collocations": [
+        "System Monitor",
+        "Network Monitor",
+        "Health Monitor"
+      ]
+    },
+    {
+      "index": "41",
+      "root": "Notifier",
+      "slug": "notifier",
+      "zh": "通知器",
+      "meaning": "Notifier用于发送通知、提醒或警告的工具。",
+      "collocations": [
+        "Email Notifier",
+        "Reminder Notifier",
+        "News Notifier"
+      ]
+    },
+    {
+      "index": "42",
+      "root": "Verifier",
+      "slug": "verifier",
+      "zh": "验证器",
+      "meaning": "Verifier用于验证身份、信息或数据的工具。",
+      "collocations": [
+        "Identity Verifier",
+        "Code Verifier",
+        "Data Verifier"
+      ]
+    },
+    {
+      "index": "43",
+      "root": "Simulator",
+      "slug": "simulator",
+      "zh": "模拟器",
+      "meaning": "Simulator用于模拟实际情况、环境或过程的工具。",
+      "collocations": [
+        "Flight Simulator",
+        "Driving Simulator",
+        "Game Simulator"
+      ]
+    },
+    {
+      "index": "44",
+      "root": "Assistant",
+      "slug": "assistant",
+      "zh": "助手",
+      "meaning": "Assistant是一种用于提供帮助、建议或执行任务的工具或人。",
+      "collocations": [
+        "Virtual Assistant",
+        "AI Assistant",
+        "Personal Assistant"
+      ]
+    },
+    {
+      "index": "45",
+      "root": "Constructor",
+      "slug": "constructor",
+      "zh": "构建者",
+      "meaning": "Constructor用于构建、创建或设计事物的工具或人。",
+      "collocations": [
+        "Website Constructor",
+        "Product Constructor",
+        "Building Constructor"
+      ]
+    },
+    {
+      "index": "46",
+      "root": "Comparator",
+      "slug": "comparator",
+      "zh": "比较器",
+      "meaning": "Comparator用于比较数据、信息或选项的工具。",
+      "collocations": [
+        "Price Comparator",
+        "Product Comparator",
+        "Feature Comparator"
+      ]
+    },
+    {
+      "index": "47",
+      "root": "Navigator",
+      "slug": "navigator",
+      "zh": "导航器",
+      "meaning": "Navigator用于导航、指导或引导用户到目的地的工具。",
+      "collocations": [
+        "GPS Navigator",
+        "Map Navigator",
+        "Website Navigator"
+      ]
+    },
+    {
+      "index": "48",
+      "root": "Syncer",
+      "slug": "syncer",
+      "zh": "同步器",
+      "meaning": "Syncer用于同步、同步化或协调数据、文件或设备的工具。",
+      "collocations": [
+        "Phone Syncer",
+        "Cloud Syncer",
+        "Email Syncer"
+      ]
+    },
+    {
+      "index": "49",
+      "root": "Connector",
+      "slug": "connector",
+      "zh": "连接器",
+      "meaning": "Connector是指用于连接两个或多个物体、设备、系统或组件的工具、部件或接口。连接器通常用于传输电信号、电力、数据或液体等各种类型的信息或资源。",
+      "collocations": [
+        "常见的Connector搭配包括USB Connector（USB连接器）",
+        "Ethernet Connector（以太网连接器）",
+        "Power Connector（电源连接器）等。"
+      ]
+    },
+    {
+      "index": "50",
+      "root": "Cataloger",
+      "slug": "cataloger",
+      "zh": "目录制作人",
+      "meaning": "Cataloger是指负责创建、维护或管理目录、索引或分类系统的人或工具。目录制作人通常整理和组织信息，以便用户能够轻松找到所需的资源。",
+      "collocations": [
+        "Library Cataloger",
+        "Online Cataloger",
+        "Digital Asset Cataloger"
+      ]
+    },
+    {
+      "index": "51",
+      "root": "Responder",
+      "slug": "responder",
+      "zh": "响应器",
+      "meaning": "Responder是指负责回应、响应或处理特定事件、请求或情况的人或系统。响应器通常用于紧急情况、客户支持或自动化流程中。",
+      "collocations": [
+        "Emergency Responder",
+        "Customer Support Responder",
+        "Automated Responder"
+      ]
+    }
+  ]
+}
