@@ -903,6 +903,26 @@ async function cmdAsk(question, args, ctx) {
   return out;
 }
 
+/**
+ * 逃生舱：直接打任意 `/api/...` 路径，带上同一套 transport 开关。
+ *
+ * 站里还有一批端点数据量小、没必要各写一条命令（`/api/ask/home` 首页聚合、
+ * `/api/ask/experts` 122 位专家、`/api/ask/activity` 30 条动态、
+ * `/api/showcase/list` 8 条广告位、`/api/community/random-recommend` 10 条随机帖），
+ * 以及**以后站方新增的任何端点**。有这条就不用为了试一个新端点改代码。
+ *
+ * **只发 GET。** 要发 POST 的检索端点走 `chat-search`（那条有白名单）。
+ */
+async function cmdApi(path, args, ctx) {
+  if (!path) die('用法：webcafe-forum.mjs api /api/ask/home');
+  if (!path.startsWith("/")) path = "/" + path;
+  const res = await getJson(path, { ...ctx, gated: notGated });
+  if (args.out) console.error(`已写入 ${writeOut(args.out, res.json)}`);
+  console.log(JSON.stringify(res.json, null, 2));
+  console.error(`\n（HTTP ${res.status}，经由 ${res.transport}）`);
+  return res.json;
+}
+
 /* ────────────────────────── 万能入口：get <url> ────────────────────────── */
 
 /**
@@ -1025,6 +1045,8 @@ const HELP = `webcafe-forum.mjs —— new.web.cafe（哥飞社区论坛）全�
   search "词"            站内搜索 --pages <n>（30/页；**不覆盖悬赏**）
   chat-search "词"       哥飞的朋友们微信群归档（哥飞.ai 的语料）--room <id> --exact
   whoami                 浏览器里是不是登录态
+  api <path>             逃生舱：直接打任意 /api/... （GET），带同一套 transport
+                         例：api /api/ask/home · /api/ask/experts · /api/ask/activity
 
   哥飞.ai（站内 /chat，**不是** seo.web.cafe 那个）
   ai-sessions            列出你的历史对话
@@ -1069,6 +1091,7 @@ async function main() {
       case "rounds": await cmdRounds(args, ctx); break;
       case "featured": await cmdFeatured(args, ctx); break;
       case "whoami": await cmdWhoami(args, ctx); break;
+      case "api": await cmdApi(args._[1], args, ctx); break;
       case "question": await cmdQuestion(args._[1], args, ctx); break;
       case "experiences": await cmdList("experiences", args, ctx); break;
       case "topics": await cmdList("topics", args, ctx); break;

@@ -305,6 +305,11 @@ node webcafe-forum.mjs bounties --transport http
 
 # 浏览器里到底是不是登录态
 node webcafe-forum.mjs whoami
+
+# 逃生舱：站里数据量小的端点（首页聚合/专家/动态流/广告位）和以后新增的任何端点，
+# 不用改代码，直接打
+node webcafe-forum.mjs api /api/ask/home
+node webcafe-forum.mjs api /api/ask/experts
 ```
 
 `--transport` 三档：`auto`（默认，先免费 HTTP，**确认被匿名降级了才动用户的 Chrome**）·
