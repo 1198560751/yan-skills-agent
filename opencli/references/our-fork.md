@@ -20,14 +20,14 @@
 CLI 与扩展**两半都要装我们的**：
 
 ```bash
-npm i -g https://github.com/yan-labs/OpenCLI/releases/download/v1.8.7-yan.1/opencli-cli-1.8.7-yan.1.tgz
+npm i -g https://github.com/yan-labs/OpenCLI/releases/download/v1.8.7-yan.2/opencli-cli-1.8.7-yan.2.tgz
 # 扩展：下载 opencli-extension-v*.zip 解压 →
 #   chrome://extensions → 开发者模式 → 加载已解压的扩展程序
 #   并把 Chrome 应用商店那个 OpenCLI 移除或停用（两个都装会一起连守护进程互相打架）
 ```
 
 **只装 CLI 不换扩展是最容易踩的坑**：命令全都能跑，行为却是上游的——
-默认前台、自己开窗口、抢走活动标签页。`opencli doctor` 会在扩展低于 1.0.28 时主动报这一条。
+默认前台、自己开窗口、抢走活动标签页。`opencli doctor` 会在扩展低于 1.0.32 时主动报这一条。
 
 ## 先确认你在跑哪一个
 
@@ -104,6 +104,30 @@ git log --oneline origin/main..HEAD   # 我们领先上游的部分
 
 **留下的通用判据**：提示信息在逻辑上自相矛盾时，先怀疑本地构建，
 不要照着提示打转。详见 [`troubleshooting.md`](troubleshooting.md)。
+
+---
+
+## 窗口归属：四个 bug，一个根因
+
+这条留着，因为它的形状会重演：**分组收敛会走向「规范分组」所在的任何窗口，
+并把标签页搬过去。** 每一处调用它却没说明「我要哪个窗口」的地方，都是一扇门。
+
+四次现身，前三次都在出问题的那个调用点补钉，于是每次都以为修完了：
+
+1. 新建专用窗口后的分组调用没钉 → `isolated` 建对了窗口，标签页又被搬回用户窗口
+2. **复用**路径没钉 → 第二个 `isolated` 会话走这条，把第一个打掉
+3. 决定去哪之前就先认领了分组 → 容器刚挪走又被拽回
+4. 建完标签页那次只在 isolated 时才钉 → 普通会话把 isolated 的标签页全搬走，
+   专用窗口被搬空，Chrome 自动关掉，里面所有会话随之释放
+
+**一共六个调用点没钉，一个个补必然再漏。** 最终改成默认行为：
+`pinWindowId` 缺省取 `fallbackWindowId`，跨窗口认领只剩显式传 `null` 的发现调用。
+
+**判据：把「记得做某件事」变成默认行为，比在每个调用点提醒自己更可靠。**
+一条只在你想起来时才生效的规则，等于没有规则。
+
+验证靠 `npm run test:e2e-window`——单测把 `chrome.*` 整个 mock 掉了，
+对一个在真实浏览器里表现错误的构建会欣然点头，这四个 bug 全从那个缝里漏了过去。
 
 ---
 

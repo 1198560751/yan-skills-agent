@@ -320,7 +320,7 @@ keeps automation in a window of its own. The flag, when you do pass one, sits
 **between** the session name and the subcommand:
 `opencli browser &lt;session&gt; --window isolated &lt;command&gt;`.
 
-Requires the OpenCLI extension at **1.0.28 or newer** (`opencli doctor` prints
+Requires the OpenCLI extension at **1.0.32 or newer** (`opencli doctor` prints
 it). On older builds the default is foreground and every single command needs
 `--window background` spelled out.
 </statement>
@@ -860,7 +860,7 @@ It also requires the OpenCLI binary **and browser extension** from
 **not the Chrome Web Store build**. The store build defaults to foreground: it raises
 a window and steals the tab the person is reading. That failure is silent — commands
 still succeed, only the behaviour is wrong — so `opencli doctor` flags an extension
-older than 1.0.28 explicitly. **When it does, act on it rather than working around it.**
+older than 1.0.32 explicitly. **When it does, act on it rather than working around it.**
 </install>
 
 </skill>

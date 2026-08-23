@@ -75,8 +75,20 @@ function usage() {
 if (!["status", "register", "submit-sitemap"].includes(action)) { usage(); process.exit(1) }
 if (!site) { console.error(`错误：${action} 需要 --site`); process.exit(1) }
 
-// 会话名用字面常量，不用 $$（Bash tool 每次调用 PID 不同）
-if (!session) session = `naver-${site.replace(/[^a-z0-9]/gi, "-").slice(0, 20)}`
+// 会话名要描述工作，但**不能只靠站点名区分**：两个任务同时处理同一个站会撞进
+// 同一个标签页，各自读回对方的页面，导航还照样报成功。所以再挂一个并发单位后缀
+// （一次对话 = 一个 CLAUDE_CODE_SESSION_ID；HOST 级的是整个桌面端共用的，只能垫底）。
+// node 脚本里 pid 全程不变可以兜底，但 Bash tool 里的 $$ 每次调用都变，绝不能用。
+if (!session) {
+  const slug = site.replace(/[^a-z0-9]/gi, "-").slice(0, 20)
+  const suffix = (
+    process.env.OPENCLI_SESSION_SUFFIX ||
+    process.env.CLAUDE_CODE_SESSION_ID ||
+    process.env.CLAUDE_CODE_HOST_SESSION_ID ||
+    String(process.ppid)
+  ).replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || "local"
+  session = `naver-${slug}-${suffix}`
+}
 // sitemap 默认值
 if (!sitemapUrl) sitemapUrl = `https://${site}/sitemap.xml`
 

@@ -347,7 +347,7 @@ npx skills add yan-labs/yan-skills --skill opencli -g -y   # 未安装时
    窗口里，不抬窗口、不切走他正在看的标签页，也不是无头模式（不会触发反爬）。
    前台会**把用户的活动标签页切走**，只有需要他亲自过验证码时才用。
    要把标签页完全挪出用户窗口用 `--window isolated`。
-   （需要 OpenCLI 扩展 ≥ 1.0.28，`opencli doctor` 那行就是判据；旧版默认是前台，
+   （需要 OpenCLI 扩展 ≥ 1.0.32，`opencli doctor` 那行就是判据；旧版默认是前台，
    那种环境下每条命令都要显式带 `--window background`。）
 4. **用完 `opencli browser <session> close`；sub agent 必须在退出前显式关。**
    崩溃时不会自动清理，残留会话在用户 Chrome 里看起来就是别人正在做的活儿。

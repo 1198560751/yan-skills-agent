@@ -138,4 +138,24 @@ export function emit(rows, args, cols) {
   console.error(`\n共 ${rows.length} 条`);
 }
 
+/**
+ * 会话名就是标签页的所有权声明：两个任务挑同一个名字就共用同一个标签页，
+ * 各自读回对方打开的页面——导航报成功、数据是别人的、全程不报错。
+ * 所以任何脚本都不许把会话名的默认值写成字面常量。
+ *
+ * 后缀取「真正会并发的那个单位」：一次对话 = 一个 CLAUDE_CODE_SESSION_ID。
+ * HOST_SESSION_ID 是整个桌面端共用的，拿它当第一顺位等于把同一个标签页
+ * 发给两个并行任务，只能垫底。node 脚本里 pid 全程不变所以可以兜底，
+ * 但 Bash tool 里的 `$$` 每次调用都变，绝不能用。
+ */
+export function sessionName(base) {
+  const suffix = (
+    process.env.OPENCLI_SESSION_SUFFIX ||
+    process.env.CLAUDE_CODE_SESSION_ID ||
+    process.env.CLAUDE_CODE_HOST_SESSION_ID ||
+    String(process.ppid)
+  ).replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || "local";
+  return `${base}-${suffix}`;
+}
+
 export function die(msg) { console.error(`错误：${msg}`); process.exit(1); }

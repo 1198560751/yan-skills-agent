@@ -74,10 +74,10 @@ opencli doctor
 | 观察到 | 该做什么 |
 |---|---|
 | 命令成功但窗口/焦点行为与本文档不符 | 跑 `opencli doctor`，看 `Extension` 那行的版本 |
-| 版本 < 1.0.28 | **告诉用户他装的是应用商店版**，需要换成 [yan-labs 的 Release](https://github.com/yan-labs/OpenCLI/releases/latest) 里的 zip，并把商店版移除或停用 |
+| 版本 < 1.0.32 | **告诉用户他装的是应用商店版**，需要换成 [yan-labs 的 Release](https://github.com/yan-labs/OpenCLI/releases/latest) 里的 zip，并把商店版移除或停用 |
 | `doctor` 自己就报了这条 | 照它说的做——它会打印下载地址和加载步骤 |
 
-`doctor` 会在扩展低于 1.0.28 时主动报这个问题，**不要跳过它的输出**。
+`doctor` 会在扩展低于 1.0.32 时主动报这个问题，**不要跳过它的输出**。
 
 红了先看 [`references/troubleshooting.md`](references/troubleshooting.md)。
 排障的第一步永远是 **`npm ls -g @jackwener/opencli` 确认 CLI 是发布版还是本地源码 link**——
@@ -151,7 +151,7 @@ sub agent 跑它会把兄弟 agent 正在用的标签页一起关掉，
 |---|---|---|
 | `background` | **默认**。在用户当前那个窗口里开标签页，不抬窗口、不切活动标签页 | 几乎所有情况 |
 | `foreground` | 抬起窗口并选中标签页 | **只有**需要用户亲自完成验证码、或他明确说要看着的时候 |
-| `isolated` | 后台，但用它自己的独立窗口 | 长时间批量作业，不想在用户标签栏里堆东西。**全机同时只能有一个，见下** |
+| `isolated` | 后台，且不在用户那个窗口里——**所有 isolated 会话共用一个自动化窗口** | 长时间批量作业，不想在用户标签栏里堆东西 |
 
 标志位置在**会话名和子命令之间**（放在子命令后面也能工作）：
 
@@ -161,22 +161,32 @@ opencli browser <session> --window isolated open "https://..."
 
 放在会话名**前面**会报 `unknown command: <你的会话名>`，读起来像装坏了，其实是语法错。
 
-**需要扩展 ≥ 1.0.28**（`opencli doctor` 那行就是判据）。旧扩展上默认仍是前台、
+**需要扩展 ≥ 1.0.32**（`opencli doctor` 那行就是判据）。旧扩展上默认仍是前台、
 `isolated` 会被静默忽略——那正是下面那张表里的坑。
 
-#### `isolated` 的两条限制（2026-08-24 实测于扩展 1.0.27，1.0.28 上尚未复测）
+#### `isolated` 曾经有两条限制，两条都已修好
 
-**一、全机同时只能有一个 isolated 会话，第二个会把第一个静默打掉。**
-干净复现：`w1` 开出独立窗口 `win379221860` → 再开 `w2` → `w2` 落回共用窗口
-`win379220956`，**且 `w1` 整条会话从 `sessions` 里蒸发**，再访问返回 `session_not_found`，
-而创建 `w2` 的那一方毫无报错。跨 agent 也一样——一个 agent 开 isolated，
-会打掉兄弟 agent 已有的那个。**所以多 agent 并行时不要用 `isolated`，用默认的 `background`。**
+**当前行为（2026-08-24 复测于扩展 1.0.30 + CLI 1.8.7，两条都 PASS）**：
+两个 isolated 会话可以并存，`sessions` 里都在、都可读，
+且**共用同一个自动化窗口**（`win379222152`），与用户窗口（`win379220956`）分开。
+注意是「共用一个窗口」而不是「一人一个窗口」——它隔离的是**用户 vs 自动化**，
+不是会话之间。会话之间的隔离靠会话名，那是上面四条法律的事。
 
-**二、adapter 命令根本不接受 `isolated`。**
-`opencli <site> <cmd> --window isolated` 报 `--window must be one of: foreground, background`。
-只有 `opencli browser <session>` 那条路认三个值。这是 CLI 侧的遗漏
-（`src/execution.ts` 的 `normalizeWindowMode` 与 `src/help.ts` 的 `choices` 只列两个，
-而同一份 help 文案却在宣传 isolated），不是你用错了。
+<details>
+<summary>修好之前是什么样（留着，因为这两种失败形态会重复出现）</summary>
+
+**一、第二个 isolated 会把第一个静默打掉**（扩展 1.0.27）。
+`w1` 开出独立窗口 → 再开 `w2` → `w2` 落回用户窗口，**且 `w1` 整条会话从 `sessions` 蒸发**，
+再访问 `session_not_found`，而创建 `w2` 的那一方毫无报错。跨 agent 同样会踩——
+一个 agent 开 isolated 就打掉兄弟 agent 已有的那个。
+
+**二、adapter 命令不接受 `isolated`**（CLI ≤ 1.8.7 的某个中间版本）。
+报 `--window must be one of: foreground, background`。真因是 adapter 走的是
+`src/execution.ts` 里**另一份白名单**，它只列了两个值，而紧挨着的 `src/help.ts`
+文案却在宣传 isolated——文档说一套、代码做一套，读起来像用户抄错了参数。
+
+两条的共同点：**失败都不报错，或者报的错指向错误的方向。** 所以下面那条自检值得每次都做。
+</details>
 
 背景模式跑的是用户真实的、已登录的 Chrome：`navigator.webdriver` 为 `false`、
 UA 不含 `Headless`、`plugins.length` 为 5。
@@ -191,7 +201,7 @@ UA 不含 `Headless`、`plugins.length` 为 5。
 |---|---|---|
 | `--window foreground`（除非用户要亲自操作） | 什么都不加（默认就是 background） | 实测会把用户的**活动标签页切走**（从第 1 个跳到第 3 个）。注意最前端**应用**不变，所以只查应用焦点的测量看不见它 |
 | 调 adapter 时用前台「方便看页面」 | `--keep-tab true` + `screenshot` / `state` | 调试是高频动作，一轮能打断十几次。标签页留着，用户想看自己切过去 |
-| 在旧扩展（< 1.0.28）上省略 `--window background` | 先看 `doctor` 的扩展版本；旧版就每条命令都显式带 | 旧版两层默认都是前台，省略等于每条命令都抬一次窗口 |
+| 在旧扩展（< 1.0.32）上省略 `--window background` | 先看 `doctor` 的扩展版本；旧版就每条命令都显式带 | 旧版两层默认都是前台，省略等于每条命令都抬一次窗口 |
 | 给 `PUBLIC` / `LOCAL` 命令加 `--window` | 不加 | 它们不接受这个标志，会报 `unknown option '--window'`；这类命令本来也不开浏览器 |
 | 崩溃后不清理，留下一堆孤儿标签页 | `finally` 里 `close` | 泄漏的会话在用户窗口里就是一堆莫名其妙的标签页，比抢一次焦点更烦 |
 
@@ -204,7 +214,7 @@ UA 不含 `Headless`、`plugins.length` 为 5。
 旧测量只查了「最前端应用」（前台模式下它确实不变），漏掉了「活动标签页」这一轴。
 完整对照表见 [`references/session-laws.md`](references/session-laws.md)。
 
-> **这条曾经是坏的，2026-08-23 修好了**（扩展 1.0.28）。当时 `--window isolated`
+> **这条曾经是坏的，2026-08-23 修好了**（扩展 1.0.32）。当时 `--window isolated`
 > 不新开窗口，行为与 `background` 一模一样，于是文档写下了「没办法把 agent 的标签页
 > 挪出用户窗口」。真因是四层各自静默地否决它：运行时白名单只认两个值把 `isolated`
 > 丢掉了；「这窗口是不是我的」靠猜（全是非 http 页面就算我的）而把用户随手开的空窗口
@@ -416,13 +426,13 @@ OpenCLI 本体分两半，**两半都要装我们的构建**，来源是
 
 ```bash
 # 1) CLI
-npm i -g https://github.com/yan-labs/OpenCLI/releases/download/v1.8.7-yan.1/opencli-cli-1.8.7-yan.1.tgz
+npm i -g https://github.com/yan-labs/OpenCLI/releases/download/v1.8.7-yan.2/opencli-cli-1.8.7-yan.2.tgz
 
 # 2) 浏览器扩展：下载 opencli-extension-v*.zip 解压，
 #    chrome://extensions → 开启开发者模式 → 加载已解压的扩展程序
 #    ⚠️ 先移除或停用 Chrome 应用商店那个 OpenCLI
 
-# 3) 验证：三行都要 [OK]，Extension 那行的版本 ≥ 1.0.28
+# 3) 验证：三行都要 [OK]，Extension 那行的版本 ≥ 1.0.32
 opencli doctor
 ```
 

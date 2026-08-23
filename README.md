@@ -419,14 +419,14 @@ rankup review
 
 ```bash
 # 1) CLI
-npm i -g https://github.com/yan-labs/OpenCLI/releases/download/v1.8.7-yan.1/opencli-cli-1.8.7-yan.1.tgz
+npm i -g https://github.com/yan-labs/OpenCLI/releases/download/v1.8.7-yan.2/opencli-cli-1.8.7-yan.2.tgz
 ```
 
 **2) 浏览器扩展** —— 下载 Release 里的 `opencli-extension-v*.zip`，解压到一个不会随手删掉的目录，
 然后 `chrome://extensions` → 右上角开启「开发者模式」→「加载已解压的扩展程序」→ 选中那个目录。
 
 ```bash
-# 3) 验证：三行都要 [OK]，Extension 那行的版本应 ≥ 1.0.28
+# 3) 验证：三行都要 [OK]，Extension 那行的版本应 ≥ 1.0.32
 opencli doctor
 ```
 

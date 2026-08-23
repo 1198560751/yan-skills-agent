@@ -40,6 +40,7 @@
 import { writeFileSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { sessionName } from './_lib.mjs';
 
 const exec = promisify(execFile);
 
@@ -82,7 +83,7 @@ function parseArgs(argv) {
   const o = {
     list: 'trending-week', path: null, platform: 'chrome',
     minUsers: 0, maxRating: 5, limit: Infinity,
-    session: 'demand-chrome-stats', keepOpen: false, timeout: 9000, debug: false,
+    session: sessionName('demand-chrome-stats'), keepOpen: false, timeout: 9000, debug: false,
     json: false, jsonl: false, out: null, help: false,
   };
   for (let i = 0; i < argv.length; i++) {

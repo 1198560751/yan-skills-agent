@@ -75,6 +75,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { sessionName } from './_lib.mjs';
 
 const execFileP = promisify(execFile);
 
@@ -160,7 +161,7 @@ function parseArgs(argv) {
     details: false, onlyGames: false,
     path: null, pages: 1, tileList: null,
     days: 7, platform: null,
-    sdbPath: '/upcoming/', session: 'demand-steamdb', keepOpen: false, timeout: 9000,
+    sdbPath: '/upcoming/', session: sessionName('demand-steamdb'), keepOpen: false, timeout: 9000,
     help: false,
   };
   for (let i = 0; i < argv.length; i++) {

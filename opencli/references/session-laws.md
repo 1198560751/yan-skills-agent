@@ -242,7 +242,7 @@ opencli browser <session> <command>
 用户正在看的那一页被换掉了，而 macOS 层面的应用焦点没动，所以只查前台应用的测量看不见它。
 
 **规矩：后台是默认值，不要去覆盖它。** 你不需要显式传 `--window background`，
-传了也只是噪音——从扩展 1.0.28 起 CLI 与扩展两层的默认都是后台。
+传了也只是噪音——从扩展 1.0.32 起 CLI 与扩展两层的默认都是后台。
 
 **`--window foreground` 只有一个正当用途：把一件必须由用户亲手做完的事交给他**
 （验证码、短信验证码、他明确说要看着）。那种时候你本来就是要他的注意力。
@@ -253,11 +253,16 @@ opencli browser <session> <command>
 **想让自动化完全离开用户的窗口用 `--window isolated`**（后台 + 独立窗口），
 不要为此去用前台。
 
+`isolated` 隔离的是**用户 vs 自动化**，不是会话之间：所有 isolated 会话
+**共用同一个自动化窗口**，不是一人一个。会话之间的隔离靠会话名，就是上面四条法律。
+（2026-08-24 复测于扩展 1.0.30：两个 isolated 会话并存、都可读、
+`windowId` 同为那个自动化窗口，与用户窗口不同。）
+
 后台模式本身是干净的：实测 `open` / `eval` / `screenshot` / `click` / `type` 全程，
 页面侧 `document.hasFocus()` 恒为 `false`、`visibilityState` 恒为 `hidden`，
 用户的活动标签页索引不变。
 
-**曾经的一个坑（2026-08-23 修好，扩展 1.0.28）**：`--window isolated` 当时**不新开窗口**，
+**曾经的一个坑（2026-08-23 修好，扩展 1.0.32）**：`--window isolated` 当时**不新开窗口**，
 行为与 `background` 一模一样，于是这里一度写着「没办法把 agent 的标签页挪出用户窗口」。
 
 它值得留在这里，因为坏法很典型——**四层各自静默地否决同一个功能**：
@@ -274,8 +279,16 @@ opencli browser <session> <command>
 每一层都不报错，所以每修一层都以为好了。**判据：一个标志「不生效但也不报错」时，
 不要只查它最表层的实现，沿着整条链路每一层都问一遍「这里会不会把它悄悄丢掉」。**
 
-现在的自查方法：`--window isolated` 起的会话，它在 `opencli browser sessions` 里的
-`windowId` 应该与默认模式会话的不同。
+**同一个功能后来又坏过第二次，坏法同构**（扩展 1.0.27，2026-08-24 修好）：
+第一个 isolated 会话正常拿到独立窗口，**开第二个时，第一个整条会话从 `sessions` 蒸发**，
+再访问 `session_not_found`，而创建第二个的那一方毫无报错。跨 agent 一样会踩。
+还有一处：adapter 命令走的是 CLI 里**另一份白名单**，它只列了两个值，
+于是 `opencli <site> <cmd> --window isolated` 报「must be one of: foreground, background」，
+而紧挨着的 help 文案却在宣传 isolated——同一个标志、两条代码路径、两套答案。
+
+**所以这个自查每次都值得做**：`--window isolated` 起的会话，
+它在 `opencli browser sessions` 里的 `windowId` 应该与默认模式会话的不同；
+并发场景下再确认一次**先开的那个还在 `sessions` 里**。
 
 如果有人报告屏幕「一直在跳」，先查有没有人用了前台；排除之后再怀疑
 几个任务在写同一个共享页面——那看起来像抖动，实际是法律 1 被违反了。
