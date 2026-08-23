@@ -1,21 +1,24 @@
 #!/usr/bin/env node
 /**
- * webmaster-sitemap.mjs —— 在 Google Search Console 与 Bing Webmaster Tools 里
- * 读取 / 提交 sitemap，驱动**用户自己已登录的浏览器**，不需要 OAuth、不需要 API key。
+ * webmaster-sitemap.mjs —— 在 Google Search Console、Bing Webmaster Tools、
+ * Yandex Webmaster 里读取 / 提交 sitemap，驱动**用户自己已登录的浏览器**，
+ * 不需要 OAuth、不需要 API key。
  *
  * 用法：
  *   # 读状态（只读，先跑这个）
- *   node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs gsc  status --property sc-domain:example.com
- *   node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs bing status --site https://example.com
+ *   node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs gsc    status --property sc-domain:example.com
+ *   node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs bing   status --site https://example.com
+ *   node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs yandex status --site https://example.com
  *
  *   # 提交
- *   node ... gsc  submit --property sc-domain:example.com --sitemap sitemap.xml
- *   node ... bing submit --site https://example.com --sitemap https://example.com/sitemap.xml
+ *   node ... gsc    submit --property sc-domain:example.com --sitemap sitemap.xml
+ *   node ... bing   submit --site https://example.com --sitemap https://example.com/sitemap.xml
+ *   node ... yandex submit --site https://example.com --sitemap https://example.com/sitemap.xml
  *
  * 标志：
  *   --property <id>   GSC 资源 ID（`sc-domain:example.com` 或 `https://example.com/`）
- *   --site <url>      Bing 站点（协议 + 主机，例如 https://example.com）
- *   --sitemap <值>    GSC 要相对路径（`sitemap.xml`）；Bing 要完整 URL
+ *   --site <url>      Bing / Yandex 站点（协议 + 主机，例如 https://example.com）
+ *   --sitemap <值>    GSC 要相对路径（`sitemap.xml`）；Bing / Yandex 要完整 URL
  *   --session <名>    opencli 会话名（默认 wms-<pid>，见「会话名不能写死」）
  *   --keep-session    完成后不关闭会话
  *   --lang <zh|en>    界面语言，默认 auto（两套文案都试）
@@ -31,6 +34,7 @@
  *   - Bing Webmaster **有**一个 API key（后台 设置 → API 访问 一键生成），
  *     `POST https://ssl.bing.com/webmaster/api.svc/json/SubmitFeed?apikey=…`。
  *     项目如果已经有那把 key，走 API 更好，本脚本不必用。
+ *   - Yandex Webmaster 没有公开的零配置 API。
  * 所以这里的定位是：**零配置的默认路径**。拿到 Bing API key 之后，Bing 那半边
  * 应当换成纯 HTTP，GSC 这半边继续留在浏览器里。
  *
@@ -42,6 +46,7 @@
  *
  * 2. **两边的属性都由 URL 参数决定，不要去点属性选择器。**
  *    GSC 是 `?resource_id=<urlencoded 属性>`，Bing 是 `?siteUrl=<urlencoded 源>`。
+ *    Yandex 是路径嵌入：`/site/https:<domain>:443/indexing/sitemap/`。
  *    直接带参数导航既快又不会选错——而选错属性是这类后台**最贵的错误**：
  *    父级网域属性覆盖子域，于是单条 URL 的操作照样成功，只有聚合数字是别人的，
  *    全程零报错。
@@ -52,7 +57,7 @@
  * 4. **登录态失效的样子不是登录页，是一个空白/骨架页。** 判据是页面里找不到
  *    任何一条已知文案；此时只能由用户自己去浏览器里重新登录，脚本不代填密码。
  *
- * 已验证：2026-08-23（GSC status/submit、Bing status/submit，中文界面）
+ * 已验证：2026-08-23（GSC status/submit、Bing status/submit 中文界面；Yandex status/submit 英文界面）
  */
 import { execSync } from "node:child_process"
 
@@ -82,15 +87,16 @@ for (let i = 2; i < argv.length; i++) {
 
 function usage() {
   console.log(`用法:
-  node webmaster-sitemap.mjs gsc  status|submit --property <id> [--sitemap sitemap.xml]
-  node webmaster-sitemap.mjs bing status|submit --site <url>    [--sitemap <完整URL>]`)
+  node webmaster-sitemap.mjs gsc    status|submit --property <id> [--sitemap sitemap.xml]
+  node webmaster-sitemap.mjs bing   status|submit --site <url>    [--sitemap <完整URL>]
+  node webmaster-sitemap.mjs yandex status|submit --site <url>    [--sitemap <完整URL>]`)
 }
 
-if (!["gsc", "bing"].includes(platform) || !["status", "submit"].includes(action)) {
+if (!["gsc", "bing", "yandex"].includes(platform) || !["status", "submit"].includes(action)) {
   usage(); process.exit(1)
 }
 if (platform === "gsc" && !property) { console.error("错误：gsc 需要 --property"); process.exit(1) }
-if (platform === "bing" && !site) { console.error("错误：bing 需要 --site"); process.exit(1) }
+if ((platform === "bing" || platform === "yandex") && !site) { console.error(`错误：${platform} 需要 --site`); process.exit(1) }
 if (action === "submit" && !sitemap) {
   sitemap = platform === "gsc" ? "sitemap.xml" : `${site}/sitemap.xml`
   console.log(`未给 --sitemap，用默认值：${sitemap}`)
@@ -114,6 +120,14 @@ const LABELS = {
     openForm: ["提交站点地图", "Submit sitemap"],
     input: ["输入站点地图网址", "Enter sitemap URL", "Sitemap URL", "sitemap"],
     submit: ["提交", "Submit"],
+  },
+  yandex: {
+    anchor: ["Sitemap file", "Sitemap files", "Add Sitemap file"],
+    // Yandex 的输入框一直在页面上（同 GSC）。
+    openForm: null,
+    // Yandex 的输入框没有 label/placeholder，靠位置定位（页面上唯一可见的 input）。
+    input: [],
+    submit: ["Add", "Добавить"],
   },
 }
 const wanted = (k) => {
@@ -147,12 +161,20 @@ function findLabel(candidates) {
 }
 
 // ── 平台地址（坑 2：属性由 URL 参数决定，不点选择器） ────────
+// Yandex 的站点嵌在路径里，格式 `/site/https:<domain>:443/`。
+function yandexSitePath() {
+  const u = new URL(site)
+  const port = u.port || (u.protocol === "https:" ? "443" : "80")
+  return `/site/${u.protocol.replace(":", "")}:${u.hostname}:${port}`
+}
 const urls = {
   gsc: `https://search.google.com/search-console/sitemaps?resource_id=${encodeURIComponent(property ?? "")}`,
   bing: `https://www.bing.com/webmasters/sitemaps?siteUrl=${encodeURIComponent(site ?? "")}`,
+  yandex: site ? `https://webmaster.yandex.com${yandexSitePath()}/indexing/sitemap/` : "",
 }
 
-console.log(`${platform === "gsc" ? "Google Search Console" : "Bing Webmaster Tools"} —— ${action}`)
+const PLATFORM_NAMES = { gsc: "Google Search Console", bing: "Bing Webmaster Tools", yandex: "Yandex Webmaster" }
+console.log(`${PLATFORM_NAMES[platform]} —— ${action}`)
 console.log(`  目标: ${property ?? site}`)
 console.log(`  会话: ${session}`)
 console.log()

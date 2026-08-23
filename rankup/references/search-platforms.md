@@ -18,8 +18,10 @@
 | 2 | **IndexNow 首次全量推送** | 无 | 全自动（`indexnow-submit.mjs`） |
 | 3 | **Bing Webmaster 所有权验证** | 微软账号 | 半自动：meta 标签由你写进代码，**验证按钮由用户点** |
 | 4 | **GSC 资源创建 + 所有权验证** | Google 账号 | 半自动：TXT 记录可由你写 DNS，**验证按钮由用户点** |
-| 5 | **两边提交 sitemap** | 已验证的资源 | 全自动（`webmaster-sitemap.mjs`） |
-| 6 | **每次内容变更后推 IndexNow** | 无 | 全自动，应当挂进发布流程 |
+| 5 | **Naver Search Advisor 所有权验证**（仅韩国市场） | Naver 账号 | 半自动：meta 标签由你写进代码，**验证按钮由用户点** |
+| 6 | **Yandex Webmaster 所有权验证**（俄语市场或全球覆盖） | Yandex 账号 | 半自动：meta 标签由你写进代码，**验证按钮由用户点** |
+| 7 | **各平台提交 sitemap** | 已验证的资源 | 全自动（`webmaster-sitemap.mjs`） |
+| 8 | **每次内容变更后推 IndexNow** | 无 | 全自动，应当挂进发布流程 |
 
 **IndexNow 排在站长工具前面，是因为它一样都不欠。** 它不需要账号、不需要验证、
 不需要等谁批准——一个密钥文件就是全部凭据。把它排到后面，等于白白等着账号问题解决的那几天。
@@ -68,15 +70,45 @@ if (path === `/${INDEXNOW_KEY}.txt`) {
 }
 ```
 
-### 挂进发布流程
+### 挂进发布流程（这一节是规则，不是建议）
 
-在项目里加一条 npm script，让「发完版顺手推一下」不依赖谁记得：
+**通知必须是「出荷命令的一段」，不能是「文档里的一条命令」。**
+
+这条被实战推翻过一次：原文只建议加一条 npm script，并且让它指向
+**全局 Skill 目录**里的脚本。两个问题当场暴露：
+
+1. **交给人记的步骤一定会漏，而且漏了不会有任何东西变红。** 忘记推送不会让构建
+   失败、不会让测试变红、不会让页面 404——它只是让新页面晚几天被发现。
+   **没有失败信号的遗漏，是所有遗漏里最难自查的一种。**
+2. **指向 Skill 目录 = 项目在自己仓库外有一个隐形依赖。** 换台机器、别人 clone、
+   CI 容器里，那个路径都不存在，而报错会长得像「脚本坏了」而不是「少装了东西」。
+
+正确形态，三条都要满足：
+
+- **脚本放进项目仓库**（`scripts/indexnow-push.mjs`），不引用 Skill 目录；
+- **密钥从项目里的单一事实源读**（例如 `src/content/site.ts` 的常量），
+  并在脚本里**断言** `public/<key>.txt` 与该常量一致——这个不变条件此前是靠
+  源码注释拜托人类维护的，而不一致的后果（送信 403）要到下次推送才暴露；
+  把同一个断言也挂进 `test` 任务，漂移就在部署前落地；
+- **接到出荷命令的后段**，让「不推送」变成做不到的事：
 
 ```json
-{ "scripts": { "indexnow": "node <rankup-skill-dir>/scripts/indexnow-submit.mjs --site-url https://example.com --key <密钥>" } }
+{ "scripts": {
+  "ship": "turbo typecheck && turbo test && turbo build && pnpm --filter web deploy && pnpm --filter web indexnow"
+} }
 ```
 
-推送时机是**部署完成之后**，不是构建之后：脚本会先校验密钥文件，而密钥文件在部署完成前还是旧的。
+日常只改了几页时给脚本传路径，不要每次全量：
+`node scripts/indexnow-push.mjs /pricing /zh/pricing`。
+
+推送时机是**部署完成之后**，不是构建之后：脚本要校验线上的密钥文件与 sitemap，
+而它们在部署完成前还是旧的。脚本应当把「部署前就跑」这种情况**指名报错**——
+只回一个 403 的话，分不清是密钥不一致还是根本没部署。
+
+**可推广的形式**：任何「做完主要工作之后还必须做、但漏了不会报错」的收尾动作
+（推送索引、清缓存、打标签、发 webhook），都应该**焊进那个主要工作的命令里**，
+而不是写进文档等人记得。判据很简单——**问「漏掉这一步，会有什么东西变红吗？」
+答案是「不会」，那它就不该由人来记。**
 
 ### 三个坑
 
@@ -89,7 +121,7 @@ if (path === `/${INDEXNOW_KEY}.txt`) {
 3. **`host` 必须与 urlList 每一条的主机名一致**，否则整批 422。子域算不同主机，
    `www.` 与非 `www.` 也算。脚本会先自查再提交。
 
-## 3–4. 站长工具的所有权验证
+## 3–6. 站长工具的所有权验证
 
 ### 验证方式怎么选
 
@@ -119,23 +151,133 @@ meta 标签的形状（token 是公开值，本来就印在每一页的 HTML 里
 ```ts
 { name: "msvalidate.01", content: BING_SITE_VERIFICATION }   // Bing
 { name: "google-site-verification", content: GSC_TOKEN }      // GSC（网址前缀资源）
+{ name: "naver-site-verification", content: NAVER_SITE_VERIFICATION }  // Naver（仅韩国市场）
+{ name: "yandex-verification", content: YANDEX_VERIFICATION }  // Yandex
 ```
+
+### 步骤 5：Naver Search Advisor（仅韩国市场）
+
+**什么时候需要这一步：项目有韩文版（`/ko` 或 `.kr` 域名）才做。** 不做韩国市场可以跳过。
+
+韩国人基本上都在用 Naver，整个 Naver 生态相当于百度 + 小红书 + 大众点评 + 抖音的合体。
+Naver 虽然通过 IndexNow 被动接收 URL 推送，但 **Naver Search Advisor（站长工具）提供的
+站点诊断、收录状态、搜索分析是 IndexNow 给不了的**——和 Bing/GSC 一样，不注册就没有数据。
+
+入口：`https://searchadvisor.naver.com/`
+
+#### 验证方式
+
+与 Bing/GSC 同理，优先 HTML meta 标签：
+
+```ts
+{ name: "naver-site-verification", content: NAVER_SITE_VERIFICATION }
+```
+
+Naver 也支持 HTML 文件上传和 DNS TXT，选择逻辑与上面 GSC/Bing 一致。
+
+#### 验证后要做的
+
+1. **提交 sitemap**——在 Search Advisor 后台「要求 > Sitemap 提交」里手动提交，
+   地址格式与 GSC/Bing 一致（`https://example.com/sitemap.xml`）。
+2. **提交 RSS**——Naver 额外支持 RSS 订阅源提交，对博客/内容型站点有加速收录效果。
+3. **查看「网站诊断」**——Naver 有自己的一套诊断标准，与 Google Lighthouse 不完全重叠，
+   上线后跑一次，把结果记进 `.rankup/audit.md`。
+
+#### 注意事项
+
+- **Naver 账号注册可能需要韩国手机号验证**，这是用户本人的事，不代做。
+  如果用户没有韩国手机号，可以尝试用邮箱注册的国际版流程。
+- **日本以外的 Yahoo 用的是 Bing 引擎，日本 Yahoo 用的是 Google 引擎。**
+  所以做日本市场不需要额外接 Yahoo，GSC 已经覆盖；做其他市场 Bing Webmaster 已经覆盖 Yahoo。
+- **Naver 的爬虫 User-Agent 是 `Yeti`**，确认 `robots.txt` 没有误拦它。
+
+### 步骤 6：Yandex Webmaster
+
+**什么时候需要这一步：建议所有站点都接。** Yandex 是全球第五大搜索引擎，俄罗斯市场占有率超过 60%。
+即使不做俄语市场，Yandex 也是 IndexNow 的共同创建者——注册 Webmaster 能拿到收录状态和搜索分析数据，
+而且 Yandex 对行为指标的权重远高于 Google（用户停留时长、跳出率、点击率都直接影响排名），
+这些数据本身就有参考价值。
+
+入口：`https://webmaster.yandex.com/`
+
+#### 验证方式
+
+与 Bing/GSC/Naver 同理，优先 HTML meta 标签：
+
+```ts
+{ name: "yandex-verification", content: YANDEX_VERIFICATION }
+```
+
+Yandex 也支持 HTML 文件上传（文件名格式 `yandex_<验证码>.html`，内容必须精确匹配模板，
+不能有任何额外标签/CSS/JS）和 DNS TXT 记录（值格式 `yandex-verification: <验证码>`）。
+选择逻辑与上面 GSC/Bing/Naver 一致。**WHOIS 验证已于 2025 年移除。**
+
+注意：添加站点时必须填入精确的协议和子域（`https://` vs `http://`，`www` vs 非 `www`），
+Yandex 把这些当作不同的资源。
+
+#### 验证后要做的
+
+1. **提交 sitemap**——在 Webmaster 后台「Indexing > Sitemap files」里提交。
+   Yandex **只接受 XML 和 TXT 格式，不支持 RSS/Atom**。两周内处理完成。
+   手动触发重新处理有次数限制（每个 host 10 次，之后等 30 天）。
+   也可以在 `robots.txt` 里用 `Sitemap:` 指令声明。
+2. **设置地区**——在「Site region settings」里设置站点的目标地区。
+   Yandex 是城市级地域搜索引擎，约 30% 的查询结果因地区而异。
+   设置后需要人工审核（几天到几周），不是即时生效。
+3. **关联 Yandex Metrica**（可选但推荐）——Yandex Metrica 是免费的分析工具（类似 GA4），
+   与 Webmaster 关联后可以加速收录。在 Webmaster 后台「Settings > Yandex Metrica tags」关联。
+4. **查看「Site diagnostics」**——Yandex 有自己的一套诊断标准（缺失 meta 标签、HTTP 错误、
+   重复内容、安全问题），与 Google Lighthouse 不完全重叠。
+5. **检查 robots.txt**——用 Webmaster 后台的「Robots.txt analysis」工具验证规则是否正确。
+
+#### Yandex 爬虫与 robots.txt
+
+- **主爬虫 User-Agent**：`YandexBot`（完整字符串 `Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)`）
+- robots.txt 里用 `User-agent: Yandex` 可以覆盖**全部** Yandex 机器人（图片、视频、广告等），
+  而 `User-agent: YandexBot` 只针对主索引爬虫。
+- **`Clean-param` 指令**（Yandex 独有）：告诉爬虫哪些 URL 参数不影响内容，避免重复抓取。
+  格式：`Clean-param: utm_source&utm_medium&ref /`
+- **`Crawl-delay` 已于 2018 年弃用**——改用 Webmaster 后台的抓取速率设置。
+- 确认 `robots.txt` 没有误拦 `YandexBot`。
+
+#### 注意事项
+
+- **Yandex 账号注册无特殊限制**，用邮箱即可在 `passport.yandex.com` 注册。
+- **Turbo Pages 已于 2025-04-01 停用**，不要再投入。
+- **Yandex 对行为因素的权重极高**（2023 年源码泄漏确认权重 ~0.8），
+  包括点击率、停留时长、跳出率、滚动深度、回访率。
+  人为刷点击会触发「PF filter」惩罚——**绝对不做**。
+- **商业查询有独立排名因子**：联系方式、法人信息、配送/支付/退货页面、
+  产品卡片完整度、价格透明度。做电商站时参考。
+
+### DuckDuckGo：无需额外操作
+
+**DuckDuckGo 没有自己的站长工具，没有站点提交入口。**
+
+DuckDuckGo 的搜索结果主要来自 Bing 索引，因此**提交 Bing Webmaster = 覆盖 DuckDuckGo**。
+我们在步骤 3 已经做完了。
+
+DuckDuckGo 有自己的爬虫 `DuckDuckBot`（User-Agent: `DuckDuckBot/1.1`），
+用于补充特定功能和即时回答（Instant Answers）。
+确保 `robots.txt` 没有误拦 `DuckDuckBot` 即可——不需要额外的验证或提交。
 
 ### 域名有「前世」时
 
 上线后第一件事是对首页提交「请求编入索引」，把搜索引擎对该域名的旧记忆（停放页、旧站）
 尽快覆盖掉。这件事越早越好，且**必须用正确的资源做**——见下一节。
 
-## 5. 提交 sitemap
+## 6. 提交 sitemap
 
 ```bash
 # 先读状态（只读）
-node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs gsc  status --property sc-domain:example.com
-node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs bing status --site https://example.com
+node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs gsc    status --property sc-domain:example.com
+node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs bing   status --site https://example.com
+node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs yandex status --site https://example.com
 
 # 提交
-node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs gsc  submit --property sc-domain:example.com --sitemap sitemap.xml
-node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs bing submit --site https://example.com --sitemap https://example.com/sitemap.xml
+node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs gsc    submit --property sc-domain:example.com --sitemap sitemap.xml
+node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs bing   submit --site https://example.com --sitemap https://example.com/sitemap.xml
+node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs yandex submit --site https://example.com --sitemap https://example.com/sitemap.xml
 ```
 
 ### 为什么是浏览器而不是 API

@@ -757,3 +757,107 @@ Markdown 内容协商），其余一律列进「未能对照」，不做凑数�
 - **[2026-08-17] 性能结论必须在生产量,本地静态 preview 会系统性高估耗时**:本地 preview 服务器通常**不做任何压缩**,而 Lighthouse 的模拟节流按传输字节收费——同一份 HTML 本地 84KB、生产 brotli 后 12.5KB,整站传输 333KB 时光传输就吃掉 1.7s,FCP 被凭空拉高 1 秒量级。据此做出的"性能很差"判断会把人引向错误的优化方向(去拆 JS,而真正的差异只是没压缩)。本地 preview 只适合查**相对回归**,绝对值一律以生产为准。
 - **[2026-08-17] 凡"改了却没生效",先怀疑读到的是某层缓存里的旧副本,再怀疑改动本身**:一轮任务里连续两次被缓存层给出假读数——(1) 本地 preview 服务器**在内存里缓存了入口 HTML**,重新构建后仍吐旧的 chunk 哈希,于是"新代码没生效"的结论完全建立在测旧产物上,判据是比对页面引用的哈希文件名与产物目录里的实际文件名,不一致就重起服务;(2) CDN 边缘缓存返回改规则之前的响应头(见 cloudflare-stack.md)。这类假读数的危险在于它**看起来像证据**,会让人去修一个本来正确的东西。
 - **[2026-08-17] 懒加载对 LCP 无用的判据是 TBT 与 LCP 元素,不是直觉**:被要求"用 React.lazy 压 LCP"时,先看两个数——若 **TBT 已经是 0**(TBT 占 Lighthouse 性能分 30%,已满分)且 **LCP 元素是预渲染在 HTML 里的文字**(hydration 之前就画完),那么拆 JS 在这两项上都无分可拿,再拆只是搬运。此时真正的瓶颈在别处(本例是一个后挂载的大文本块)。先归因 LCP 元素与它的四段耗时(TTFB / 资源加载延迟 / 资源加载 / 渲染延迟),再决定手段——不先归因就选手段,是性能工作里最常见的空转。
+- **[2026-08-23] 多语言站架构参考（Apple 模型）——URL 结构、`<html lang>`、hreflang、语言检测与区域切换的完整规则集**:
+
+  以下规则从 apple.com 的实际实现提取,经核验 sitemap（447+ 区域级 sitemap）、hreflang（137 条 alternate）、URL 结构和前端检测脚本后整理。适用于任何要做多语言/多地区的站。**每条规则都附 Apple 实证 URL,可直接打开验证。**
+
+  **规则 1：URL 结构用子目录,不用子域,不用独立域名。**
+  Apple 全球 100+ 市场统一在 `apple.com/{region}/` 下,只有中国大陆因监管要求（ICP 备案）用了独立域名 `apple.com.cn`。子目录的好处：域名权重集中、部署与 CDN 配置简单、hreflang 管理在一个 sitemap 体系内。
+  URL 模式六类（按需选用,全部可在 Apple 官网验证）：
+
+  | 模式 | Apple 实证 | 适用 |
+  |---|---|---|
+  | 根路径（默认语言） | `apple.com/` → 美国英文,无前缀 | 英文或单语言站 |
+  | `/{country}/` | `apple.com/jp/`（日本）、`apple.com/de/`（德国）、`apple.com/kr/`（韩国） | 单语言国家 |
+  | `/{country}/{lang}/` | `apple.com/hk/en/`（香港英文版,默认中文在 `apple.com/hk/`） | 双语地区的非默认语言 |
+  | `/{country+lang}/` | `apple.com/chfr/`（瑞士法语）、`apple.com/chde/`（瑞士德语）、`apple.com/befr/`（比利时法语） | 欧洲多语言国家 |
+  | `/{country}-{lang}/` | `apple.com/ae-ar/`（阿联酋阿拉伯语,默认英文在 `apple.com/ae/`）、`apple.com/sa-ar/`（沙特） | 中东双语市场 |
+  | 独立域名 | `apple.com.cn`（中国大陆,`apple.com/cn/` 301 过去） | 仅限法规强制（ICP 备案等） |
+
+  另外 Apple 还有**区域枢纽**模式：`apple.com/la/`（拉美西语）、`apple.com/lae/`（拉美英语）——多个小国共享同一套页面,在 hreflang 里用多个国家代码指向同一个 URL。
+
+  **规则 2：`<html lang>` 必须与页面实际语言一致,且必须带地区后缀。**
+  Apple 实证（查看各页面源码的 `<html>` 标签）：
+  - `apple.com/` → `<html lang="en-US">`
+  - `apple.com/jp/` → `<html lang="ja-JP">`
+  - `apple.com/tw/` → `<html lang="zh-TW">`
+  - `apple.com/hk/` → `<html lang="zh-HK">`
+  - `apple.com.cn` → `<html lang="zh-CN">`
+  - `apple.com/kr/` → `<html lang="ko-KR">`
+  - `apple.com/hk/en/` → `<html lang="en-HK">`
+
+  **不能所有中文页面都写 `zh`**——`zh-CN`、`zh-TW`、`zh-HK` 是三个不同的值,浏览器据此选择不同的字体渲染（宋体 vs 明體）、无障碍工具据此选择朗读语音。Apple 同时在每页设置 `<meta property="og:locale" content="ja_JP">` 和 `<link rel="canonical">`（自引用）,三者必须对齐。在开发环节：
+  - 单语言英文站：`<html lang="en">`（或 `en-US`）。
+  - 多语言站：每个语言路由渲染时动态设置,`/{lang}/` 路由的 `lang` 值从路由参数派生。
+  - **构建后断言**：扫全 dist 的 HTML,断言每个文件的 `<html lang=` 值与其所在目录的 locale 一致,不一致就 exit 1。
+
+  **规则 3：hreflang 必须每页都输出完整的语言替代列表。**
+  Apple 实证（在任意页面 `view-source:` 搜索 `hreflang`）：`apple.com/` 和 `apple.com/jp/` 都输出**完全相同的 137 条** `<link rel="alternate" hreflang="xx-XX">`,覆盖所有市场。关键实证：
+  - **自引用**：`apple.com/jp/` 的列表包含 `<link rel="alternate" hreflang="ja-JP" href="https://www.apple.com/jp/">`。
+  - **跨域引用**：同一列表包含 `<link rel="alternate" hreflang="zh-CN" href="https://www.apple.com.cn/">`——指向不同域名。
+  - **区域枢纽多对一**：`hreflang="es-HN"`、`hreflang="es-AR"`、`hreflang="es-SV"` 等十几个拉美国家代码全部指向同一个 `apple.com/la/`。加勒比英语国家同理全指向 `apple.com/lae/`。
+  - **Apple 没有用 `x-default`**。Google 建议用,指向默认语言版本供回退——我们自己做的时候加上。
+  - **部分语言版才有的子页,hreflang 只列实际存在的语言**（已在本文件 2026-07-18 条目详述）。
+
+  **规则 4：绝对不要根据 IP 自动跳转语言/地区,只做建议。**
+  这条是硬性规则,不是建议。Apple 实证（用任意非美国 IP 访问 `apple.com/`）：
+  - 页面正常展示美国英文内容,**不跳转**。服务端通过 IP 设一个 `geo` cookie（如 `geo=AU`）,仅用于检测。
+  - 客户端加载 locale switcher 脚本（路径 `apple.com/ac/localeswitcher/4/{locale}/scripts/localeswitcher.built.js`）,读 `geo` cookie,与当前页面 locale 对比。
+  - 不匹配时在页面顶部 `<aside id="globalmessage-segment">`（全局导航上方）注入一条横幅：「Choose another country or region to shop online and see content specific to your location.」+ 下拉选择器（预选检测到的地区）+ Continue 按钮 + 关闭按钮（×）。
+  - 用户关掉后 `localStorage`/`sessionStorage` 记住,当次会话不再弹出。
+  - **唯一例外**：`apple.com/cn/` → `apple.com.cn` 的 301,这是 ICP 备案的监管要求,不是语言选择。
+
+  为什么不能自动跳转：搜索引擎爬虫出口 IP 多在美国,自动跳转会导致所有语言版本被当成英文爬;VPN/出差/海外用户被跳到错误语言且找不到切回入口;Google 官方文档明确建议不要用 IP 调整语言。
+
+  Cloudflare Worker 里的参考实现思路：
+  ```ts
+  // 用 cf.country 检测地区,写入 cookie,不做跳转
+  const country = request.cf?.country || 'US'
+  // 响应头 Set-Cookie: geo={country}; Path=/; SameSite=Lax
+  // 客户端 JS 读 geo cookie → 比对当前路由 locale → 不匹配时注入顶部横幅
+  // 横幅关掉后写 localStorage('locale-switcher-dismissed', '1')
+  ```
+
+  **规则 5：中文市场必须按「四个独立市场」对待,不是「一种语言两种字体」。**
+  Apple 实证（逐个打开对比）：
+
+  | 市场 | Apple URL | hreflang | `<html lang>` | 页面标题 | 导航术语「支持」 |
+  |---|---|---|---|---|---|
+  | 中国大陆 | `apple.com.cn` | `zh-CN` | `zh-CN` | Apple (中国大陆) - 官方网站 | 技术支持 |
+  | 台湾 | `apple.com/tw/` | `zh-TW` | `zh-TW` | Apple (台灣) | 支援服務 |
+  | 香港 | `apple.com/hk/` | `zh-HK` | `zh-HK` | Apple (香港) | 支援服務 |
+  | 澳门 | `apple.com/mo/` | `zh-MO` | `zh-MO` | Apple (澳門) | — |
+
+  四者使用不同的货币（CNY / NT$ / HK$ / MOP$）、不同的法律声明（大陆有 ICP 备案号）、不同的客服电话（大陆 400-666-8800）。**香港还是双语市场**——`apple.com/hk/` 繁体中文（默认）,`apple.com/hk/en/` 英文,页脚有语言切换。做中文多语言时,**至少要分「简体」和「繁体」两个独立 locale,各自做关键词研究和文案**。
+
+  **规则 6：sitemap 按地区分文件,支持 image/video 子类型。**
+  Apple 实证（`apple.com/robots.txt` 列出 5 个 sitemap 入口）：
+  - 主内容：`apple.com/autopush/sitemap/sitemap-index.xml` → 447+ 子 sitemap,按地区组织,每地区最多三个：`{region}/sitemap.xml`（页面）、`{region}/sitemap-image.xml`、`{region}/sitemap-video.xml`。
+  - 商店：`apple.com/shop/sitemap.xml` → 47 个区域商店 sitemap。
+  - 新闻室、零售店、Today at Apple 各一个独立 sitemap 入口。
+
+  小站不需要这么细,但多语言站的 sitemap 至少要：
+  - 所有语言版本的 URL 都在 sitemap 里,不能只有默认语言。
+  - 用 `<xhtml:link rel="alternate" hreflang="xx">` 在 sitemap 里也声明语言替代关系（与 HTML head 里的 hreflang 双保险）。
+
+  **规则 7：页脚放地区/语言选择器,链接到选择页面。**
+  Apple 实证：每页页脚显示当前地区名（`apple.com/jp/` 显示「日本」,`apple.com/` 显示「United States」）,点击进入 `apple.com/choose-country-region/`——按五大洲分组列出约 195 个地区,双语市场同时列两种语言选项（如巴林同时显示 "Bahrain" 和 "البحرين"）。这个页面本身也是一个有 SEO 价值的页面——它内链到所有语言版本的首页。
+
+  **规则 8：robots.txt 对地区爬虫做针对性放行。**
+  Apple 实证（`apple.com/robots.txt`）：对 Baiduspider（百度）、HaoSouSpider（好搜）、Sogou（搜狗）单独设规则,限制大部分路径但明确 `Allow: /cn/`。做多语言站时,确认各语言版本对目标市场的主流爬虫没有误拦：
+  - Google → Googlebot
+  - Bing/Yahoo/DuckDuckGo → Bingbot
+  - 韩国 → Yeti（Naver 爬虫）
+  - 中国 → Baiduspider、Sogou
+  - 俄罗斯 → YandexBot
+
+  **规则 9：全面本地化,不是翻译。**
+  Apple 实证（对比 `apple.com/` vs `apple.com/uk/` vs `apple.com/jp/`）：
+  - **术语本地化**：UK 用 "colour"（不是 "color"）、"Uni, sorted"（不是 "College, sorted"）。
+  - **货币和价格**：各站点显示本地货币（GBP £ / JPY ¥ / CHF）。
+  - **金融产品完全不同**：US 有 Apple Card,UK 有 Flexible Finance——不是翻译,是不同的产品。
+  - **法律声明**：UK 有 FCA 金融声明,大陆有 ICP 备案,各站隐私政策指向当地司法管辖区。
+  - **字体**：日文页面加载 `SF-Pro-JP`,阿拉伯文页面加载专用 RTL 字体。
+  - **导航完全翻译**：不只是正文,菜单栏（ストア / Mac / iPad / iPhone / Watch）也是本地语言。
+
+  与本文件 2026-07-17 条目「多语言不是翻译而是本地化」一致。

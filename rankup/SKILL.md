@@ -77,7 +77,32 @@ opencli browser "$S" --window background eval '(async()=>{ /* fetch(..., {creden
 | 用沙箱浏览器访问需要登录的数据面板 | 用户的浏览器（通过 OpenCLI 或 Claude in Chrome） | 沙箱没有 cookie，返回的数据是匿名态，看起来正常但内容不同 |
 | 手工去 GSC / Bing 后台点「提交站点地图」 | `node webmaster-sitemap.mjs <gsc\|bing> submit …` | 两个后台都有各自的坑（Bing 的输入框要先点开、GSC 的「提交」会和「提交反馈」撞词），手操每次重踩一遍 |
 | 在项目里维护一份「要推给 IndexNow 的 URL 数组」 | `indexnow-submit.mjs` 默认从线上 sitemap 取 | 硬编码数组必然与实际发布的页面漂移，且漂移方向永远是「新页面没推」 |
+| 把 IndexNow 推送写成「文档里的一条命令」交给人记 | 焊进项目自己的 `ship` 命令（见下方「静默收尾动作」） | 漏推不会让任何东西变红——**没有失败信号的遗漏最难自查**；且指向 Skill 目录的脚本换台机器就不存在 |
 | 用 Claude in Chrome 手动逐个点 GSC 移除工具 | `node gsc-remove-urls.mjs --property sc-domain:xxx url1 url2 ...` | 脚本已存在，手操 6 个 URL 要点 30+ 次按钮且每次按钮位置漂移 |
+
+### 静默收尾动作：焊进命令，不要交给人记（编码完成时必须自查）
+
+**判据一句话：问「漏掉这一步，会有什么东西变红吗？」答案是「不会」，那它就不该由人来记。**
+
+改完代码、准备出荷时，凡是命中下面这个形状的动作，**必须在同一个任务里焊进出荷命令**，
+不允许以「记得跑一下 xxx」的形式交付：
+
+> 主要工作做完之后**还必须做**、但**漏了不会有任何报错**的收尾动作。
+> 典型：推送索引（IndexNow）、清 CDN 缓存、打版本标签、发 webhook、重新抓 OG 图。
+
+这类动作的危险不在于难，而在于**失败是静默的**：新页面只是晚几天被发现，
+构建绿、测试绿、页面 200，没有任何信号提示你漏了。
+
+正确形态（三条都要满足，详见 [`search-platforms.md`](references/search-platforms.md)「挂进发布流程」）：
+
+1. **脚本放进项目仓库**，不引用 Skill 目录——否则换台机器/CI 里那个路径不存在，
+   而报错长得像「脚本坏了」而不是「少装了东西」；
+2. **配置从项目内单一事实源读**，并把「两处必须一致」这类不变条件写成**断言**挂进
+   `test` 任务，而不是写成源码注释拜托后人维护；
+3. **接到出荷命令的后段**，让「不做」变成做不到：
+   `"ship": "… && build && deploy && <收尾动作>"`。
+
+出荷前自查：**这次改动新增或修改了线上可访问的 URL 吗？** 是 → 出荷命令里必须含索引推送。
 
 ### 本 Skill 自带
 
@@ -487,12 +512,13 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | **新域名接入 Cloudflare、拿 NS、切 NS、DNSSEC** | [`cloudflare-stack.md`](references/cloudflare-stack.md) 的「8.5 接入域名」 | 优先驱动**用户的浏览器**点 Add a domain；不可用时 `scripts/cf-zone-setup.mjs` |
 | 支付、订阅、账单、Stripe | [`integrations.md`](references/integrations.md)、[`project-memory.md`](references/project-memory.md) | stripe-best-practices |
 | SEO、GSC、排名、关键词、CTR、索引、内容 | [`seo-growth.md`](references/seo-growth.md)、[`trends.md`](references/trends.md)、[`project-memory.md`](references/project-memory.md) | SEO 或研究能力 |
-| **接搜索平台：Bing Webmaster、GSC、IndexNow、提交 sitemap、主动推送索引** | [`search-platforms.md`](references/search-platforms.md) | `scripts/indexnow-submit.mjs` + `scripts/webmaster-sitemap.mjs`。**IndexNow 排在站长工具前面**——它一样账号都不欠 |
+| **接搜索平台：Bing Webmaster、GSC、Naver Search Advisor（韩国市场）、Yandex Webmaster、IndexNow、提交 sitemap、主动推送索引** | [`search-platforms.md`](references/search-platforms.md) | `scripts/indexnow-submit.mjs` + `scripts/webmaster-sitemap.mjs`。**IndexNow 排在站长工具前面**——它一样账号都不欠。DuckDuckGo 无需额外操作（用 Bing 索引） |
 | **GSC 移除 URL、废弃页面从搜索结果中去掉** | — | `scripts/gsc-remove-urls.mjs`（驱动用户浏览器批量提交，GSC 没有公开 API） |
 | **AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化** | [`seo-growth.md`](references/seo-growth.md) section 三-B「2026 AI 搜索范式」 | 无需额外工具——Google 官方定论：AEO/GEO 就是 SEO |
 | **AI Agent 就绪度、is-agentic、agent readiness、llms.txt、AI 代理优化、agentic score** | [`seo-growth.md`](references/seo-growth.md) section 三-B「AI Agent 就绪度」 | `scripts/is-agentic.mjs`（`scan` 评分、`diff` 对比、`history` 历史，零配置可跑） |
 | 关键词难度、SERP 盘面、页面体检、域名与外链估值 | [`seo-webcafe.md`](references/seo-webcafe.md) | `scripts/seo-webcafe.mjs`（一个脚本覆盖全部工具，零配置可跑） |
-| 老站救不救、多语言怎么上、多站会不会自我重复、品牌名不显示、KGR 怎么算、页面下限 | [`webcafe-experiences.md`](references/webcafe-experiences.md) | 无需工具，是裁定集 |
+| 老站救不救、多站会不会自我重复、品牌名不显示、KGR 怎么算、页面下限 | [`webcafe-experiences.md`](references/webcafe-experiences.md) | 无需工具，是裁定集 |
+| **多语言怎么上、URL 结构、`<html lang>`、hreflang、语言检测与跳转、中文繁简分治** | [`webcafe-experiences.md`](references/webcafe-experiences.md) 三·五 + [`seo-growth.md`](references/seo-growth.md)「多语言站架构参考（Apple 模型）」+ [`lifecycle.md`](references/lifecycle.md) 阶段 3 第 5 条 | 无需工具，是规则集。**核心禁令：不得根据 IP 自动跳转语言** |
 | 搜索热度对比、地区分布、相关飙升词、每日热搜、模糊方向扩词并收敛成可做站的词 | [`trends.md`](references/trends.md) | `scripts/gt.py`（首次运行自动建 venv 装 pytrends） |
 | 从登录态后台批量取数（没有 API / API 收费 / 导出扣点数） | [`integrations.md`](references/integrations.md) | **加载 backlink**（`/backlink`），读 `references/harvest.md`。未安装：`npx skills add yan-labs/yan-skills --skill backlink -g -y` |
 | **「数据面板」「数据勘测」「查一下这个站/这个词的数据」** —— 用户说这些词时指的是第三方数据平台 | — | **直接跑脚本**（见上方「数据面板的脚本速查」），不要打开浏览器手操。首次使用或遇到问题时**加载 backlink** 读 `authorized-data-sources.md` |

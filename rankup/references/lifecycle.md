@@ -184,9 +184,15 @@
 2. 检查实际生成的应用与共享包、workspace 配置、TanStack Start 入口、TypeScript 配置和包管理器脚本。
 3. 安装后执行类型检查、测试和生产构建中当前可用的项目命令。
 4. **审计脚手架的产物路径配置**（见下「脚手架四个坑」第 1 条）。
-5. **把站点自身的身份装上去**：`<html lang>` 用目标市场语言、title/description/og 用目标语言实文案、
+5. **把站点自身的身份装上去**：`<html lang>` 用目标市场语言（单语言站 `en` 或 `en-US`；
+   多语言站**每个语言路由必须动态设置对应的 `lang` 值**，如 `ja-JP`、`zh-TW`、`zh-HK`，
+   简体和繁体中文是不同的 `lang` 值，不能统一写 `zh`——这影响搜索引擎语言识别、
+   浏览器字体选择和无障碍朗读语言）、title/description/og 用目标语言实文案、
    404 页本地化、首页替换成真实落地页。**不要留 `Project ready!` / `Hello world` 这类占位**——
    它会一路活到上线，而且没人会专门回来改。
+   多语言站另须遵守 [`seo-growth.md`](references/seo-growth.md) 的「多语言站架构参考（Apple 模型）」
+   九条规则——URL 子目录结构、hreflang 互指、**禁止根据 IP 自动跳转**（只做顶部横幅建议切换）、
+   中文四市场分治等。
 6. **初始化版本控制与远端**（见下「Git 与远端」）。
 7. 将实际结构与初始架构记录对账，不假定模板输出永远不变。
 
@@ -537,6 +543,8 @@ wrangler email routing dns get <domain>
 | 索引推送 | IndexNow | 只要一个密钥文件 | 内容一变就主动推给支持的引擎，不等爬。`indexnow-submit.mjs`；密钥文件必须由应用层路由提供，**放静态目录会被静态资源绑定永久遮蔽**，之后轮换密钥要重新构建 |
 | 搜索平台 | Google Search Console | Google 账号 + DNS 验证 | 查询词、曝光、平均排名、索引状态、人工处置。sitemap 用 `webmaster-sitemap.mjs gsc submit` |
 | 搜索平台 | Bing Webmaster | 微软账号 | Bing/Yahoo/DuckDuckGo 一侧的收录。**用 HTML meta 验证，不要用「从 GSC 导入」**（那是给 Bing 一个对 Google 账号的长期 OAuth）。sitemap 用 `webmaster-sitemap.mjs bing submit` |
+| 搜索平台 | Naver Search Advisor（仅韩国市场） | Naver 账号 | 韩国市场必接。Naver 在韩国的地位相当于百度 + 小红书 + 大众点评 + 抖音的合体，占韩国搜索流量的主导份额。虽然 IndexNow 能被动推送，但站长工具的收录状态、搜索分析、网站诊断只有注册后才有。用 HTML meta 验证，爬虫 UA 是 `Yeti`，确认 `robots.txt` 没误拦。详见 `search-platforms.md`「步骤 5：Naver Search Advisor」 |
+| 搜索平台 | Yandex Webmaster | Yandex 账号 | 全球第五大搜索引擎，俄罗斯 60%+ 份额。建议所有站点都接——即使不做俄语市场，Yandex 的行为因素分析数据也有参考价值。用 HTML meta 验证（`yandex-verification`），爬虫 UA 是 `YandexBot`，确认 `robots.txt` 没误拦。Yandex 也是 IndexNow 共同创建者，推送已覆盖。详见 `search-platforms.md`「步骤 6：Yandex Webmaster」 |
 | 产品分析 | GA4 | Google 账号 | 事件、渠道归因、留存 |
 | 行为分析 | 会话录制/热图工具 | 该平台账号 | 录像与点击热图，回答「为什么不转化」 |
 | 外链视角 | 站长版外链工具 | 该平台账号 | 免费看自己的引荐域名与 rel 分布 |
