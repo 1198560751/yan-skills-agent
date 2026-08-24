@@ -103,29 +103,64 @@ export function pageProps(flight) {
 /**
  * 收集被外联的长文本行：`<id>:T<hex字节长>,<正文>`。
  *
- * **按字节切，不是按字符切。** 长度是 UTF-8 字节数，中文一个字 3 字节，
- * 按字符切会把正文截短到三分之一——而且截出来的还是合法字符串，不报错。
+ * **必须顺序扫描，不能用正则找行首。** 这是实测出来的：一条 `T` 行的正文
+ * **不保证以换行结尾**，下一行的行头会直接粘在上一条正文的最后一个字上——
  *
- * 实现上单遍推进字节偏移：朴素写法对每个匹配都 `encode(flight.slice(0,i))`，
- * 在 400 万字的专栏页上是 O(n²)，会把脚本卡死。
+ *     ……新站又是暴死结局。1b:T1ba4,效果：![image.png](……
+ *
+ * 用 `/(?:^|\n)([0-9a-f]+):T([0-9a-f]+),/` 去匹配，这个 `1b` 因为前面没有 `\n`
+ * 就被漏掉了。漏掉的后果不是报错：`deref` 找不到 `1b` 就把 `"$1b"` **原样返回**，
+ * 调用方拿到一个 3 个字符的字符串当正文。实测 `/experiences/6` 上 2 条帖子
+ * （各 7KB / 8.9KB 正文）就是这么丢的，91 条里丢 2 条，全程 exit 0。
+ *
+ * 反过来也不能把 `\n` 前缀去掉了事——正文里出现 `1b:T1ba4,` 这种串会被误当行头。
+ * 唯一可靠的读法是**按协议自己的长度字段走**：`T` 行读掉声明的字节数，
+ * 读完的位置就是下一行行头，别的行读到换行为止。
+ *
+ * 全程在字节上做。长度是 UTF-8 字节数，中文一个字 3 字节，按字符切会截到三分之一，
+ * 而且截出来还是合法字符串，不报错。
  */
 export function textRows(flight) {
   const enc = new TextEncoder();
   const dec = new TextDecoder();
-  const bytes = enc.encode(flight);
+  const b = enc.encode(flight);
   const out = {};
-  const re = /(?:^|\n)([0-9a-f]+):T([0-9a-f]+),/g;
+  const NL = 10, COLON = 58, COMMA = 44, T = 84;
+  const isHex = (c) => (c >= 48 && c <= 57) || (c >= 97 && c <= 102);
 
-  let prevChar = 0;   // 上一次已换算到字节的字符位置
-  let prevByte = 0;   // 对应的字节位置
-  let m;
-  while ((m = re.exec(flight))) {
-    const startChar = m.index + m[0].length;
-    // 只编码 [prevChar, startChar) 这一段增量，而不是从头再来一遍。
-    prevByte += enc.encode(flight.slice(prevChar, startChar)).length;
-    prevChar = startChar;
-    const len = parseInt(m[2], 16);
-    out[m[1]] = dec.decode(bytes.slice(prevByte, prevByte + len));
+  let pos = 0;
+  const toNextLine = (from) => {
+    const nl = b.indexOf(NL, from);
+    return nl === -1 ? b.length : nl + 1;
+  };
+
+  while (pos < b.length) {
+    let i = pos;
+    while (i < b.length && isHex(b[i])) i++;
+    // 行头必须是 `<十六进制id>:`，且 id 非空。不符合就整行跳过。
+    if (i === pos || i >= b.length || b[i] !== COLON) {
+      pos = toNextLine(pos);
+      continue;
+    }
+    const id = dec.decode(b.slice(pos, i));
+    i++; // 吃掉 ':'
+    if (b[i] !== T) {
+      pos = toNextLine(i);
+      continue;
+    }
+    i++; // 吃掉 'T'
+    let j = i;
+    while (j < b.length && isHex(b[j])) j++;
+    if (j === i || b[j] !== COMMA) {
+      pos = toNextLine(i);
+      continue;
+    }
+    const len = parseInt(dec.decode(b.slice(i, j)), 16);
+    const bodyStart = j + 1;
+    const bodyEnd = Math.min(bodyStart + len, b.length);
+    out[id] = dec.decode(b.slice(bodyStart, bodyEnd));
+    // 正文读完就是下一行行头；有换行就顺手吃掉，没有也照样往下走。
+    pos = b[bodyEnd] === NL ? bodyEnd + 1 : bodyEnd;
   }
   return out;
 }
