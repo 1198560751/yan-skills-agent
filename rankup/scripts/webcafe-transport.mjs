@@ -140,12 +140,16 @@ export async function ensureOrigin(session) {
  * eval 必须包 IIFE：本环境 eval 上下文跨调用持续，裸的声明重复执行会抛错，
  * 而且那次调用**根本没执行**。
  */
-export async function browserGet(path, { session, accept = "application/json" } = {}) {
+export async function browserGet(path, { session, accept = "application/json", rsc = false } = {}) {
   if (!session) throw new Error("browserGet 需要 session");
   await ensureOrigin(session);
   const url = abs(path);
+  // `RSC: 1` 让 Next.js 直接回这条路由的 flight，而不是整页 HTML。
+  // 实测同一条帖子：普通 GET 41,472 字节且**不含正文**，带 RSC 头 12,609 字节且**含正文**。
+  // 正文是客户端二次取的，所以只发普通 GET 会拿到一个「看起来完整」的空页面。
+  const headers = { accept, ...(rsc ? { RSC: "1" } : {}) };
   const expr =
-    `(async()=>{const r=await fetch(${JSON.stringify(url)},{headers:{accept:${JSON.stringify(accept)}},credentials:"include"});` +
+    `(async()=>{const r=await fetch(${JSON.stringify(url)},{headers:${JSON.stringify(headers)},credentials:"include"});` +
     `const t=await r.text();return JSON.stringify({status:r.status,text:t});})()`;
   const out = await opencli(["browser", session, "eval", expr]);
   const trimmed = out.trim();
@@ -262,9 +266,9 @@ export async function getJson(path, { transport = "auto", session, gated } = {})
  * 返回值里的 `transport` 会如实写 `"http"`——调用方靠这个字段决定要不要升级。
  * 升级判据在 webcafe-forum.mjs 的 `fetchProps(path, ctx, gated)`。
  */
-export async function getHtml(path, { transport = "http", session } = {}) {
+export async function getHtml(path, { transport = "http", session, rsc = false } = {}) {
   if (transport === "browser") {
-    const r = await browserGet(path, { session, accept: "text/html" });
+    const r = await browserGet(path, { session, accept: "text/html", rsc });
     return { html: r.text, transport: "browser", status: r.status };
   }
   const r = await httpGet(path, { accept: "text/html" });

@@ -200,9 +200,15 @@ export function isLoginPage(props) {
   return "callbackUrl" in props && !("detailInit" in props) && !("topicListInit" in props);
 }
 
-/** 一步到位：HTML → 解引用后的页面 props。拿不到返回 null。 */
+/**
+ * 一步到位：HTML **或裸 flight** → 解引用后的页面 props。拿不到返回 null。
+ *
+ * **两种输入必须都认。** 带 `RSC: 1` 请求头拿到的响应不是 HTML，是**裸的 flight 流**
+ * （直接以 `0:`、`1c:T...` 这样的行开头，没有 `self.__next_f.push(...)` 外壳）。
+ * 只按 HTML 解析会得到空串 → 返回 null → 调用方以为「这页解析不了」。
+ */
 export function propsFromHtml(html) {
-  const flight = joinFlightFromHTML(html);
+  const flight = /self\.__next_f/.test(html) ? joinFlightFromHTML(html) : html;
   if (!flight) return null;
   const props = pageProps(flight);
   if (!props) return null;

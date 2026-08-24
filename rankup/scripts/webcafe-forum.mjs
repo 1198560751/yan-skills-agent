@@ -469,7 +469,7 @@ async function cmdWhoami(args, ctx) {
  * 给一个有正文的页面漏传 `gated`，后果不是报错，是 auto 静默退化成 http 拿回空正文。
  */
 async function fetchProps(path, ctx, gated) {
-  const { html, status, transport } = await getHtml(path, ctx);
+  const { html, status, transport } = await getHtml(path, ctx);   // ctx.rsc 会透传下去
   const props = propsFromHtml(html);
   if (!props) throw new Error(`解析 RSC 失败（HTTP ${status}）：${path}`);
   // 登录页长得像一个正常的空页面，必须在这里挡掉，否则它会一路变成「这篇没有正文」。
@@ -483,7 +483,10 @@ async function fetchProps(path, ctx, gated) {
     if (bp) return bp;
     console.error(`（auto 升级到浏览器后解析失败，退回匿名结果：${path}）`);
   } catch (e) {
-    // 升级失败要说出来。静默退回降级数据 = 把空正文当成「这篇本来就没内容」。
+    // **限流必须穿透，不能退回「匿名结果」。** 退回去就是拿一个空正文当答案，
+    // 而调用方分不出「这篇没内容」和「你被挡了」——本轮 503 条假空就是这么来的。
+    // 其它升级失败（浏览器没开、桥断了）才允许降级返回，那种情况正文本来也拿不到。
+    if (/登录页/.test(e.message)) throw e;
     console.error(`（auto 想升级到浏览器但失败了：${e.message}；下面是匿名结果，正文可能是空的）`);
   }
   return props;
@@ -624,6 +627,12 @@ async function cmdBodies(kind, args, ctx) {
     console.error(`续跑：${out} 里已有 ${done.size} 条，跳过。`);
   }
 
+  // **详情页强制走浏览器。** 这两条流的详情页 100% 有登录墙，auto 会先发一次匿名请求、
+  // 看到空正文再升级——那一次匿名请求是**必然白发的**，722 条就是 722 次纯浪费，
+  // 而且它和浏览器请求同源同 IP，一起算进站点的速率账里。
+  // rsc:true 是关键——正文是客户端二次取的，普通 GET 会拿到一个「看起来完整」
+  // 但不含 markdown 的整页 HTML，然后被记成「这篇没有正文」。
+  const detailCtx = { ...ctx, transport: "browser", rsc: true };
   const rows = await cmdList(kind, { ...args, json: false, out: null, pages: args.pages || 99 }, ctx, true);
   const todo = rows.filter((r) => !done.has(r.uid));
   console.error(`列表 ${rows.length} 条，待取正文 ${todo.length} 条。`);
@@ -637,7 +646,7 @@ async function cmdBodies(kind, args, ctx) {
     const r = todo[i];
     if (i) await sleep(delay);
     try {
-      const props = await fetchProps(`/${detail}/${r.uid}`, ctx, detailBlank);
+      const props = await fetchProps(`/${detail}/${r.uid}`, detailCtx, detailBlank);
       const d = props.detailInit || {};
       const md = d.markdown || "";
       appendFileSync(out, JSON.stringify({
@@ -651,10 +660,23 @@ async function cmdBodies(kind, args, ctx) {
       console.error(`  \u2717 ${r.uid}：${e.message}`);
       if (!/登录页/.test(e.message)) { streak = 0; continue; }
       if (++streak >= FUSE) {
+        // 「被踢到登录页」有两个完全不同的成因，处置也完全不同：
+        //   会话没了 → 要人去浏览器里重新登录，**再等多久都不会自己好**
+        //   还登录着 → 才是速率问题，等一会儿加大间隔续跑
+        // 不分开报，就会出现「按限流去等一小时，而其实是掉登录」这种纯浪费。
+        let loggedIn = null;
+        try { loggedIn = !!(await apiWhoami(ctx.session))?.user; } catch { /* 探不到就不猜 */ }
         console.error(
-          `\n连续 ${FUSE} 次被重定向到登录页——是限流，不是内容问题。已停在 ${i + 1}/${todo.length}。` +
-            `\n已取到的都在 ${out} 里，等一会儿用同一条命令续跑即可（空的不会被跳过）。` +
-            `\n还可以加大间隔：--delay 2000。`,
+          `\n连续 ${FUSE} 次被重定向到登录页。已停在 ${i + 1}/${todo.length}，` +
+            `已取到的都在 ${out} 里（续跑只跳过已拿到正文的，不会漏）。`,
+        );
+        console.error(
+          loggedIn === false
+            ? `成因：**浏览器里的 new.web.cafe 会话没了**（同时探测 /api/auth/session 确认）。\n` +
+              `   等待无效——请在浏览器里重新登录，然后用同一条命令续跑。`
+            : loggedIn === true
+              ? `成因：会话仍在，**是站点在限速**。等几分钟后加大间隔续跑：--delay 3000。`
+              : `成因未能判定（探测会话本身也失败了）。先跑 whoami 看登录态，再决定是重登还是等待。`,
         );
         break;
       }
