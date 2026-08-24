@@ -187,14 +187,28 @@ async function gplay() {
     const url =
       "https://play.google.com/_/PlayStoreUi/data/batchexecute" +
       `?rpcids=UsvDTd&source-path=%2Fstore%2Fapps%2Fdetails&hl=${encodeURIComponent(opt.lang)}&gl=${opt.country.toUpperCase()}`
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
-        "user-agent": UA,
-      },
-      body,
-    })
+    let res
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+          "user-agent": UA,
+        },
+        body,
+      })
+    } catch (e) {
+      // play.google.com 在部分网络/代理环境下会在 TLS 阶段被重置（ECONNRESET），
+      // 表现为 fetch 直接抛出而不是返回非 2xx。这里必须显式接住：本文件其余的
+      // 网络路径都会给出可诊断的信息，只有这一条以前是裸抛 Node 堆栈。
+      // 判据：报错要说清「打不通这个主机」而不是「这个 app 没有评论」——
+      // 后者会被误读成一个有意义的否定答案。
+      fail(
+        `连不上 play.google.com（${e?.cause?.code || e?.code || e?.message || "未知网络错误"}）。\n` +
+        `  这是主机不可达，不是「该 app 没有评论」。\n` +
+        `  代理/沙箱环境常见；换网络重试，或改用 --source appstore。`,
+      )
+    }
     const txt = (await res.text()).replace(/^\)\]\}'\s*/, "")
     let payload
     try {
