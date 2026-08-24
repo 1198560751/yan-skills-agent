@@ -498,6 +498,7 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | 方向定了，在规划怎么做、排优先级、定阶段目标与止损线 | [`experiences/zero-to-one.md`](references/experiences/zero-to-one.md) |
 | 站已上线有流量，在决定这一轮改什么 | [`experiences/conversion.md`](references/experiences/conversion.md) |
 | 技术 SEO、站群、多语言、索引类决策 | [`experiences/webcafe-experiences.md`](references/experiences/webcafe-experiences.md) |
+| 技术 SEO、站群、多语言、索引类决策 | [`experiences/webcafe-topics.md`](references/experiences/webcafe-topics.md)（群友复盘，带数字与失败根因） |
 | 要往经验库里加东西 | [`experiences/INDEX.md`](references/experiences/INDEX.md) 的「收录规则」 |
 
 三条硬约束：
@@ -529,6 +530,11 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | **0→1 怎么排优先级、「1」怎么定义、虚荣指标、要不要重构、什么时候止损、新站上线执行清单** | [`experiences/zero-to-one.md`](references/experiences/zero-to-one.md) | 无需工具，是裁定集。**接到「优化一下这个站」时默认打磨转化链路，不是重构架构** |
 | **转化率上不去、访客不注册、注册不付费、定价怎么定、用户行为数据怎么提** | [`experiences/conversion.md`](references/experiences/conversion.md) | 无需工具，是裁定集。**动页面之前先查上游流量意图** |
 | 老站救不救、多站会不会自我重复、品牌名不显示、KGR 怎么算、页面下限 | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) | 无需工具，是裁定集 |
+| **这个词到底做不做、KD 低能不能上、新词还剩多少窗口、非英语版本值不值得** | [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 一 ~ 二 | 判断在这里，取数用 `seo-webcafe.mjs kd` + `gt.py`。**低 KD ≠ 能做；词龄 >30 天且竞品域名 >20 天就放弃** |
+| **买外链要花多少钱、导航站外链值不值、新后缀域名发不出链、外链多快算太快** | [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 五 + `backlink` Skill | 有 KD→引荐域数量对照表和一张导航站过滤清单。**302/307 不传权重；`.ai` 在老博客上发出去的不是链接** |
+| **多语言上线后流量暴跌、收录大规模掉、hreflang 配错** | [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 七 | 无需工具，是排查表。**先做 2–3 个语言；hreflang 用代码统一生成，不要手写** |
+| **支付被关户、退款争议、API Key 被盗刷、PayPal 新商户审查、AdSense PIN 没收到** | [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 八 | 无需工具，是裁定集。**支付通道必须有备份；退款要全退不要部分退** |
+| **AI 改长文案只改了一半、AI 拒绝做某事、要不要照抄竞品** | [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 十 | 无需工具。**需求可以借鉴，代码/UI/素材/品牌不能抄** |
 | **排名起不来、被 K 站/deindex、GSC 报索引异常、首页覆盖了太多词、新站排名波动** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 十七 ~ 十九 | 无需工具，是裁定集。**新词上线 2–4 周内不要改页面** |
 | **外链发哪里、相关性 vs 数量、nofollow 要不要、发了怎么验收、抄竞品外链** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 二十 + `backlink` Skill | 判断在这里，执行在 `backlink`。**抄竞品外链要按「首次发现日期从旧到新」排** |
 | **AdSense 申请被拒、千展偏低、要不要加会员、Adsterra、第三方 API 成本、Creem 税** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 二十二 | 无需工具，是裁定集。**AdSense 先传 ads.txt 验证、别急着点「申请审核」** |
@@ -540,6 +546,7 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | 搜索热度对比、地区分布、相关飙升词、每日热搜、模糊方向扩词并收敛成可做站的词 | [`trends.md`](references/trends.md) | `scripts/gt.py`（默认走 `gt-browser.mjs` 的浏览器路由，零 venv；`--via pytrends` 可切回匿名 HTTP） |
 | 从登录态后台批量取数（没有 API / API 收费 / 导出扣点数） | [`integrations.md`](references/integrations.md) | **加载 backlink**（`/backlink`），读 `references/harvest.md`。未安装：`npx skills add yan-labs/yan-skills --skill backlink -g -y` |
 | **「数据面板」「数据勘测」「查一下这个站/这个词的数据」** —— 用户说这些词时指的是第三方数据平台 | — | **直接跑脚本**（见上方「数据面板的脚本速查」），不要打开浏览器手操。首次使用或遇到问题时**加载 backlink** 读 `authorized-data-sources.md` |
+| **要一整条流的正文**（722 条帖子 / 91 条经验），不是单条 | [`webcafe-forum.md`](references/webcafe-forum.md) | `webcafe-forum.mjs bodies topics --out f.jsonl`。**可续跑**；站点会限流（表现是重定向到登录页，不是 429），脚本连撞 5 次即熔断 |
 | **哥飞论坛（new.web.cafe）的任何内容**：悬赏答案、经验帖、教程、帖子、站内搜索 | [`webcafe-forum.md`](references/webcafe-forum.md) —— **先看第一节**：匿名不报错，只是把正文换成空串 | `scripts/webcafe-forum.mjs get <url>`（万能入口，认不出的 URL 也能退回通用抓取） |
 | **「哥飞群里怎么说的」「社群里有没有讲过 X」** | [`webcafe-forum.md`](references/webcafe-forum.md) 第八节 | `webcafe-forum.mjs chat-search "词"` —— 14 个微信群归档，**就是哥飞.ai 的知识库**。拿原文、不消耗任何 AI 额度，优先于 `ask` |
 | **需求翻译 / 需求挖掘 / 给新站起名并核验域名** | [`seo-webcafe.md`](references/seo-webcafe.md) 的「translate / mine / domain 补全」一节 | `seo-webcafe.mjs translateSearch`（字段是 `query`）· `mineSearch`（字段是 **`keyword`**，别抄反）· `domainIntent` → `domainName` → `domainCheck` |
