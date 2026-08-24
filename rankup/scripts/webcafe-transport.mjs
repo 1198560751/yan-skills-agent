@@ -266,13 +266,46 @@ export async function getJson(path, { transport = "auto", session, gated } = {})
  * 返回值里的 `transport` 会如实写 `"http"`——调用方靠这个字段决定要不要升级。
  * 升级判据在 webcafe-forum.mjs 的 `fetchProps(path, ctx, gated)`。
  */
-export async function getHtml(path, { transport = "http", session, rsc = false } = {}) {
+export async function getHtml(path, { transport = "http", session, rsc = false, via } = {}) {
+  if (transport === "browser" && via === "nav") return navGet(path, { session });
   if (transport === "browser") {
     const r = await browserGet(path, { session, accept: "text/html", rsc });
     return { html: r.text, transport: "browser", status: r.status };
   }
   const r = await httpGet(path, { accept: "text/html" });
   return { html: r.text, transport: "http", status: r.status };
+}
+
+/**
+ * **真实导航取数**：让浏览器像人一样打开这个 URL，等页面自己渲染，再从活着的页面里
+ * 把 flight 读出来。
+ *
+ * 和 `browserGet` 的区别不是「快慢」，是**走不走同一条路**：
+ *   browserGet  在某个已打开页面的上下文里发 `fetch()`——借的是 cookie，
+ *               但请求头是 `Sec-Fetch-Mode: cors`，站点完全可以区别对待。
+ *   navGet      真的导航过去，`Sec-Fetch-Mode: navigate`，和用户手点没有区别。
+ *
+ * 实测依据：同一时刻、同一个会话，导航打开帖子页时 DOM 里有全文，
+ * 而在首页上下文里 `fetch()` 同一个 URL 拿回来的是登录页。**是路径的差别，不是登录的差别。**
+ *
+ * 代价是慢——每条要真的加载一个页面（含 JS、字体、若干个 API 调用），
+ * 2~4 秒对 1.3 秒。稳定性换速度，在这个站上是划算的。
+ */
+export async function navGet(path, { session, settleMs = 2500 } = {}) {
+  if (!session) throw new Error("navGet 需要 session");
+  await opencli(["browser", session, "--window", "background", "open", abs(path)]);
+  await sleep(settleMs);
+  // 从活着的页面里取 flight。这里不能读 document.body.innerText——那样会丢掉
+  // markdown 的原始格式（代码块、链接、层级），而我们要的正是原文。
+  const expr =
+    `(()=>{const f=(self.__next_f||[]).map(x=>Array.isArray(x)?x[1]:null)` +
+    `.filter(t=>typeof t==="string").join("");` +
+    `return JSON.stringify({url:location.href,flight:f});})()`;
+  const out = await opencli(["browser", session, "eval", expr]);
+  const i = out.indexOf("{");
+  if (i === -1) throw new Error(`导航后读不到 flight：${out.slice(0, 160)}`);
+  const env = JSON.parse(out.slice(i));
+  return { html: env.flight, url: env.url, status: 200, transport: "nav" };
 }
 
 /** 会话用完必须还回去；崩溃时不会自动清理。**绝不要用 cleanup**（那会关掉别人的标签页）。 */

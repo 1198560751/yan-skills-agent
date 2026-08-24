@@ -632,7 +632,10 @@ async function cmdBodies(kind, args, ctx) {
   // 而且它和浏览器请求同源同 IP，一起算进站点的速率账里。
   // rsc:true 是关键——正文是客户端二次取的，普通 GET 会拿到一个「看起来完整」
   // 但不含 markdown 的整页 HTML，然后被记成「这篇没有正文」。
-  const detailCtx = { ...ctx, transport: "browser", rsc: true };
+  // --via nav：真实导航，慢但走站点的正常路径；默认仍是页面内 fetch（快）。
+  const via = args.via === true ? "nav" : args.via;
+  if (via && via !== "nav" && via !== "fetch") die(`--via 只能是 nav / fetch，收到 "${via}"`);
+  const detailCtx = { ...ctx, transport: "browser", rsc: via !== "nav", via };
   const rows = await cmdList(kind, { ...args, json: false, out: null, pages: args.pages || 99 }, ctx, true);
   const todo = rows.filter((r) => !done.has(r.uid));
   console.error(`列表 ${rows.length} 条，待取正文 ${todo.length} 条。`);
@@ -1204,7 +1207,8 @@ const HELP = `webcafe-forum.mjs —— new.web.cafe（哥飞社区论坛）全�
   bodies <topics|experiences> --out <f.jsonl> [--pages N]
                          批量取整条流的**正文**（列表只给元数据）。JSON Lines 追加，
                          **可续跑**：重跑自动跳过**已取到正文**的 uid（空的会重试）。
-                         串行、默认间隔 700ms（--delay）；连续 5 次被踢到登录页即熔断
+                         串行、默认间隔 700ms（--delay）；连续 5 条空正文即熔断
+                         --via nav 改走**真实导航**（2~4 秒/条，但和用户手点同一条路）
   whoami                 浏览器里是不是登录态
   api <path>             逃生舱：直接打任意 /api/... （GET），带同一套 transport
                          例：api /api/ask/home · /api/ask/experts · /api/ask/activity
