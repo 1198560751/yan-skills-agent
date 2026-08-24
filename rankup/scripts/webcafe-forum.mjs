@@ -66,7 +66,7 @@
  *     要正文得 `topic <uid>` 逐条取。对它套用列表降级判据会每页白开一次浏览器。
  */
 
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, appendFileSync, existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import {
   BASE,
@@ -493,7 +493,7 @@ const detailBlank = (props) => !((props.detailInit || {}).markdown || "").length
 const firstPage = (p) => [].concat(p ?? 1)[0]; // 第 1 页是数字 1，第 2 页起是字符串数组 ["2"]
 
 /** 经验和帖子是同一套结构的两条独立流（uid 无交集），详情页互为别名。 */
-async function cmdList(kind, args, ctx) {
+async function cmdList(kind, args, ctx, quiet = false) {
   const base = kind === "experiences" ? "/experiences" : "/topics";
   const want = Number(args.pages || 1);
   const rows = [];
@@ -528,6 +528,7 @@ async function cmdList(kind, args, ctx) {
   // 对 topics 说「你没登录」是错的，它登录了也不会在列表里给正文。
   const gotBody = rows.some((r) => r.chars > 0);
   const listHasBody = kind === "experiences";
+  if (quiet) return rows;   // bodies 调用时不打 722 行表格
   emitRows(rows, args, [
     { key: "uid", label: "uid", max: 12 },
     { key: "author", label: "作者", max: 12 },
@@ -585,6 +586,64 @@ async function cmdDetail(kind, uid, args, ctx) {
     );
   }
   return out;
+}
+
+/**
+ * 批量把一整条流的**正文**取下来（列表只给元数据，正文要逐条打详情页）。
+ *
+ * **为什么必须能续跑**：722 条 × 每条一次带登录态的请求，中途任何一次网络抖动、
+ * 用户手动关掉标签页、机器休眠，都会让整批白跑。所以落盘用 **JSON Lines 追加**，
+ * 重跑时先把已有文件里的 uid 读进来跳过——**这是唯一让「跑了 600 条挂了」不等于
+ * 「从头再来」的写法**。
+ *
+ * **不做并发。** 底层是在用户那一个已登录标签页里执行 in-page fetch，
+ * 开 N 个会话就是在用户的 Chrome 里开 N 个标签页；而单会话下这条路径不需要导航，
+ * 实测每条 1~2 秒，串行完全够用。**为了快一点去占用户的浏览器是不划算的交易。**
+ *
+ * 单条失败**故意不写盘**——不写就等于没做过，下次续跑自然会重试它。
+ * 写一条「失败占位」看着更完整，实际是把失败固化成了成功。
+ */
+async function cmdBodies(kind, args, ctx) {
+  if (!["topics", "experiences"].includes(kind)) die("bodies 只支持 topics / experiences");
+  const detail = kind === "topics" ? "topic" : "experience";
+  const out = args.out;
+  if (!out || out === true) die(`用法：webcafe-forum.mjs bodies ${kind} --out <文件.jsonl> [--pages N]`);
+
+  const done = new Set();
+  if (existsSync(out)) {
+    for (const line of readFileSync(out, "utf8").split("\n")) {
+      if (!line.trim()) continue;
+      try { const o = JSON.parse(line); if (o.uid) done.add(o.uid); } catch { /* 坏行跳过 */ }
+    }
+    console.error(`续跑：${out} 里已有 ${done.size} 条，跳过。`);
+  }
+
+  const rows = await cmdList(kind, { ...args, json: false, out: null, pages: args.pages || 99 }, ctx, true);
+  const todo = rows.filter((r) => !done.has(r.uid));
+  console.error(`列表 ${rows.length} 条，待取正文 ${todo.length} 条。`);
+
+  let ok = 0, empty = 0;
+  for (let i = 0; i < todo.length; i++) {
+    const r = todo[i];
+    try {
+      const props = await fetchProps(`/${detail}/${r.uid}`, ctx, detailBlank);
+      const d = props.detailInit || {};
+      const md = d.markdown || "";
+      appendFileSync(out, JSON.stringify({
+        uid: r.uid, url: r.url, title: r.title, author: r.author,
+        created_at: r.created_at, reads: r.reads, likes: r.likes, replies: r.replies,
+        chars: md.length, markdown: md,
+      }) + "\n");
+      md.length ? ok++ : empty++;
+    } catch (e) {
+      console.error(`  \u2717 ${r.uid}：${e.message}`);
+    }
+    if ((i + 1) % 25 === 0 || i === todo.length - 1) {
+      console.error(`  ${i + 1}/${todo.length}（有正文 ${ok}，空 ${empty}）`);
+    }
+  }
+  console.error(`完成：${ok} 条有正文，${empty} 条为空 → ${out}`);
+  return { total: rows.length, fetched: ok, empty };
 }
 
 /**
@@ -1084,6 +1143,9 @@ const HELP = `webcafe-forum.mjs —— new.web.cafe（哥飞社区论坛）全�
   检索（都必须登录）
   search "词"            站内搜索 --pages <n>（30/页；**不覆盖悬赏**）
   chat-search "词"       哥飞的朋友们微信群归档（哥飞.ai 的语料）--room <id> --exact
+  bodies <topics|experiences> --out <f.jsonl> [--pages N]
+                         批量取整条流的**正文**（列表只给元数据）。JSON Lines 追加，
+                         **可续跑**：重跑自动跳过已取到的 uid。串行，不占多个标签页
   whoami                 浏览器里是不是登录态
   api <path>             逃生舱：直接打任意 /api/... （GET），带同一套 transport
                          例：api /api/ask/home · /api/ask/experts · /api/ask/activity
@@ -1126,6 +1188,7 @@ async function main() {
   try {
     switch (cmd) {
       case "get": await cmdGet(args._[1], args, ctx); break;
+      case "bodies": await cmdBodies(args._[1], args, ctx); break;
       case "bounty": await cmdBounty(args._[1], args, ctx); break;
       case "bounties": await cmdBounties(args, ctx); break;
       case "rounds": await cmdRounds(args, ctx); break;
