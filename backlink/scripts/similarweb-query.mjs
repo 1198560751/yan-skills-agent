@@ -38,7 +38,10 @@ import {
   required,
   validateSession,
 } from './opencli-core.mjs';
-import { captureStable, expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
+import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
+// 解析只有一份，住在 lib-similarweb.mjs。**这里曾经和 similarweb-batch.mjs 各抄一份**，
+// 于是同一个错报 bug 要修两遍，实际只修了一遍。
+import { compact, deriveChannels, deriveMetrics } from './lib-similarweb.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
@@ -72,80 +75,6 @@ function normalizeDomain(value) {
 
 // launchTool 返回的 evalPage 已绑定会话，启动之后才可用。
 let evaluate = null;
-
-function parseNumber(value) {
-  const normalized = String(value || '').replace(/,/g, '').trim();
-  const match = normalized.match(/^([\d.]+)\s*([KMB万亿])?$/i);
-  if (!match) return null;
-  const multipliers = { k: 1e3, m: 1e6, b: 1e9, 万: 1e4, 亿: 1e8 };
-  return Number(match[1]) * (multipliers[(match[2] || '').toLowerCase()] || 1);
-}
-
-function parseRank(value) {
-  const match = String(value || '').replace(/,/g, '').match(/#?\s*(\d+)/);
-  return match ? Number(match[1]) : null;
-}
-
-function parsePercent(value) {
-  const match = String(value || '').match(/([\d.]+)\s*%/);
-  return match ? Number(match[1]) : null;
-}
-
-function deriveMetrics(lines) {
-  // 同一个指标在面板上不止一种写法（实测「访问持续时间」与「平均访问时长」并存，
-  // 「页面数/访问」与「每次访问页数」并存）。只认一种，指标就会静默变成 null——
-  // 报表看起来查成功了，字段却缺一半。所以按候选列表逐个找。
-  const nextValue = (labels, pattern = /./) => {
-    for (const label of [].concat(labels)) {
-      const index = lines.findIndex((line) => line === label || line.includes(label));
-      if (index < 0) continue;
-      const hit = lines.slice(index + 1, index + 8).find((line) => pattern.test(line));
-      if (hit) return hit;
-    }
-    return null;
-  };
-  const metrics = {
-    totalVisits: parseNumber(nextValue('总访问量', /^[\d,.]+\s*[KMB万亿]?$/i)),
-    globalRank: parseRank(nextValue('全球排名', /#?\s*[\d,]+/)),
-    countryRank: parseRank(nextValue('国家/地区排名', /#?\s*[\d,]+/)),
-    industryRank: parseRank(nextValue('行业排名', /#?\s*[\d,]+/)),
-    bounceRatePercent: parsePercent(nextValue('跳出率', /%/)),
-    pagesPerVisit: parseNumber(nextValue(['页面数/访问', '每次访问页数'], /^[\d.]+$/)),
-    visitDuration: nextValue(['访问持续时间', '平均访问时长'], /^\d{2}:\d{2}:\d{2}$/),
-  };
-  return Object.fromEntries(Object.entries(metrics).filter(([, value]) => value !== null));
-}
-
-/**
- * 「流量来源渠道」报表：面板先列一串百分比，再列一串同样长度的渠道名，顺序对应；
- * 下方另有一张「渠道 → 绝对访问数」的表。两处都取，能互相核对。
- */
-const CHANNEL_LABELS = ['直接', '自然搜索', '付费搜索', '外链', '显示广告', '自然社媒', '付费社交媒体', '生成式 AI', '电子邮件', '联盟'];
-const CHANNEL_KEYS = ['Direct', 'Search - Organic', 'Search - Paid', 'Referrals', 'Display Ads', 'Social - Organic', 'Social - Paid', 'Gen AI', 'Email', 'Affiliates'];
-
-function deriveChannels(lines) {
-  // 绝对值表（「渠道」下面一列英文渠道名 + 访问数）是这一页最稳的结构，先取它。
-  const visits = {};
-  for (const key of CHANNEL_KEYS) {
-    const i = lines.indexOf(key);
-    if (i >= 0) {
-      const v = lines[i + 1];
-      visits[key] = /^N\/A$/i.test(v || '') ? null : parseNumber(v);
-    }
-  }
-  // **占比直接由绝对值算，不去页面上捞那串百分比。**
-  // 页面顶部确实并排列了一串 % 和一串渠道名，但两串中间夹着图例、按钮和空行，
-  // 顺序配对极易错位——错位的占比比没有占比更危险。用同一张表自洽地算出来，
-  // 加总必然是 100%，也不会跟 visits 打架。
-  const total = Object.values(visits).reduce((a, v) => a + (v || 0), 0);
-  const sharePercent = {};
-  if (total > 0) {
-    for (const [k, v] of Object.entries(visits)) {
-      if (v !== null && v !== undefined) sharePercent[k] = Number(((v / total) * 100).toFixed(2));
-    }
-  }
-  return { totalFromChannels: total || null, sharePercent, visits };
-}
 
 let output;
 let subscription = null;
@@ -200,12 +129,13 @@ try {
   // 就用整页文本（去掉空白差异）——它是静态的，两次一致即可信。
   const payloadOf = (bodyText) => {
     const lines = bodyText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-    if (report === 'performance') return deriveMetrics(lines);
+    if (report === 'performance') return compact(deriveMetrics(lines));
     if (report === 'channels') return deriveChannels(lines);
     return { text: bodyText.replace(/\s+/g, ' ').trim() };
   };
-  // deriveMetrics 会把 null 字段过滤掉，所以「一个都没解析出来」的形状就是 {}。
-  // **不能让 {} 稳定通过**——那正是旧代码静默输出空 metrics 的样子。
+  // **「一个字段都没解析出来」必须当成「还没渲染」，不能当成结论。**
+  // compact() 把 null 去掉之后，空结果的形状就是 {}，而旧代码会把它照原样输出——
+  // 报表看上去查成功了，metrics 是空的。
   const isEmptyPayload = (payload) => {
     if (report === 'performance') return Object.keys(payload).length === 0;
     if (report === 'channels') return !payload.totalFromChannels;
@@ -263,7 +193,7 @@ try {
     belowFloor,
     // 只有「网站表现」页有总访问量/排名/跳出率这些指标。在渠道页上跑 deriveMetrics
     // 会把筛选器里的字当成数值抓（实测 globalRank 抓成 1），宁可不给也不要给错的。
-    ...(report === 'performance' && !belowFloor ? { metrics: deriveMetrics(lines) } : {}),
+    ...(report === 'performance' && !belowFloor ? { metrics: compact(deriveMetrics(lines)) } : {}),
     ...(report === 'channels' && !belowFloor ? { channels: deriveChannels(lines) } : {}),
     sparse: /没有足够的数据|Not enough data|N\/A/i.test(captured.bodyText),
     rawText: captured.bodyText,
@@ -288,7 +218,8 @@ try {
         : /Timed out waiting for the (launched )?Similarweb/i.test(error.message)
           ? 'shared_proxy_blank_or_unavailable'
           : 'query_failed',
-      message: error.message,
+      // opencli 的报错里可能带着 __gmitm 令牌（它会打印活动会话的完整 URL）。
+      message: redactSecrets(error.message),
     },
   };
   if (typeof flags.out === 'string') {

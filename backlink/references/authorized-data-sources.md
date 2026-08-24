@@ -259,7 +259,30 @@ user management, removals, or other mutations.
 （它拿 `parse()` 的完整输出当指纹——**指纹就是要写出去的那个对象**，
 不存在「盯着 A、写出去 B」的漏洞）。`spec.ready` 从此只是入场券，不是结论。
 
-顺带修掉的三个同源问题：
+**「连读两次一致」是下限，不是上限**（2026-08-24 实跑打脸补充）：占位值本身是稳定的，
+两次快读之间它根本不变。`semrush-batch` 在旧默认（settle 5s / 间隔 2s / 超时 40s）下
+仍然把 mmradar.gg 的 AS 读成 0，并把另外三个正常站判成 below-floor。补了三条才真正拦住：
+**一个字段都没解析出来永不收下**（超时记 error）、**自相矛盾的指纹要连读六次**
+（自然流量 > 0 却 AS = 0 说明 AS 还没水合）、**settle/间隔/超时调大到 8s/3s/75s**。
+改后同样四个域名 4/4 正确，单域名从 16 秒涨到 25 秒。
+
+**Similarweb 的取值曾经会「扫过头」**：页面上没有数据时写的是 `-`，而旧模式
+`#?\s*[\d,]+` 既不限整行也没有标签边界，于是一路扫到「Last 28 days (As of Aug 21)」，
+把 **28** 抓成了国家排名和行业排名（na.whatismymmr.com，真实是三个 `-`）。
+三条守则照抄 `semrush-report.mjs` 的 `pick()`：**碰到下一个标签就停、整行匹配、
+`-`/`N/A` 直接返回 null**。解析器同时从两份拷贝合并成一份 `lib-similarweb.mjs`——
+之前两份各抄一遍，同一个 bug 要修两次，实际只修了一次。
+
+**令牌会经由第三方输出漏出去**：`opencli` 命令失败时把活动会话连同完整 URL 打进 stderr，
+`run()` 原样抛成 Error.message，脚本再塞进 `output.error.message`——
+`__gmitm=ayWzA3*...` 就这样进了 stdout、`--out` 文件和日志（2026-08-24 实测到一次）。
+现在所有外发的错误文本一律过 `redactSecrets()`。**不要指望每个调用点自己记得。**
+
+顺带修掉的四个同源问题：
+- **`semrush-report.mjs` 在全新 `--session` 下根本跑不起来**：`ensureTool()` 的复用探测
+  在会话不存在时让 opencli 非零退出，而那层 try 只兜 JSON 解析——整张报告变成
+  `report_failed`，报错写着「No active session」，读起来像 OpenCLI 坏了。
+  探测的语义只有一句「我是不是已经站在工具页上」，答不上来就当没有，去启动。
 - **翻页**：页码指示器先走，表体后换。点完就读会把上一页再读一遍，而行级去重
   把它悄悄吞掉（翻五页只多十二行）。现在要求新页的解析结果**稳定且与上一页不同**，
   拿不到就停下并写明 `pagination.stoppedBecause` + stderr `[truncated]`。

@@ -29,15 +29,20 @@
  */
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { defaultSession, parseFlags, showHelpIfRequested, required, validateSession } from './opencli-core.mjs';
-import { captureStable, expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
+import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
+// 解析只有一份，住在 lib-similarweb.mjs。**不要在这里再抄一份 deriveMetrics。**
+import { deriveMetrics } from './lib-similarweb.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
 const outPath = required(flags, 'out');
 const session = flags.session ? validateSession(flags.session) : defaultSession('sw-batch');
 const appOrigin = (process.env.TOOLS_SHARE_APP_ORIGIN || 'https://sim.3ue.co').replace(/\/+$/, '');
-const perDomainTimeout = Math.max(10_000, Number(flags['domain-timeout'] || 45) * 1000);
-const settle = Number(flags.settle || 4);
+// settle 与超时在 2026-08-24 调大过一次，**不要为了快调回去**：占位值本身是稳定的，
+// 两次快读之间它根本不变，「连读两次一致」这条判据在小 settle 下整个失效
+// （同一天 semrush-batch 就是这么把 3 个正常站判成没流量的）。
+const perDomainTimeout = Math.max(10_000, Number(flags['domain-timeout'] || 75) * 1000);
+const settle = Number(flags.settle || 6);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -74,32 +79,6 @@ if (existsSync(outPath)) {
 const todo = wanted.filter((d) => !done.has(d));
 console.error(`[batch] ${wanted.length} requested, ${done.size} already done, ${todo.length} to go`);
 if (!todo.length) process.exit(0);
-
-function parseNumber(value) {
-  const n = String(value || '').replace(/,/g, '').trim();
-  const m = n.match(/^([\d.]+)\s*([KMB万亿])?$/i);
-  if (!m) return null;
-  const mult = { k: 1e3, m: 1e6, b: 1e9, 万: 1e4, 亿: 1e8 };
-  return Number(m[1]) * (mult[(m[2] || '').toLowerCase()] || 1);
-}
-const parseRank = (v) => { const m = String(v || '').replace(/,/g, '').match(/#?\s*(\d+)/); return m ? Number(m[1]) : null; };
-
-function deriveMetrics(lines) {
-  const nextValue = (labels, pattern = /./) => {
-    for (const label of [].concat(labels)) {
-      const i = lines.findIndex((l) => l === label || l.includes(label));
-      if (i < 0) continue;
-      const hit = lines.slice(i + 1, i + 8).find((l) => pattern.test(l));
-      if (hit) return hit;
-    }
-    return null;
-  };
-  return {
-    totalVisits: parseNumber(nextValue('总访问量', /^[\d,.]+\s*[KMB万亿]?$/i)),
-    globalRank: parseRank(nextValue('全球排名', /#?\s*[\d,]+/)),
-    countryRank: parseRank(nextValue('国家/地区排名', /#?\s*[\d,]+/)),
-  };
-}
 
 const launched = await launchTool({
   session,
@@ -144,13 +123,20 @@ for (const domain of todo) {
       }))()`),
       fingerprint: (s) => {
         if (!String(s?.url || '').includes(`key=${encodeURIComponent(domain)}`)) return null;
-        if (s.ready) return JSON.stringify(deriveMetrics(s.bodyText.split(/\n+/).map((l) => l.trim()).filter(Boolean)));
+        if (s.ready) {
+          const m = deriveMetrics(s.bodyText.split(/\n+/).map((l) => l.trim()).filter(Boolean));
+          // **「标签在、一个字段都没解析出来」= 还没渲染，永远不收。**
+          // 旧代码会让它稳定通过并记成 below-floor —— 同一天 semrush-batch 就是这么
+          // 把 AS 29 / 38 / 22 三个正常站判成「没流量」的。超时了记 error，续跑会重测。
+          if (Object.values(m).every((v) => v === null)) return s.noData ? 'no-data' : null;
+          return JSON.stringify(m);
+        }
         return s.noData ? 'no-data' : null;
       },
       // 空态多要一次确认：它出现得比真实数字早，只确认两次仍可能把水合中的页面判死。
       needed: (print) => (print === 'no-data' ? 3 : 2),
       timeoutMs: perDomainTimeout - (Date.now() - startedAt),
-      intervalMs: Number(flags['stable-interval'] || 2) * 1000,
+      intervalMs: Number(flags['stable-interval'] || 3) * 1000,
     });
     const captured = settled.stable ? settled.capture : null;
     if (!captured) {
@@ -164,7 +150,7 @@ for (const domain of todo) {
         totalVisits: null,
         error: settled.fingerprint
           ? `unstable: the page kept changing across ${settled.reads} reads (values still hydrating)`
-          : 'timeout: neither the metric nor the empty-state marker appeared',
+          : 'timeout: no parseable metric and no empty-state marker',
         checkedAt: new Date().toISOString(),
       };
     } else if (settled.fingerprint === 'no-data') {
@@ -184,7 +170,7 @@ for (const domain of todo) {
       };
     }
   } catch (error) {
-    row = { domain, verdict: 'error', totalVisits: null, error: String(error.message || error), checkedAt: new Date().toISOString() };
+    row = { domain, verdict: 'error', totalVisits: null, error: redactSecrets(error.message || error), checkedAt: new Date().toISOString() };
   }
   appendFileSync(outPath, `${JSON.stringify(row)}\n`, 'utf8');
   // 熔断：会话一旦挂了，后面每一个域名都要付满一整个超时，而且全部记成 error。

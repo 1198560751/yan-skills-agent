@@ -47,6 +47,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const scrub = (url) => String(url || '').split('?')[0];
 
 /**
+ * 把令牌从**任意一段文本**里抹掉，用于所有会被打印或写盘的错误消息。
+ *
+ * 为什么不是「小心点别打印」就够了：令牌是**经由第三方的输出**漏出来的。
+ * `opencli` 命令失败时会把当前活动会话连同完整 URL 打进 stderr，
+ * 而 `run()` 会把那段 stderr 原样抛成 Error.message，脚本再把它塞进
+ * `output.error.message` —— 于是 `printJson` 打出来、`--out` 写进文件、
+ * 整段进日志。2026-08-24 实测到一次：`__gmitm=ayWzA3*...` 完整出现在报错里。
+ * **凡是要外发的错误文本都要过这一层**，别指望每个调用点自己记得。
+ */
+export function redactSecrets(text) {
+  let out = String(text ?? '');
+  out = out.replace(/([?&]__gmitm=)[^&\s"'\\]+/gi, '$1<redacted>');
+  for (const tool of Object.values(TOOLS)) {
+    const token = (process.env[tool.tokenEnv] || '').trim();
+    if (token.length >= 8) out = out.split(token).join('<redacted>');
+  }
+  return out;
+}
+
+/**
  * 打开面板、（可选）选节点、点「打开」、等落到工具域名。
  * 返回 { evalPage, state, landed, tool }，evalPage 已绑定会话，供调用方继续驱动工具页。
  */

@@ -96,6 +96,25 @@ the overview):
 page wants a reload, not a longer timeout, and without an early exit it burns
 the whole budget first.
 
+### Two identical reads is the floor, not the ceiling
+
+Stability alone is **not sufficient**, because a placeholder is itself stable.
+Live run, 2026-08-24, `semrush-batch.mjs` at its old defaults (settle 5s, 2s
+interval, 40s cap): mmradar.gg came back `authorityScore: 0` again, and
+na.whatismymmr.com / saveeditonline.com / vgcmulticalc.com were all written
+`below-floor`. Real values: AS 22 / 29 / 38 / 22, traffic 22.3K / 2.9K / 175.7K
+/ 16.9K. Two reads 2s apart both landed inside the same placeholder window.
+
+Three rules came out of that run, and they are what makes the check hold:
+
+| Rule | Why |
+|---|---|
+| **An all-null parse is never a result.** Keep polling; on timeout write `error` | "Nothing parsed" and "nothing exists" are the same picture. This is what turned three healthy sites into `below-floor` |
+| **A self-contradictory parse needs ~6 reads, not 2.** Traffic > 0 with AS = 0 means AS has not hydrated (it lands after traffic) | A real 0 stays 0 for 18s; a placeholder flips |
+| **Give the page room: settle 8s, poll 3s, cap 75s** | The old 5s/2s/40s budget could not outlast the placeholder window. ~25s per domain instead of ~16s |
+
+After: 4/4 correct on the same domains, on both cards.
+
 **Unstable is `error`, never a number and never `below-floor`.** If the values
 never settle, the run did not complete; say so and let the resume retry it. The
 empty-state marker needs **three** consecutive reads, not two, because it also
@@ -115,6 +134,30 @@ bans outright.
 
 Cost: two to three extra seconds per domain. That is the price of the number
 being real.
+
+## Scanning past a missing value invents one
+
+Similarweb writes `-` for a metric it has no data for. The old `nextValue()`
+scanned the eight lines after a label for anything matching `#?\s*[\d,]+`, with
+no boundary and no whole-line anchor — so when the value was `-` it kept going
+and grabbed a number from further down the page. Live, 2026-08-24:
+na.whatismymmr.com reported `countryRank: 28` and `industryRank: 28`. The page
+said `-` for all three ranks. The 28 came from **"Last 28 days (As of Aug 21)"**.
+
+A site with 20K monthly visits ranked #28 in its country is absurd on its face,
+which is the only reason it got caught. **A wrong number is worse than a missing
+one** — it is not marked, not retried, and reads as data.
+
+| Guard | Rule |
+|---|---|
+| Boundary | Stop at the next known label. Never scan into the following metric's block |
+| Anchor | Match the **whole line** (`^#?[\d,]+$`), not a substring |
+| Explicit empty | `-` / `—` / `N/A` means *this metric has no value*. Return null; do not keep looking |
+
+`semrush-report.mjs` already had all three in its `pick()`. Similarweb did not,
+because its parser had been **copied into two scripts** — so the fix had to land
+twice and landed once. There is now exactly one copy, in `lib-similarweb.mjs`,
+imported by both `similarweb-query.mjs` and `similarweb-batch.mjs`.
 
 ## Do not substitute a popularity list for measured traffic
 

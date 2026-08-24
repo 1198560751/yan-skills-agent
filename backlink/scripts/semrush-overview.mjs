@@ -12,17 +12,30 @@
  *   - similarweb-query --report performance 给的是**总访问量**，包含直接、社交、买量。
  *   同一个站两个数字差几倍是正常的，把它们放进同一张表对比是错的。
  *
+ * **本脚本没有「全球」选项，`organicTraffic` 永远是某一个国家库的估算。**
+ * 不传 `--db` 不等于拿到全球合计——Semrush 只是回落到它自己的默认库，输出里的
+ * `db: null` 意味着「不知道是哪个国家」，不是「已加总所有国家」。域名维度（本脚本、
+ * semrush-batch.mjs、semrush-report.mjs）目前没有 semrush-keyword.mjs 那样的
+ * `globalVolume` 字段；要估算全球规模只能用别的口径按国家占比换算（见
+ * `backlink/references/authorized-data-sources.md`）。Semrush 网页版是否提供
+ * 「Worldwide」库选择尚未验证，不要替它下结论。
+ *
  * 用法：
  *   node semrush-overview.mjs --domain example.com [--db jp] [--subdomain] [--node 5]
+ *   # 不传 --db 会走 Semrush 自己的默认库（未必是你想要的那个国家），脚本会警告一次
  */
 import { defaultSession, parseFlags, showHelpIfRequested, printJson, required, validateSession } from './opencli-core.mjs';
-import { captureStable, expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
+import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
 import { writeFile } from 'node:fs/promises';
 
 const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
 const domain = normalizeDomain(required(flags, 'domain'));
+const dbGiven = flags.db !== undefined && String(flags.db).trim() !== '';
 const db = String(flags.db || '').trim().toLowerCase();
+if (!dbGiven) {
+  console.error(`⚠ --db not given. organicTraffic will be whatever country Semrush defaults to — not a global total (this script has no global option). Pass --db us (or uk/de/…) to know which country you're reading.`);
+}
 const session = flags.session ? validateSession(flags.session) : defaultSession('semrush-overview');
 const appOrigin = (process.env.TOOLS_SHARE_APP_ORIGIN_SEMRUSH || 'https://sem.3ue.co').replace(/\/+$/, '');
 
@@ -117,7 +130,7 @@ try {
   if (!captured?.ready) {
     throw new Error(
       `Semrush overview for ${domain} never rendered its metrics. Most likely the node is down — ` +
-        `rerun with a different --node. Second possibility: the domain has no data in db=${db || 'global'}.`,
+        `rerun with a different --node. Second possibility: the domain has no data in db=${db || "(Semrush's default — not a global total)"}.`,
     );
   }
   if (!settled.stable) {
@@ -134,7 +147,8 @@ try {
   output = {
     version: 1,
     source: 'Semrush domain overview via authenticated Tools Share browser session',
-    note: 'organicTraffic 是自然搜索流量估算，与 Similarweb 的总访问量不是同一口径，不要并列比较。',
+    note: `organicTraffic 是 db=${db || '(Semrush 默认库，非全球)'} 这一个国家库的自然搜索流量估算，` +
+      '与 Similarweb 的总访问量不是同一口径，不要并列比较；换一个 --db 会得到完全不同的数字，本脚本没有全球选项。',
     retrievedAt: new Date().toISOString(),
     domain,
     db: db || null,
@@ -160,7 +174,8 @@ try {
     db: db || null,
     session,
     status: 'unavailable',
-    error: { code: 'overview_failed', message: error.message },
+    // opencli 的报错里可能带着 __gmitm 令牌（它会打印活动会话的完整 URL）。
+    error: { code: 'overview_failed', message: redactSecrets(error.message) },
   };
 }
 
