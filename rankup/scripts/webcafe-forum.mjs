@@ -58,8 +58,12 @@
  *     拿 `hasUnlocked` 判会误导你去重复付一次钱。
  *   - **`_fen` 结尾的字段单位是分**（1/100 元）：`pool_fen:30000` 是 300 元。
  *     当成元会把奖池说大 100 倍。
- *   - 经验/话题页**没有内容 API**，是服务端渲染，只能从 HTML 里抠；
- *     所以那几条命令的 `--transport browser` 收益很小（内容匿名就能拿到）。
+ *   - 经验/话题页**没有内容 API**，是服务端渲染，只能从 HTML 里抠。这条路上的
+ *     降级判据藏在 RSC payload 里（`markdown` 被抹成空串），传输层看不见，
+ *     所以 auto 的升级逻辑在 `fetchProps(path, ctx, gated)` 里另写了一份。
+ *     实测 `/experiences` 首条：匿名 **0 字**，auto 升级后 **219 字**。
+ *   - **`topics` 列表项没有 `markdown` 字段**（登录也没有），它的「正文为空」不是降级，
+ *     要正文得 `topic <uid>` 逐条取。对它套用列表降级判据会每页白开一次浏览器。
  */
 
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -453,12 +457,38 @@ async function cmdWhoami(args, ctx) {
  *      滑动窗口（第 1 页是 [1..6]，第 10 页会变成 [5..10]），当成总页数会早停。
  *      也不要只判 404：实测专栏翻页越界返回的是 **308**，不是 404。
  */
-async function fetchProps(path, ctx) {
-  const { html, status } = await getHtml(path, ctx);
+/**
+ * `gated(props)` 是 **auto 档在 SSR 页面上唯一的升级判据**，缺了它 auto 就是 http。
+ *
+ * 这条路径和 JSON 那条**不能共用判据**：`getHtml` 只看得见 HTML 字符串，而降级的
+ * 特征（`markdown` 被抹成空串）要解析完 RSC 才看得出来。所以判据只能落在这里，
+ * 不能塞进 transport 层——塞进去就得把 4M 字的专栏页解析两遍。
+ *
+ * **不传 `gated` 的调用点必须是「本来就没有正文」的页面**（专栏列表、专栏内文章列表）。
+ * 给一个有正文的页面漏传 `gated`，后果不是报错，是 auto 静默退化成 http 拿回空正文。
+ */
+async function fetchProps(path, ctx, gated) {
+  const { html, status, transport } = await getHtml(path, ctx);
   const props = propsFromHtml(html);
   if (!props) throw new Error(`解析 RSC 失败（HTTP ${status}）：${path}`);
+  if (ctx.transport !== "auto" || transport !== "http" || !gated || !gated(props)) return props;
+
+  try {
+    const br = await getHtml(path, { ...ctx, transport: "browser" });
+    const bp = propsFromHtml(br.html);
+    if (bp) return bp;
+    console.error(`（auto 升级到浏览器后解析失败，退回匿名结果：${path}）`);
+  } catch (e) {
+    // 升级失败要说出来。静默退回降级数据 = 把空正文当成「这篇本来就没内容」。
+    console.error(`（auto 想升级到浏览器但失败了：${e.message}；下面是匿名结果，正文可能是空的）`);
+  }
   return props;
 }
+
+/** 列表页降级判据：元数据齐全但**没有任何一条**有正文。 */
+const listBlank = (props) => !(props.topicListInit || []).some((t) => (t.markdown || "").length);
+/** 详情页降级判据：正文被抹成空串。 */
+const detailBlank = (props) => !((props.detailInit || {}).markdown || "").length;
 
 const firstPage = (p) => [].concat(p ?? 1)[0]; // 第 1 页是数字 1，第 2 页起是字符串数组 ["2"]
 
@@ -469,7 +499,8 @@ async function cmdList(kind, args, ctx) {
   const rows = [];
   let total = null;
   for (let p = 1; p <= want; p++) {
-    const props = await fetchProps(p === 1 ? base : `${base}/${p}`, ctx);
+    // topics 的列表项**根本没有 markdown 字段**，对它用 listBlank 会每页都白开一次浏览器。
+    const props = await fetchProps(p === 1 ? base : `${base}/${p}`, ctx, kind === "experiences" ? listBlank : null);
     total = props.pageData?.totalPage ?? total;
     const list = props.topicListInit || [];
     if (!list.length) break;
@@ -509,7 +540,9 @@ async function cmdList(kind, args, ctx) {
   if (!gotBody && listHasBody) {
     console.error(
       `\n⚠️  正文全为空：经验有**登录墙**（元数据匿名可见，markdown 匿名恒为空串）。` +
-        `\n   加 --transport browser 重跑——登录后**列表页就直接带全文**，10 个请求拿完全部 91 条。`,
+        (ctx.transport === "auto"
+          ? `\n   auto 已经试过浏览器了还是空——说明浏览器里也不是登录态，先跑 whoami 确认。`
+          : `\n   加 --transport auto 重跑——登录后**列表页就直接带全文**，10 个请求拿完全部 91 条。`),
     );
   } else if (!listHasBody) {
     console.error(
@@ -523,7 +556,7 @@ async function cmdList(kind, args, ctx) {
 /** 详情：/experience/<uid> 与 /topic/<uid> 是同一个页面的两个别名。 */
 async function cmdDetail(kind, uid, args, ctx) {
   if (!uid) die(`用法：webcafe-forum.mjs ${kind} <uid>`);
-  const props = await fetchProps(`/${kind}/${uid}`, ctx);
+  const props = await fetchProps(`/${kind}/${uid}`, ctx, detailBlank);
   const d = props.detailInit || {};
   const out = {
     uid: d.uid || uid,
@@ -545,7 +578,11 @@ async function cmdDetail(kind, uid, args, ctx) {
     console.log(out.markdown || "(正文为空)");
   }
   if (!out.chars) {
-    console.error(`\n⚠️  正文为空：这类内容有登录墙，加 --transport browser 重跑。`);
+    console.error(
+      ctx.transport === "auto"
+        ? `\n⚠️  正文为空，且 auto 已经用浏览器重取过一次——浏览器里可能也不是登录态，跑 whoami 确认。`
+        : `\n⚠️  正文为空：这类内容有登录墙，加 --transport auto 重跑。`,
+    );
   }
   return out;
 }
@@ -620,7 +657,7 @@ async function cmdTutorial(uid, args, ctx) {
 
 async function cmdTutorialDetail(uid, args, ctx) {
   if (!uid) die("用法：webcafe-forum.mjs tutorial-detail <articleUid>");
-  const props = await fetchProps(`/tutorial/detail/${uid}`, ctx);
+  const props = await fetchProps(`/tutorial/detail/${uid}`, ctx, detailBlank);
   const d = props.detailInit || {};
   const out = {
     uid,
@@ -637,7 +674,10 @@ async function cmdTutorialDetail(uid, args, ctx) {
   else console.log(`${out.title}\n${out.url}\n\n${out.markdown || "(正文为空)"}`);
   if (!out.chars) {
     console.error(
-      `\n⚠️  正文为空（canViewTutorial=${out.can_view}）：教程有登录墙，加 --transport browser 重跑。`,
+      `\n⚠️  正文为空（canViewTutorial=${out.can_view}）：教程有登录墙。` +
+        (ctx.transport === "auto"
+          ? `auto 已经用浏览器重取过一次，仍为空——先跑 whoami 确认登录态。`
+          : `加 --transport auto 重跑。`),
     );
   }
   return out;

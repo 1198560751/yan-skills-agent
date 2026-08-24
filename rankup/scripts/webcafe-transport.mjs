@@ -254,7 +254,14 @@ export async function getJson(path, { transport = "auto", session, gated } = {})
   }
 }
 
-/** 取 HTML（SSR 页面用）。经验/话题这类页面没有内容 API，只能从 HTML 里抠。 */
+/**
+ * 取 HTML（SSR 页面用）。经验/话题这类页面没有内容 API，只能从 HTML 里抠。
+ *
+ * **这里没有 auto 档，是故意的。** SSR 的降级特征（`markdown` 被抹成空串）藏在
+ * RSC payload 里，本层只拿得到 HTML 字符串，判不出来。传 `"auto"` 会走 http 分支，
+ * 返回值里的 `transport` 会如实写 `"http"`——调用方靠这个字段决定要不要升级。
+ * 升级判据在 webcafe-forum.mjs 的 `fetchProps(path, ctx, gated)`。
+ */
 export async function getHtml(path, { transport = "http", session } = {}) {
   if (transport === "browser") {
     const r = await browserGet(path, { session, accept: "text/html" });

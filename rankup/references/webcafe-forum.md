@@ -47,7 +47,7 @@
 | `access` | 判据 | 含义与处置 |
 |---|---|---|
 | `full` | `viewer.canSeeAll === true` | 拿全了 |
-| `anonymous` | `viewer.isLoggedIn === false` | 没登录。**唯一一个开浏览器有用的情况** → `--transport browser` |
+| `anonymous` | `viewer.isLoggedIn === false` | 没登录。**唯一一个开浏览器有用的情况**。默认的 `auto` 会自动升级；`--transport http` 下需手动改 `auto` 或 `browser` |
 | `sealed` | 已登录，且 `status` ∈ funding/collecting/open/**answering** | 答案对**所有人**封存（答题期防抄袭）。**登录和付钱都没用**，等它进入 `voting` |
 | `needs-unlock` | 已登录，`status` ∈ voting/settled，但 `canSeeAll` 仍为 false | 要花钱解锁（`unlock_price`，单位分）。**脚本绝不自动做**，你自己在网页上决定 |
 
@@ -205,6 +205,12 @@ round 的付费墙只挡**一个字段** `answer_content`；其余元数据（�
 | 列表元数据（uid / 阅读 / 点赞 / totalPage） | ✅ 逐字段相同 | 同 |
 | `markdown` | `""` | 全文 |
 | `/tutorial/detail` 的 `canViewTutorial` | `false` | `true` |
+
+**默认的 `--transport auto` 会自己跨过这道墙**：先匿名取，解析出的 `markdown` 全空才
+升级到浏览器重取一次。判据不在传输层（那层只看得到 HTML 字符串，看不出正文空不空），
+而在 `webcafe-forum.mjs` 的 `fetchProps(path, ctx, gated)`——**给有正文的页面漏传
+`gated`，后果不是报错，是 auto 静默退化成 http 拿回一堆空正文**。
+反过来，`/topics` 和两个教程列表页**必须不传**，否则每页白开一次浏览器。
 
 > **登录态最省的取数路径：`/experiences/<1..10>`。**
 > 登录后**经验列表页的每一项就带完整 `markdown`**，10 个请求拿完全部 91 条全文，
