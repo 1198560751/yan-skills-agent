@@ -46,6 +46,10 @@ backlink/
 │
 ├── scripts/              ← run these; do not re-derive their knowledge by hand
 │   ├── validate-data.mjs           PR gate. CI runs exactly this. Must exit 0.
+│   ├── validate-skill-xml.mjs      the OTHER gate: SKILL.md body well-formed + every
+│   │                               <ref>/<law-ref> resolves. A bare <tag> in prose
+│   │                               silently unbalances the doc from that line on.
+│   ├── self-test.mjs               end-to-end smoke over the core scripts
 │   ├── health.mjs                  run before ANY browser task
 │   ├── opencli-core.mjs            ★ defaultSession(), batchBrowser(), openAndEval(), run(), closeSession()
 │   ├── lib-tools-share.mjs         ★ the ONE panel launcher
@@ -64,15 +68,29 @@ backlink/
 │   ├── release-submit-guard.mjs    only after explicit per-submission approval
 │   ├── submit-directory.mjs        the single-target driver; one session per staged site
 │   ├── adapter-phpld.mjs           ★ reference implementation of one-session-per-site
+│   ├── adapter-phpld-submit.mjs    Lane A submit for that family. SEPARATE ON PURPOSE —
+│   │                               staging is safe family-wide, pressing submit is not,
+│   │                               and the two must never share a flag. Re-checks for a
+│   │                               challenge that appeared since staging, and refuses.
 │   ├── ledger.mjs                  candidate → … → indexed → rel_verified; stats + remaining
 │   ├── discovery-queue.mjs         recursive competitor/commenter expansion
 │   ├── harvest-commenters.mjs      pull commenter domains off an article
 │   ├── third-party-list-ingest.mjs someone else's list → screened leads + diff
+│   ├── fingerprint-forms.mjs       ★ cluster targets by FORM SHAPE, not by site. Field
+│   │                               names are stable across every install of a family,
+│   │                               so one adapter covers twenty sites. This is what makes
+│   │                               batch cheaper than walking 150 forms by hand.
 │   ├── probe-submission-targets.mjs leads → reachability, route, gate, price
 │   ├── merge-submission-targets.mjs fold a probe run into the two data files
+│   ├── lib-cohort.mjs              ★ the shared cohort/gate vocabulary — targets-select,
+│   │                               validate-data, probe and merge all read it. Change a
+│   │                               cohort name here, not in four places.
 │   ├── targets-select.mjs          pick ONE batch: --cohort open | captcha | … ; --ledger excludes submitted
 │   ├── paid-platform-registry.mjs  merge a harvest into the paid registry
-│   └── harvest-*.{sh,mjs,js}       bulk table extraction from logged-in dashboards
+│   ├── harvest-*.{sh,mjs}          bulk table extraction from logged-in dashboards
+│   └── harvest.browser.js          ★ generic virtual-scroll table extractor: rebuilds rows
+│                                   by Y-coordinate clustering, adapts to column drift.
+│                                   NOTE the dot — the harvest-* glob above does NOT match it.
 │
 └── references/           ← method, traps, and why the rules are the rules
     ├── browser-runtime.md     ★★ READ FIRST for any browser work. The laws + measurements.
