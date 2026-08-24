@@ -647,6 +647,27 @@ async function cmdBodies(kind, args, ctx) {
   const FUSE = 5;
   const MAX_RELOGIN = Number(args.maxRelogin ?? 12);
   let ok = 0, empty = 0, streak = 0, relogins = 0;
+
+  /** 连撞 FUSE 次之后的统一处置：重登一次。返回 false 表示该收工了。 */
+  async function tryRelogin(i) {
+    if (relogins >= MAX_RELOGIN) {
+      console.error(
+        `\n连撞 ${FUSE} 次，且本轮已重登 ${relogins} 次仍无改善——停在 ${i + 1}/${todo.length}。` +
+          `\n这时候多半不是登录问题（站点自己在报错，或改了渲染方式）。已取到的都在 ${out} 里。`,
+      );
+      return false;
+    }
+    console.error(`  连撞 ${FUSE} 次 → 第 ${relogins + 1} 次自动重新登录……`);
+    try {
+      const r = await ensureLoggedIn(ctx.session);
+      relogins++;
+      console.error(r.relogged ? `  ✓ 已重新登录，继续` : `  会话本来就在，另有成因`);
+      return true;
+    } catch (e) {
+      console.error(`  ✗ 自动重登失败：${e.message}\n  已取到的都在 ${out} 里，稍后用同一条命令续跑。`);
+      return false;
+    }
+  }
   for (let i = 0; i < todo.length; i++) {
     const r = todo[i];
     if (i) await sleep(delay);
@@ -670,48 +691,18 @@ async function cmdBodies(kind, args, ctx) {
       // **掉线是这个站的常态，不是异常。** 实测第一轮撑约 100 条、重登后约 20 条，
       // 所以重新登录必须是取数循环里的一步，而不是让人回来手点的终止条件。
       streak = 0;
-      if (relogins >= MAX_RELOGIN) {
-        console.error(
-          `\n连续 ${FUSE} 条空正文，且本轮已经重登 ${relogins} 次仍无改善——停在 ${i + 1}/${todo.length}。` +
-            `\n这时候多半不是登录问题（站点自己在报错，或改了渲染方式）。已取到的都在 ${out} 里。`,
-        );
-        break;
-      }
-      console.error(`  连续 ${FUSE} 条空正文 → 第 ${relogins + 1} 次自动重新登录……`);
-      try {
-        const r = await ensureLoggedIn(ctx.session);
-        relogins++;
-        console.error(r.relogged ? `  ✓ 已重新登录，继续` : `  会话本来就在，空正文另有成因`);
-        // 重登成功就把这批空的重排到队尾——它们是被踢下线连累的，不是真的没内容。
-        if (r.relogged) todo.push(...todo.slice(Math.max(0, i - FUSE + 1), i + 1));
-      } catch (e) {
-        console.error(`  ✗ 自动重登失败：${e.message}\n  已取到的都在 ${out} 里，稍后用同一条命令续跑。`);
-        break;
-      }
+      // 重登成功就把这批重排到队尾——它们是被踢下线连累的，不是真的没内容。
+      const batch = todo.slice(Math.max(0, i - FUSE + 1), i + 1);
+      if (!(await tryRelogin(i))) break;
+      todo.push(...batch);
     } catch (e) {
       console.error(`  \u2717 ${r.uid}：${e.message}`);
-      if (!/登录页/.test(e.message)) { streak = 0; continue; }
-      if (++streak >= FUSE) {
-        // 「被踢到登录页」有两个完全不同的成因，处置也完全不同：
-        //   会话没了 → 要人去浏览器里重新登录，**再等多久都不会自己好**
-        //   还登录着 → 才是速率问题，等一会儿加大间隔续跑
-        // 不分开报，就会出现「按限流去等一小时，而其实是掉登录」这种纯浪费。
-        let loggedIn = null;
-        try { loggedIn = !!(await apiWhoami(ctx.session))?.user; } catch { /* 探不到就不猜 */ }
-        console.error(
-          `\n连续 ${FUSE} 次被重定向到登录页。已停在 ${i + 1}/${todo.length}，` +
-            `已取到的都在 ${out} 里（续跑只跳过已拿到正文的，不会漏）。`,
-        );
-        console.error(
-          loggedIn === false
-            ? `成因：**浏览器里的 new.web.cafe 会话没了**（同时探测 /api/auth/session 确认）。\n` +
-              `   等待无效——请在浏览器里重新登录，然后用同一条命令续跑。`
-            : loggedIn === true
-              ? `成因：会话仍在，**是站点在限速**。等几分钟后加大间隔续跑：--delay 3000。`
-              : `成因未能判定（探测会话本身也失败了）。先跑 whoami 看登录态，再决定是重登还是等待。`,
-        );
-        break;
-      }
+      // 解析失败和被踢到登录页，**在处置上是同一件事**：都说明这条链路现在取不到东西。
+      // 之前只给「空正文」那条路接了自动重登，这条路照旧直接停——于是重登逻辑写好了
+      // 却从没被触发过。两个熔断只治一个，等于没治。
+      if (++streak < FUSE) continue;
+      streak = 0;
+      if (!(await tryRelogin(i))) break;
     }
     if ((i + 1) % 25 === 0 || i === todo.length - 1) {
       console.error(`  ${i + 1}/${todo.length}（有正文 ${ok}，空 ${empty}）`);
