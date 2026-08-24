@@ -77,8 +77,9 @@ import {
   whoami as apiWhoami,
   browserPost,
   browserGet,
+  sleep,
 } from "./webcafe-transport.mjs";
-import { propsFromHtml } from "./webcafe-rsc.mjs";
+import { propsFromHtml, isLoginPage } from "./webcafe-rsc.mjs";
 
 /* ─────────────────────────────── 参数 ─────────────────────────────── */
 
@@ -471,11 +472,14 @@ async function fetchProps(path, ctx, gated) {
   const { html, status, transport } = await getHtml(path, ctx);
   const props = propsFromHtml(html);
   if (!props) throw new Error(`解析 RSC 失败（HTTP ${status}）：${path}`);
+  // 登录页长得像一个正常的空页面，必须在这里挡掉，否则它会一路变成「这篇没有正文」。
+  if (isLoginPage(props)) throw new Error(`被重定向到登录页（限流或会话失效）：${path}`);
   if (ctx.transport !== "auto" || transport !== "http" || !gated || !gated(props)) return props;
 
   try {
     const br = await getHtml(path, { ...ctx, transport: "browser" });
     const bp = propsFromHtml(br.html);
+    if (isLoginPage(bp)) throw new Error(`浏览器侧也被重定向到登录页（限流或会话失效）：${path}`);
     if (bp) return bp;
     console.error(`（auto 升级到浏览器后解析失败，退回匿名结果：${path}）`);
   } catch (e) {
@@ -613,7 +617,9 @@ async function cmdBodies(kind, args, ctx) {
   if (existsSync(out)) {
     for (const line of readFileSync(out, "utf8").split("\n")) {
       if (!line.trim()) continue;
-      try { const o = JSON.parse(line); if (o.uid) done.add(o.uid); } catch { /* 坏行跳过 */ }
+      // **只有拿到正文才算完成。** 把空正文也记成已完成，等于把一次限流失败
+      // 固化成「这篇本来就没内容」，续跑永远不会再碰它——这正是本轮踩到的坑。
+      try { const o = JSON.parse(line); if (o.uid && o.chars > 0) done.add(o.uid); } catch { /* 坏行跳过 */ }
     }
     console.error(`续跑：${out} 里已有 ${done.size} 条，跳过。`);
   }
@@ -622,9 +628,14 @@ async function cmdBodies(kind, args, ctx) {
   const todo = rows.filter((r) => !done.has(r.uid));
   console.error(`列表 ${rows.length} 条，待取正文 ${todo.length} 条。`);
 
-  let ok = 0, empty = 0;
+  // 站点对持续的详情页请求会限流——**方式是重定向到登录页，不是 429**。
+  // 所以要两手：请求之间留间隔，以及连续撞墙就停，别拿 700 次失败去换一个必然的结论。
+  const delay = Number(args.delay ?? 700);
+  const FUSE = 5;
+  let ok = 0, empty = 0, streak = 0;
   for (let i = 0; i < todo.length; i++) {
     const r = todo[i];
+    if (i) await sleep(delay);
     try {
       const props = await fetchProps(`/${detail}/${r.uid}`, ctx, detailBlank);
       const d = props.detailInit || {};
@@ -635,8 +646,18 @@ async function cmdBodies(kind, args, ctx) {
         chars: md.length, markdown: md,
       }) + "\n");
       md.length ? ok++ : empty++;
+      streak = 0;
     } catch (e) {
       console.error(`  \u2717 ${r.uid}：${e.message}`);
+      if (!/登录页/.test(e.message)) { streak = 0; continue; }
+      if (++streak >= FUSE) {
+        console.error(
+          `\n连续 ${FUSE} 次被重定向到登录页——是限流，不是内容问题。已停在 ${i + 1}/${todo.length}。` +
+            `\n已取到的都在 ${out} 里，等一会儿用同一条命令续跑即可（空的不会被跳过）。` +
+            `\n还可以加大间隔：--delay 2000。`,
+        );
+        break;
+      }
     }
     if ((i + 1) % 25 === 0 || i === todo.length - 1) {
       console.error(`  ${i + 1}/${todo.length}（有正文 ${ok}，空 ${empty}）`);
@@ -1145,7 +1166,8 @@ const HELP = `webcafe-forum.mjs —— new.web.cafe（哥飞社区论坛）全�
   chat-search "词"       哥飞的朋友们微信群归档（哥飞.ai 的语料）--room <id> --exact
   bodies <topics|experiences> --out <f.jsonl> [--pages N]
                          批量取整条流的**正文**（列表只给元数据）。JSON Lines 追加，
-                         **可续跑**：重跑自动跳过已取到的 uid。串行，不占多个标签页
+                         **可续跑**：重跑自动跳过**已取到正文**的 uid（空的会重试）。
+                         串行、默认间隔 700ms（--delay）；连续 5 次被踢到登录页即熔断
   whoami                 浏览器里是不是登录态
   api <path>             逃生舱：直接打任意 /api/... （GET），带同一套 transport
                          例：api /api/ask/home · /api/ask/experts · /api/ask/activity

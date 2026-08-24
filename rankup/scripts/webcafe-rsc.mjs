@@ -183,6 +183,23 @@ export function deref(v, tr) {
   return v;
 }
 
+/**
+ * 这个站被限流 / 会话失效时，**不返回 401 也不返回错误页**——它把请求重定向到登录页，
+ * 而登录页的 props 长这样：`{"locale":"zh-CN","callbackUrl":"..."}`。
+ *
+ * 它**完全符合** `pageProps()` 的判据（有 `locale`、没有 `id`），于是被当成一个
+ * 正常的页面 props 返回，`detailInit` 不存在 → `markdown` 取到空串 →
+ * 调用方记下「这篇帖子没有正文」。**全程零报错。**
+ *
+ * 实测代价：连续抓 700 条详情页时限流在第 100 条左右触发，之后 503 条全被记成
+ * 「空帖」写进结果文件，而其中一条用已知有正文的 uid 复验，同样返回空。
+ * 判据必须是**正向的**（有没有内容容器），不能靠「有没有报错」。
+ */
+export function isLoginPage(props) {
+  if (!props) return false;
+  return "callbackUrl" in props && !("detailInit" in props) && !("topicListInit" in props);
+}
+
 /** 一步到位：HTML → 解引用后的页面 props。拿不到返回 null。 */
 export function propsFromHtml(html) {
   const flight = joinFlightFromHTML(html);
