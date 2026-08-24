@@ -150,11 +150,32 @@ node scripts/sessions.mjs --project-root . --days 14 --new-only --dump
 | `history` | 这个域名前世被谁用过 |
 | `chat` | 直接问站内的 SEO Agent |
 
+2026-08-24 复查把这个站的 **21 个工具全部纳入**：补上一直缺的 `translate` 需求翻译器、
+`mine` 需求挖掘机、`domain` 起名与域名核验（早期没接不是没后端，是当时配额先耗尽了）；
+把 4 个确认无后端的工具的公式复刻成**本地命令** `kgr` / `string` / `money` / `email`
+（零网络、零配额、支持 `--batch`）；另外 4 个附证据标注不做，跑 `tools` 命令可以看到理由。
+同一次复查还发现 `adsense` 已经坏了一段时间——站方把返回从 JSON 换成了 SSE，
+而脚本仍按 JSON 解析，**静默返回空且不报错**，已修。
+
+配套 **`scripts/gefei-ask.mjs`** 走另一条路：驱动**你已登录的浏览器**去问哥飞的 SEO Agent 并取回全文，
+全程不碰会话 Cookie（那枚是 HttpOnly，脚本本来也读不到）。两条路径互补不是替代——
+有 Cookie 想无人值守就用 `seo-webcafe.mjs chat`，只有登录态浏览器就用这个。
+
 **零配置可跑，匿名身份每天 10 次。** 接口地图是 2026-08-07 用真实浏览器会话逐个工具点网络面板得到的，每个工具只发了一次请求，没跑循环、没登录、没绕配额，记在 [`references/seo-webcafe.md`](rankup/references/seo-webcafe.md)。
+
+**`scripts/webcafe-forum.mjs`**（+ `webcafe-transport.mjs` / `webcafe-rsc.mjs`）—— [哥飞社区论坛](https://new.web.cafe)全站取数，
+`get <任意站内 URL>` 一条命令取回内容，认不出的 URL 退回通用抓取。覆盖悬赏问答（含征集型的众筹榜单与提交理由）、
+经验 91 条 / 帖子 722 条 / 教程 40 个专栏、站内搜索，以及**「哥飞的朋友们」14 个微信群归档搜索**
+——那份归档就是站内 AI 助手的知识库，直接搜拿到的是原话，不消耗任何 AI 额度。
+接口地图与坑记在 [`references/webcafe-forum.md`](rankup/references/webcafe-forum.md)。
+
+> 这个站**匿名不会 401**：同一个端点匿名照样返回 200 和完整条目，只把正文换成空串、票数归零。
+> 所以「拿到了吗」不能看状态码，要看正文空不空——脚本用 `access` 字段区分
+> 「没登录 / 答题期封存 / 要花钱解锁 / 拿全了」四种，**绝不自动解锁**（那要花钱）。
 
 **`scripts/gt.py`** — Google Trends。热度对比、地区分布、相关飙升词、每日热搜四个子命令，首次运行自动建 venv 装 pytrends。配套 [`references/trends.md`](rankup/references/trends.md) 里有三套工作流：小语种市场探测、把模糊方向收敛成真能做站的词、新兴趋势捕捉。
 
-**`scripts/demand/` 一整组（19 个脚本）** — 需求挖掘取数，配套 [`references/demand-sources.md`](rankup/references/demand-sources.md) 那张源 → 脚本路由表。
+**`scripts/demand/` 一整组（20 个脚本）** — 需求挖掘取数，配套 [`references/demand-sources.md`](rankup/references/demand-sources.md) 那张源 → 脚本路由表。
 
 用户说「找几个关键词」「挖点需求」「最近有什么能做的」时的入口。**路由表按「你现在缺哪一类信号」组织，不按站点类型**：谁已经收到钱了 / 谁在花钱买流量 / 谁做了但没做好 / 谁在为这件事付外包费 / 正在冒出来的新产品 / 持续涌现新词的平台 / 用户的原话 / 竞品正在往哪儿下注。拿到候选之后统一走同一条验证链路（域名画像 → KD → SERP 盘面 → 流量面板 → 趋势）。
 
@@ -477,13 +498,25 @@ SKILLSMP_API_KEY=
 
 ```bash
 # 关键词难度 + 前九名盘面
-node rankup/scripts/seo-webcafe.mjs kd "ai headshot generator"
+node rankup/scripts/seo-webcafe.mjs kd --keyword "ai headshot generator"
 
 # 页面体检 / SERP 归因 / 外链估价 / 域名前世
-node rankup/scripts/seo-webcafe.mjs audit https://example.com/page
-node rankup/scripts/seo-webcafe.mjs serp "keyword"
-node rankup/scripts/seo-webcafe.mjs backlink https://example.com
-node rankup/scripts/seo-webcafe.mjs history example.com
+node rankup/scripts/seo-webcafe.mjs audit    --url https://example.com/page --keyword "your keyword"
+node rankup/scripts/seo-webcafe.mjs serp     --keyword "keyword"
+node rankup/scripts/seo-webcafe.mjs backlink --input example.com
+node rankup/scripts/seo-webcafe.mjs history  --input example.com
+
+# 需求翻译 / 需求挖掘 / 起名核验（2026-08-24 补全）
+node rankup/scripts/seo-webcafe.mjs translateSearch --query "markdown to pdf"
+node rankup/scripts/seo-webcafe.mjs mineSearch      --keyword "ai image upscaler"
+node rankup/scripts/seo-webcafe.mjs domainIntent    --text "一个 AI 图片压缩工具站"
+
+# 纯本地计算，零网络零配额，可 --batch 批量
+node rankup/scripts/seo-webcafe.mjs kgr --volume 1000 --intitle 5 --kd 20
+
+# 哥飞论坛：给个链接就取回内容（悬赏/经验/帖子/教程）
+node rankup/scripts/webcafe-forum.mjs get https://new.web.cafe/ask/bounty/fd0wrgx7fh
+node rankup/scripts/webcafe-forum.mjs chat-search "挖掘需求"   # 搜 14 个微信群归档
 
 # Google Trends
 python3 rankup/scripts/gt.py compare "keyword a" "keyword b"
