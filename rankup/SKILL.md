@@ -130,6 +130,7 @@ opencli browser "$S" eval '(async()=>{ /* fetch(..., {credentials:"include"}) */
 | `scripts/clarity-setup.mjs` | **在 Microsoft Clarity 里建项目并拿到 project ID**（会话录制 / 热图），驱动用户已登录的浏览器。`status` 只读，`create` 新建 | 上线后接行为分析时。Clarity 的 REST API 只读不建项目，只能走 UI |
 | `scripts/naver-setup.mjs` | **在 Naver Search Advisor 里注册站点、获取验证 meta 标签、提交 sitemap**。`status` / `register` / `submit-sitemap`。CAPTCHA 无法自动化，需要用户手动完成验证 | 韩国市场站点上线后接 Naver 站长工具时。Naver 内部 API 有 CSRF 保护，注册和 sitemap 提交走 UI 更稳定 |
 | `scripts/ahrefs-setup.mjs` | **在 Ahrefs 里建项目、经 GSC 验证所有权、启用 Web Analytics 并取回 `data-key`**。`status` / `create` / `verify` / `enable-wa` | 上线后接外链视角与总访问量时。Ahrefs API v3 只有数据查询，项目管理只能走 UI |
+| `scripts/seo-audit.mjs` | **AITDK 相当の全ページ SEO 監査**（零依赖、Node 20+）。title/desc/keywords/canonical/robots/charset/lang/h1/OGP/Twitter Card/構造化データ/画像 alt/リンク分析/hreflang、**キーワード密度（1/2/3-gram、日本語 `Intl.Segmenter` 対応）**。`--sitemap <url>` で全ページ一括、`--json` で機械可読、`--density-only` で密度のみ、`--fix-report` で修正リスト | **構建完成後の SEO 検証に必須**。阶段 7.5 闸门第 2、3 行（TDK + 关键词密度）的取数工具；阶段 8 每轮新页面上线后重跑。零配额、零登录、纯 HTTP fetch，可对 localhost dev server 或线上域名跑 |
 | `scripts/registry.mjs` | 扫描各项目 `.rankup/` 重建跨项目资产登记表 | 开工前查「别的项目有没有现成的」；收工时刷新 |
 | `scripts/review.mjs` | 项目记忆体检：缺失文件、超期记录、脚本体检、**生命周期检查点**（查漏补缺——哪些工具和环节还没跑过）、经验库信号 | `rankup review` 第一步；新引入 Skill 的老站第一件事就跑它 |
 | `scripts/sessions.mjs` | 找出并浓缩本项目的 Claude Code / Codex 会话，供 review 提取信号 | `rankup review` 第二步，默认加 `--new-only` |

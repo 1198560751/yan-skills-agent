@@ -597,8 +597,8 @@ wrangler email routing dns get <domain>
 |---|---|---|---|---|
 | 0 | 站点身份 | 人工核对线上 HTML | OG 元数据（`og:title`、`og:image` ≥1200px）与图标全集（见本阶段 A 节）线上 200，`manifest.json` 引用全部命中真实文件 | `.rankup/integrations.md` |
 | 1 | 技术 SEO | 抓取 `sitemap.xml` 逐条请求；抓取全站内链逐条请求；请求 `/robots.txt` | sitemap 条目与线上真实 URL 集合一致、零 404；内链零 404；`llms.txt` 存在且其列出的路径与真实 URL 集合一致（不是模板占位）；robots 规则未误挡应收录路径 | `.rankup/audit.md` |
-| 2 | TDK | 遍历**全站每一个 URL**（不是抽样——抽样测不出「没人想起来改」的那一页）核对 title/description/H1 | 全站 title 互不重复、description 互不重复、长度在搜索引擎截断阈值内；**每页恰好一个 `h1`**，零、多个都不通过 | `.rankup/audit.md`（逐 URL 记录，不是一条总述） |
-| 3 | 关键词密度 | 对每页**先在 `.rankup/keywords.md` 或 `.rankup/audit.md` 里声明本页目标短语**，再测该短语在正文中的实际占比 | 密度落在自然区间；**声明的短语与测量的短语必须是同一个字符串**，测别的短语等于没测——已实测过 8 个页面在构建绿灯下全部通过，逐页核对才发现每一页测的都不是自己声明的目标短语，全部低于门槛。薄页面「密度太高」与「内容太少」是同一个事实：解法是把内容做厚，不是删关键词讨好指标 | `.rankup/audit.md` |
+| 2 | TDK | `node <rankup-skill-dir>/scripts/seo-audit.mjs --sitemap <sitemap-url> --json`（零依赖、零配额、零登录）遍历**全站每一个 URL**（不是抽样——抽样测不出「没人想起来改」的那一页）核对 title/description/keywords/H1/OGP/canonical/robots/构造化データ | 全站 title 互不重复、description 互不重复、长度在搜索引擎截断阈值内；**每页恰好一个 `h1`**，零、多个都不通过；全站零 error、零 warning；`--json` 输出的 `issues` 数组逐条检查 | `.rankup/audit.md`（逐 URL 记录，不是一条总述） |
+| 3 | 关键词密度 | `node <rankup-skill-dir>/scripts/seo-audit.mjs --sitemap <sitemap-url> --density-only`（日本語は `Intl.Segmenter('ja')` で分かち書き、1/2/3-gram）。对每页**先在 `.rankup/keywords.md` 或 `.rankup/audit.md` 里声明本页目标短语**，再在密度输出中核对该短语的实际占比 | 密度落在自然区间；**声明的短语与测量的短语必须是同一个字符串**，测别的短语等于没测——已实测过 8 个页面在构建绿灯下全部通过，逐页核对才发现每一页测的都不是自己声明的目标短语，全部低于门槛。薄页面「密度太高」与「内容太少」是同一个事实：解法是把内容做厚，不是删关键词讨好指标 | `.rankup/audit.md` |
 | 4 | GEO / AI Agent 就绪度 | `node <rankup-skill-dir>/scripts/is-agentic.mjs scan <domain> --save`（零配置，公开 API，结果存 `.rankup/agentic/`） | 有一份带分数与逐项 Essential/Recommended/Bonus 结果的基线报告；**每条 `partial`/`failed` 都必须独立核实，不是照抄结论**——实测一次 75 分「Ready with a few material gaps」报告里，2 条 Essential `partial` 核实后不成立（误报 soft-404，实测 4 个不存在路径均返回真 404；误报缺失 no-JS 内容，实测预渲染页面原始 HTML 里有 4,800–7,000 字符正文），核实后据实改判或记录驳回理由 | `.rankup/agentic/<domain>/<date>.json` + 核实结论写入 `.rankup/audit.md` |
 | 5 | 哥飞 AI 审阅 | `node <rankup-skill-dir>/scripts/seo-webcafe.mjs chat --ask "审阅 https://<真实线上域名> ……"`（强制登录，需 `SEO_WEBCAFE_COOKIE`，返回 SSE，见 `seo-webcafe.md`「SEO Agent」一节） | 每条建议有采纳/拒绝记录；拒绝必须附理由；**打印并记录 `done` 事件的 `toolCalls`、`rounds`、`charged`**，不看这三项就是把黑箱结论当权威 | `.rankup/audit.md` |
 | 6 | 性能 / Core Web Vitals | Lighthouse 跑线上真实 URL，覆盖关键页面类型：首页、一个工具/功能页、一个内容页；记录 LCP、CLS、INP 与性能分 | 三类页面均达到**项目自设的下限**（不是通用「90 分」之类的泛化标准）；**实验室数据不能单独定论，现场数据（真实用户，如 Cloudflare/CrUX 字段数据）为准**——已实测一个站 Lighthouse 每次都读到 CLS 0，同期 Cloudflare 现场数据在同一元素上读到 0.127，原因是那类位移只在 Windows 桌面 Chrome 的经典滚动条上发生（macOS/iOS 覆层滚动条不占布局宽度，结构上不可能触发），实验室机器根本没跑过那个平台，读到 0 什么都不能证明；**先验仪器再信读数**——同一批测试里发现某沙箱浏览器 `document.visibilityState` 恒为 `hidden`，Chromium 对隐藏文档从不派发 `layout-shift` 事件，导致该环境下「0 次位移」全是假的，判据是先注入一个明显位移的元素、确认仪器真的报告了它，「测不到」和「没发生」在日志里长得一模一样 | `.rankup/baseline.md`（含 LCP/CLS/INP 与分数，标注实验室/现场来源） |
@@ -671,7 +671,7 @@ Lighthouse 结果与可得的现场数据都已记录，两者不一致时以现
 ### 必做动作
 
 1. 读取 SEO 增长参考（含 section 三-B「2026 AI 搜索范式」），先核实数据渠道和时间窗口。
-2. 检查可抓取性、索引、canonical、robots、sitemap、结构化数据、性能和多语言信号。
+2. 检查可抓取性、索引、canonical、robots、sitemap、结构化数据、性能和多语言信号。**每轮新页面上线后必须重跑 `seo-audit.mjs --sitemap <sitemap-url>`**，确认新页面的 TDK、keywords、OGP、结构化数据和关键词密度全部达标，不达标的当场修。
 3. **AI 搜索可见性检查**：查看 Search Console Generative AI 效果报告（如已开放）了解 AI 功能曝光；手动搜索核心关键词观察是否被 AI Overviews / AI Mode 引用；审计页面内容是否为「非大众化内容」（AI 自己能生成的泛泛之谈不会被引用）。
 4. **Back Button Hijacking 审计**：检查所有第三方脚本有无 `history.pushState` 滥用或后退拦截（2026-04 起为明确 spam 违规）。
 5. **Discover 适配检查**（内容站）：OG image ≥ 1200px、`max-image-preview:large` meta 标签、主题持续发布而非追热点。
