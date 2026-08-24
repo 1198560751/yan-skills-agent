@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、挖需求、找需求、需求挖掘、找方向、找选题、"最近有什么能做的"、"找几个关键词"、"挖个新词的工具站"、"看看有什么游戏站能做"、竞品调研、榜单调研、差评挖掘、反查谁在赚钱、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 哥飞、web.cafe、哥飞论坛、哥飞的朋友们、悬赏、悬赏问答、经验帖、"群里怎么说的"、"社群里有没有讲过"、"论坛里搜一下"、"哥飞说过什么"、哥飞.ai，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
 metadata:
-  version: "2.44.1"
+  version: "2.45.0"
 ---
 
 # Rankup 2.0
@@ -181,12 +181,18 @@ npx skills add yan-labs/yan-skills --skill backlink -g -y
 |---|---|---|
 | 这个站多大、流量从哪来、还有哪些同类站 | `node backlink/scripts/similarweb-query.mjs` | 总访问量、渠道构成、相似站、地理分布 |
 | 几百个域名批量筛流量 | `node backlink/scripts/similarweb-batch.mjs` | 逐域名追加写盘，单域名 5 秒，可续跑 |
-| 这个词多少量、多难 | `node backlink/scripts/semrush-keyword.mjs` | 分国家搜索量与 KD、CPC |
-| 这个站自然流量多大、有多少外链 | `node backlink/scripts/semrush-overview.mjs` | AS、自然流量、引荐域名数、关键词数 |
+| 这个词多少量、多难 | `node backlink/scripts/semrush-keyword.mjs` | 分国家搜索量与 KD、CPC，**外加全球合计 `globalVolume`** |
+| 这个站自然流量多大、有多少外链 | `node backlink/scripts/semrush-overview.mjs` | AS、自然流量、引荐域名数、关键词数——**只有分国家的，没有全球合计** |
 | 这个站排了哪些词、主要页面、反链详情 | `node backlink/scripts/semrush-report.mjs` | 自然排名、主要页面、反链概览、关键词报表 |
 | 批量域名有机流量 | `node backlink/scripts/semrush-batch.mjs` | 逐域名，与 similarweb-batch 同模式 |
 
-**两边的「流量」口径不同：** Similarweb 给总访问量，Semrush 给自然搜索流量估算。同一个站差三倍以上是常态，写结论必须标明口径。
+**两边的「流量」口径不同，对不上很正常，但对不上的具体原因要查清楚，不能止步于「口径不同」：**
+
+1. **地理范围**——Semrush 域名维度给的是**一个国家库**（`--db`，省略也不是全球，只是落到 Semrush 自己的默认库），Similarweb 默认给**全球**。真实事故：同一个域名 Semrush 报 5,900/月（`--db us`）、Similarweb 报约 92,000/月，看着是 15 倍的矛盾，换算成同一地理范围（该站美国流量仅占约两成）之后倍数就收窄到个位数。关键词维度不受此限——Semrush 关键词有 `globalVolume` 字段，不必再拿多个 `--db` 求和。
+2. **面板页面**——Similarweb 自己不同页面（如「网站表现」总量 vs「流量来源渠道」渠道加总）之间也能差 6–35%，报数字要写清楚是哪一页。
+3. **口径定义**——Semrush 自然流量是**模型**（追踪到的关键词 × 搜索量 × 位次点击率），Similarweb 是**面板外推**，一个是模型输出一个是观测外推，不要相减或相除，各自标清楚。
+
+三条都对齐了还差几倍，才是真的矛盾，值得深入查；对不上先怀疑口径，不要先怀疑数据源坏了。方法细节见 `backlink/references/authorized-data-sources.md` 的「Semrush role」一节和 `rankup/references/experiences/webcafe-experiences.md` 十六·五。
 
 ### 落盘：抓到的数据不许留在下载目录
 

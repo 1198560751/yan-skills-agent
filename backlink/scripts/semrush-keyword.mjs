@@ -15,11 +15,16 @@
  *      认页面标题会抓到骨架空壳；
  *   2. 「无数据」是结果不是故障——Semrush 会渲染出页面但量为空，
  *      本脚本记为 volume:0 + noData:true，不要报成脚本失败；
- *   3. 词里有空格/CJK 必须 encodeURIComponent，否则路由会被截断。
+ *   3. 词里有空格/CJK 必须 encodeURIComponent，否则路由会被截断；
+ *   4. `volume` 只是 `--db` 那一个国家的月搜量，不是全球量——不传 `--db` 会默默
+ *      落到 `jp`，一个英文词查出来的是「日本市场当英文词搜」的量，看着合理，实际错了；
+ *      要全球数字用同一行的 `globalVolume`，不要拿 `byCountry` 里的国家加总替代，
+ *      那只是页面列出的 Top-N，加总往往到不了 `globalVolume` 的一半。
  *
  * 用法：
  *   node semrush-keyword.mjs --kw 診断 --db jp      # --db 是按国家的，别省
  *   node semrush-keyword.mjs --kw-file words.txt --db kr --out kr.jsonl
+ *   # 想要全球规模：读输出里的 globalVolume 字段，不要重算 --db 或加总 byCountry
  */
 import { defaultSession, parseFlags, printJson, validateSession, showHelpIfRequested} from './opencli-core.mjs';
 import { expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
@@ -34,7 +39,7 @@ const db = String(flags.db || 'jp').trim().toLowerCase();
 // keyword queried against the JP database returns real, plausible, wrong
 // numbers with nothing to signal it, so a defaulted --db announces itself.
 if (!dbGiven) {
-  console.error(`⚠ --db not given, defaulting to "jp". Volume/KD/CPC are per-country; pass --db us (or uk/de/…) for any non-Japan market.`);
+  console.error(`⚠ --db not given, defaulting to "jp". volume/KD/CPC will be Japan's numbers even for an English or global keyword — pass --db us (or uk/de/…) for any non-Japan market. Need a worldwide figure instead? Read globalVolume in the output, it doesn't depend on --db.`);
 }
 const session = flags.session ? validateSession(flags.session) : defaultSession('semrush-keyword');
 const appOrigin = (process.env.TOOLS_SHARE_APP_ORIGIN_SEMRUSH || 'https://sem.3ue.co').replace(/\/+$/, '');
@@ -107,6 +112,9 @@ function pickIntent(lines) {
 
 /** 「全球搜索量」下面是 国家码/国家名/数值 三行一组，一直到「意图」。
  *  罗马字词最有价值的信息就在这里：它到底在哪个国家有量。 */
+// **`byCountry` 是页面展示的 Top-N，不是穷举。** 实测过一批词，byCountry 里几个
+// 国家加总只到 globalVolume 的一半左右——差额是页面没列出来的其余国家，不是丢数据。
+// 不要拿 byCountry 求和去核对或替代 globalVolume。
 function pickCountries(lines) {
   const i = lines.indexOf('全球搜索量');
   if (i < 0) return null;
@@ -189,6 +197,8 @@ for (const kw of keywords) {
 printJson({
   version: 1,
   source: 'Semrush keyword overview via authenticated Tools Share browser session',
+  note: `volume 是 db=${db} 这一个国家库的月搜量，globalVolume 是全球合计，byCountry 只是` +
+    '页面列出的 Top-N（不穷举，加总不等于 globalVolume）——三者不可互相替代。',
   retrievedAt: new Date().toISOString(),
   db,
   session,

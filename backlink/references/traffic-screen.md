@@ -28,9 +28,13 @@ sends you off to change nodes.
 
 Plan on **~120 domains per card per day**. Quota is per card, so when Similarweb
 is spent, Semrush usually is not — switch and keep going, but record which one
-measured each row. Similarweb reports *total visits* and Semrush reports
-*organic traffic*; those are not the same number, which is what `traffic.source`
-exists for.
+measured each row. Similarweb reports *total visits* (global by default) and
+Semrush reports *organic traffic* for whatever single country `--db` names (or
+Semrush's own default if you omit it — never a global figure); those are not
+the same number even before the geography difference, which is what
+`traffic.source` exists for. Pass `--db` explicitly to `semrush-batch.mjs` when
+comparing rows across a run, or the country underneath each `organicTraffic`
+value is whatever Semrush happened to default to that day.
 
 Both batch scripts break the circuit after 5 consecutive errors. Without it one
 dead session burned 48 domains at 60s each before anyone noticed.

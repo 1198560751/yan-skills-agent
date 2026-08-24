@@ -11,6 +11,10 @@
  * 与 semrush-overview.mjs 的关系：那个是本脚本 `--report domain-overview` 的
  * 特化版，输出字段更规整。域名那六个数字用它，其余四张用这个。
  *
+ * **`--db` 决定的是一个国家库，四张域名报表都没有全球选项。** 省略 `--db` 不会
+ * 给你全球合计，只会落到 Semrush 自己的默认库；同一个域名换个 `--db` 会读出
+ * 完全不同的自然流量、排名词和主要页面。
+ *
  * 用法：
  *   node semrush-report.mjs --report organic-overview  --domain example.com --db us
  *   node semrush-report.mjs --report organic-positions --domain example.com --db us
@@ -29,7 +33,7 @@
  *   opencli browser $S close
  */
 import { defaultSession, opencli, firstJson, parseFlags, showHelpIfRequested, printJson, validateSession } from './opencli-core.mjs';
-import { captureStable, expiryWarning, launchTool } from './lib-tools-share.mjs';
+import { captureStable, expiryWarning, launchTool, redactSecrets } from './lib-tools-share.mjs';
 import { writeFile } from 'node:fs/promises';
 
 const flags = parseFlags(process.argv.slice(2));
@@ -137,7 +141,11 @@ if (!target) {
   console.error(`--report ${name} requires --${spec.needs}`);
   process.exit(2);
 }
+const dbGiven = flags.db !== undefined && String(flags.db).trim() !== '';
 const db = String(flags.db || '').trim().toLowerCase();
+if (!dbGiven && spec.needs !== 'keyword') {
+  console.error(`⚠ --db not given. organic-overview/organic-positions/organic-pages fall back to Semrush's own default country — not a global total; pass --db explicitly when the market matters.`);
+}
 
 function normalizeDomain(value) {
   if (!value) return '';
@@ -216,7 +224,12 @@ async function evalPage(js) {
  * 每张都重新启动等于把时间和配额乘以十几倍。
  */
 async function ensureTool() {
-  const cur = await evalPage(`(() => JSON.stringify({ host: location.host }))()`);
+  // **探测失败 ≠ 报告失败。** 会话还不存在时 opencli 直接非零退出，
+  // `evalPage` 里那层 try 只兜 JSON 解析，兜不住这个——于是一个全新的 --session
+  // 名字会让整张报告变成 report_failed，报错还是「No active session」，
+  // 读起来像 OpenCLI 坏了。2026-08-24 实测：这个脚本在新会话名下**根本跑不起来**。
+  // 探测的语义只有一个：「我是不是已经站在工具页上了」。答不上来就当没有，去启动。
+  const cur = await evalPage(`(() => JSON.stringify({ host: location.host }))()`).catch(() => null);
   if (cur && cur.host === APP_HOST) {
     return { reused: true, state: { expiry: null, daysLeft: null, quotas: null } };
   }
@@ -633,7 +646,9 @@ try {
   output = {
     version: 1, source: 'Semrush via authenticated Tools Share browser session',
     retrievedAt: new Date().toISOString(), report: name, target, db: db || null, session,
-    status: 'unavailable', error: { code: 'report_failed', message: error.message },
+    // **错误消息必须过 redactSecrets。** opencli 失败时会把带 __gmitm 令牌的会话 URL
+    // 打进 stderr，那段文本会一路进 output、进 --out 文件、进日志。
+    status: 'unavailable', error: { code: 'report_failed', message: redactSecrets(error.message) },
   };
 }
 

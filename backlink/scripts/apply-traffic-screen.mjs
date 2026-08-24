@@ -65,6 +65,10 @@ for (const t of doc.targets) {
     verdict: r.verdict,
     checkedAt: r.checkedAt,
     source: a.source,
+    // Semrush 行带 db（该次测的是哪个国家库，undefined 说明来自没有国家维度的
+    // Similarweb 行），保留下来是唯一能事后判断"这个 monthlyVisits 是不是被裁到
+    // 一个国家"的字段——不留痕迹的话，下一轮筛选没法分辨这个数字的地理范围。
+    db: r.db ?? null,
     globalRank: Number.isInteger(r.globalRank) ? r.globalRank : null,
   };
   applied++;
