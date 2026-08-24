@@ -655,7 +655,22 @@ async function cmdBodies(kind, args, ctx) {
         chars: md.length, markdown: md,
       }) + "\n");
       md.length ? ok++ : empty++;
-      streak = 0;
+      // **空正文也要计入熔断。** 之前熔断只数「被踢到登录页」这种会抛错的情况，
+      // 而匿名态下站点返回的是一个**合法但正文为空**的页面——不抛错，于是熔断
+      // 永远不触发，528 条空行就这么一路写完了。同一个坑连踩三次都是这个原因：
+      // **有报错的失败会被拦住，没报错的失败不会。**
+      if (md.length) streak = 0;
+      else if (++streak >= FUSE) {
+        let loggedIn = null;
+        try { loggedIn = !!(await apiWhoami(ctx.session))?.user; } catch { /* 探不到就不猜 */ }
+        console.error(
+          `\n连续 ${FUSE} 条正文为空。已停在 ${i + 1}/${todo.length}。` +
+            (loggedIn === false
+              ? `\n成因：**浏览器里没有 new.web.cafe 的会话**——请在浏览器里点「登录」→ Google，然后用同一条命令续跑。`
+              : `\n成因：会话探测结果为 ${loggedIn}；先跑 whoami 确认，再决定是重登还是等待。`),
+        );
+        break;
+      }
     } catch (e) {
       console.error(`  \u2717 ${r.uid}：${e.message}`);
       if (!/登录页/.test(e.message)) { streak = 0; continue; }
