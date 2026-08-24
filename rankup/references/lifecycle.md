@@ -49,6 +49,11 @@
 
 ## 阶段 1：机会与市场调研
 
+> **选词之前再读一条**：[`experiences/webcafe-topics.md`](experiences/webcafe-topics.md) 一
+> 与 [`experiences/webcafe-experiences.md`](experiences/webcafe-experiences.md) 二十一。
+> **低 KD 不等于能做**——「能不能打」和「值不值得打」是两个独立判断；
+> 词龄 >30 天且竞品域名 >20 天就放弃；谷歌自己给出解决方案的词，搜索量再大也不做。
+
 > **动手之前先读** [`experiences/demand-discovery.md`](experiences/demand-discovery.md)：
 > 需求从哪挖、怎么反推别人已经在赚什么钱、什么样的需求值得做。
 > 那一章的主线是**不要空想需求，去反推已经拿到结果的人**——空想的验证成本是几个月，
@@ -176,6 +181,11 @@
 | `.rankup/decisions.md`：preview/staging/production 的资源与发布边界 | 阶段 4 按这条边界隔离环境资源 | 环境资源意外共享，production 数据或流量在开发阶段就被污染 |
 
 ## 阶段 3：初始化项目
+
+> **动手之前先读** [`experiences/webcafe-topics.md`](experiences/webcafe-topics.md) 二、九
+> 与 [`experiences/webcafe-experiences.md`](experiences/webcafe-experiences.md) 二十三、二十四：
+> 第一版要粗但核心闭环不能缺；托管选型的商用限制；
+> **CF Pages 根目录没有 `404.html` 会被当成 SPA**，所有无效路径返回首页且 HTTP 200。
 
 ### 输入
 
@@ -662,6 +672,11 @@ Lighthouse 结果与可得的现场数据都已记录，两者不一致时以现
 
 ## 阶段 8：SEO 与内容增长
 
+> **改任何东西之前先读** [`experiences/webcafe-topics.md`](experiences/webcafe-topics.md) 三、四、六、七
+> 与 [`experiences/webcafe-experiences.md`](experiences/webcafe-experiences.md) 十七 ~ 十九：
+> 排名没稳之前（连续 5 天位置不动才算稳）**只做加法**；已有排名后改 TDK 会触发重新索引；
+> 多语言先做 2–3 个语言，`hreflang` 用代码统一生成。
+
 ### 输入
 
 - 真实线上页面、站点结构和当前技术/内容基线。
@@ -699,6 +714,11 @@ Lighthouse 结果与可得的现场数据都已记录，两者不一致时以现
 | `.rankup/baseline.md`：变更前基线与观察窗口 | 阶段 10 拿它和后续指标比较，判断本轮改动是否生效 | 阶段 10 没有变更前的参照点，只能看到当前数字，无法判断是不是本轮改动带来的 |
 
 ## 阶段 9：分发与外链
+
+> **定预算之前先读** [`experiences/webcafe-topics.md`](experiences/webcafe-topics.md) 五
+> 与 [`experiences/webcafe-experiences.md`](experiences/webcafe-experiences.md) 二十：
+> 有 KD → 引荐域数量对照表（KD 30 需 36 个，KD 80 需 353 个）和一张导航站过滤清单；
+> **外链买的是权重不是流量，所以不算 ROI**；短期暴增会被判定为 link scheme。
 
 ### 输入
 
