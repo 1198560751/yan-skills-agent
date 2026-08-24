@@ -336,8 +336,19 @@ export async function closeSession(session) {
 export async function ensureLoggedIn(session, { timeout = 20000 } = {}) {
   if ((await whoami(session))?.user) return { relogged: false };
 
-  await opencli(["browser", session, "--window", "background", "open", BASE + "/"]);
-  // **必须等够水合。** 实测 3 秒和 9 秒都不行、30 秒一次就中：页面还在水合时，
+  // **登录要在自己的标签页里做，不能借用取数那个。** 窗口模式是**建标签页时定死的**，
+  // 对一个已经是 background 的标签页再传 --window isolated 不会把它挪出去，
+  // 于是它继续被节流、继续点不开弹窗。Cookie 是整个浏览器配置共享的，
+  // 所以在这里登录，取数那个标签页立刻也是登录态。
+  const loginSession = `${session}-login`;
+
+  // **登录这一步必须用 isolated，不能用 background。** 对照实验（同样等 30 秒再点）：
+  //     background → 弹窗打不开        isolated → 一次就开
+  // 后台标签页被浏览器节流，水合根本没跑完，点击落在一个还没挂上处理函数的按钮上。
+  // isolated 开在独立窗口里，不抢用户正在看的标签页，又不受节流——两头都要的那个选项。
+  // 取数本身仍然走 background，只有这一步例外。
+  await opencli(["browser", loginSession, "--window", "isolated", "open", BASE + "/"]);
+  // **还要等够水合。** 实测 3 秒和 9 秒都不行、30 秒一次就中：页面还在水合时，
   // 「登 录」按钮已经在 DOM 里但处理函数还没挂上，这时候的点击**返回成功、毫无效果**。
   // 这类失败最难查——点击报 hit、按钮也确实存在，只是什么都没发生。
   await sleep(Number(process.env.WEBCAFE_HYDRATE_MS || 30000));
@@ -354,27 +365,32 @@ export async function ensureLoggedIn(session, { timeout = 20000 } = {}) {
   // 所以要重试，并且每次都重新确认弹窗真的开了。
   // 先看弹窗是不是已经开着（上一次尝试可能已经把它点开了）。
   // 不先看就直接点，会在弹窗已开时点到弹窗里的按钮上，选择器歧义导致 click 直接报错。
-  let tagged = await opencli(["browser", session, "eval", tag]);
+  let tagged = await opencli(["browser", loginSession, "eval", tag]);
   for (let attempt = 1; attempt <= 3 && !tagged.includes("ok"); attempt++) {
     try {
-      await opencli(["browser", session, "click", "button.inline-flex.w-full.justify-center"]);
+      await opencli(["browser", loginSession, "click", "button.inline-flex.w-full.justify-center"]);
     } catch (e) {
       // 点击本身失败（选择器没匹配上/匹配到多个）不该终止整轮——下一次循环会重新判断。
       console.error(`  （第 ${attempt} 次点「登 录」失败：${String(e.message).split("\n")[0].slice(0, 80)}）`);
     }
     await sleep(3000 * attempt);
-    tagged = await opencli(["browser", session, "eval", tag]);
+    tagged = await opencli(["browser", loginSession, "eval", tag]);
   }
   if (!tagged.includes("ok")) throw new Error("点了三次「登 录」，弹窗里始终没有「使用 Google 登录」按钮");
 
-  await opencli(["browser", session, "click", "[data-cc-login]"]);
+  await opencli(["browser", loginSession, "click", "[data-cc-login]"]);
 
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     await sleep(2000);
-    if ((await whoami(session))?.user) return { relogged: true };
+    // 探的是**取数那个会话**——登录标签页自己成功不算数，要的是取数那边也认。
+    if ((await whoami(session))?.user) {
+      await closeSession(loginSession);   // 登录标签页用完就还回去，别留在用户的浏览器里
+      return { relogged: true };
+    }
   }
-  throw new Error("点了谷歌登录但会话仍未建立");
+  await closeSession(loginSession);
+  throw new Error("点了谷歌登录但取数会话仍未拿到登录态");
 }
 
 /** 探针：脚本当前在浏览器里是不是登录态。 */
