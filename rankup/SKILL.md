@@ -534,7 +534,7 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | **这个词到底做不做、KD 低能不能上、新词还剩多少窗口、非英语版本值不值得** | [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 一 ~ 二 | 判断在这里，取数用 `seo-webcafe.mjs kd` + `gt.py`。**低 KD ≠ 能做；词龄 >30 天且竞品域名 >20 天就放弃** |
 | **买外链要花多少钱、导航站外链值不值、新后缀域名发不出链、外链多快算太快** | [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 五 + `backlink` Skill | 有 KD→引荐域数量对照表和一张导航站过滤清单。**302/307 不传权重；`.ai` 在老博客上发出去的不是链接** |
 | **多语言上线后流量暴跌、收录大规模掉、hreflang 配错** | [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 七 | 无需工具，是排查表。**先做 2–3 个语言；hreflang 用代码统一生成，不要手写** |
-| **支付被关户、退款争议、API Key 被盗刷、PayPal 新商户审查、AdSense PIN 没收到** | [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 八 | 无需工具，是裁定集。**支付通道必须有备份；退款要全退不要部分退** |
+| **支付被关户、退款争议、API Key 被盗刷** | [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 八 | 无需工具，是裁定集。**支付通道必须有备份；退款要全退不要部分退** |
 | **AI 改长文案只改了一半、AI 拒绝做某事、要不要照抄竞品** | [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 十 | 无需工具。**需求可以借鉴，代码/UI/素材/品牌不能抄** |
 | **排名起不来、被 K 站/deindex、GSC 报索引异常、首页覆盖了太多词、新站排名波动** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 十七 ~ 十九 | 无需工具，是裁定集。**新词上线 2–4 周内不要改页面** |
 | **外链发哪里、相关性 vs 数量、nofollow 要不要、发了怎么验收、抄竞品外链** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 二十 + `backlink` Skill | 判断在这里，执行在 `backlink`。**抄竞品外链要按「首次发现日期从旧到新」排** |
@@ -542,7 +542,6 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | **什么时候该发布、要不要做差异化、要不要先做登录注册支付** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 二十三 + [`zero-to-one.md`](references/experiences/zero-to-one.md) | 无需工具，是裁定集。**核心功能先推出去，登录/支付/性能后置** |
 | **网站打不开、CF Pages 无效路径返回首页、图片慢、Vercel 绑域名跳两次、按国家投广告** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 二十四 | 无需工具，是排查表。**CF Pages 根目录必须有 `404.html`，否则被当 SPA** |
 | **GA 里 direct 占大头是不是被刷量** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 二十五 | 无需工具。**用停留时间/人均页面数/跳出率三项对比其他渠道** |
-| **收款怎么收、5 万美金额度、香港开卡、Stripe/Creem/PayPal 怎么选** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 二十七 | 无需工具，是裁定集。**5 万是结汇额度，不是收款额度** |
 | **多语言怎么上、URL 结构、`<html lang>`、hreflang、语言检测与跳转、中文繁简分治** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 三·五 + [`seo-growth.md`](references/seo-growth.md)「多语言站架构参考（Apple 模型）」+ [`lifecycle.md`](references/lifecycle.md) 阶段 3 第 5 条 | 无需工具，是规则集。**核心禁令：不得根据 IP 自动跳转语言** |
 | 搜索热度对比、地区分布、相关飙升词、每日热搜、模糊方向扩词并收敛成可做站的词 | [`trends.md`](references/trends.md) | `scripts/gt.py`（默认走 `gt-browser.mjs` 的浏览器路由，零 venv；`--via pytrends` 可切回匿名 HTTP） |
 | 从登录态后台批量取数（没有 API / API 收费 / 导出扣点数） | [`integrations.md`](references/integrations.md) | **加载 backlink**（`/backlink`），读 `references/harvest.md`。未安装：`npx skills add yan-labs/yan-skills --skill backlink -g -y` |
