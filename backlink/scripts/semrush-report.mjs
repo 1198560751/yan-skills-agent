@@ -29,7 +29,7 @@
  *   opencli browser $S close
  */
 import { defaultSession, opencli, firstJson, parseFlags, printJson, validateSession } from './opencli-core.mjs';
-import { expiryWarning, launchTool } from './lib-tools-share.mjs';
+import { captureStable, expiryWarning, launchTool } from './lib-tools-share.mjs';
 import { writeFile } from 'node:fs/promises';
 
 const flags = parseFlags(process.argv.slice(2));
@@ -112,6 +112,10 @@ const REPORTS = {
   'backlinks-overview': {
     needs: 'domain',
     path: (t) => `/analytics/backlinks/overview/?q=${encodeURIComponent(t)}&searchType=domain`,
+    // 标签级判据。**单靠它是不够的**——「Authority Score」这行会连同占位的 0 一起先挂出来，
+    // 真值晚几秒才水合（2026-08-23 实测 8 个域名错 6 个）。够用的原因是 loadReport 在
+    // ready 之后还要求 `parse()` 的结果连续两次一致，占位态过不了那一关。
+    // **要抄这张表的写法，就必须连 loadReport 的稳定性检查一起抄。**
     ready: /Authority Score|权威分数/,
     parse: parseBacklinks,
   },
@@ -230,36 +234,74 @@ async function ensureTool() {
 const TRANSIENT = /出错了|我们已经发现了问题|请稍后重试|Something went wrong/;
 
 /**
- * 导航 + 轮询就绪。撞上瞬时错误页就重载重试，**不要去换节点或改选择器**——
- * 节点挂掉的样子是白页/长时间不渲染，这个是有明确错误文案的错误页，两回事。
+ * 解析结果是不是「一屏还什么都没有」。空结果要多要一次确认——
+ * 它既可能是「真的没数据」（终局结论），也可能是「还在水合」（等一下就有了），
+ * 两者在某一个瞬间长得完全一样。
  */
-async function loadReport(url, ready, { settle = 10, timeout = 120, retries = 3 } = {}) {
+function looksEmpty(parsed) {
+  if (!parsed || typeof parsed !== 'object') return true;
+  return Object.entries(parsed).every(([k, v]) => {
+    if (k === 'note' || k === 'rawText' || k === 'rowsVisible') return true;   // 元信息，不算内容
+    if (Array.isArray(v)) return v.length === 0;
+    return v === null || v === undefined || v === false;
+  });
+}
+
+/**
+ * 导航 + 轮询到**解析结果稳定**。撞上瞬时错误页就重载重试，**不要去换节点或改选择器**——
+ * 节点挂掉的样子是白页/长时间不渲染，这个是有明确错误文案的错误页，两回事。
+ *
+ * **就绪判据（`spec.ready`）只是入场券，不是结论。** 这些页面分两拍渲染：
+ * 先挂标签和占位值，几秒后真值才水合进来。只认标签/文案的判据会在这个缝里通过，
+ * 读到的是占位值，而且**不报错**——2026-08-23 实测 semrush-overview 跑 8 个域名，
+ * 6 个的 Authority Score 被读成 0（真值 15~29）。
+ * 所以这里用 `parse()` 的**完整输出**当指纹：连续两次完全一致才收下。
+ * 指纹就是要写出去的那个对象，不存在「盯着 A、写出去 B」的漏洞。
+ *
+ * 返回 { capture, parsed, stable, reads }。**stable 为 false 时不许把 parsed 当结论**——
+ * 那是一份还在变的数，写出去不会有人发现它是错的。
+ */
+async function loadReport(url, spec, { settle = 10, timeout = 120, retries = 3, intervalMs = 3000 } = {}) {
   // ready 可以是正则（页面级字样）或函数 (bodyText, target) => boolean（需要认数据行时）。
-  const isReady = typeof ready === 'function' ? ready : (t) => ready.test(t);
+  const isReady = typeof spec.ready === 'function' ? spec.ready : (t) => spec.ready.test(t);
+  const parseText = (t) => {
+    // 中间态的文本什么形状都有，解析器抛错只说明「这一拍还不能读」，不是致命错误。
+    try { return spec.parse(String(t || '').split(/\n+/).map((l) => l.trim()).filter(Boolean)); } catch { return null; }
+  };
+  let last = { capture: null, reads: 0 };
   for (let attempt = 1; attempt <= retries; attempt++) {
     await evalPage(`(() => { location.href = ${JSON.stringify(url)}; return JSON.stringify({ nav: 1 }); })()`);
     await sleep(settle * 1000);
-    const deadline = Date.now() + timeout * 1000;
-    let transient = false;
-    while (Date.now() < deadline) {
-      const cap = await evalPage(`(() => { const t = document.body?.innerText || ''; return JSON.stringify({
+    const settled = await captureStable({
+      read: () => evalPage(`(() => { const t = document.body?.innerText || ''; return JSON.stringify({
         url: location.href.split('?')[0], title: document.title,
         transient: ${TRANSIENT.toString()}.test(t),
         bodyText: t.slice(0, 60000),
-      }); })()`);
-      if (cap?.transient) { transient = true; break; }
-      if (cap && isReady(cap.bodyText, target)) return cap;
-      await sleep(3000);
-    }
-    if (transient) {
+      }); })()`),
+      // 瞬时错误页要的是重载，不是更长的超时——立刻出让，别把 timeout 白烧完。
+      abortIf: (cap) => Boolean(cap?.transient),
+      fingerprint: (cap) => {
+        if (!cap?.bodyText || !isReady(cap.bodyText, target)) return null;
+        const parsed = parseText(cap.bodyText);
+        return parsed === null ? null : JSON.stringify(parsed);
+      },
+      // 空结果多要一次确认：它出现在水合中途的概率，比一组具体数字高得多。
+      needed: (print) => (looksEmpty(JSON.parse(print)) ? 3 : 2),
+      timeoutMs: timeout * 1000,
+      intervalMs,
+    });
+    if (settled.aborted) {
       // 重载，不是换节点。见 authorized-data-sources.md「瞬时错误页」。
       await evalPage(`(() => { location.reload(); return JSON.stringify({ reload: 1 }); })()`);
       await sleep(6000);
       continue;
     }
-    if (attempt === retries) break;
+    if (settled.stable) {
+      return { capture: settled.capture, parsed: JSON.parse(settled.fingerprint), stable: true, reads: settled.reads };
+    }
+    last = settled;
   }
-  return null;
+  return { capture: last.capture, parsed: null, stable: false, reads: last.reads };
 }
 
 // ---------- 解析器 ----------
@@ -434,7 +476,16 @@ function parseKeywordOverview(lines) {
   };
 }
 
-function parsePages(lines) { return { rowsVisible: parseRows(lines, 8) }; }
+/**
+ * ⚠️ 这里曾经写成 `{ rowsVisible: parseRows(...) }` —— 字段名说「几行」，装的却是**行数组**。
+ * 两个后果：`--all-pages` 翻页时 `parsed.rows` 是 undefined，push 直接抛 TypeError
+ * （整张报告变成 report_failed，看起来像数据源的问题）；下游读 `rowsVisible` 想拿个数，
+ * 拿到的是数组。**字段名和内容必须对得上**，否则错在别处才被发现。
+ */
+function parsePages(lines) {
+  const rows = parseRows(lines, 8);
+  return { rows, rowsVisible: rows.length };
+}
 
 /**
  * 反链明细表。每行大致是：源页面标题 / 源 URL / 锚文本 / 目标 URL / 属性标签…
@@ -479,12 +530,13 @@ let output;
 try {
   const tool = await ensureTool();
   const url = `${APP_ORIGIN}${spec.path(target, db)}`;
-  const cap = await loadReport(url, spec.ready, {
+  const loaded = await loadReport(url, spec, {
     settle: Number(flags.settle || 10),
     timeout: Number(flags.timeout || 120),
     retries: Number(flags.retries || 3),
+    intervalMs: Number(flags['stable-interval'] || 3) * 1000,
   });
-  if (!cap) {
+  if (!loaded.capture) {
     throw new Error(
       `Semrush ${name} for "${target}" never rendered. 依次排查：` +
       `(1) 该主体在 db=${db || 'global'} 里可能真的没有数据；` +
@@ -492,26 +544,60 @@ try {
       `(3) 若页面显示「出错了…请稍后重试」，本脚本已自动重载重试 ${flags.retries || 3} 次仍失败。`,
     );
   }
-  let lines = cap.bodyText.split(/\n+/).map((l) => l.trim()).filter(Boolean);
-  let parsed = spec.parse(lines);
+  if (!loaded.stable) {
+    // **读到了但一直在变，只能算没测成。** 写下一个还在水合的值，它不会被任何人发现是错的。
+    throw new Error(
+      `Semrush ${name} for "${target}" 渲染了，但数值在 ${loaded.reads} 次读取里始终没稳定下来——` +
+      `屏幕上的还是占位值（典型症状：Authority Score 0、表 0 行）。` +
+      `重跑，或调大 --timeout / --stable-interval。`,
+    );
+  }
+  const cap = loaded.capture;
+  const parsed = loaded.parsed;
   const pageInfo = readPageInfo(cap.bodyText);
   let pagesRead = 1;
+  let stoppedBecause = null;
 
   // **不允许静默截断**（本 Skill 的明文规则）：要么把页翻完，要么把丢掉的量报出来。
   if (spec.paginated && pageInfo.total > 1) {
     if (flags['all-pages']) {
+      const maxPages = Number(flags['max-pages'] || 20);
       const seen = new Set((parsed.rows || []).map(rowKey));
-      while (pagesRead < pageInfo.total && pagesRead < Number(flags['max-pages'] || 20)) {
-        if (!(await clickNextPage(evalPage, pagesRead))) break;
+      let prevPrint = JSON.stringify(parsed);
+      while (pagesRead < pageInfo.total) {
+        if (pagesRead >= maxPages) { stoppedBecause = `max-pages=${maxPages}`; break; }
+        if (!(await clickNextPage(evalPage, pagesRead))) { stoppedBecause = 'no enabled 下一页 control'; break; }
         pagesRead += 1;
-        const next = await evalPage('(() => JSON.stringify({ bodyText: document.body?.innerText || "" }))()');
-        const more = spec.parse(next.bodyText.split(/\n+/).map((l) => l.trim()).filter(Boolean));
-        for (const r of more.rows || []) {
+        // **页码变了不等于表体换完了。** clickNextPage 只等到分页指示器前进，
+        // 此时表格可能还在渲染上一页的行——直接读会把同一页读两遍，
+        // 而 rowKey 去重会把它悄悄吞掉，表现为「翻了 5 页只多出 12 行」。
+        // 所以这里同样要等到解析结果稳定，**并且与上一页不同**。
+        const nextPage = await captureStable({
+          read: () => evalPage('(() => JSON.stringify({ bodyText: document.body?.innerText || "" }))()'),
+          fingerprint: (c) => {
+            let print = null;
+            try { print = JSON.stringify(spec.parse(String(c?.bodyText || '').split(/\n+/).map((l) => l.trim()).filter(Boolean))); } catch { return null; }
+            return print === prevPrint ? null : print;   // 还是上一页的内容，继续等
+          },
+          timeoutMs: Number(flags['page-timeout'] || 30) * 1000,
+          intervalMs: 1500,
+        });
+        if (!nextPage.stable) { pagesRead -= 1; stoppedBecause = `page ${pagesRead + 1} never settled`; break; }
+        prevPrint = nextPage.fingerprint;
+        for (const r of JSON.parse(nextPage.fingerprint).rows || []) {
           const k = rowKey(r);
           if (!seen.has(k)) { seen.add(k); parsed.rows.push(r); }
         }
       }
+      if (pagesRead < pageInfo.total) {
+        // 少读了页就必须说出来。少了多少行没人知道，但少了几页是确定的。
+        console.error(
+          `[truncated] ${name} 共 ${pageInfo.total} 页，只读到第 ${pagesRead} 页（${stoppedBecause}）。` +
+          `当前 ${(parsed.rows || []).length} 行不是全量。`,
+        );
+      }
     } else {
+      stoppedBecause = 'no --all-pages';
       console.error(
         `[truncated] ${name} 共 ${pageInfo.total} 页，本次只读了第 1 页（${(parsed.rows || []).length} 行）。` +
         `要全量加 --all-pages。`,
@@ -534,7 +620,11 @@ try {
       expiry: tool.state.expiry, daysLeft: tool.state.daysLeft,
       quotas: tool.state.quotas, warning: expiryWarning(tool.state),
     },
-    pagination: spec.paginated ? { pages: pageInfo.total, pagesRead, complete: pagesRead >= pageInfo.total } : null,
+    // complete=false 时 stoppedBecause 必须有值——「少了」和「为什么少」要一起交付。
+    pagination: spec.paginated
+      ? { pages: pageInfo.total, pagesRead, complete: pagesRead >= pageInfo.total, stoppedBecause }
+      : null,
+    reads: loaded.reads,
     parsed,
     rawText: cap.bodyText.slice(0, 20000),
   };

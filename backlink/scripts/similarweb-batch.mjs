@@ -29,7 +29,7 @@
  */
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { defaultSession, parseFlags, required, validateSession } from './opencli-core.mjs';
-import { expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
+import { captureStable, expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 const outPath = required(flags, 'out');
@@ -128,30 +128,51 @@ for (const domain of todo) {
     await gotoInTool(evaluate, `${appOrigin}${ROUTE}${encodeURIComponent(domain)}`, settle);
     // 轮询认「总访问量」——那是只有数据渲染完才出现的内容词。左侧导航里的「网站表现」
     // 是骨架挂载就有的菜单项，认它会秒过并读到空指标。
-    let captured = null;
-    while (Date.now() - startedAt < perDomainTimeout) {
-      const s = await evaluate(`(() => ({
+    //
+    // **认到内容词也还不算数。** 「总访问量」和空态文案都会在真实数字水合之前
+    // 先出现一会儿，此时读到的是占位值。2026-08-23 实测：月访问 35 万的
+    // mmradar.gg 被记成 below-floor（totalVisits: null）。所以要连读到**指纹一致**
+    // 才收下——数值要两次一致，空态标记要三次，因为「没有数据」在加载中途出现得更频繁，
+    // 而它一旦记成 below-floor 就是终局（续跑不会重测）。
+    const settled = await captureStable({
+      read: () => evaluate(`(() => ({
         url: location.href,
         ready: /总访问量/.test(document.body?.innerText || ''),
         noData: /抱歉，未找到与该搜索匹配的内容|没有足够的数据|Not enough data|我们没有此网站的数据/.test(document.body?.innerText || ''),
         bodyText: (document.body?.innerText || '').slice(0, 20000)
-      }))()`);
-      const onTarget = String(s.url || '').includes(`key=${encodeURIComponent(domain)}`);
-      if (onTarget && (s.ready || s.noData)) { captured = s; break; }
-      await sleep(2000);
-    }
+      }))()`),
+      fingerprint: (s) => {
+        if (!String(s?.url || '').includes(`key=${encodeURIComponent(domain)}`)) return null;
+        if (s.ready) return JSON.stringify(deriveMetrics(s.bodyText.split(/\n+/).map((l) => l.trim()).filter(Boolean)));
+        return s.noData ? 'no-data' : null;
+      },
+      // 空态多要一次确认：它出现得比真实数字早，只确认两次仍可能把水合中的页面判死。
+      needed: (print) => (print === 'no-data' ? 3 : 2),
+      timeoutMs: perDomainTimeout - (Date.now() - startedAt),
+      intervalMs: Number(flags['stable-interval'] || 2) * 1000,
+    });
+    const captured = settled.stable ? settled.capture : null;
     if (!captured) {
       // **超时不是结论，是这次没测成。** 记 error，下次续跑会重测。
       // 曾经把它记成 below-floor，结果一个自然流量 2.4K 的站被判成「没流量」——
       // 渲染慢和没有数据在超时这一刻长得一模一样，而两者的结论正好相反。
-      // 只有数据源**明说**「未找到匹配内容」才算 below-floor。
-      row = { domain, verdict: 'error', totalVisits: null, error: 'timeout: neither the metric nor the empty-state marker appeared', checkedAt: new Date().toISOString() };
+      // 只有数据源**明说**「未找到匹配内容」且这句话稳定不变，才算 below-floor。
+      row = {
+        domain,
+        verdict: 'error',
+        totalVisits: null,
+        error: settled.fingerprint
+          ? `unstable: the page kept changing across ${settled.reads} reads (values still hydrating)`
+          : 'timeout: neither the metric nor the empty-state marker appeared',
+        checkedAt: new Date().toISOString(),
+      };
+    } else if (settled.fingerprint === 'no-data') {
+      // 页面正面写了「未找到匹配内容」，而且连着三次都这么写：这才是真的在测量下限之下。
+      row = { domain, verdict: 'below-floor', totalVisits: null, globalRank: null, countryRank: null, checkedAt: new Date().toISOString() };
     } else {
       const lines = captured.bodyText.split(/\n+/).map((l) => l.trim()).filter(Boolean);
       const m = deriveMetrics(lines);
       const v = m.totalVisits;
-      // 到这里说明页面已渲染完：要么有指标，要么明确写着「未找到匹配内容」。
-      // 后者才是 below-floor。
       row = {
         domain,
         verdict: v === null ? 'below-floor' : v >= 100 ? 'pass' : 'fail',

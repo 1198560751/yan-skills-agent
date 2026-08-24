@@ -19,7 +19,7 @@
  */
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { defaultSession, parseFlags, required, validateSession } from './opencli-core.mjs';
-import { expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
+import { captureStable, expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 const outPath = required(flags, 'out');
@@ -44,6 +44,20 @@ function pick(lines, label, pattern) {
   const i = lines.findIndex((l) => l === label);
   if (i < 0) return null;
   return lines.slice(i + 1, i + 6).find((l) => pattern.test(l)) || null;
+}
+
+/**
+ * 一次读出这一屏要用到的全部数值。**解析和「是否稳定」的指纹共用同一个函数**，
+ * 否则指纹盯着 A、写出去的是 B，稳定性检查等于没做。
+ * authorityScore 不能写 `Number(x) || null`：AS=0 是真实值（新站常见），与「没数据」相反。
+ */
+function readMetrics(bodyText) {
+  const lines = String(bodyText || '').split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const as = pick(lines, 'Authority Score', /^\d+$/);
+  return {
+    organicTraffic: parseCompact(pick(lines, '自然流量', /^[\d.,]+\s*[KMB]?$/i)),
+    authorityScore: as === null ? null : Number(as),
+  };
 }
 
 const wanted = [];
@@ -77,29 +91,47 @@ for (const domain of todo) {
   let row;
   try {
     await gotoInTool(evaluate, `${appOrigin}/analytics/overview/?q=${encodeURIComponent(domain)}&searchType=domain${db ? `&db=${encodeURIComponent(db)}` : ''}`, settle);
-    let cap = null;
-    while (Date.now() - startedAt < perDomainTimeout) {
-      const s = await evaluate(`(() => ({
+    // 就绪判据认「Authority Score」而不是标题；**但认到标签也还不算数**——
+    // 标签挂上来时数值区可能还停在占位的 0 上，晚几秒才水合出真值。
+    // 2026-08-23 实测 8 个域名有 6 个被读成 AS=0（真值 15~29），全程不报错。
+    // 所以要连读到**两次数值完全一致**才收下，读不稳一律记 error（会被续跑重测）。
+    const settled = await captureStable({
+      read: () => evaluate(`(() => ({
         url: location.href,
         ready: /Authority Score|权威分数/.test(document.body?.innerText || ''),
         bodyText: (document.body?.innerText || '').slice(0, 20000)
-      }))()`);
-      if (String(s.url || '').includes(encodeURIComponent(domain)) && s.ready) { cap = s; break; }
-      await sleep(2000);
-    }
+      }))()`),
+      fingerprint: (s) => {
+        if (!s?.ready || !String(s.url || '').includes(encodeURIComponent(domain))) return null;
+        return JSON.stringify(readMetrics(s.bodyText));
+      },
+      timeoutMs: perDomainTimeout - (Date.now() - startedAt),
+      intervalMs: Number(flags['stable-interval'] || 2) * 1000,
+    });
+    const cap = settled.stable ? settled.capture : null;
     if (!cap) {
       // **超时记 error，绝不记 below-floor。** 概览页首屏本来就慢，实测一个
       // 自然流量 2.4K 的站在 41 秒超时下被误判成「没流量」。渲染慢和没有数据
       // 在超时那一刻不可区分，而结论相反——所以这里只能说「没测成」。
-      row = { domain, verdict: 'error', organicTraffic: null, error: 'timeout: overview never rendered', checkedAt: new Date().toISOString() };
+      // 数值读到了但一直在变，同样只能说没测成：写下一个还在水合的占位值，
+      // 比留一行 error 坏得多，因为它不会被重测。
+      row = {
+        domain,
+        verdict: 'error',
+        organicTraffic: null,
+        error: settled.capture?.ready
+          ? `unstable: metrics still changing after ${settled.reads} reads (placeholder values)`
+          : 'timeout: overview never rendered',
+        checkedAt: new Date().toISOString(),
+      };
     } else {
-      const lines = cap.bodyText.split(/\n+/).map((l) => l.trim()).filter(Boolean);
-      const v = parseCompact(pick(lines, '自然流量', /^[\d.,]+\s*[KMB]?$/i));
+      const m = readMetrics(cap.bodyText);
+      const v = m.organicTraffic;
       row = {
         domain,
         verdict: v === null ? 'below-floor' : v >= 100 ? 'pass' : 'fail',
         organicTraffic: v,
-        authorityScore: Number(pick(lines, 'Authority Score', /^\d+$/)) || null,
+        authorityScore: m.authorityScore,
         checkedAt: new Date().toISOString(),
       };
     }

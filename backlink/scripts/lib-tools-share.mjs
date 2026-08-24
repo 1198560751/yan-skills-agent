@@ -269,3 +269,56 @@ export function expiryWarning(state) {
     ? `Subscription expires in ${state.daysLeft} day(s) — pull what you need now.`
     : null;
 }
+
+/**
+ * 轮询到**数值稳定**为止，而不是到「标签出现」为止。
+ *
+ * 为什么必须有这一步：Semrush / Similarweb 的指标区是分两拍渲染的——先把
+ * 「Authority Score」「总访问量」这些**标签**连同一个占位的 `0` / 空态一起挂上，
+ * 真实数字晚几秒才水合进去。只认标签的就绪判据会在这个中间态通过，
+ * 于是脚本读到的是占位值：**不报错，只是数字偏小或为 0**。
+ * 2026-08-23 实测：8 个域名跑 semrush-overview，6 个被记成 authorityScore: 0，
+ * 真值是 15~29；同一天 similarweb-batch 把月访问 35 万的 mmradar.gg 记成 below-floor。
+ * 静默的错数比一次显式超时坏得多——后者会被续跑重测，前者会一路进报告。
+ *
+ * 判据：**同一组数值连续读到 needed 次完全一致**才收下。fingerprint 返回 null
+ * 表示这一次读到的还不算就绪（会重置计数）。始终返回 { stable }，
+ * 调用方必须在 stable === false 时记 error / 抛错，不许把最后一次读数当结论。
+ *
+ * needed 可以是数字，也可以是 (fingerprint) => number ——空态标记（「未找到匹配内容」）
+ * 值得比数字多要一次确认，因为它同样会在数据水合前短暂出现。
+ *
+ * abortIf(capture) 为真时立刻返回 { stable: false, aborted: true }：给「等下去也没用」的
+ * 页面状态留出口（瞬时错误页要的是重载，不是更长的超时）。
+ */
+export async function captureStable({ read, fingerprint, timeoutMs, intervalMs = 2500, needed = 2, abortIf }) {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  const want = (print) => Math.max(2, Number(typeof needed === 'function' ? needed(print) : needed) || 2);
+  let last = null;
+  let lastPrint = null;
+  let repeats = 0;
+  let reads = 0;
+  while (Date.now() < deadline) {
+    let capture = null;
+    try { capture = await read(); } catch { capture = null; }
+    reads += 1;
+    // abortIf 是「别再等了，等下去也不会变」的出口——瞬时错误页就是这种：
+    // 它要的是重载，不是更长的超时。没有这个出口，一张错误页会白白吃满整个 timeout。
+    if (capture != null && typeof abortIf === 'function' && abortIf(capture)) {
+      return { capture, stable: false, aborted: true, reads, fingerprint: null };
+    }
+    const print = capture == null ? null : fingerprint(capture);
+    if (print == null) {
+      repeats = 0;
+      lastPrint = null;
+    } else {
+      repeats = print === lastPrint ? repeats + 1 : 1;
+      lastPrint = print;
+      last = capture;
+      if (repeats >= want(print)) return { capture, stable: true, aborted: false, reads, fingerprint: print };
+    }
+    if (Date.now() + intervalMs >= deadline) break;
+    await sleep(intervalMs);
+  }
+  return { capture: last, stable: false, aborted: false, reads, fingerprint: lastPrint };
+}

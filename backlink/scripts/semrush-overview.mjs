@@ -16,7 +16,7 @@
  *   node semrush-overview.mjs --domain example.com [--db jp] [--subdomain] [--node 5]
  */
 import { defaultSession, parseFlags, printJson, required, validateSession } from './opencli-core.mjs';
-import { expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
+import { captureStable, expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
 import { writeFile } from 'node:fs/promises';
 
 const flags = parseFlags(process.argv.slice(2));
@@ -52,6 +52,28 @@ function pick(lines, label, pattern) {
   return lines.slice(i + 1, i + 6).find((l) => pattern.test(l)) || null;
 }
 
+/**
+ * 从整页文本里读出这一组指标。**同时被解析和「数值是否稳定」的指纹用**——
+ * 指纹必须覆盖真正要写进输出的每一个字段，否则某个字段还在水合就被放过去了。
+ */
+function readMetrics(bodyText) {
+  const lines = String(bodyText || '').split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  return {
+    // `Number(x) || null` 会把 AS=0 吞成 null —— 而 0 是真实值（新站常见），
+    // 与「没数据」含义相反。2026-08-21 在 semrush-report.mjs 上发现，同步修这里。
+    // 注意：这里的 0 只有在**连续两次读到同一个 0** 之后才可信，见下面的 captureStable。
+    authorityScore: (() => { const v = pick(lines, 'Authority Score', /^\d+$/); return v === null ? null : Number(v); })(),
+    organicTraffic: parseCompact(pick(lines, '自然流量', /^[\d.,]+\s*[KMB]?$/i)),
+    paidTraffic: parseCompact(pick(lines, '付费流量', /^[\d.,]+\s*[KMB]?$/i)),
+    referringDomains: parseCompact(pick(lines, '引荐域名', /^[\d.,]+\s*[KMB]?$/i)),
+    organicKeywords: parseCompact(pick(lines, '自然搜索关键词', /^[\d.,]+\s*[KMB]?$/i)),
+    backlinks: parseCompact(pick(lines, '反向链接', /^[\d.,]+\s*[KMB]?$/i)),
+    // 变化率紧跟在数值后面，单独取一次用于判断是在涨还是在掉。
+    organicTrafficChange: pick(lines, '自然流量', /^[+\-−][\d.]+%$/),
+    organicKeywordsChange: pick(lines, '自然搜索关键词', /^[+\-−][\d.]+%$/),
+  };
+}
+
 let output;
 try {
   const launched = await launchTool({
@@ -70,39 +92,43 @@ try {
 
   // 概览页首屏要十几秒。**认「Authority Score」而不是页面标题**——
   // 标题在骨架阶段就有了，认它会抓到一个空壳。
-  let captured = null;
-  const deadline = Date.now() + Number(flags.timeout || 120) * 1000;
-  while (Date.now() < deadline) {
-    captured = await launched.evalPage(`(() => JSON.stringify({
-      url: location.href,
-      title: document.title,
-      ready: /Authority Score|权威分数/.test(document.body?.innerText || ''),
-      bodyText: (document.body?.innerText || '').slice(0, 30000),
-    }))()`);
-    if (captured.ready) break;
-    await new Promise((r) => setTimeout(r, 3000));
-  }
+  //
+  // **但认到标签也还不算数。** 标签挂上来的时候数值区往往还停在占位的 `0` 上，
+  // 真实数字要再晚几秒才水合进去。2026-08-23 实测：一次跑 8 个域名，6 个被读成
+  // authorityScore: 0，真值是 15~29（mmradar.gg 22、na.whatismymmr.com 29、
+  // saveeditonline.com 38…）。而且**它不报错**——输出结构完整，只是数字是错的，
+  // 一路进报告都没人看得出来。所以就绪之后还要连读到**数值两次完全一致**才收下；
+  // 读不稳就显式失败，宁可重跑，也不写下一个可能是占位值的数字。
+  const readOverview = () => launched.evalPage(`(() => JSON.stringify({
+    url: location.href,
+    title: document.title,
+    ready: /Authority Score|权威分数/.test(document.body?.innerText || ''),
+    bodyText: (document.body?.innerText || '').slice(0, 30000),
+  }))()`);
+  const settled = await captureStable({
+    read: readOverview,
+    fingerprint: (cap) => (cap?.ready ? JSON.stringify(readMetrics(cap.bodyText)) : null),
+    timeoutMs: Number(flags.timeout || 120) * 1000,
+    intervalMs: Number(flags['stable-interval'] || 3) * 1000,
+    needed: Number(flags['stable-reads'] || 2),
+  });
+  const captured = settled.capture;
   if (!captured?.ready) {
     throw new Error(
       `Semrush overview for ${domain} never rendered its metrics. Most likely the node is down — ` +
         `rerun with a different --node. Second possibility: the domain has no data in db=${db || 'global'}.`,
     );
   }
+  if (!settled.stable) {
+    throw new Error(
+      `Semrush overview for ${domain} showed its labels but the numbers never settled ` +
+        `(${settled.reads} reads over ${flags.timeout || 120}s). The values on screen are still ` +
+        `placeholders — reporting them would silently under-count (typically Authority Score 0). ` +
+        `Rerun, or raise --timeout / --stable-interval.`,
+    );
+  }
 
-  const lines = captured.bodyText.split(/\n+/).map((l) => l.trim()).filter(Boolean);
-  const metrics = {
-    // `Number(x) || null` 会把 AS=0 吞成 null —— 而 0 是真实值（新站常见），
-    // 与「没数据」含义相反。2026-08-21 在 semrush-report.mjs 上发现，同步修这里。
-    authorityScore: (() => { const v = pick(lines, 'Authority Score', /^\d+$/); return v === null ? null : Number(v); })(),
-    organicTraffic: parseCompact(pick(lines, '自然流量', /^[\d.,]+\s*[KMB]?$/i)),
-    paidTraffic: parseCompact(pick(lines, '付费流量', /^[\d.,]+\s*[KMB]?$/i)),
-    referringDomains: parseCompact(pick(lines, '引荐域名', /^[\d.,]+\s*[KMB]?$/i)),
-    organicKeywords: parseCompact(pick(lines, '自然搜索关键词', /^[\d.,]+\s*[KMB]?$/i)),
-    backlinks: parseCompact(pick(lines, '反向链接', /^[\d.,]+\s*[KMB]?$/i)),
-    // 变化率紧跟在数值后面，单独取一次用于判断是在涨还是在掉。
-    organicTrafficChange: pick(lines, '自然流量', /^[+\-−][\d.]+%$/),
-    organicKeywordsChange: pick(lines, '自然搜索关键词', /^[+\-−][\d.]+%$/),
-  };
+  const metrics = readMetrics(captured.bodyText);
 
   output = {
     version: 1,
@@ -114,6 +140,8 @@ try {
     searchType,
     session,
     title: captured.title,
+    // 读了几次才稳下来：偶发的 4+ 次说明这个节点水合很慢，值得换。
+    reads: settled.reads,
     subscription: {
       expiry: launched.state.expiry,
       daysLeft: launched.state.daysLeft,

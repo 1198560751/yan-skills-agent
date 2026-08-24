@@ -224,6 +224,33 @@ user management, removals, or other mutations.
 `semrush-report.mjs` 已经按这条实现：命中错误文案就 `location.reload()` 重试，
 默认 3 次（`--retries`），失败时的报错文案会把两种成因分开列。
 
+### 标签出现 ≠ 数值出现（2026-08-23 实测，静默错数）
+
+指标区分两拍渲染：先挂标签和占位值（`Authority Score` 下面一个 `0`、
+`总访问量` 下面一个空态句），几秒后真值才水合进来。**只认标签的就绪判据会在
+这个缝里通过，读到的是占位值，而且不报错。** 8 个域名跑 `semrush-overview.mjs`，
+6 个被记成 `authorityScore: 0`（真值 22/29/38/15/22/26）；同一天
+`similarweb-batch.mjs` 把月访问 351,111 的 mmradar.gg 记成 `below-floor`。
+
+判据与实现见 [traffic-screen.md](traffic-screen.md#a-rendered-label-is-not-a-rendered-number)：
+`lib-tools-share.mjs` 的 `captureStable()`，**同一组数值连读两次一致才收下，
+读不稳记 error**。`semrush-overview.mjs` / `semrush-batch.mjs` /
+`similarweb-batch.mjs` 已按此实现。
+
+**六个脚本已全部走这条路**：`semrush-overview.mjs`、`semrush-batch.mjs`、
+`similarweb-batch.mjs`、`similarweb-query.mjs`，以及 `semrush-report.mjs` 的全部六张报告
+（它拿 `parse()` 的完整输出当指纹——**指纹就是要写出去的那个对象**，
+不存在「盯着 A、写出去 B」的漏洞）。`spec.ready` 从此只是入场券，不是结论。
+
+顺带修掉的三个同源问题：
+- **翻页**：页码指示器先走，表体后换。点完就读会把上一页再读一遍，而行级去重
+  把它悄悄吞掉（翻五页只多十二行）。现在要求新页的解析结果**稳定且与上一页不同**，
+  拿不到就停下并写明 `pagination.stoppedBecause` + stderr `[truncated]`。
+- **静默截断**：`--max-pages` 到顶、下一页按钮没了、某页始终没稳——三种都会明确报出来。
+- **`parsePages` 的字段名对不上内容**（`rowsVisible` 里装的是行数组），
+  导致 `--all-pages` 翻 `organic-pages` 时 `parsed.rows` 是 undefined，
+  push 抛 TypeError，整张报告变成 `report_failed`——看起来像数据源坏了。
+
 ### Semrush 的五张「没有导出按钮」的报告，以及会话复用的经济账
 
 `semrush-overview.mjs` 只覆盖域名概览一张。真正做竞品勘测要的是另外四张，

@@ -51,6 +51,67 @@ stale verdict it previously left on that domain.
 Before writing "no data", be able to name the sentence in which the source said
 so.
 
+## A rendered label is not a rendered number
+
+These panels render metrics in **two beats**: first the label plus a placeholder
+(`Authority Score` above a `0`, `总访问量` above a dash or the empty-state
+sentence), then, seconds later, the real figure hydrates in. A readiness check
+that fires on the label passes during the gap and reads the placeholder.
+
+**It fails silently.** No error, no timeout — just a small or zero number that
+travels all the way into a report. On 2026-08-23, `semrush-overview.mjs` over 8
+domains returned `authorityScore: 0` for **6 of them**; the real values were 22,
+29, 38, 15, 22, 26. The same beat cost `similarweb-batch.mjs` mmradar.gg, which
+was written `below-floor` while actually serving 351,111 visits/mo.
+
+The rule, for any script that scrapes a rendered number:
+
+| Readiness judged on | Verdict |
+|---|---|
+| Page title / left-nav menu item | Wrong — present in the skeleton |
+| The label (`Authority Score`, `总访问量`) | **Still wrong** — present before the value hydrates |
+| **The value itself, identical across two consecutive reads** | Correct |
+
+`lib-tools-share.mjs` exports `captureStable({ read, fingerprint, timeoutMs,
+intervalMs, needed, abortIf })` for exactly this. Fingerprint **every field you
+are going to write out** — a fingerprint that watches A while the parser emits B
+is not a stability check; the strongest form is to fingerprint the parser's own
+output, which is what `semrush-report.mjs` does. Every script that scrapes a
+number now goes through it (`--stable-interval` everywhere, `--stable-reads` on
+the overview):
+
+| Script | Fingerprint |
+|---|---|
+| `semrush-overview.mjs` | the six overview metrics |
+| `semrush-batch.mjs` | organic traffic + Authority Score |
+| `similarweb-batch.mjs` | total visits + ranks, or the empty-state marker |
+| `similarweb-query.mjs` | the report's own payload (metrics / channels / page text) |
+| `semrush-report.mjs` | `spec.parse()`'s entire return value, all 6 reports |
+
+`abortIf` exists for states where waiting cannot help — the transient 「出错了」
+page wants a reload, not a longer timeout, and without an early exit it burns
+the whole budget first.
+
+**Unstable is `error`, never a number and never `below-floor`.** If the values
+never settle, the run did not complete; say so and let the resume retry it. The
+empty-state marker needs **three** consecutive reads, not two, because it also
+shows up mid-hydration and `below-floor` is terminal — resume never revisits it.
+An **empty parse** counts as an empty state for this purpose: a report that
+parses to zero rows or all-null fields gets the same third read, because "the
+table is empty" and "the table has not rendered yet" are the same picture.
+
+The same beat governs **pagination**: the page-number indicator advances before
+the table body swaps. Reading straight after the click yields the previous page's
+rows, and row-level dedup then swallows them silently — five pages turned, twelve
+new rows. `semrush-report.mjs --all-pages` now waits for a parse that is both
+stable **and different from the previous page**, and when it cannot get one it
+stops and says so: `pagination.complete: false` plus `stoppedBecause`, and a
+`[truncated]` line on stderr. Silent truncation is the failure mode this Skill
+bans outright.
+
+Cost: two to three extra seconds per domain. That is the price of the number
+being real.
+
 ## Do not substitute a popularity list for measured traffic
 
 Tranco's top-1M was tried as a cheap stand-in and failed on the labelled set:
