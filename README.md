@@ -365,7 +365,7 @@ candidate → qualified → filled → submitted → public → indexed@<engine>
 
 ---
 
-## 另外三个 Skill
+## 另外四个 Skill
 
 ### [`autopilot`](autopilot/) — 一句话到无人值守执行完
 
@@ -384,6 +384,14 @@ Skill 装多了以后，「为什么这个 Skill 没生效」十次里有八次�
 ### [`skillsmp`](skillsmp/) — 在 160 万份 SKILL.md 里搜技能
 
 按关键词、分类、职业、语言过滤，专门挖那些写得好但没人知道的冷门 Skill。动手造轮子之前先搜一下。
+
+### [`codex`](codex/) — 生图，以及把 Codex 当后台 sub-agent
+
+主用途是**生成图片**：配图、插图、成套出图，走 Codex 内置的那个 OpenAI 生图工具。
+次要用途是把 Codex CLI 当后台 sub-agent 使——代码分析、重构、review，或者组一支并行的 agent 队伍。
+它**总是后台运行**：发起之后立刻把控制权还给你，需要时再去取结果。
+
+依赖已安装并登录的 Codex CLI。
 
 ---
 

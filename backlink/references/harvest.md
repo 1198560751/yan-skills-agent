@@ -248,9 +248,9 @@ Blob 下载不是同步完成的，最后一个文件常常晚几秒落盘。
 
 | 脚本 | 用途 |
 |---|---|
-| [`scripts/harvest.browser.js`](scripts/harvest.browser.js) | 贴进浏览器执行工具：坐标重建行、列位自适应、批量导航、Blob 导出 |
-| [`scripts/harvest-collect.sh`](scripts/harvest-collect.sh) | 等下载齐、拦重复文件、收拢到项目目录 |
-| [`scripts/harvest-merge.mjs`](scripts/harvest-merge.mjs) | 合并 TSV → CSV：重复文件守卫、脏行过滤、字段保留式去重 |
+| [`scripts/harvest.browser.js`](../scripts/harvest.browser.js) | 贴进浏览器执行工具：坐标重建行、列位自适应、批量导航、Blob 导出 |
+| [`scripts/harvest-collect.sh`](../scripts/harvest-collect.sh) | 等下载齐、拦重复文件、收拢到项目目录 |
+| [`scripts/harvest-merge.mjs`](../scripts/harvest-merge.mjs) | 合并 TSV → CSV：重复文件守卫、脏行过滤、字段保留式去重 |
 
 用法见各脚本头部注释。**脚本里不写任何具体站点、账号或本机路径**——
 那些属于项目侧，放各项目自己的记忆目录。

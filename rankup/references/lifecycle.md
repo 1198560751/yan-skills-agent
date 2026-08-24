@@ -200,7 +200,7 @@
    浏览器字体选择和无障碍朗读语言）、title/description/og 用目标语言实文案、
    404 页本地化、首页替换成真实落地页。**不要留 `Project ready!` / `Hello world` 这类占位**——
    它会一路活到上线，而且没人会专门回来改。
-   多语言站另须遵守 [`seo-growth.md`](references/seo-growth.md) 的「多语言站架构参考（Apple 模型）」
+   多语言站另须遵守 [`seo-growth.md`](seo-growth.md) 的「多语言站架构参考（Apple 模型）」
    九条规则——URL 子目录结构、hreflang 互指、**禁止根据 IP 自动跳转**（只做顶部横幅建议切换）、
    中文四市场分治等。
 6. **初始化版本控制与远端**（见下「Git 与远端」）。
