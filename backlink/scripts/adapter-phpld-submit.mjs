@@ -14,6 +14,8 @@
  */
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { helpGuard } from './opencli-core.mjs';
+helpGuard(import.meta.url);
 
 const a = {};
 for (let i = 2; i < process.argv.length; i++) { const f = process.argv[i]; if (f.startsWith('--')) a[f.slice(2)] = process.argv[++i]; }

@@ -1,9 +1,39 @@
 #!/usr/bin/env node
+/**
+ * similarweb-query.mjs —— 用已登录的 Tools Share 会话查一个域名的 Similarweb 报表。
+ *
+ * 用法：
+ *   node scripts/similarweb-query.mjs --domain example.com
+ *   node scripts/similarweb-query.mjs --domain example.com --report channels --out out.json
+ *
+ * 参数：
+ *   --domain <d>            必填
+ *   --report <r>            performance（默认）| channels | similar-sites
+ *   --out <file>            落盘 JSON
+ *   --session <name>        opencli 会话名，默认按项目派生（别写死）
+ *   --node <n> / --launch   面板节点与启动方式
+ *   --timeout <s>           整体超时
+ *   --stable-interval <s>   两次读数之间的间隔（默认 2.5 秒）
+ *   --wait / --settle       额外等待
+ *   --keep-open             跑完保留标签页
+ *   --window <mode>         background（默认）/ foreground / isolated
+ *   --help                  本说明
+ *
+ * 【必须知道的一条】指标区是分两拍渲染的：标签和占位值先挂上，真值几秒后才水合。
+ * 所以本脚本读到**同一组数值连续若干次完全一致**才收下，`stable === false`
+ * 时直接抛错而不是把最后一次读数当结论——静默的错数比一次显式超时坏得多。
+ * 空态（「未找到匹配内容」）要连续确认 3 次才算数，因为它同样会在数据水合前短暂出现。
+ *
+ * `belowFloor: true` 是**结论**（数据源明说没有此站的数据），不是失败，别和「查不到」混为一谈。
+ * 只有 performance 报表有 metrics：在渠道页上跑 deriveMetrics 会把筛选器文字当数值抓
+ * （实测 globalRank 抓成 1），宁可不给也不要给错的。
+ */
 import { writeFile } from 'node:fs/promises';
 import {
   closeSession,
   defaultSession,
   parseFlags,
+  showHelpIfRequested,
   printJson,
   required,
   validateSession,
@@ -11,6 +41,7 @@ import {
 import { captureStable, expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
+showHelpIfRequested(flags, import.meta.url);
 const domain = normalizeDomain(required(flags, 'domain'));
 const session = flags.session ? validateSession(flags.session) : defaultSession('similarweb-research');
 const REPORTS = new Set(['performance', 'similar-sites', 'channels']);

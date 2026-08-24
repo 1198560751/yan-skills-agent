@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { writeFile } from 'node:fs/promises';
-import { defaultSession, firstJson, openAndEval, parseFlags, printJson, required, validateSession } from './opencli-core.mjs';
+import { defaultSession, firstJson, openAndEval, parseFlags, printJson, required, validateSession, showHelpIfRequested} from './opencli-core.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
+showHelpIfRequested(flags, import.meta.url);
 const url = new URL(required(flags, 'url'));
 if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Only http(s) URLs are supported.');
 const session = flags.session ? validateSession(flags.session) : defaultSession('backlink-work');

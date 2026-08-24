@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 
 export function parseFlags(argv) {
@@ -15,6 +16,44 @@ export function parseFlags(argv) {
     }
   }
   return flags;
+}
+
+/**
+ * `--help` 是成功，不是用法错误。
+ *
+ * 这五个面板脚本此前的行为是：`--help` 走到 `required()` 抛未捕获异常，
+ * 打一屏堆栈、退出码 1。任何 `set -e` 的批处理扫过去都会把它们判成脚本坏了，
+ * 而它们其实是好的——想看用法的人反而以为装挂了。
+ *
+ * 帮助文案直接取**本文件自身的头部注释**，不另写一份：两份文案必然漂移，
+ * 而漂移后的帮助比没有帮助更误导人。
+ */
+export function showHelpIfRequested(flags, importMetaUrl) {
+  if (!flags.help && !flags.h) return;
+  let text = '';
+  try {
+    const path = new URL(importMetaUrl).pathname;
+    const src = readFileSync(path, 'utf8');
+    const m = src.match(/\/\*\*([\s\S]*?)\*\//);
+    if (m) text = m[1].split('\n').map((l) => l.replace(/^\s*\* ?/, '')).join('\n').trim();
+  } catch { /* 取不到就退回下面那句 */ }
+  console.log(text || '这个脚本还没写头部说明；用 --domain / --out 之类的参数直接跑，或读源码。');
+  process.exit(0);
+}
+
+/**
+ * `helpGuard` 是 `showHelpIfRequested` 的无依赖版本：直接看 `process.argv`，
+ * 不要求调用方先解析出 flags。
+ *
+ * 为什么需要两个：仓库里的脚本分两类——一类用 `parseFlags`（那类用上面那个函数），
+ * 另一类自己数 `process.argv.length` 或读 `process.argv[2]`。后者往往在**任何**
+ * 参数解析之前就先做必填校验或直接开工，`--help` 走到那里就抛异常了。
+ * 所以这个守卫要放在文件最前面，早于一切。
+ */
+export function helpGuard(importMetaUrl) {
+  const argv = process.argv.slice(2);
+  if (!argv.includes('--help') && !argv.includes('-h')) return;
+  showHelpIfRequested({ help: true }, importMetaUrl);
 }
 
 export function required(flags, name) {

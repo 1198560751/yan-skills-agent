@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-import { firstJson, opencli, parseFlags, printJson, run } from './opencli-core.mjs';
+import { firstJson, opencli, parseFlags, printJson, run, showHelpIfRequested} from './opencli-core.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
+showHelpIfRequested(flags, import.meta.url);
 const installed = (await opencli(['--version'])).stdout.trim();
 const doctor = await opencli(['doctor', '-v'], { allowFailure: true, timeoutMs: 30_000 });
 let latest = null;

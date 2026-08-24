@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { parseFlags, printJson, required } from './opencli-core.mjs';
+import { parseFlags, printJson, required, showHelpIfRequested} from './opencli-core.mjs';
 
 function normalizeDomain(value) {
   const source = /^[a-z]+:\/\//i.test(value) ? value : `https://${value}`;
@@ -63,6 +63,9 @@ function addNode(graph, domain, depth, source = 'seed') {
   return node;
 }
 
+// 子命令式脚本：`--help` 会被当成子命令吃掉（command='--help'、rest 为空），
+// 所以必须在拆子命令**之前**判，否则一路走到「Unknown command」抛异常。
+showHelpIfRequested(parseFlags(process.argv.slice(2)), import.meta.url);
 const [command = 'stats', ...rest] = process.argv.slice(2);
 const flags = parseFlags(rest);
 const file = flags.file || '.backlink/discovery.json';

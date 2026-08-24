@@ -14,6 +14,8 @@
  */
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
+import { helpGuard } from './opencli-core.mjs';
+helpGuard(import.meta.url);
 
 const argv = process.argv.slice(2);
 const flag = (name, dflt) => {

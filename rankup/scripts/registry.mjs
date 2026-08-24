@@ -17,6 +17,18 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from 'node:fs';
+// `--help` 是成功，不是用法错误。放在最前面：本文件在任何参数解析之前
+// 就会开工（起服务 / 读文件 / 校验必填），走到那里再判就已经晚了。
+// 帮助文案直接取本文件头部注释，不另写一份——两份必然漂移。
+if (process.argv.slice(2).some((a) => a === '--help' || a === '-h')) {
+  const src = readFileSync(new URL(import.meta.url).pathname, 'utf8');
+  const block = src.match(/\/\*\*([\s\S]*?)\*\//)
+    ? src.match(/\/\*\*([\s\S]*?)\*\//)[1].split('\n').map((l) => l.replace(/^\s*\* ?/, ''))
+    : src.split('\n').slice(1).filter((l) => l.startsWith('//')).map((l) => l.replace(/^\/\/ ?/, ''));
+  console.log(block.join('\n').trim());
+  process.exit(0);
+}
 
 // 名单默认就放在 Skill 目录里,挨着 SKILL.md,用的时候一眼看得到。
 // 它含项目名与绝对路径,因此被 rankup/.gitignore 排除,并由 validate-rankup.mjs

@@ -18,10 +18,11 @@
  * 用法：node scripts/semrush-batch.mjs --domains-file d.txt --out out.jsonl [--db us] [--node 3]
  */
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
-import { defaultSession, parseFlags, required, validateSession } from './opencli-core.mjs';
+import { defaultSession, parseFlags, showHelpIfRequested, required, validateSession } from './opencli-core.mjs';
 import { captureStable, expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
+showHelpIfRequested(flags, import.meta.url);
 const outPath = required(flags, 'out');
 const session = flags.session ? validateSession(flags.session) : defaultSession('sem-batch');
 const appOrigin = (process.env.TOOLS_SHARE_APP_ORIGIN_SEMRUSH || 'https://sem.3ue.co').replace(/\/+$/, '');

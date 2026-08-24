@@ -34,6 +34,8 @@
 import fs from 'node:fs';
 import https from 'node:https';
 import { cohortOf, primaryGate } from './lib-cohort.mjs';
+import { helpGuard } from './opencli-core.mjs';
+helpGuard(import.meta.url);
 
 // An expired or mismatched certificate is a TLS fact, not evidence that a site
 // is gone. Measured on one sweep: several domains that failed outright came back

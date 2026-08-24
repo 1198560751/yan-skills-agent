@@ -24,6 +24,18 @@
 //   node scripts/treasure.mjs "keyword" [--pages 5] [--lang zh] [--max-stars 2000] [--top 15] [--json]
 
 import { searchAll } from './search.mjs';
+import { readFileSync } from 'node:fs';
+// `--help` 是成功，不是用法错误。放在最前面：本文件在任何参数解析之前
+// 就会开工（起服务 / 读文件 / 校验必填），走到那里再判就已经晚了。
+// 帮助文案直接取本文件头部注释，不另写一份——两份必然漂移。
+if (process.argv.slice(2).some((a) => a === '--help' || a === '-h')) {
+  const src = readFileSync(new URL(import.meta.url).pathname, 'utf8');
+  const block = src.match(/\/\*\*([\s\S]*?)\*\//)
+    ? src.match(/\/\*\*([\s\S]*?)\*\//)[1].split('\n').map((l) => l.replace(/^\s*\* ?/, ''))
+    : src.split('\n').slice(1).filter((l) => l.startsWith('//')).map((l) => l.replace(/^\/\/ ?/, ''));
+  console.log(block.join('\n').trim());
+  process.exit(0);
+}
 
 const argv = process.argv.slice(2);
 const q = argv.find((a) => !a.startsWith('--'));

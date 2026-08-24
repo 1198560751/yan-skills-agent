@@ -27,6 +27,8 @@ import fs from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cohortOf, primaryGate } from './lib-cohort.mjs';
+import { helpGuard } from './opencli-core.mjs';
+helpGuard(import.meta.url);
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DATA = join(HERE, '..', 'data');

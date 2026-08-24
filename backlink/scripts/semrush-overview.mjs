@@ -15,11 +15,12 @@
  * 用法：
  *   node semrush-overview.mjs --domain example.com [--db jp] [--subdomain] [--node 5]
  */
-import { defaultSession, parseFlags, printJson, required, validateSession } from './opencli-core.mjs';
+import { defaultSession, parseFlags, showHelpIfRequested, printJson, required, validateSession } from './opencli-core.mjs';
 import { captureStable, expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
 import { writeFile } from 'node:fs/promises';
 
 const flags = parseFlags(process.argv.slice(2));
+showHelpIfRequested(flags, import.meta.url);
 const domain = normalizeDomain(required(flags, 'domain'));
 const db = String(flags.db || '').trim().toLowerCase();
 const session = flags.session ? validateSession(flags.session) : defaultSession('semrush-overview');

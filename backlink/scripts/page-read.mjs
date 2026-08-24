@@ -17,9 +17,10 @@
  *   node page-read.mjs --url https://example.com/pricing [--wait 6] [--links /plan] [--out x.json]
  */
 import { writeFile } from 'node:fs/promises';
-import { defaultSession, openAndEval, parseFlags, printJson, required, validateSession } from './opencli-core.mjs';
+import { defaultSession, openAndEval, parseFlags, printJson, required, validateSession, showHelpIfRequested} from './opencli-core.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
+showHelpIfRequested(flags, import.meta.url);
 const url = new URL(required(flags, 'url'));
 if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Only http(s) URLs are supported.');
 const session = flags.session ? validateSession(flags.session) : defaultSession('page-recon');

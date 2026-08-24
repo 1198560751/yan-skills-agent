@@ -8,10 +8,11 @@
  * 用法：
  *   node tools-share-open.mjs --tool similarweb [--node 5] [--goto /#/...] [--session <名>]
  */
-import { defaultSession, parseFlags, printJson, validateSession } from './opencli-core.mjs';
+import { defaultSession, parseFlags, printJson, validateSession, showHelpIfRequested} from './opencli-core.mjs';
 import { expiryWarning, gotoInTool, launchTool, scrub } from './lib-tools-share.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
+showHelpIfRequested(flags, import.meta.url);
 const session = flags.session ? validateSession(flags.session) : defaultSession('backlink-panel');
 
 const { tool, state, landed, evalPage } = await launchTool({

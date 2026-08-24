@@ -28,11 +28,12 @@
  *   ...
  *   opencli browser $S close
  */
-import { defaultSession, opencli, firstJson, parseFlags, printJson, validateSession } from './opencli-core.mjs';
+import { defaultSession, opencli, firstJson, parseFlags, showHelpIfRequested, printJson, validateSession } from './opencli-core.mjs';
 import { captureStable, expiryWarning, launchTool } from './lib-tools-share.mjs';
 import { writeFile } from 'node:fs/promises';
 
 const flags = parseFlags(process.argv.slice(2));
+showHelpIfRequested(flags, import.meta.url);
 const session = flags.session ? validateSession(flags.session) : defaultSession('semrush-report');
 const APP_ORIGIN = (process.env.TOOLS_SHARE_APP_ORIGIN_SEMRUSH || 'https://sem.3ue.co').replace(/\/+$/, '');
 const APP_HOST = new URL(APP_ORIGIN).host;

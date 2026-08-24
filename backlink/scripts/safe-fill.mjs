@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
-import { firstJson, opencli, parseFlags, printJson, required, validateSession } from './opencli-core.mjs';
+import { firstJson, opencli, parseFlags, printJson, required, validateSession, showHelpIfRequested} from './opencli-core.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
+showHelpIfRequested(flags, import.meta.url);
 const session = validateSession(required(flags, 'session'));
 const scan = JSON.parse(await readFile(required(flags, 'scan'), 'utf8'));
 const payload = JSON.parse(await readFile(required(flags, 'payload'), 'utf8'));

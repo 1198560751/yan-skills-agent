@@ -16,6 +16,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { helpGuard } from './opencli-core.mjs';
+helpGuard(import.meta.url);
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const skillDir = path.resolve(here, '..');

@@ -17,6 +17,8 @@
 import fs from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { helpGuard } from './opencli-core.mjs';
+helpGuard(import.meta.url);
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FILE = join(HERE, '..', 'data', 'submission-targets.json');

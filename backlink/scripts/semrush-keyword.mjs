@@ -21,11 +21,12 @@
  *   node semrush-keyword.mjs --kw 診断 --db jp      # --db 是按国家的，别省
  *   node semrush-keyword.mjs --kw-file words.txt --db kr --out kr.jsonl
  */
-import { defaultSession, parseFlags, printJson, validateSession } from './opencli-core.mjs';
+import { defaultSession, parseFlags, printJson, validateSession, showHelpIfRequested} from './opencli-core.mjs';
 import { expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
 import { appendFile, readFile, writeFile } from 'node:fs/promises';
 
 const flags = parseFlags(process.argv.slice(2));
+showHelpIfRequested(flags, import.meta.url);
 const dbGiven = flags.db !== undefined && String(flags.db).trim() !== '';
 const db = String(flags.db || 'jp').trim().toLowerCase();
 // The default exists because this Skill's first callers were all JP-market, and

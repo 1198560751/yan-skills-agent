@@ -29,6 +29,8 @@
 
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { helpGuard } from './opencli-core.mjs';
+helpGuard(import.meta.url);
 
 const args = {};
 for (let i = 2; i < process.argv.length; i++) {
