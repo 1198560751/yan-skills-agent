@@ -78,6 +78,7 @@ import {
   browserPost,
   browserGet,
   sleep,
+  ensureLoggedIn,
 } from "./webcafe-transport.mjs";
 import { propsFromHtml, isLoginPage } from "./webcafe-rsc.mjs";
 
@@ -644,7 +645,8 @@ async function cmdBodies(kind, args, ctx) {
   // 所以要两手：请求之间留间隔，以及连续撞墙就停，别拿 700 次失败去换一个必然的结论。
   const delay = Number(args.delay ?? 700);
   const FUSE = 5;
-  let ok = 0, empty = 0, streak = 0;
+  const MAX_RELOGIN = Number(args.maxRelogin ?? 12);
+  let ok = 0, empty = 0, streak = 0, relogins = 0;
   for (let i = 0; i < todo.length; i++) {
     const r = todo[i];
     if (i) await sleep(delay);
@@ -662,16 +664,28 @@ async function cmdBodies(kind, args, ctx) {
       // 而匿名态下站点返回的是一个**合法但正文为空**的页面——不抛错，于是熔断
       // 永远不触发，528 条空行就这么一路写完了。同一个坑连踩三次都是这个原因：
       // **有报错的失败会被拦住，没报错的失败不会。**
-      if (md.length) streak = 0;
-      else if (++streak >= FUSE) {
-        let loggedIn = null;
-        try { loggedIn = !!(await apiWhoami(ctx.session))?.user; } catch { /* 探不到就不猜 */ }
+      if (md.length) { streak = 0; continue; }
+      if (++streak < FUSE) continue;
+
+      // **掉线是这个站的常态，不是异常。** 实测第一轮撑约 100 条、重登后约 20 条，
+      // 所以重新登录必须是取数循环里的一步，而不是让人回来手点的终止条件。
+      streak = 0;
+      if (relogins >= MAX_RELOGIN) {
         console.error(
-          `\n连续 ${FUSE} 条正文为空。已停在 ${i + 1}/${todo.length}。` +
-            (loggedIn === false
-              ? `\n成因：**浏览器里没有 new.web.cafe 的会话**——请在浏览器里点「登录」→ Google，然后用同一条命令续跑。`
-              : `\n成因：会话探测结果为 ${loggedIn}；先跑 whoami 确认，再决定是重登还是等待。`),
+          `\n连续 ${FUSE} 条空正文，且本轮已经重登 ${relogins} 次仍无改善——停在 ${i + 1}/${todo.length}。` +
+            `\n这时候多半不是登录问题（站点自己在报错，或改了渲染方式）。已取到的都在 ${out} 里。`,
         );
+        break;
+      }
+      console.error(`  连续 ${FUSE} 条空正文 → 第 ${relogins + 1} 次自动重新登录……`);
+      try {
+        const r = await ensureLoggedIn(ctx.session);
+        relogins++;
+        console.error(r.relogged ? `  ✓ 已重新登录，继续` : `  会话本来就在，空正文另有成因`);
+        // 重登成功就把这批空的重排到队尾——它们是被踢下线连累的，不是真的没内容。
+        if (r.relogged) todo.push(...todo.slice(Math.max(0, i - FUSE + 1), i + 1));
+      } catch (e) {
+        console.error(`  ✗ 自动重登失败：${e.message}\n  已取到的都在 ${out} 里，稍后用同一条命令续跑。`);
         break;
       }
     } catch (e) {
@@ -703,7 +717,7 @@ async function cmdBodies(kind, args, ctx) {
       console.error(`  ${i + 1}/${todo.length}（有正文 ${ok}，空 ${empty}）`);
     }
   }
-  console.error(`完成：${ok} 条有正文，${empty} 条为空 → ${out}`);
+  console.error(`完成：${ok} 条有正文，${empty} 条为空，自动重登 ${relogins} 次 → ${out}`);
   return { total: rows.length, fetched: ok, empty };
 }
 

@@ -317,6 +317,66 @@ export async function closeSession(session) {
   }
 }
 
+/**
+ * **自动重新登录**（谷歌一键，不跳谷歌授权页）。
+ *
+ * 这个站会把长时间取数的会话踢下线——实测第一轮撑约 100 条，重登后只剩约 20 条。
+ * 所以「重新登录」不是异常处理，是**正常取数循环里的一步**，必须能无人值守完成。
+ *
+ * 两步，都有各自的坑：
+ *   1. 右上角「登 录」——DOM 里的文字是 `登 录`（中间有空格），按 `登录` 找不到；
+ *      而且它没有 id，只能靠 class 前缀定位。
+ *   2. 弹窗里的「使用 Google 登录」——**不能用 JS 的 `.click()`**，实测点了没反应
+ *      （headlessui 的按钮要真实指针事件）。做法是先给它打一个属性标记，
+ *      再用 opencli 的 click 按属性选中——这样既拿到了真实点击，又不用猜 class。
+ *
+ * 账号已在浏览器里登录过谷歌时，这一步**不会跳转到谷歌授权页**，直接就回来了。
+ * 本函数只点按钮，**从不接触任何凭据**。
+ */
+export async function ensureLoggedIn(session, { timeout = 20000 } = {}) {
+  if ((await whoami(session))?.user) return { relogged: false };
+
+  await opencli(["browser", session, "--window", "background", "open", BASE + "/"]);
+  // **必须等够水合。** 实测 3 秒和 9 秒都不行、30 秒一次就中：页面还在水合时，
+  // 「登 录」按钮已经在 DOM 里但处理函数还没挂上，这时候的点击**返回成功、毫无效果**。
+  // 这类失败最难查——点击报 hit、按钮也确实存在，只是什么都没发生。
+  await sleep(Number(process.env.WEBCAFE_HYDRATE_MS || 30000));
+
+  // 打标记而不是猜 class：弹窗里的按钮和顶部「登 录」用的是同一串 class，
+  // 靠 class 选会选中错的那个。
+  const tag =
+    `(()=>{const b=[...document.querySelectorAll("button")]` +
+    `.find(e=>(e.innerText||"").replace(/\\s+/g," ").trim()==="使用 Google 登录");` +
+    `if(!b)return "no";b.setAttribute("data-cc-login","1");return "ok";})()`;
+
+  // **弹窗不是必然一点就开。** 页面刚导航完可能还在水合，这时候的点击落空且不报错，
+  // 于是下一步「找不到 Google 按钮」，看起来像是页面结构变了——实际上只是点早了。
+  // 所以要重试，并且每次都重新确认弹窗真的开了。
+  // 先看弹窗是不是已经开着（上一次尝试可能已经把它点开了）。
+  // 不先看就直接点，会在弹窗已开时点到弹窗里的按钮上，选择器歧义导致 click 直接报错。
+  let tagged = await opencli(["browser", session, "eval", tag]);
+  for (let attempt = 1; attempt <= 3 && !tagged.includes("ok"); attempt++) {
+    try {
+      await opencli(["browser", session, "click", "button.inline-flex.w-full.justify-center"]);
+    } catch (e) {
+      // 点击本身失败（选择器没匹配上/匹配到多个）不该终止整轮——下一次循环会重新判断。
+      console.error(`  （第 ${attempt} 次点「登 录」失败：${String(e.message).split("\n")[0].slice(0, 80)}）`);
+    }
+    await sleep(3000 * attempt);
+    tagged = await opencli(["browser", session, "eval", tag]);
+  }
+  if (!tagged.includes("ok")) throw new Error("点了三次「登 录」，弹窗里始终没有「使用 Google 登录」按钮");
+
+  await opencli(["browser", session, "click", "[data-cc-login]"]);
+
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    await sleep(2000);
+    if ((await whoami(session))?.user) return { relogged: true };
+  }
+  throw new Error("点了谷歌登录但会话仍未建立");
+}
+
 /** 探针：脚本当前在浏览器里是不是登录态。 */
 export async function whoami(session) {
   const r = await browserGet("/api/auth/session", { session });
