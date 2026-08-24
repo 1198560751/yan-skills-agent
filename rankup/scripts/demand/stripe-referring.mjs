@@ -24,7 +24,7 @@
  *     不给 `--via browser` 就是匿名档。凭据全程不离开浏览器。
  *   - 也可以完全不花配额：`--visits visits.json`，内容是 {"域名": 月访问量} 的映射。
  *
- * 已验证日期：2026-08-23（months / top / top --enrich / site 四条命令都真跑过）
+ * 已验证日期：2026-08-24（months / top / top --enrich / site 四条命令都真跑过）
  *
  * 已知坑：
  *   1. **榜单 `visits` 的单位是千次（K）。** 2692.6 表示 269 万次。不换算会把量级看小 1000 倍。
@@ -41,7 +41,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'node:fs';
-import { parseArgs, emit, die, sleep } from './_lib.mjs';
+import { parseArgs, emit, die, sleep, requireBrowserBridge } from './_lib.mjs';
 import { BASE, UA, toolAuth } from '../seo-webcafe.mjs';
 
 const execFileP = promisify(execFile);
@@ -92,6 +92,9 @@ async function apiGet(path, params) {
 let browserReady = false;
 async function opencliEval(session, expr) {
   if (!browserReady) {
+    // --via browser 是可选档位，桥没连上时原来要等满 120s 的 execFile timeout
+    // 才报错，还是个和「桥」八竿子打不着的超时消息。先短探测，明确没连就直说。
+    requireBrowserBridge();
     await execFileP('opencli', ['browser', session, '--window', 'background', 'open', `${BASE}/mine/`], { timeout: 120000 });
     browserReady = true;
     await sleep(2500);

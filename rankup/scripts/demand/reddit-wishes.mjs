@@ -32,7 +32,7 @@
  *      第三方 Pushshift 镜像，覆盖历史深、能拿到 score/评论数，但数据有滞后，
  *      且限流极严（实测连着两次就 429，返回 "Rate limit exceeded ... paid scraping service"），
  *      只适合偶尔手动跑，不要放进 CI。
- * 已验证日期：2026-08-23
+ * 已验证日期：2026-08-24
  *
  * 已知坑（都是实测出来的，别踩第二遍）：
  *   - **https://www.reddit.com/…/*.json 已经不能匿名用了**：无论什么 UA，实测一律
@@ -58,24 +58,21 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { parseArgs, get, getJson, emit, die, sleep, readToken, asList } from './_lib.mjs';
+import { parseArgs, get, getJson, emit, die, sleep, readToken, asList, probeBrowserBridge } from './_lib.mjs';
 
 const execFileP = promisify(execFile);
 
 /** opencli 是否可用（reddit adapter 走 cookie 策略，需要浏览器桥绿）
  *
- * 坑（2026-08-23 实测修正）：**不要匹配 "Everything looks good"**。
- * doctor 只要有任何一条 Issue 就不再打印那句话，而 Issue 里包含
- * 「扩展版本比 yan-labs 构建旧」这种**纯建议**——桥其实完全可用。
- * 早先这里匹配那句话，导致扩展 1.0.27 + CLI 要求 1.0.28+ 时
- * auto 链**静默跳过 opencli 退回 rss**，拿不到 score/评论数，且没有任何报错。
- * 判据改成三行 [OK] 里最关键的 Connectivity —— 它绿就说明命令路径通。
+ * 判据复用 _lib.mjs 的 probeBrowserBridge()（同一条 `[OK] Connectivity` 正则，
+ * 坑见那边的注释：2026-08-23 曾错误匹配 "Everything looks good"，doctor 只要有
+ * 任何一条纯建议性 Issue 就不再打印那句话，导致 auto 链静默退回 rss）。
+ * 这里是「链选择」不是硬闸门：探测不确定（null）时按「不可用」处理，
+ * 静默换下一站，不影响用户——和 requireBrowserBridge() 的 fail-open 语义不同，
+ * 是特意的：那边挡的是唯一路径，这里只是挑链里的第一站。
  */
 async function opencliReady(bin) {
-  try {
-    const { stdout } = await execFileP(bin, ['doctor'], { timeout: 30000 });
-    return /\[OK\]\s*Connectivity/i.test(stdout);
-  } catch { return false; }
+  return probeBrowserBridge(bin) === true;
 }
 
 const DEFAULT_TEMPLATES = [

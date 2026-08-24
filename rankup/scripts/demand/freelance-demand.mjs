@@ -40,7 +40,7 @@
  *   price   起步价 / 预算下限（数字）
  *   orders  成交量代理指标：freelancer=竞标数，fiverr=评价数，xianyu=想要人数，upwork=null
  *
- * 已验证日期：2026-08-23
+ * 已验证日期：2026-08-24
  *
  * 已知坑：
  *   - Freelancer API 单次 limit 上限约 100；返回的 budget 是「发布者填的预算区间」，
@@ -60,6 +60,7 @@
  */
 import { execFileSync } from "node:child_process"
 import { writeFileSync } from "node:fs"
+import { requireBrowserBridge } from "./_lib.mjs"
 
 const SOURCES = ["freelancer", "fiverr", "upwork", "xianyu"]
 const UA =
@@ -137,6 +138,9 @@ async function freelancer() {
 
 // ── 需要真实浏览器的三个源 ────────────────────────────────
 function browserSource() {
+  // fiverr / upwork / xianyu 都走这里；桥没连上时原来会在下面的 ocli() 上
+  // 无声挂到 execFileSync 的 timeout（180s）才报错，还容易被当成「没有数据」。
+  requireBrowserBridge()
   const s = opt.session
   const out = []
   try {

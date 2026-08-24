@@ -21,7 +21,7 @@
  *   只是需要一个真浏览器过挑战。
  *   前置：`opencli doctor` 要绿。
  *
- * 已验证日期：2026-08-23
+ * 已验证日期：2026-08-24
  *
  * 已知坑：
  *   - **免费只有第 1 页**：每个榜单固定 25 条，翻页链接（2/3/Next）全部指向 /pricing，
@@ -40,7 +40,7 @@
 import { writeFileSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { sessionName } from './_lib.mjs';
+import { sessionName, requireBrowserBridge } from './_lib.mjs';
 
 const exec = promisify(execFile);
 
@@ -170,8 +170,10 @@ async function main() {
   }
   const url = `https://chrome-stats.com${path}`;
 
-  try { await opencli(['doctor']); }
-  catch { console.error('opencli doctor 失败：先修好 OpenCLI 再跑本脚本。'); process.exit(1); }
+  // 注意：`opencli doctor` 即使桥没连上也照样退出码 0，只是文案里带 [FAIL]——
+  // 之前这里 catch 退出码的写法从来没真正生效过。真正的判据在 requireBrowserBridge()
+  // 里（认 `[OK] Connectivity`），探测本身失败/超时则放行，不拿它当「没连上」。
+  requireBrowserBridge();
 
   let payload;
   try {

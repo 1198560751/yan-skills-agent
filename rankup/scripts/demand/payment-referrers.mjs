@@ -29,7 +29,7 @@
  *     （../../backlink/scripts/lib-tools-share.mjs）。需要那边的登录态/令牌。
  *     **有配额**，开工前先看启动时打印的配额百分比，不要跑批量。
  *
- * 已验证日期：2026-08-23
+ * 已验证日期：2026-08-24
  *
  * 已知坑：
  *   1. **Similarweb 是 hash 路由 SPA，直接深链到 referrals 会有一定概率白屏**
@@ -46,7 +46,7 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { parseArgs, emit, die, sleep, printTable } from './_lib.mjs';
+import { parseArgs, emit, die, sleep, printTable, requireBrowserBridge } from './_lib.mjs';
 import { BASE, UA, toolAuth } from '../seo-webcafe.mjs';
 
 const execFileP = promisify(execFile);
@@ -152,6 +152,9 @@ const isUnder = (host, roots) => roots.some((r) => host === r || host.endsWith(`
 let browserReady = false;
 async function opencliEval(session, expr) {
   if (!browserReady) {
+    // --via browser 是可选档位，桥没连上时原来要等满 120s 的 execFile timeout
+    // 才报错，还是个和「桥」八竿子打不着的超时消息。先短探测，明确没连就直说。
+    requireBrowserBridge();
     await execFileP('opencli', ['browser', session, '--window', 'background', 'open', `${BASE}/translate/`], { timeout: 120000 });
     browserReady = true;
     await sleep(2500);

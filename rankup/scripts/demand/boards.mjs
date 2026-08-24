@@ -80,6 +80,7 @@ import { spawnSync } from "node:child_process";
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { requireBrowserBridge } from "./_lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ENV_FILE = resolve(HERE, "..", "..", ".env");
@@ -238,6 +239,10 @@ function browserEval(session, code) {
 
 /** 打开页面并等它真的 ready；返回最终 URL（跟完重定向后的）。 */
 function browserOpen(session, url, { waitMs = 25000 } = {}) {
+  // producthunt（浏览器路径）/ toolify / taaft 三条命令全走这一个函数，
+  // 桥没连上时原来会在这里的 spawnSync 上无声挂到 timeoutMs（180s）才报错，
+  // 而且报的是「eval 超时」这种症状性错误，容易被当成「站点没数据」。
+  requireBrowserBridge();
   opencli(["browser", session, "--window", "background", "open", url]);
   const deadline = Date.now() + waitMs;
   let last = null;

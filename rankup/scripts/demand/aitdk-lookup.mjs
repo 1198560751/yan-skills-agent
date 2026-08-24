@@ -36,7 +36,7 @@
  *     `--via browser` 把请求发进用户已登录的 Chrome，用那边的档位（凭据不离开浏览器）。
  *   - provider=tabapi：TABAPI_KEY（环境变量或 rankup/.env）。
  *
- * 已验证日期：2026-08-23（webcafe 单域名 / --file 批量 / 续跑 / 阈值筛选都真跑过；
+ * 已验证日期：2026-08-24（webcafe 单域名 / --file 批量 / 续跑 / 阈值筛选都真跑过；
  *                        tabapi 只验证到「匿名 401、契约如上」——没有付费令牌可测）
  *
  * 已知坑：
@@ -53,7 +53,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseArgs, readToken, die, sleep, printTable } from './_lib.mjs';
+import { parseArgs, readToken, die, sleep, printTable, requireBrowserBridge } from './_lib.mjs';
 import { BASE, UA, toolAuth } from '../seo-webcafe.mjs';
 
 const execFileP = promisify(execFile);
@@ -101,6 +101,9 @@ const MINE_EXPR = (domain) => `(async()=>{
 let browserReady = false;
 async function opencliEval(session, expr) {
   if (!browserReady) {
+    // --via browser 是可选档位，桥没连上时原来要等满 120s 的 execFile timeout
+    // 才报错，还是个和「桥」八竿子打不着的超时消息。先短探测，明确没连就直说。
+    requireBrowserBridge();
     await execFileP('opencli', ['browser', session, '--window', 'background', 'open', `${BASE}/mine/`], { timeout: 120000 });
     browserReady = true;
     await sleep(2500);

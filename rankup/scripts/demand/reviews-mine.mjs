@@ -49,7 +49,7 @@
  *
  * 统一输出字段：{source, target, rating, title, text, date, lang, author, url}
  *
- * 已验证日期：2026-08-23
+ * 已验证日期：2026-08-24
  *
  * 已知坑：
  *   - App Store RSS 每页固定 50 条，最多 10 页（≈500 条），再往后返回空 feed。
@@ -64,6 +64,7 @@
  */
 import { execFileSync } from "node:child_process"
 import { writeFileSync } from "node:fs"
+import { requireBrowserBridge } from "./_lib.mjs"
 
 const SOURCES = ["appstore", "gplay", "trustpilot", "g2", "capterra"]
 const UA =
@@ -239,6 +240,10 @@ async function gplay() {
 
 // ── 需要真实浏览器的三个源 ────────────────────────────────
 function browserSource() {
+  // trustpilot / g2 / capterra 都走这里（appstore / gplay 不经过这个函数）。
+  // 桥没连上时原来会在下面的 ocli() 上无声挂到 execFileSync 的 timeout（180s）
+  // 才报错，还很容易被误读成「这个源没有评论数据」而不是「取数根本没发生」。
+  requireBrowserBridge()
   const s = opt.session
   const urls = pageUrls()
   const out = []

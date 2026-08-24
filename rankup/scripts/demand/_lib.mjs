@@ -2,11 +2,12 @@
  * 用途：demand/ 下各脚本共用的小工具（参数解析、token 读取、输出、表格打印）。
  *       不是可执行脚本，只被同目录的 *.mjs import。
  * 依赖：无（Node 22 内置 fetch / node:fs / node:path）
- * 已验证日期：2026-08-23
+ * 已验证日期：2026-08-24
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 /** 解析 argv：--key value / --key=value / --flag / 位置参数 */
 export function parseArgs(argv = process.argv.slice(2)) {
@@ -159,3 +160,43 @@ export function sessionName(base) {
 }
 
 export function die(msg) { console.error(`错误：${msg}`); process.exit(1); }
+
+/**
+ * 探测 OpenCLI 浏览器桥是否连上，短超时，三种判定：
+ *   - true  ：doctor 明确说连上了
+ *   - false ：doctor 明确说没连上
+ *   - null  ：探测本身不可信（opencli 不存在、超时、输出格式认不出）——
+ *             调用方必须把 null 当「放行」处理，绝不能因为探测器自己的问题
+ *             挡住一个本来可能能跑的调用。
+ *
+ * 判据只认 `[OK] Connectivity`，不认 "Everything looks good"：doctor 只要有
+ * 任何一条 Issue（哪怕只是「扩展版本比 yan-labs 构建旧」这种纯建议）就不再
+ * 打印那句话，但桥其实完全可用。这个坑 reddit-wishes.mjs 已经踩过一次
+ * （2026-08-23），这里直接复用同一条判据，不再各写各的。
+ */
+export function probeBrowserBridge(bin = 'opencli', timeoutMs = 4000) {
+  const r = spawnSync(bin, ['doctor'], { encoding: 'utf8', timeout: timeoutMs });
+  if (r.error || r.status === null) return null; // 调不起来 / 超时
+  const out = `${r.stdout || ''}\n${r.stderr || ''}`;
+  if (/\[OK\]\s*Connectivity/i.test(out)) return true;
+  if (/Connectivity/i.test(out)) return false;
+  return null; // 有输出但读不懂，别当成「没连上」
+}
+
+/**
+ * 挡在「真的要发浏览器调用」之前的硬检查：明确没连上就 fail fast 并说清楚
+ * 原因（不是「查无结果」，是桥没通），别的情况一律放行（fail open）。
+ *
+ * 为什么要 fail open：探测器本身也可能坏（opencli 升级改了 doctor 的文案、
+ * 二进制暂时不在 PATH、这次探测恰好超时），一个会误报「没连上」的检查
+ * 比它要防的那个静默卡死更糟——会把每一个原本能跑的环境都挡下来。
+ */
+export function requireBrowserBridge(bin = 'opencli') {
+  if (probeBrowserBridge(bin) === false) {
+    die(
+      'OpenCLI 浏览器桥没连上——这不是「查无结果」，是根本没取到数据。\n' +
+      '  修复：打开 Chrome → 确认 OpenCLI 扩展已安装并启用 → 跑 `opencli doctor`，' +
+      '看到 Connectivity 那行是 [OK] 再重跑本脚本。'
+    );
+  }
+}

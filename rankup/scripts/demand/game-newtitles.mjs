@@ -30,7 +30,7 @@
  *   - igdb：IGDB_CLIENT_ID + IGDB_CLIENT_SECRET
  *     读取顺序：环境变量 → rankup/.env（每行 KEY=value）
  *
- * 已验证日期：2026-08-23
+ * 已验证日期：2026-08-24
  *
  * 已知坑：
  *   - steam：用的是 /search/results/?infinite=1，返回 {success, total_count, results_html}，
@@ -75,7 +75,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { sessionName } from './_lib.mjs';
+import { sessionName, requireBrowserBridge } from './_lib.mjs';
 
 const execFileP = promisify(execFile);
 
@@ -493,8 +493,9 @@ const SDB_EXTRACTOR = `(()=>{
 async function sourceSteamdb(o) {
   const url = `https://steamdb.info${o.sdbPath}`;
   const run = async (args) => (await execFileP('opencli', args, { maxBuffer: 32 * 1024 * 1024 })).stdout;
-  try { await run(['doctor']); }
-  catch { throw new Error('opencli doctor 失败：steamdb 源需要可用的 OpenCLI + 真浏览器。'); }
+  // `opencli doctor` 桥没连上也退出码 0，只是文案带 [FAIL]——单纯 catch 从来没生效过。
+  // 真正判据在 requireBrowserBridge()：认 `[OK] Connectivity`，探测本身失败/超时就放行。
+  requireBrowserBridge();
 
   let payload;
   try {
