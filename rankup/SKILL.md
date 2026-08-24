@@ -529,6 +529,13 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | **0→1 怎么排优先级、「1」怎么定义、虚荣指标、要不要重构、什么时候止损、新站上线执行清单** | [`experiences/zero-to-one.md`](references/experiences/zero-to-one.md) | 无需工具，是裁定集。**接到「优化一下这个站」时默认打磨转化链路，不是重构架构** |
 | **转化率上不去、访客不注册、注册不付费、定价怎么定、用户行为数据怎么提** | [`experiences/conversion.md`](references/experiences/conversion.md) | 无需工具，是裁定集。**动页面之前先查上游流量意图** |
 | 老站救不救、多站会不会自我重复、品牌名不显示、KGR 怎么算、页面下限 | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) | 无需工具，是裁定集 |
+| **排名起不来、被 K 站/deindex、GSC 报索引异常、首页覆盖了太多词、新站排名波动** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 十七 ~ 十九 | 无需工具，是裁定集。**新词上线 2–4 周内不要改页面** |
+| **外链发哪里、相关性 vs 数量、nofollow 要不要、发了怎么验收、抄竞品外链** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 二十 + `backlink` Skill | 判断在这里，执行在 `backlink`。**抄竞品外链要按「首次发现日期从旧到新」排** |
+| **AdSense 申请被拒、千展偏低、要不要加会员、Adsterra、第三方 API 成本、Creem 税** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 二十二 | 无需工具，是裁定集。**AdSense 先传 ads.txt 验证、别急着点「申请审核」** |
+| **什么时候该发布、要不要做差异化、要不要先做登录注册支付** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 二十三 + [`zero-to-one.md`](references/experiences/zero-to-one.md) | 无需工具，是裁定集。**核心功能先推出去，登录/支付/性能后置** |
+| **网站打不开、CF Pages 无效路径返回首页、图片慢、Vercel 绑域名跳两次、按国家投广告** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 二十四 | 无需工具，是排查表。**CF Pages 根目录必须有 `404.html`，否则被当 SPA** |
+| **GA 里 direct 占大头是不是被刷量** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 二十五 | 无需工具。**用停留时间/人均页面数/跳出率三项对比其他渠道** |
+| **收款怎么收、5 万美金额度、香港开卡、Stripe/Creem/PayPal 怎么选** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 二十七 | 无需工具，是裁定集。**5 万是结汇额度，不是收款额度** |
 | **多语言怎么上、URL 结构、`<html lang>`、hreflang、语言检测与跳转、中文繁简分治** | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 三·五 + [`seo-growth.md`](references/seo-growth.md)「多语言站架构参考（Apple 模型）」+ [`lifecycle.md`](references/lifecycle.md) 阶段 3 第 5 条 | 无需工具，是规则集。**核心禁令：不得根据 IP 自动跳转语言** |
 | 搜索热度对比、地区分布、相关飙升词、每日热搜、模糊方向扩词并收敛成可做站的词 | [`trends.md`](references/trends.md) | `scripts/gt.py`（默认走 `gt-browser.mjs` 的浏览器路由，零 venv；`--via pytrends` 可切回匿名 HTTP） |
 | 从登录态后台批量取数（没有 API / API 收费 / 导出扣点数） | [`integrations.md`](references/integrations.md) | **加载 backlink**（`/backlink`），读 `references/harvest.md`。未安装：`npx skills add yan-labs/yan-skills --skill backlink -g -y` |

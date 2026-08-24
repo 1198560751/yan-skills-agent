@@ -20,7 +20,7 @@
 
 | 文件 | 覆盖什么 | 什么时候读 |
 |---|---|---|
-| [`webcafe-experiences.md`](webcafe-experiences.md) | SEO 与建站裁定：老站救不救、多站重复、多语言、品牌名、KGR、页面下限、索引、工具选型 | 技术 SEO 与站群决策时 |
+| [`webcafe-experiences.md`](webcafe-experiences.md) | SEO 与建站裁定：老站救不救、多站重复、多语言、品牌名、KGR、页面下限、索引与惩罚、首页关键词覆盖、外链取舍与验收、选词陷阱、**AdSense/Adsterra/会员变现**、**产品节奏**、**部署坑（CF Pages 404、R2、Vercel 绑域）**、**收款与结汇**、工具选型 | 技术 SEO、站群、变现、上线部署决策时 |
 | [`demand-discovery.md`](demand-discovery.md) | **前期调研**：需求从哪挖、怎么反推别人在赚什么钱、什么样的需求值得做 | 立项之前，写第一行代码之前 |
 | [`zero-to-one.md`](zero-to-one.md) | **0→1 规划与迭代纪律**：「1」怎么定义、三道关、虚荣指标、打磨 vs 重构、止损线 | 规划新站、每轮迭代决定加注还是止损时 |
 | [`conversion.md`](conversion.md) | **转化与行为数据**：访客→注册、注册→付费、用户行为数据 | 站已上线有流量、要提升转化的迭代轮次 |
