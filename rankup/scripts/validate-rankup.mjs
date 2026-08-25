@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.48.0";
+const expectedVersion = "2.49.0";
 const requiredReferences = [
   "lifecycle.md",
   "cloudflare-stack.md",
@@ -19,6 +19,7 @@ const requiredReferences = [
   "evolution.md",
   "trends.md",
   "search-platforms.md",
+  "game-sites.md",
   "experiences/INDEX.md",
   "experiences/webcafe-experiences.md",
   "experiences/demand-discovery.md",
