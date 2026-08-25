@@ -32,7 +32,7 @@ npx skills add yan-labs/yan-skills -g --all
 
 ## `rankup` — 网站全生命周期总控
 
-版本 `2.49.2`。它不重复实现 Wrangler、Stripe 或趋势工具，它负责把这些能力串成一条长期可维护的工作流，并且记住你在每个项目上做过什么。小游戏站另有一条从新词监控、iframe 供给、可玩页面、广告到持续迭代的[专用链路](rankup/references/game-sites.md)。
+版本 `2.50.0`。它不重复实现 Wrangler、Stripe 或趋势工具，它负责把这些能力串成一条长期可维护的工作流，并且记住你在每个项目上做过什么。小游戏站另有一条从新词监控、iframe 供给、可玩页面、广告到持续迭代的[专用链路](rankup/references/game-sites.md)。
 
 ### 它覆盖的十二个阶段，分五个大阶段
 
@@ -175,7 +175,7 @@ node scripts/sessions.mjs --project-root . --days 14 --new-only --dump
 
 **`scripts/gt.py`** — Google Trends。热度对比、地区分布、相关飙升词、每日热搜四个子命令，首次运行自动建 venv 装 pytrends。配套 [`references/trends.md`](rankup/references/trends.md) 里有三套工作流：小语种市场探测、把模糊方向收敛成真能做站的词、新兴趋势捕捉。
 
-**`scripts/demand/` 一整组（20 个脚本）** — 需求挖掘取数，配套 [`references/demand-sources.md`](rankup/references/demand-sources.md) 那张源 → 脚本路由表。
+**`scripts/demand/` 一整组（21 个脚本）** — 需求挖掘取数，配套 [`references/demand-sources.md`](rankup/references/demand-sources.md) 那张源 → 脚本路由表。
 
 用户说「找几个关键词」「挖点需求」「最近有什么能做的」时的入口。**路由表按「你现在缺哪一类信号」组织，不按站点类型**：谁已经收到钱了 / 谁在花钱买流量 / 谁做了但没做好 / 谁在为这件事付外包费 / 正在冒出来的新产品 / 持续涌现新词的平台 / 用户的原话 / 竞品正在往哪儿下注。拿到候选之后统一走同一条验证链路（域名画像 → KD → SERP 盘面 → 流量面板 → 趋势）。
 

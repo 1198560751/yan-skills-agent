@@ -27,15 +27,24 @@ node scripts/demand/game-newtitles.mjs --source poki --json --out .rankup/demand
 
 ### 竞品 sitemap
 
-选择持续上新、规模中等、URL 命名清楚的游戏站，按天保存新增页面：
+内置清单覆盖 48 个游戏平台、60 条 sitemap、16 种语言和 33 个市场。每天批量保存快照，
+把新出现的游戏内页汇总成候选报告：
 
 ```bash
-node scripts/demand/sitemap-diff.mjs --domain example.com --slug-words \
-  --out .rankup/demand/sitemap-example.json
+node scripts/demand/game-platform-monitor.mjs
+node scripts/demand/game-platform-monitor.mjs --language de,pl,ja,ar,ru
+node scripts/demand/game-platform-monitor.mjs --market KZ,UA,DE,JP
 ```
 
-第一次运行建立快照，之后读取新增、更新和消失 URL。监控清单写入项目
-`.rankup/research.md`，记录站点、sitemap、频率和最近有效信号。
+平台与 sitemap 清单在 [`../data/game-platforms.json`](../data/game-platforms.json)。第一次运行建立
+baseline，之后的报告直接给出新增内页。单站深挖继续使用：
+
+```bash
+node scripts/demand/sitemap-diff.mjs --domain example.com --slug-words
+```
+
+项目新增的平台写入项目 `.rankup/research.md`，记录站点、sitemap、语言、市场和最近有效信号；
+验证稳定后再加入通用清单。
 
 ### 搜索与社区
 
@@ -115,7 +124,7 @@ AI 用于整理元数据、翻译草稿、生成代码和维护模板；玩家�
 | 频率 | 信号 | 现有能力 | 动作 |
 |---|---|---|---|
 | 每日 | 新游戏与新玩法 | `game-newtitles.mjs` | 新候选进入验证队列 |
-| 每日 | 竞品新增/更新 URL | `sitemap-diff.mjs` | 提取 slug 并合并同名信号 |
+| 每日 | 多语种游戏平台新增内页 | `game-platform-monitor.mjs` | 汇总候选并合并同名信号 |
 | 每日 | iframe 加载与开始入口 | 项目冒烟测试 | 标记 `active/watch/replace` |
 | 每日 | PV、UV、开始率、局数、分享率、国家 | GA/Cloudflare/项目事件 | 找到增长页面与地区 |
 | 每日 | 广告覆盖、RPM、流量质量 | 广告后台 | 调整渠道与广告位 |
