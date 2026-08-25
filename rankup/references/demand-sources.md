@@ -340,7 +340,7 @@ OAuth（要自建 script app，CI 首选）、pullpush 第三方镜像（能出�
 | 源 | 拿什么 | 取数方式 | 需登录 | 脚本 |
 |---|---|---|---|---|
 | 竞品 sitemap 增量 | 全量 `<loc>` + lastmod，与上次快照 diff 出**新增/消失/更新**，并出 slug 词频 | 纯 HTTP（robots.txt → sitemap → 递归 index → gzip） | 否 | `scripts/demand/sitemap-diff.mjs` |
-| 多语种游戏平台清单 | 48 个平台、60 条 sitemap、16 种语言、33 个市场的新内页候选 | 平台清单批量调用 sitemap 增量脚本 | 否 | `scripts/demand/game-platform-monitor.mjs` |
+| 多语种游戏平台清单 | 项目关注市场的游戏平台新内页候选 | `.rankup/demand/game-platforms.json` 批量调用 sitemap 增量脚本 | 否 | `scripts/demand/game-platform-monitor.mjs` |
 | Columbus AI 外链榜 | 目录站域名、被多少 AI 工具站引用、DR、dofollow、月访问量 | 纯 HTTP | 否 | `scripts/demand/boards.mjs columbus` |
 
 **sitemap 增量是这一节的主力**：竞品新布的长尾词页面，是它花钱花时间调研出来的结论，

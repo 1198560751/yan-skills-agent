@@ -27,7 +27,7 @@ node scripts/demand/game-newtitles.mjs --source poki --json --out .rankup/demand
 
 ### 竞品 sitemap
 
-内置清单覆盖 48 个游戏平台、60 条 sitemap、16 种语言和 33 个市场。每天批量保存快照，
+把项目自己的平台与 sitemap 清单保存在 `.rankup/demand/game-platforms.json`。每天批量保存快照，
 把新出现的游戏内页汇总成候选报告：
 
 ```bash
@@ -36,8 +36,8 @@ node scripts/demand/game-platform-monitor.mjs --language de,pl,ja,ar,ru
 node scripts/demand/game-platform-monitor.mjs --market KZ,UA,DE,JP
 ```
 
-平台与 sitemap 清单在 [`../data/game-platforms.json`](../data/game-platforms.json)。第一次运行建立
-baseline，之后的报告直接给出新增内页。单站深挖继续使用：
+`.rankup/` 保存本项目的平台名单、快照、报告与候选，整目录由 Git 忽略。第一次运行建立 baseline，
+之后的报告直接给出新增内页。单站深挖继续使用：
 
 ```bash
 node scripts/demand/sitemap-diff.mjs --domain example.com --slug-words

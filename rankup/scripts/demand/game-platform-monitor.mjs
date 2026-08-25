@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { asList, die, parseArgs, writeOut } from './_lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_CONFIG = path.resolve(HERE, '../../data/game-platforms.json');
+const DEFAULT_CONFIG = path.resolve(process.cwd(), '.rankup/demand/game-platforms.json');
 
 const HELP = `
 game-platform-monitor.mjs — 批量监测多语种游戏平台 sitemap
@@ -17,7 +17,7 @@ game-platform-monitor.mjs — 批量监测多语种游戏平台 sitemap
   node scripts/demand/game-platform-monitor.mjs [选项]
 
 选项:
-  --config <file>       平台清单（默认 rankup/data/game-platforms.json）
+  --config <file>       平台清单（默认 .rankup/demand/game-platforms.json）
   --language <code>     按语言筛选，可重复或逗号分隔，如 de,pl,ja,ar,ru
   --market <code>       按市场筛选，可重复或逗号分隔，如 DE,KZ,UA
   --platform <id>       按平台 id 筛选，可重复或逗号分隔
@@ -27,7 +27,7 @@ game-platform-monitor.mjs — 批量监测多语种游戏平台 sitemap
   --limit <n>           每个平台最多读取多少条变化（默认 1000）
   --max-sitemaps <n>    每个平台最多抓多少个子 sitemap（默认 200）
   --delay <ms>          子 sitemap 抓取间隔（默认 100）
-  --timeout <seconds>   单个平台运行时间上限（默认 180 秒）
+  --timeout <seconds>   单个平台运行时间上限（默认 300 秒）
   --dry-run             校验清单并显示本次选择，不联网、不写快照
   --json                stdout 输出完整 JSON
   --help
@@ -132,7 +132,7 @@ async function main() {
     limit: positiveInt(args.limit, 1000, '--limit'),
     maxSitemaps: positiveInt(args['max-sitemaps'], 200, '--max-sitemaps'),
     delay: positiveInt(args.delay, 100, '--delay'),
-    timeout: positiveInt(args.timeout, 180, '--timeout'),
+    timeout: positiveInt(args.timeout, 300, '--timeout'),
   };
 
   const platforms = await pool(selected, options.concurrency, async (platform) => {

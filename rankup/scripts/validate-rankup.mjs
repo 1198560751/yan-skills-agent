@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.50.0";
+const expectedVersion = "2.50.1";
 const requiredReferences = [
   "lifecycle.md",
   "cloudflare-stack.md",
@@ -290,7 +290,6 @@ async function validate() {
     "scripts/review.mjs",
     "scripts/sessions.mjs",
     "scripts/demand/game-platform-monitor.mjs",
-    "data/game-platforms.json",
     "tests/check-version.test.mjs",
     "tests/registry.test.mjs",
     "tests/review.test.mjs",
