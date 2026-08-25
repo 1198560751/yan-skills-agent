@@ -1,6 +1,6 @@
 ---
 name: game-opportunity
-description: 小游戏机会的每日发现、筛选和调查 Skill。用户提到监测游戏平台 sitemap、发现新游戏内页、小游戏新词、游戏 KD、搜索量、可玩 iframe、每日候选报告、从老游戏里找仍有流量的竞争词，或要求自动运行小游戏机会流水线时使用。它复用 Rankup 与 Backlink 的现有脚本，把项目私有数据统一写进被 Git 忽略的 .rankup/。
+description: 小游戏机会的每日发现、筛选和调查 Skill。用户提到监测游戏平台 sitemap、发现新游戏内页、24 小时小游戏新词、Reddit/YouTube/X 游戏源头、游戏 KD、搜索量、可玩 iframe、每日候选报告、从老游戏里找仍有流量的竞争词，或要求自动运行小游戏机会流水线时使用。它复用 Rankup 与 Backlink 的现有脚本，把项目私有数据统一写进被 Git 忽略的 .rankup/。
 ---
 
 # Game Opportunity
@@ -13,11 +13,39 @@ description: 小游戏机会的每日发现、筛选和调查 Skill。用户提�
 | 任务 | 动作 | 固定产物 |
 |---|---|---|
 | `discover` | 抓取全部平台 sitemap、按站点路径过滤、与上次快照做 diff | `.rankup/demand/game-review/YYYY-MM-DD-discovery.json` |
+| `radar` | 扫描 24 小时发布源与玩家社区，提取刚出现的游戏名、别名和玩法词 | `.rankup/demand/game-review/YYYY-MM-DD-radar.json` |
 | `evaluate` | 验活、合并实体、查量/KD/趋势/SERP/供给、排序 | `.rankup/demand/game-review/YYYY-MM-DD-candidates.json` 与 `YYYY-MM-DD-report.md` |
-| `daily` | 依次完成 `discover` 和 `evaluate` | 上述全部产物 |
+| `daily` | 依次完成 `discover`、`radar` 和 `evaluate` | 上述全部产物 |
 
-用户只说“运行小游戏监测”时执行 `daily`。自动任务分成 `discover` 和 `evaluate` 两个时段，前者提供
-稳定数据边界，后者可以在数据源限流或登录失效后单独重跑。
+用户只说“运行小游戏监测”时执行 `daily`。自动任务分成 `discover`、`radar` 和 `evaluate` 三个时段：
+平台增量提供稳定数据边界，24 小时雷达补充早期名字，量化评估可以在数据源恢复后单独重跑。
+
+## `radar`
+
+24 小时内的新名字先从发布源和玩家现场发现，再进入搜索量验证：
+
+1. 供给端：游戏平台 sitemap、itch.io / Steam 新发布与更新、App Store / Google Play 新游戏；
+2. 玩家端：Reddit 的 `r/WebGames`、`r/playmygame`、`r/IndieGaming`、玩法垂直社区；
+3. 传播端：YouTube 当日上传、X 最新帖，以及目标语言的本地游戏论坛；
+4. 搜索端：Google Trends 实时热搜、7 天曲线和 related rising；
+5. 验证端：Similarweb 最近 28 天关键词与流量去向、Semrush 分国家搜索量与 KD。
+
+使用 Agent Reach 当前可用后端读取社区；桌面登录态优先走 OpenCLI：
+
+```bash
+opencli reddit search "<游戏名>" --sort new --time day --limit 10 -f json
+opencli youtube search "<游戏名> game" --upload today --sort date --limit 10 -f json
+opencli twitter search '"<游戏名>" since:<YYYY-MM-DD>' --product live --limit 10 -f json
+```
+
+同时搜索 `new browser game`、`playable demo`、`release trailer`、`HTML5 game` 与各语言对应表达，
+从正文、标题和落地链接提取新实体。每条雷达记录保存 `firstSeen`、来源 URL、发布时间、互动量、
+可玩链接、语言、市场和别名。官方发布页加一条独立社区/视频信号，或两个独立社区同时出现，即进入
+候选；单一来源进入观察队列。
+
+新词按首次发现后的第 3、7、14、28 天复查。早期保存 `volumeStatus: not-yet-observed`，继续用
+社区增速、跨平台重复、可玩供给和 Trends 判断；搜索量出现后再并入常规 KD、SERP 和国家筛选。
+Similarweb 用于最近 28 天的关键词、国家和流量去向验证，Semrush 用于分国家搜索量与 KD。
 
 ## 数据边界
 

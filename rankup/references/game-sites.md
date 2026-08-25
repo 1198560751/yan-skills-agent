@@ -58,8 +58,13 @@ node scripts/demand/sitemap-diff.mjs --domain example.com --slug-words
 
 - Trends：记录 12 个月、30 天、7 天斜率，以及增长地区和 related rising。
 - Google SERP：记录首页/内页比例、结果类型、页面新鲜度和前十引荐域。
-- Reddit、短视频和论坛：记录玩家玩法、抱怨、分享点和实际点击。
+- 24 小时雷达：按最新排序读取 Reddit 游戏社区、YouTube 当日上传、X 最新帖、itch/Steam/应用商店
+  发布页；提取游戏名、别名、玩法词、发布时间、互动量和可玩链接。
+- Reddit、短视频和论坛：记录玩家玩法、抱怨、分享点和实际点击；两个独立来源共同出现即进入候选。
 - 站点与频道清单：筛选最近仍在更新、持续发布网页游戏的来源。
+- Similarweb：用最近 28 天的关键词、国家和流量去向验证社区信号；Semrush 继续给分国家量与 KD。
+- 新词在首次发现后的第 3、7、14、28 天复查；搜索量尚未形成时使用社区增速、跨平台重复、可玩供给
+  与 Trends 共同排序。
 
 ## 三、建立候选卡
 
@@ -132,11 +137,13 @@ AI 用于整理元数据、翻译草稿、生成代码和维护模板；玩家�
 | 频率 | 信号 | 现有能力 | 动作 |
 |---|---|---|---|
 | 每日 | 新游戏与新玩法 | `game-newtitles.mjs` | 新候选进入验证队列 |
+| 每 4 小时 | 24 小时发布与社区信号 | Agent Reach + OpenCLI | 写入雷达并合并同名来源 |
 | 每日 | 多语种游戏平台新增内页 | `game-platform-monitor.mjs` | 汇总候选并合并同名信号 |
 | 每日 | iframe 加载与开始入口 | 项目冒烟测试 | 标记 `active/watch/replace` |
 | 每日 | PV、UV、开始率、局数、分享率、国家 | GA/Cloudflare/项目事件 | 找到增长页面与地区 |
 | 每日 | 广告覆盖、RPM、流量质量 | 广告后台 | 调整渠道与广告位 |
 | 每日 | 候选 Trends、KD、SERP、搜索量 | `gt.py` + Web.Cafe + Semrush | 生成可上线、优先研究、观察三组 |
+| 第 3/7/14/28 天 | 新词复查 | Similarweb + Semrush + Trends | 从未观察到量转入量化筛选 |
 | 每周 | 竞品流量渠道与关键词 | Similarweb/Semrush | 更新候选与路线图 |
 | 每周 | 新增/丢失引荐域 | `backlink` Skill | 验收并扩展有效来源 |
 | 每周 | sitemap、索引率、GSC 查询/页面 | GSC + `seo-audit.mjs` | 更新页面与内链 |

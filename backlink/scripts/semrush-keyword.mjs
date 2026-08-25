@@ -204,6 +204,13 @@ if (warn) console.error(`[subscription] ${warn}`);
 let results = [];
 if (flags.bulk) {
   if (keywords.length > 100) throw new Error(`Semrush bulk accepts at most 100 keywords, received ${keywords.length}.`);
+  // The launcher now lands on /home/, whose gateway rejects keyword RPCs with 405.
+  // Enter the keyword app first so the request uses the report gateway and session context.
+  await gotoInTool(
+    launched.evalPage,
+    `${appOrigin}/analytics/keywordoverview/?q=${encodeURIComponent(keywords[0])}&db=${encodeURIComponent(db)}`,
+    Number(flags.settle || 8),
+  );
   const params = { phrases: keywords, database: db, date: '', currency: 'USD' };
   const cap = assertToolsShareAvailable(await launched.evalPage(`(async () => {
     const response = await fetch('/kwogw/v2/webapi', {
