@@ -14,11 +14,18 @@ description: 小游戏机会的每日发现、筛选和调查 Skill。用户提�
 |---|---|---|
 | `discover` | 抓取全部平台 sitemap、按站点路径过滤、与上次快照做 diff | `.rankup/demand/game-review/YYYY-MM-DD-discovery.json` |
 | `radar` | 扫描 24 小时发布源与玩家社区，提取刚出现的游戏名、别名和玩法词 | `.rankup/demand/game-review/YYYY-MM-DD-radar.json` |
+| `collect` | 依次完成 `discover` 和 `radar`，供早间自动任务使用 | 上述两个输入文件 |
 | `evaluate` | 验活、合并实体、查量/KD/趋势/SERP/供给、排序 | `.rankup/demand/game-review/YYYY-MM-DD-candidates.json` 与 `YYYY-MM-DD-report.md` |
 | `daily` | 依次完成 `discover`、`radar` 和 `evaluate` | 上述全部产物 |
 
-用户只说“运行小游戏监测”时执行 `daily`。自动任务分成 `discover`、`radar` 和 `evaluate` 三个时段：
-平台增量提供稳定数据边界，24 小时雷达补充早期名字，量化评估可以在数据源恢复后单独重跑。
+所有任务都走同一个真实入口：
+
+```bash
+node game-opportunity/scripts/game-opportunity.mjs <discover|radar|collect|evaluate|render|daily>
+```
+
+用户只说“运行小游戏监测”时执行 `daily`。自动任务分成 `collect` 和 `evaluate` 两个时段：平台增量与
+24 小时雷达先形成稳定输入，量化评估再查面板并生成最终日报。`daily` 用于随时手动完整重跑。
 
 ## `radar`
 
@@ -96,7 +103,8 @@ Similarweb 用于最近 28 天的关键词、国家和流量去向验证，Semru
 ## 数据边界
 
 - 平台清单：`.rankup/demand/game-platforms.json`
-- sitemap 快照：`.rankup/demand/game-platforms/`
+- sitemap 快照：`.rankup/demand/game-sitemap-snapshots/`
+- 发布源快照：`.rankup/demand/game-radar-snapshots/`
 - 原始报告、KD 输入与结果、候选 JSON、日报：`.rankup/demand/game-review/`
 - 长期候选与判断：`.rankup/research.md`
 
@@ -107,15 +115,19 @@ Similarweb 用于最近 28 天的关键词、国家和流量去向验证，Semru
 在仓库根目录执行：
 
 ```bash
-TODAY=$(date +%F)
-node rankup/scripts/demand/game-platform-monitor.mjs \
-  --out ".rankup/demand/game-review/${TODAY}-discovery.json"
+node game-opportunity/scripts/game-opportunity.mjs discover
 ```
 
 平台配置里的 `include`、`exclude`、`kind` 和 `timeout` 分别负责游戏路径、杂页路径、内容类型和
 单站抓取窗口。保留每个平台的独立快照与统计，让报告可以按平台、语言和市场回溯。
 
 ## `evaluate`
+
+先运行入口脚本生成当天候选队列并验活：
+
+```bash
+node game-opportunity/scripts/game-opportunity.mjs evaluate
+```
 
 ### 1. 验证并归并
 
@@ -179,6 +191,29 @@ HTTP 状态、加载页、移动端与全屏线索。
 老游戏按当前量、当前 KD、当前 SERP 和当前供给进入同一套排序。把失效 URL 单独汇总，便于清理
 sitemap 噪声。
 
+### 5. 写回并生成日报
+
+把量化结果写成 `.rankup/demand/game-review/YYYY-MM-DD-evaluation.json`，格式为
+`{"candidates":[...]}`；每项用 `entityId`、名称或 URL 与队列合并。然后执行：
+
+```bash
+TODAY=$(date +%F)
+node game-opportunity/scripts/game-opportunity.mjs render \
+  --evaluation ".rankup/demand/game-review/${TODAY}-evaluation.json"
+```
+
+入口脚本固定生成日期文件和两个稳定入口：
+
+- `.rankup/demand/game-review/latest.json`：机器可读候选；
+- `.rankup/demand/game-review/latest.md`：给用户阅读的最新日报。
+
+日报按 `develop`、`research`、`watch` 三组展示，每个候选必须有发现页、可玩页或证据链接，带目标
+市场、当地量、全球量、KD、可玩状态和一句下一步。自动任务完成时直接把三组 List 与这些链接返回
+给用户，由用户决定继续调研或创建网站开发任务。
+
+前一日的 `research/watch` 会自动续带；首次发现后的第 3、7、14、28 天在 `carryForward.recheckDue`
+标记复查。新候选始终排在续带候选之前。
+
 ## JSON 产物
 
 `YYYY-MM-DD-candidates.json` 至少包含：
@@ -225,3 +260,5 @@ sitemap 噪声。
 - 多语言重复页已经合并；
 - 每个进入排序的候选都有供给状态和至少一组市场关键词数据；
 - JSON 与 Markdown 数字一致，所有私有产物都位于 `.rankup/`。
+- `latest.json` 与当日 candidates 一致，`latest.md` 与当日日报一致；
+- 最终回复包含 `develop/research/watch` 三组候选和可点击来源链接。

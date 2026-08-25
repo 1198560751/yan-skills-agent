@@ -376,7 +376,9 @@ candidate → qualified → filled → submitted → public → indexed@<engine>
 ### [`game-opportunity`](game-opportunity/) — 小游戏机会日报
 
 每天把多语种游戏平台的 sitemap 新内页变成可挑选的候选：验活、合并多语言页面、查 Web.Cafe
-KD 与 SERP、用 Semrush 核对搜索量、检查可玩供给，结果统一写入项目 `.rankup/`。
+KD 与 SERP、用 Semrush 核对搜索量、检查可玩供给，结果统一写入项目 `.rankup/`。真实入口是
+`node game-opportunity/scripts/game-opportunity.mjs daily`，最终生成带候选链接和
+`develop / research / watch` 决策的 `latest.md` 与 `latest.json`。
 
 ### [`skill-link-check`](skill-link-check/) — Skill 目录审计
 

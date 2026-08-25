@@ -1,0 +1,642 @@
+#!/usr/bin/env node
+/** 小游戏机会流水线：复用 Rankup 取数脚本，统一产出每日候选与中文报告。 */
+
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const REPO = path.resolve(HERE, '../..');
+const MONITOR = path.join(REPO, 'rankup/scripts/demand/game-platform-monitor.mjs');
+const NEW_TITLES = path.join(REPO, 'rankup/scripts/demand/game-newtitles.mjs');
+const ACTIONS = ['develop', 'research', 'watch'];
+
+const HELP = `game-opportunity.mjs — 每日小游戏机会发现、筛选与报告
+
+用法:
+  node game-opportunity/scripts/game-opportunity.mjs <命令> [选项]
+
+命令:
+  discover   运行游戏平台 sitemap diff
+  radar      聚合 Steam、itch.io、Poki 新标题并做历史 diff
+  collect    依次运行 discover + radar，供早间自动任务采集
+  evaluate   合并当天输入、验活 URL、生成候选与最终日报
+  render     从已有候选或 --evaluation 文件重新生成日报
+  daily      依次运行 discover + radar + evaluate
+
+选项:
+  --date YYYY-MM-DD       报告日期（默认今天）
+  --limit <n>             每个平台/来源最多读取条数（默认 30）
+  --evaluation <file>     人工或外部量化结果；数组或 {candidates:[...]}
+  --project-root <dir>    .rankup 所在项目（默认当前目录）
+  --no-social             radar 不调用 Reddit、YouTube、X（离线检查用）
+  --dry-run               只显示将执行的动作，不联网、不写文件
+  --self-test             运行内置离线检查
+  -h, --help
+
+固定产物：.rankup/demand/game-review/YYYY-MM-DD-{discovery,radar,candidates}.json、
+          YYYY-MM-DD-report.md、latest.json、latest.md`;
+
+function parseArgs(argv) {
+  const out = { command: null, date: new Date().toISOString().slice(0, 10), limit: 30, root: process.cwd() };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    const next = () => {
+      if (!argv[i + 1]) throw new Error(`${a} 缺少参数`);
+      return argv[++i];
+    };
+    if (!a.startsWith('-') && !out.command) out.command = a;
+    else if (a === '--date') out.date = next();
+    else if (a === '--limit') out.limit = Number(next());
+    else if (a === '--evaluation') out.evaluation = path.resolve(next());
+    else if (a === '--project-root') out.root = path.resolve(next());
+    else if (a === '--no-social') out.noSocial = true;
+    else if (a === '--dry-run') out.dryRun = true;
+    else if (a === '--self-test') out.selfTest = true;
+    else if (a === '-h' || a === '--help') out.help = true;
+    else throw new Error(`未知参数：${a}`);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(out.date)) throw new Error('--date 需要 YYYY-MM-DD');
+  if (!Number.isInteger(out.limit) || out.limit < 1) throw new Error('--limit 需要正整数');
+  out.root = path.resolve(out.root);
+  out.reviewDir = path.join(out.root, '.rankup/demand/game-review');
+  out.radarState = path.join(out.root, '.rankup/demand/game-radar-snapshots');
+  return out;
+}
+
+const readJson = (file, fallback = null) => {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch { return fallback; }
+};
+const writeJson = (file, data) => {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
+};
+const writeText = (file, text) => {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, text.endsWith('\n') ? text : `${text}\n`);
+};
+const exists = (file) => fs.existsSync(file);
+const nonempty = (v) => v !== null && v !== undefined && v !== '' && (!Array.isArray(v) || v.length > 0);
+const arr = (v) => Array.isArray(v) ? v : (nonempty(v) ? [v] : []);
+const validUrl = (v) => { try { return /^https?:$/.test(new URL(v).protocol); } catch { return false; } };
+const uniq = (xs) => [...new Set(xs.filter(nonempty))];
+const normalizeName = (v) => String(v ?? '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+const normalizeUrl = (v) => {
+  try { const u = new URL(v); u.hash = ''; u.search = ''; return `${u.hostname.replace(/^www\./, '')}${u.pathname.replace(/\/$/, '')}`.toLowerCase(); }
+  catch { return ''; }
+};
+const slugName = (url) => {
+  try { return decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).pop() || new URL(url).hostname).replace(/[-_]+/g, ' '); }
+  catch { return '未命名游戏'; }
+};
+const decodeHtml = (v) => String(v ?? '').replace(/&(?:amp|#38);/gi, '&').replace(/&(?:quot|#34);/gi, '"').replace(/&(?:apos|#39);/gi, "'").replace(/&(?:lt|#60);/gi, '<').replace(/&(?:gt|#62);/gi, '>').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
+function pageMeta(html, baseUrl) {
+  const title = decodeHtml(/<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() || null;
+  const rawIframe = decodeHtml(/<iframe\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/i.exec(html)?.[1] ?? '').trim();
+  let iframeUrl = null;
+  try { if (rawIframe) { const u = new URL(rawIframe, baseUrl); if (/^https?:$/.test(u.protocol)) iframeUrl = u.href; } } catch { /* 无效 iframe */ }
+  return { title, iframeUrl };
+}
+function cleanPageTitle(title) {
+  return decodeHtml(title).replace(/\s+/g, ' ').trim().split(/\s+(?:\||[-–—])\s+|[：｜]/)[0].replace(/\s*[|｜]\s*$/, '').trim();
+}
+const errorPageTitle = (title) => /^(?:404|410)\b|\bnot found\b|\bpage not found\b/i.test(String(title ?? '').trim());
+function noisyName(candidate) {
+  const name = arr(candidate.names)[0] ?? candidate.name ?? '';
+  if (!name) return true;
+  if (/\.(?:html?|php)(?:\W|$)/i.test(name) || /^[a-z]?\d{5,}$/i.test(name)) return true;
+  const slug = arr(candidate.urls)[0] ? slugName(arr(candidate.urls)[0]) : '';
+  return normalizeName(name) === normalizeName(slug) && (name === name.toLowerCase() || !/\s/.test(name));
+}
+
+function mergeMissing(base, incoming) {
+  if (!nonempty(base)) return incoming;
+  if (!nonempty(incoming)) return base;
+  if (Array.isArray(base) && Array.isArray(incoming)) {
+    const seen = new Set();
+    return [...base, ...incoming].filter((v) => {
+      const key = typeof v === 'object' ? JSON.stringify(v) : String(v);
+      if (seen.has(key)) return false;
+      seen.add(key); return true;
+    });
+  }
+  if (typeof base === 'object' && typeof incoming === 'object') {
+    const out = { ...base };
+    for (const [k, v] of Object.entries(incoming)) out[k] = mergeMissing(out[k], v);
+    return out;
+  }
+  return base;
+}
+
+function runProcess(command, argv, cwd) {
+  return new Promise((resolve) => {
+    const child = spawn(command, argv, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '', stderr = '';
+    child.stdout.on('data', (c) => { stdout += c; });
+    child.stderr.on('data', (c) => { stderr += c; });
+    child.on('error', (e) => resolve({ ok: false, error: e.message, stdout, stderr }));
+    child.on('close', (code) => resolve({ ok: code === 0, code, stdout, stderr, error: code ? stderr.trim() || `退出码 ${code}` : null }));
+  });
+}
+const runNode = (script, argv, cwd) => runProcess(process.execPath, [script, ...argv], cwd);
+
+function files(o) {
+  const base = path.join(o.reviewDir, o.date);
+  return {
+    discovery: `${base}-discovery.json`, radar: `${base}-radar.json`,
+    candidates: `${base}-candidates.json`, report: `${base}-report.md`,
+    latestJson: path.join(o.reviewDir, 'latest.json'), latestMd: path.join(o.reviewDir, 'latest.md'),
+  };
+}
+
+function discoveryHealth(data) {
+  const usable = Number(data?.compared ?? 0) + Number(data?.baselineCreated ?? 0);
+  const warnings = arr(data?.platforms).filter((p) => p.status === 'failed').map((p) => `${p.id ?? p.name ?? 'unknown-platform'}: ${p.error ?? '抓取失败'}`);
+  return { usable, partial: usable > 0 && warnings.length > 0, warnings };
+}
+
+async function discover(o) {
+  const f = files(o);
+  if (o.dryRun) return { ok: true, dryRun: true, command: `${process.execPath} ${MONITOR} --limit ${o.limit} --out ${f.discovery}` };
+  fs.mkdirSync(o.reviewDir, { recursive: true });
+  const r = await runNode(MONITOR, ['--limit', String(o.limit), '--out', f.discovery], o.root);
+  if (!exists(f.discovery)) {
+    writeJson(f.discovery, { date: o.date, generatedAt: new Date().toISOString(), candidates: [], platforms: [], errors: [r.error] });
+    return { ...r, ok: false, partial: false, file: f.discovery };
+  }
+  const data = readJson(f.discovery);
+  if (!data) return { ...r, ok: false, partial: false, error: 'discovery JSON 无法读取', file: f.discovery };
+  const health = discoveryHealth(data);
+  if (health.usable > 0) {
+    data.warnings = uniq([...arr(data.warnings), ...health.warnings]);
+    data.errors = [];
+    writeJson(f.discovery, data);
+    return { ...r, ok: true, partial: health.partial, warnings: health.warnings, error: null, file: f.discovery };
+  }
+  data.errors = uniq([...arr(data.errors), ...health.warnings, r.error]);
+  writeJson(f.discovery, data);
+  return { ...r, ok: false, partial: false, error: data.errors.join('; ') || '没有可用平台结果', file: f.discovery };
+}
+
+function itemKeys(item) {
+  return uniq([validUrl(item.url) ? `u:${normalizeUrl(item.url)}` : '', normalizeName(item.name) ? `n:${normalizeName(item.name)}` : '']);
+}
+
+const campaignKeys = (item) => uniq([
+  ...arr(item.urls).filter(validUrl).map((v) => `u:${normalizeUrl(v)}`),
+  validUrl(item.url) ? `u:${normalizeUrl(item.url)}` : '',
+  normalizeName(item.author) ? `a:${normalizeName(item.author)}` : '',
+  normalizeName(item.title ?? item.name ?? item.text) ? `t:${normalizeName(item.title ?? item.name ?? item.text)}` : '',
+]);
+
+function mergeCampaigns(items) {
+  const groups = [];
+  for (const item of items) {
+    const keys = campaignKeys(item);
+    const hits = groups.map((g, i) => g.keys.some((k) => keys.includes(k)) ? i : -1).filter((i) => i >= 0);
+    if (!hits.length) { groups.push({ keys, items: [item] }); continue; }
+    const first = hits[0];
+    groups[first].items.push(item);
+    groups[first].keys = uniq([...groups[first].keys, ...keys]);
+    for (const i of hits.slice(1).reverse()) {
+      groups[first].items.push(...groups[i].items);
+      groups[first].keys = uniq([...groups[first].keys, ...groups[i].keys]);
+      groups.splice(i, 1);
+    }
+  }
+  return groups.map((group, i) => {
+    const rows = group.items;
+    const names = uniq(rows.map((v) => v.title ?? v.name ?? v.text).filter(Boolean));
+    const urls = uniq(rows.flatMap((v) => [...arr(v.urls), v.url, v.destinationUrl]).filter(validUrl));
+    return {
+      campaignId: `campaign-${String(i + 1).padStart(3, '0')}-${normalizeName(names[0]).replace(/ /g, '-').slice(0, 50)}`,
+      name: names[0] ?? '未命名游戏线索', names, urls, sourceLinks: urls,
+      evidenceLinks: urls, authors: uniq(rows.map((v) => v.author).filter(Boolean)),
+      platforms: uniq(rows.map((v) => v.source)), campaignCount: 1, mentions: rows.length,
+      firstSeen: rows.map((v) => v.publishedAt).filter(Boolean).sort()[0] ?? new Date().toISOString(),
+      socialEvidence: rows,
+    };
+  });
+}
+
+function socialRows(source, rows) {
+  return rows.map((row) => ({
+    source,
+    title: row.title ?? row.text ?? row.name,
+    author: row.author ?? row.channel,
+    url: row.url,
+    destinationUrl: row.url_overridden_by_dest,
+    publishedAt: row.created_utc ? new Date(Number(row.created_utc) * 1000).toISOString() : (row.created_at ?? row.published ?? null),
+    engagement: {
+      score: row.score ?? null, comments: row.comments ?? null, likes: row.likes ?? null,
+      views: row.views ?? null,
+    },
+  })).filter((row) => row.title || row.url);
+}
+
+async function socialRadar(o) {
+  if (o.noSocial) return { sources: [], candidates: [], errors: [] };
+  const yesterday = new Date(`${o.date}T00:00:00Z`);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const since = yesterday.toISOString().slice(0, 10);
+  const specs = [
+    ['reddit', ['reddit', 'search', 'new browser game', '--sort', 'new', '--time', 'day', '--limit', String(o.limit), '-f', 'json']],
+    ['youtube', ['youtube', 'search', 'new browser game', '--upload', 'today', '--sort', 'date', '--limit', String(o.limit), '-f', 'json']],
+    ['x', ['twitter', 'search', `"browser game" since:${since}`, '--product', 'live', '--limit', String(o.limit), '-f', 'json']],
+  ];
+  const sources = [], rows = [], errors = [];
+  for (const [source, argv] of specs) {
+    const r = await runProcess('opencli', argv, o.root);
+    if (!r.ok) { const error = `${source}: ${r.error}`; errors.push(error); sources.push({ source, kind: 'social-24h', status: 'failed', count: 0, error }); continue; }
+    try {
+      const items = socialRows(source, JSON.parse(r.stdout));
+      rows.push(...items);
+      sources.push({ source, kind: 'social-24h', status: 'collected', count: items.length });
+    } catch (e) {
+      const error = `${source}: 输出解析失败 ${e.message}`;
+      errors.push(error); sources.push({ source, kind: 'social-24h', status: 'failed', count: 0, error });
+    }
+  }
+  return { sources, candidates: mergeCampaigns(rows), errors };
+}
+
+async function radar(o) {
+  const f = files(o);
+  if (o.dryRun) return { ok: true, dryRun: true, sources: ['steam', 'itch', 'poki', ...(o.noSocial ? [] : ['reddit', 'youtube', 'x'])], file: f.radar };
+  fs.mkdirSync(o.radarState, { recursive: true });
+  const sources = [];
+  const errors = [];
+  for (const source of ['steam', 'itch', 'poki']) {
+    const stateFile = path.join(o.radarState, `${source}.json`);
+    const previous = readJson(stateFile, { seenKeys: [] });
+    const seen = new Set(previous.seenKeys ?? []);
+    const r = await runNode(NEW_TITLES, ['--source', source, '--count', String(o.limit), '--json'], o.root);
+    if (!r.ok) { errors.push(`${source}: ${r.error}`); sources.push({ source, status: 'failed', count: 0, added: [], error: r.error }); continue; }
+    let items;
+    try { items = JSON.parse(r.stdout); }
+    catch (e) { errors.push(`${source}: 输出解析失败 ${e.message}`); sources.push({ source, status: 'failed', count: 0, added: [], error: e.message }); continue; }
+    const added = previous.seenKeys?.length ? items.filter((item) => !itemKeys(item).some((key) => seen.has(key))) : [];
+    const nextKeys = uniq([...seen, ...items.flatMap(itemKeys)]);
+    writeJson(stateFile, { source, updatedAt: new Date().toISOString(), seenKeys: nextKeys, items });
+    sources.push({ source, status: previous.seenKeys?.length ? 'compared' : 'baseline_created', count: items.length, addedCount: added.length, added });
+  }
+  const coreErrors = [...errors];
+  const social = await socialRadar(o);
+  sources.push(...social.sources);
+  errors.push(...social.errors);
+  const candidates = [...sources.flatMap((s) => s.added ?? []), ...social.candidates];
+  const report = { date: o.date, generatedAt: new Date().toISOString(), window: '24h-and-since-last-snapshot', sources, candidates, queue: candidates, coreErrors, errors };
+  writeJson(f.radar, report);
+  return { ok: !coreErrors.length, file: f.radar, errors, candidates: candidates.length };
+}
+
+function inputCandidates(data, origin) {
+  if (!data) return [];
+  const rows = [
+    ...arr(data.candidates), ...arr(data.queue), ...arr(data.entities),
+    ...arr(data.platforms).flatMap((p) => arr(p.added).map((v) => ({ ...v, platform: v.platform ?? p.name, languages: v.languages ?? p.languages, markets: v.markets ?? p.markets }))),
+    ...arr(data.sources).flatMap((s) => arr(s.added).map((v) => ({ ...v, source: v.source ?? s.source }))),
+  ];
+  return rows.map((row) => {
+    const urls = uniq([...arr(row.urls), row.url, row.link].filter(validUrl));
+    const names = uniq([...arr(row.names), row.name, row.title, urls[0] ? slugName(urls[0]) : ''].filter(nonempty));
+    const sourceLinks = uniq([...arr(row.sourceLinks), ...urls]);
+    return {
+      entityId: row.entityId ?? (normalizeName(names[0]).replace(/ /g, '-') || normalizeUrl(urls[0]).replace(/[^a-z0-9]+/g, '-')),
+      names, urls, sourceLinks,
+      playLinks: uniq([...arr(row.playLinks), row.playUrl, row.embed?.url].filter(validUrl)),
+      evidenceLinks: uniq([...arr(row.evidenceLinks), ...sourceLinks]),
+      platforms: uniq([...arr(row.platforms), row.platform, row.source]),
+      languages: arr(row.languages), markets: arr(row.markets),
+      firstSeen: row.firstSeen ?? data.generatedAt ?? data.date ?? null,
+      pageType: row.pageType ?? row.kind ?? 'new-on-platform',
+      reachable: row.reachable ?? null, playable: row.playable ?? arr(row.playLinks).length > 0,
+      keywords: arr(row.keywords), trend: row.trend ?? {}, demandProof: row.demandProof ?? {},
+      promotionRisk: row.promotionRisk ?? {}, reasons: arr(row.reasons),
+      origin: uniq([...arr(row.origin), origin]),
+      ...(row.decision ? { decision: row.decision } : {}),
+      ...(row.action ? { action: row.action } : {}),
+      ...(row.nextAction ? { nextAction: row.nextAction } : {}),
+    };
+  }).filter((row) => row.names.length || row.urls.length);
+}
+
+function sameCandidate(a, b) {
+  const names = new Set(arr(a.names).map(normalizeName).filter(Boolean));
+  const urls = new Set(arr(a.urls).map(normalizeUrl).filter(Boolean));
+  return arr(b.names).some((v) => names.has(normalizeName(v))) || arr(b.urls).some((v) => urls.has(normalizeUrl(v)));
+}
+
+function mergeCandidates(rows) {
+  const out = [];
+  for (const row of rows) {
+    const i = out.findIndex((v) => sameCandidate(v, row));
+    if (i < 0) out.push(row); else out[i] = mergeMissing(out[i], row);
+  }
+  return out;
+}
+
+function mergeRichIntoOrdered(ordered, richerRows) {
+  const out = [...ordered];
+  for (const row of richerRows) {
+    const i = out.findIndex((v) => sameCandidate(v, row));
+    if (i < 0) out.push(row); else out[i] = mergeMissing(row, out[i]);
+  }
+  return out;
+}
+
+function isQuantified(c) {
+  return arr(c.keywords).some((k) => ['semrushVolume', 'volume', 'localVolume', 'semrushGlobalVolume', 'globalVolume', 'semrushKd', 'webcafeKd', 'kd'].some((key) => nonempty(k?.[key])));
+}
+
+function rankCandidates(candidates, todayRows) {
+  const rank = (c) => {
+    const action = finishCandidate(c).action;
+    if (isQuantified(c) && action === 'develop') return 0;
+    if (todayRows.some((v) => sameCandidate(v, c))) return 1;
+    if (isQuantified(c) && action === 'research') return 2;
+    if (c.carryForward?.recheckDue) return 3;
+    return 4;
+  };
+  return candidates.map((c, i) => ({ c, i, rank: rank(c) })).sort((a, b) => a.rank - b.rank || a.i - b.i).map((v) => v.c);
+}
+
+function carryForward(latest, date) {
+  if (!latest?.date || latest.date >= date) return [];
+  return arr(latest.candidates).filter((c) => ['research', 'watch'].includes(finishCandidate(c).action)).map((c) => {
+    const first = String(c.firstSeen ?? latest.date).slice(0, 10);
+    const ageDays = Math.max(0, Math.round((new Date(`${date}T00:00:00Z`) - new Date(`${first}T00:00:00Z`)) / 86_400_000));
+    return { ...c, firstSeen: c.firstSeen ?? latest.date, carryForward: { from: latest.date, ageDays, recheckDue: [3, 7, 14, 28].includes(ageDays) } };
+  });
+}
+
+async function checkUrl(url) {
+  if (!validUrl(url)) return { url, ok: false, status: null, error: 'URL 格式无效' };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(url, { redirect: 'follow', signal: controller.signal, headers: { 'User-Agent': 'Mozilla/5.0 GameOpportunityMonitor/1.0', Range: 'bytes=0-65535' } });
+    const chunks = [];
+    let size = 0;
+    const reader = res.body?.getReader();
+    while (reader && size < 65_536) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const keep = value.subarray(0, 65_536 - size);
+      chunks.push(keep); size += keep.length;
+    }
+    await reader?.cancel().catch(() => {});
+    const html = Buffer.concat(chunks.map((v) => Buffer.from(v))).toString('utf8');
+    const meta = pageMeta(html, res.url);
+    const result = { url, ok: res.ok, status: res.status, finalUrl: res.url, ...meta };
+    return result;
+  } catch (e) { return { url, ok: false, status: null, error: e.name === 'AbortError' ? 'timeout' : e.message }; }
+  finally { clearTimeout(timer); }
+}
+
+function keywordSignal(c) {
+  const keywords = arr(c.keywords);
+  const volume = Math.max(0, ...keywords.map((k) => Number(k.semrushVolume ?? k.volume ?? k.localVolume ?? 0) || 0));
+  const globalVolume = Math.max(0, ...keywords.map((k) => Number(k.semrushGlobalVolume ?? k.globalVolume ?? 0) || 0));
+  const kdValues = keywords.flatMap((k) => [k.semrushKd, k.webcafeKd, k.kd]).filter(nonempty).map(Number).filter(Number.isFinite);
+  return { volume, globalVolume, kd: kdValues.length ? Math.min(...kdValues) : null, trend: c.trend ?? {} };
+}
+
+function decide(c) {
+  const explicit = c.action ?? ({ 'quick-ship': 'develop', 'priority-research': 'research', watch: 'watch', develop: 'develop', research: 'research' }[c.decision]);
+  if (ACTIONS.includes(explicit)) return explicit;
+  const k = keywordSignal(c);
+  if (c.playable && (k.globalVolume >= 1000 || k.volume >= 500) && (k.kd === null || k.kd <= 40)) return 'develop';
+  if (c.reachable || c.playable || k.volume > 0 || k.globalVolume > 0 || arr(c.evidenceLinks).length > 1) return 'research';
+  return 'watch';
+}
+
+function finishCandidate(c) {
+  const urls = uniq(arr(c.urls).filter(validUrl));
+  const sourceLinks = uniq([...arr(c.sourceLinks), ...urls].filter(validUrl));
+  const playLinks = uniq([...arr(c.playLinks), c.playUrl, c.embed?.url].filter(validUrl));
+  const evidenceLinks = uniq([...arr(c.evidenceLinks), ...sourceLinks].filter(validUrl));
+  c = { ...c, urls, sourceLinks, playLinks, evidenceLinks };
+  const action = decide(c);
+  const decision = c.decision ?? ({ develop: 'quick-ship', research: 'priority-research', watch: 'watch' }[action]);
+  const nextAction = c.nextAction ?? ({
+    develop: '确认目标市场 SERP 与可玩供给后，直接建立网站开发任务。',
+    research: '补查目标国家搜索量、KD、趋势与 SERP，再决定是否开发。',
+    watch: '保留链接，等待下一次平台或搜索需求信号。',
+  }[action]);
+  return { ...c, action, decision, keywordMetrics: keywordSignal(c), trend: c.trend ?? {}, nextAction };
+}
+
+function staleReason(c) {
+  const checks = arr(c.urlChecks);
+  if (!checks.length || !checks.every((v) => v.status === 404 || v.status === 410)) return null;
+  const playLinks = arr(c.playLinks);
+  const hasUsablePlay = checks.some((v) => playLinks.includes(v.url) && v.ok);
+  const hasUnverifiedPlay = playLinks.some((url) => !checks.some((v) => v.url === url));
+  return !hasUsablePlay && !hasUnverifiedPlay ? '所有已响应 URL 均明确返回 404/410，且没有可用游戏链接' : null;
+}
+
+function overlayCandidates(current, overlay) {
+  if (!overlay) return current;
+  const rows = Array.isArray(overlay) ? overlay : arr(overlay.candidates);
+  const out = [...current];
+  for (const row of rows) {
+    const normalized = inputCandidates({ candidates: [row] }, 'evaluation')[0] ?? row;
+    const i = out.findIndex((v) => sameCandidate(v, normalized));
+    if (i < 0) out.push(row); else out[i] = mergeMissing(row, out[i]);
+  }
+  return out;
+}
+
+const md = (v) => String(v ?? '').replace(/([|[\]])/g, '\\$1').replace(/\n/g, ' ');
+const link = (label, url) => validUrl(url) ? `[${md(label)}](${url})` : md(label);
+const metric = (c) => {
+  const k = c.keywordMetrics ?? keywordSignal(c);
+  const parts = [];
+  if (k.volume) parts.push(`当地 ${k.volume.toLocaleString('en-US')}`);
+  if (k.globalVolume) parts.push(`全球 ${k.globalVolume.toLocaleString('en-US')}`);
+  if (k.kd !== null) parts.push(`KD ${k.kd}`);
+  return parts.join('；') || '待查';
+};
+
+function renderMarkdown(report) {
+  const labels = { develop: '建议开发', research: '继续调研', watch: '继续观察' };
+  const lines = [`# 小游戏机会日报 · ${report.date}`, '', `共 ${report.candidates.length} 个候选：建议开发 ${report.stats.develop} 个，继续调研 ${report.stats.research} 个，继续观察 ${report.stats.watch} 个。`, ''];
+  for (const action of ACTIONS) {
+    lines.push(`## ${labels[action]}`, '');
+    const rows = report.candidates.filter((c) => c.action === action);
+    if (!rows.length) { lines.push('本组暂无候选。', ''); continue; }
+    lines.push('| 候选 | 来源 | 市场 / 搜索量 / KD | 可玩 | 下一步 |', '|---|---|---|---|---|');
+    for (const c of rows) {
+      const name = arr(c.names)[0] ?? c.name ?? '未命名游戏';
+      const primary = arr(c.playLinks)[0] ?? arr(c.urls)[0] ?? arr(c.sourceLinks)[0];
+      const sources = uniq([...arr(c.sourceLinks), ...arr(c.evidenceLinks), ...arr(c.urls)]).slice(0, 4);
+      const sourceMd = sources.length ? sources.map((url, i) => link(`来源${i + 1}`, url)).join(' · ') : '无链接';
+      const markets = arr(c.markets).join('/') || arr(c.keywords).map((k) => k.market).filter(Boolean).join('/') || '待定';
+      lines.push(`| ${link(name, primary)} | ${sourceMd} | ${md(markets)}；${metric(c)} | ${c.playable ? '是' : '待确认'} | ${md(c.nextAction)} |`);
+    }
+    lines.push('');
+  }
+  if (report.errors.length) lines.push('## 本次异常', '', ...report.errors.map((e) => `- ${md(e)}`), '');
+  lines.push(`机器可读清单：\`${report.date}-candidates.json\`。`);
+  return `${lines.join('\n')}\n`;
+}
+
+function saveReport(o, candidates, errors = [], excluded = []) {
+  const f = files(o);
+  const done = candidates.map(finishCandidate);
+  const report = {
+    date: o.date, generatedAt: new Date().toISOString(), errors: uniq(errors.filter(Boolean)),
+    stats: Object.fromEntries(ACTIONS.map((a) => [a, done.filter((c) => c.action === a).length])),
+    candidates: done, excluded: excluded.map(finishCandidate),
+  };
+  writeJson(f.candidates, report);
+  const markdown = renderMarkdown(report);
+  writeText(f.report, markdown);
+  fs.copyFileSync(f.candidates, f.latestJson);
+  fs.copyFileSync(f.report, f.latestMd);
+  return { report, files: f };
+}
+
+async function evaluate(o, inheritedErrors = []) {
+  const f = files(o);
+  if (o.dryRun) return { ok: true, dryRun: true, inputs: [f.discovery, f.radar, o.evaluation].filter(Boolean), outputs: [f.candidates, f.report, f.latestJson, f.latestMd] };
+  const discovery = readJson(f.discovery);
+  const radarData = readJson(f.radar);
+  const old = readJson(f.candidates);
+  const latest = readJson(f.latestJson);
+  const errors = [...inheritedErrors];
+  const fatalErrors = [...inheritedErrors];
+  if (!discovery) { const e = `缺少 ${path.basename(f.discovery)}`; errors.push(e); fatalErrors.push(e); }
+  if (!radarData) { const e = `缺少 ${path.basename(f.radar)}`; errors.push(e); fatalErrors.push(e); }
+  const health = discoveryHealth(discovery);
+  errors.push(...arr(discovery?.warnings), ...health.warnings, ...(health.usable > 0 ? [] : arr(discovery?.errors)), ...arr(radarData?.errors));
+  if (discovery && health.usable === 0) fatalErrors.push(...arr(discovery.errors), ...health.warnings, 'discovery 没有可用平台结果');
+  fatalErrors.push(...arr(radarData?.coreErrors));
+  const todayRows = mergeCandidates([
+    ...inputCandidates(discovery, 'discovery'),
+    ...inputCandidates(radarData, 'radar'),
+  ]);
+  let candidates = [...todayRows];
+  if (old?.candidates?.length) candidates = mergeRichIntoOrdered(candidates, old.candidates);
+  candidates = mergeRichIntoOrdered(candidates, carryForward(latest, o.date));
+  if (o.evaluation) {
+    const overlay = readJson(o.evaluation);
+    if (!overlay) errors.push(`无法读取 --evaluation ${o.evaluation}`);
+    else candidates = overlayCandidates(candidates, overlay);
+  }
+  candidates = rankCandidates(candidates, todayRows).slice(0, o.limit);
+  for (let i = 0; i < candidates.length; i++) {
+    const c = candidates[i] = finishCandidate(candidates[i]);
+    const checks = [];
+    const primary = arr(c.urls)[0] ?? arr(c.sourceLinks)[0] ?? arr(c.playLinks)[0];
+    if (primary) checks.push(await checkUrl(primary));
+    const first = checks[0];
+    if (first?.title && errorPageTitle(first.title)) c.names = arr(c.names).filter((name) => normalizeName(name) !== normalizeName(first.title));
+    if (first?.title && !errorPageTitle(first.title) && (noisyName(c) || normalizeName(arr(c.names)[0]) === normalizeName(first.title))) {
+      const title = cleanPageTitle(first.title);
+      if (title) c.names = uniq([title, ...arr(c.names)]);
+    }
+    if (first?.iframeUrl) c.playLinks = uniq([first.iframeUrl, ...arr(c.playLinks)]);
+    const remaining = uniq([...arr(c.playLinks), ...arr(c.urls)]).filter((url) => url !== primary).slice(0, 3 - checks.length);
+    for (const url of remaining) checks.push(await checkUrl(url));
+    c.urlChecks = checks;
+    if (checks.length) c.reachable = c.reachable === true || checks.some((v) => v.ok);
+    if (arr(c.playLinks).length) c.playable = c.playable === true || checks.filter((v) => arr(c.playLinks).includes(v.url)).some((v) => v.ok);
+  }
+  const excluded = [];
+  candidates = candidates.filter((c) => {
+    const reason = staleReason(c);
+    if (!reason) return true;
+    excluded.push({ ...c, pageType: 'stale-url', excludedReason: reason, excludedLinks: uniq([...arr(c.urls), ...arr(c.playLinks)]) });
+    return false;
+  });
+  const saved = saveReport(o, candidates, errors, excluded);
+  return { ok: !uniq(fatalErrors.filter(Boolean)).length, ...saved };
+}
+
+function render(o) {
+  const f = files(o);
+  if (o.dryRun) return { ok: true, dryRun: true, input: o.evaluation ?? f.candidates, outputs: [f.report, f.latestJson, f.latestMd] };
+  const current = readJson(f.candidates);
+  const supplied = o.evaluation ? readJson(o.evaluation) : null;
+  if (!current && !supplied) throw new Error(`没有可渲染的候选：${f.candidates}`);
+  let candidates = arr(current?.candidates);
+  if (supplied) candidates = overlayCandidates(candidates, supplied);
+  return { ok: true, ...saveReport(o, candidates, arr(current?.errors), arr(current?.excluded)) };
+}
+
+async function collect(o) {
+  if (o.dryRun) return { ok: true, dryRun: true, stages: [await discover(o), await radar(o)] };
+  const stages = [];
+  const d = await discover(o); stages.push({ stage: 'discover', ok: d.ok, error: d.error, file: d.file });
+  const r = await radar(o); stages.push({ stage: 'radar', ok: r.ok, errors: r.errors, file: r.file });
+  return { ok: stages.every((s) => s.ok), stages };
+}
+
+async function daily(o) {
+  if (o.dryRun) return { ok: true, dryRun: true, collect: await collect(o), evaluate: await evaluate(o) };
+  const gathered = await collect(o);
+  const errors = gathered.stages.flatMap((s) => s.ok ? [] : [s.error, ...arr(s.errors)].filter(Boolean).map((e) => `${s.stage}: ${e}`));
+  const result = await evaluate(o, errors);
+  return { ok: gathered.ok && result.ok, collect: gathered, evaluate: result };
+}
+
+function selfTest() {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'game-opportunity-'));
+  try {
+    const o = parseArgs(['render', '--date', '2099-01-02', '--project-root', tmp]);
+    const merged = mergeCandidates([
+      { names: ['Foo Game'], urls: ['https://example.com/foo'], keywords: [{ keyword: 'foo', semrushGlobalVolume: 1200, semrushKd: 22 }], playable: true },
+      { names: ['foo-game'], urls: ['https://example.com/foo/'], evidenceLinks: ['https://reddit.com/r/games/foo'] },
+    ]);
+    if (merged.length !== 1 || decide(merged[0]) !== 'develop') throw new Error('实体合并或分组失败');
+    const carried = mergeRichIntoOrdered(
+      [{ names: ['New Game'], urls: ['https://example.com/new'] }],
+      carryForward({ date: '2099-01-01', candidates: [{ names: ['Old Game'], firstSeen: '2098-12-30', sourceLinks: ['https://example.com/old'], action: 'research' }] }, o.date),
+    );
+    if (carried[0].names[0] !== 'New Game' || carried[1].firstSeen !== '2098-12-30' || carried[1].sourceLinks[0] !== 'https://example.com/old' || carried[1].carryForward.recheckDue !== true) throw new Error('旧候选续查或新词顺序失败');
+    const campaigns = mergeCampaigns([
+      { source: 'reddit', title: 'Try My Browser Game', author: 'same-maker', url: 'https://reddit.com/r/games/1' },
+      { source: 'youtube', title: 'Browser Game Trailer', author: 'same-maker', url: 'https://youtube.com/watch?v=1' },
+    ]);
+    if (campaigns.length !== 1 || campaigns[0].mentions !== 2) throw new Error('campaign 去重失败');
+    const fresh = { names: ['Fresh Game'], urls: ['https://example.com/fresh'] };
+    const ranked = rankCandidates([
+      { names: ['Old Watch'], urls: ['https://example.com/watch'], action: 'watch' },
+      fresh,
+      { names: ['Verified Winner'], urls: ['https://example.com/winner'], action: 'develop', keywords: [{ semrushVolume: 1000, semrushKd: 20 }] },
+    ], [fresh]);
+    if (ranked.map((v) => v.names[0]).join('|') !== 'Verified Winner|Fresh Game|Old Watch') throw new Error('候选优先级排序失败');
+    const partial = discoveryHealth({ compared: 45, baselineCreated: 0, platforms: [{ id: 'bad-a', status: 'failed', error: 'timeout' }] });
+    if (partial.usable !== 45 || !partial.partial || !partial.warnings[0].includes('bad-a')) throw new Error('部分 discovery 判定失败');
+    if (!staleReason({ urlChecks: [{ url: 'https://example.com/gone', status: 404, ok: false }], playLinks: [] })) throw new Error('明确 404 未排除');
+    if (staleReason({ urlChecks: [{ url: 'https://example.com/slow', status: null, ok: false, error: 'timeout' }], playLinks: [] })) throw new Error('timeout 被错误排除');
+    if (!errorPageTitle('404 Not Found')) throw new Error('404 title 判定失败');
+    const meta = pageMeta('<title>Cute Mahjong Connect - Play Free</title><iframe src="../play/index.html"></iframe>', 'https://games.example/catalog/item/');
+    if (cleanPageTitle(meta.title) !== 'Cute Mahjong Connect' || meta.iframeUrl !== 'https://games.example/catalog/play/index.html') throw new Error('title 清洗或 iframe 相对地址解析失败');
+    if (cleanPageTitle('スネークデュエル｜対戦バトル｜無料ゲームならワウゲーム') !== 'スネークデュエル') throw new Error('全角站点后缀清洗失败');
+    saveReport(o, merged, []);
+    const f = files(o);
+    if (![f.candidates, f.report, f.latestJson, f.latestMd].every(exists)) throw new Error('报告产物不完整');
+    if (!fs.readFileSync(f.report, 'utf8').includes('[Foo Game](https://example.com/foo)')) throw new Error('Markdown 链接缺失');
+    return { ok: true, checks: ['normalize-and-merge', 'decision', 'carry-forward-order', 'candidate-priority', 'partial-discovery', 'stale-vs-timeout', 'title-and-iframe', 'campaign-dedupe', 'markdown-links', 'stable-latest'] };
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}
+
+async function main() {
+  const o = parseArgs(process.argv.slice(2));
+  if (o.help) { console.log(HELP); return; }
+  if (o.selfTest) { console.log(JSON.stringify(selfTest(), null, 2)); return; }
+  if (!['discover', 'radar', 'collect', 'evaluate', 'render', 'daily'].includes(o.command)) {
+    console.log(HELP); process.exitCode = 2; return;
+  }
+  const result = await ({ discover, radar, collect, evaluate, render, daily })[o.command](o);
+  console.log(JSON.stringify(result, null, 2));
+  if (!result.ok) process.exitCode = 1;
+}
+
+main().catch((e) => { console.error(`错误：${e.message}`); process.exit(1); });
