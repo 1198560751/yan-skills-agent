@@ -54,6 +54,13 @@ function loadPlatforms(file) {
       die(`${p.id} 需要 name、languages、markets`);
     }
     if (!Array.isArray(p.sitemaps) || !p.sitemaps.length) die(`${p.id} 需要至少一个 sitemap`);
+    for (const field of ['include', 'exclude']) {
+      if (p[field] !== undefined && !Array.isArray(p[field])) die(`${p.id} 的 ${field} 需要数组`);
+      for (const pattern of p[field] ?? []) {
+        try { new RegExp(pattern); } catch { die(`${p.id} 的 ${field} 正则有误：${pattern}`); }
+      }
+    }
+    if (p.timeout !== undefined && (!Number.isInteger(p.timeout) || p.timeout < 1)) die(`${p.id} 的 timeout 需要正整数`);
     for (const url of [p.homepage, ...p.sitemaps]) {
       try { if (!/^https?:$/.test(new URL(url).protocol)) throw new Error(); }
       catch { die(`${p.id} 的 URL 格式有误：${url}`); }
@@ -72,19 +79,22 @@ function runDiff(platform, options) {
     '--max-sitemaps', String(options.maxSitemaps),
     '--delay', String(options.delay),
     '--track-lastmod',
+    ...asList(platform.include).flatMap((pattern) => ['--include', String(pattern)]),
+    ...asList(platform.exclude).flatMap((pattern) => ['--exclude', String(pattern)]),
     '--json',
   ];
   return new Promise((resolve) => {
     const child = spawn(process.execPath, argv, { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '', stderr = '';
     let timedOut = false;
-    const timer = setTimeout(() => { timedOut = true; child.kill('SIGTERM'); }, options.timeout * 1000);
+    const timeout = platform.timeout ?? options.timeout;
+    const timer = setTimeout(() => { timedOut = true; child.kill('SIGTERM'); }, timeout * 1000);
     child.stdout.on('data', (chunk) => { stdout += chunk; });
     child.stderr.on('data', (chunk) => { stderr += chunk; });
     child.on('error', (error) => { clearTimeout(timer); resolve({ ok: false, error: error.message }); });
     child.on('close', (code) => {
       clearTimeout(timer);
-      if (timedOut) return resolve({ ok: false, error: `超过 ${options.timeout} 秒` });
+      if (timedOut) return resolve({ ok: false, error: `超过 ${timeout} 秒` });
       if (code !== 0) return resolve({ ok: false, error: stderr.trim() || `退出码 ${code}` });
       try { resolve({ ok: true, rows: JSON.parse(stdout), notes: stderr.trim() }); }
       catch (e) { resolve({ ok: false, error: `输出解析失败：${e.message}` }); }
@@ -150,6 +160,7 @@ async function main() {
   const candidates = platforms.flatMap((p) => (p.added ?? []).map((row) => ({
     platformId: p.id,
     platform: p.name,
+    kind: p.kind ?? 'playable-game',
     languages: p.languages,
     markets: p.markets,
     ...row,

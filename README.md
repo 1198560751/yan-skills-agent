@@ -32,7 +32,7 @@ npx skills add yan-labs/yan-skills -g --all
 
 ## `rankup` — 网站全生命周期总控
 
-版本 `2.50.1`。它不重复实现 Wrangler、Stripe 或趋势工具，它负责把这些能力串成一条长期可维护的工作流，并且记住你在每个项目上做过什么。小游戏站另有一条从新词监控、iframe 供给、可玩页面、广告到持续迭代的[专用链路](rankup/references/game-sites.md)。
+版本 `2.51.0`。它不重复实现 Wrangler、Stripe 或趋势工具，它负责把这些能力串成一条长期可维护的工作流，并且记住你在每个项目上做过什么。小游戏站另有一条从新词监控、iframe 供给、可玩页面、广告到持续迭代的[专用链路](rankup/references/game-sites.md)。
 
 ### 它覆盖的十二个阶段，分五个大阶段
 
@@ -365,13 +365,18 @@ candidate → qualified → filled → submitted → public → indexed@<engine>
 
 ---
 
-## 另外四个 Skill
+## 另外五个 Skill
 
 ### [`autopilot`](autopilot/) — 一句话到无人值守执行完
 
 扔一句「把 bug 修了」「优化下性能」，它自动调查、分类、拆成 XML 阶段计划、选 Skill、定完成判定，然后无人值守跑到底，包括自动部署、自动 E2E、自动 code review，不跳阶段。调用它等于授权全自动执行，中途不问你。
 
 无依赖。
+
+### [`game-opportunity`](game-opportunity/) — 小游戏机会日报
+
+每天把多语种游戏平台的 sitemap 新内页变成可挑选的候选：验活、合并多语言页面、查 Web.Cafe
+KD 与 SERP、用 Semrush 核对搜索量、检查可玩供给，结果统一写入项目 `.rankup/`。
 
 ### [`skill-link-check`](skill-link-check/) — Skill 目录审计
 
@@ -571,6 +576,9 @@ node backlink/scripts/third-party-list-ingest.mjs --input ./list.md --out ./lead
 
 # 批量流量筛查：一次登录，N 个域名，可续跑
 node backlink/scripts/similarweb-batch.mjs --domains-file domains.txt --out traffic.jsonl
+
+# 同一国家一次查最多 100 个词；入选词再单查全球量和主要国家
+node backlink/scripts/semrush-keyword.mjs --kw-file words.txt --db us --bulk --out keywords-us.jsonl
 
 # 台账
 node backlink/scripts/ledger.mjs list --state public

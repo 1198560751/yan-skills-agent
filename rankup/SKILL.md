@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、挖需求、找需求、需求挖掘、找方向、找选题、"最近有什么能做的"、"找几个关键词"、"挖个新词的工具站"、"看看有什么游戏站能做"、竞品调研、榜单调研、差评挖掘、反查谁在赚钱、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 哥飞、web.cafe、哥飞论坛、哥飞的朋友们、悬赏、悬赏问答、经验帖、"群里怎么说的"、"社群里有没有讲过"、"论坛里搜一下"、"哥飞说过什么"、哥飞.ai，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
 metadata:
-  version: "2.50.1"
+  version: "2.51.0"
 ---
 
 # Rankup 2.0
@@ -156,7 +156,7 @@ npx skills add yan-labs/yan-skills --skill backlink -g -y
 |---|---|---|
 | **查一个站的流量、渠道、同类站** | `similarweb-query.mjs` | 直接跑脚本即可；复杂场景或首次使用加载 backlink 读 `authorized-data-sources.md` |
 | **批量筛几百个域名的流量** | `similarweb-batch.mjs` | 直接跑；首次使用加载 backlink 了解配额与续跑机制 |
-| **查关键词搜索量、KD、CPC** | `semrush-keyword.mjs` | 直接跑脚本 |
+| **查关键词搜索量、KD、CPC** | `semrush-keyword.mjs` | 同一国家最多 100 词用 `--bulk --db <cc>`；入选词单查全球量和主要国家 |
 | **查域名自然流量、引荐域、关键词库** | `semrush-overview.mjs` | 直接跑脚本 |
 | **导 Semrush 的四个无导出报表** | `semrush-report.mjs` | 加载 backlink 读 `authorized-data-sources.md` 了解分页与解析陷阱 |
 | **批量 Semrush 有机流量** | `semrush-batch.mjs` | 直接跑脚本 |
@@ -528,7 +528,7 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | 关键词难度、SERP 盘面、页面体检、域名与外链估值 | [`seo-webcafe.md`](references/seo-webcafe.md) | `scripts/seo-webcafe.mjs`（一个脚本覆盖全部工具，零配置可跑） |
 | **前期调研、挖需求、「做什么方向」、反推别人在赚什么钱、选题验证** | 判断先读 [`experiences/demand-discovery.md`](references/experiences/demand-discovery.md)（裁定集），取数直接查 [`demand-sources.md`](references/demand-sources.md)（源 → 脚本路由表） | `scripts/demand/` 整组 + `scripts/gt.py` + `seo-webcafe.mjs kd` 收敛成词 |
 | **「找几个关键词」「找点需求」「挖个新方向」「有什么新词的工具站能做」「挖游戏站/AI 产品」** | [`demand-sources.md`](references/demand-sources.md) —— **按「你现在缺哪一类信号」查表，不要凭印象挑站** | `scripts/demand/`。拿到候选后一律走该文件第十节的验证链路，别跳过 |
-| **小游戏站、游戏新词、监控游戏站、游戏 iframe、游戏站变现** | [`game-sites.md`](references/game-sites.md) + [`lifecycle.md`](references/lifecycle.md) | 复用 `game-newtitles.mjs`、`game-platform-monitor.mjs`、`sitemap-diff.mjs`、`gt.py` 和现有 Similarweb/Semrush/GSC/分析能力；**先验证 iframe 可用性、流量窗口和变现空间** |
+| **小游戏站、游戏新词、监控游戏站、游戏 iframe、游戏站变现** | 先加载 `game-opportunity`，建站阶段再读 [`game-sites.md`](references/game-sites.md) + [`lifecycle.md`](references/lifecycle.md) | `game-opportunity` 每天完成 sitemap、验活、查量/KD、供给与排序；Rankup 接手建站和增长 |
 | **0→1 怎么排优先级、「1」怎么定义、虚荣指标、要不要重构、什么时候止损、新站上线执行清单** | [`experiences/zero-to-one.md`](references/experiences/zero-to-one.md) | 无需工具，是裁定集。**接到「优化一下这个站」时默认打磨转化链路，不是重构架构** |
 | **转化率上不去、访客不注册、注册不付费、定价怎么定、用户行为数据怎么提** | [`experiences/conversion.md`](references/experiences/conversion.md) | 无需工具，是裁定集。**动页面之前先查上游流量意图** |
 | 老站救不救、多站会不会自我重复、品牌名不显示、KGR 怎么算、页面下限 | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) | 无需工具，是裁定集 |

@@ -3,7 +3,7 @@ name: backlink
 description: OpenCLI-first backlink discovery, profile analysis, opportunity qualification, safe browser-assisted form filling, evidence-based verification, and bulk data harvesting from logged-in dashboards. Use for backlinks, external links, competitor link research, blog-comment opportunities, directory submissions, Similarweb/Semrush/Ahrefs discovery, Search Console verification, anchor analysis, toxic-link review, disavow review, outreach templates, scraping SaaS report tables that have no API, driving the owner's logged-in Chrome from a script, or Chinese requests such as 反链、外链、找外链、发外链、评论外链、外链分析、抓后台数据、导出报表、数据面板、数据勘测.
 ---
 
-<skill name="backlink" version="3.2" body-format="xml">
+<skill name="backlink" version="3.3" body-format="xml">
 
 <why-xml>
 The frontmatter above stays YAML because the Skill loader reads it for
@@ -58,7 +58,7 @@ backlink/
 │   ├── similarweb-batch.mjs        bulk traffic screen — one login, N domains, resumable
 │   ├── semrush-batch.mjs           same, on the other card's quota (organic traffic)
 │   ├── semrush-overview.mjs        AS / organic traffic / ref-domains / keywords
-│   ├── semrush-keyword.mjs         one keyword: volume, KD, CPC, per-country split
+│   ├── semrush-keyword.mjs         up to 100 keywords per country; shortlisted terms add global and country split
 │   ├── semrush-report.mjs          the OTHER four no-export reports; reuses one session
 │   │                               table reports paginate — pass --all-pages or it warns
 │   ├── page-read.mjs               render a public page → text, prices, paywall shape

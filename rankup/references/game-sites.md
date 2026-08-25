@@ -3,6 +3,9 @@
 用户提到「小游戏站」「游戏新词」「监控游戏站」「游戏 iframe」时，按本文件执行；建站、上线、
 索引和分析平台接入继续走 [`lifecycle.md`](lifecycle.md)。
 
+每日机会流水线由 `game-opportunity` Skill 执行：`discover` 负责 sitemap 增量，`evaluate` 负责验活、
+查量/KD、供给检查和候选排序。
+
 ## 一、目标
 
 小游戏站是一门流量生意：尽早发现正在增长的游戏词，快速接入可玩的游戏供给，上线搜索页面，
@@ -42,6 +45,11 @@ node scripts/demand/game-platform-monitor.mjs --market KZ,UA,DE,JP
 ```bash
 node scripts/demand/sitemap-diff.mjs --domain example.com --slug-words
 ```
+
+每个平台可以在私有清单里配置 `include`、`exclude`、`kind` 和 `timeout`：保留游戏详情路径，滤掉
+标签、分类、博客等杂页，同时标明它属于可玩游戏、游戏资讯或游戏相关内容。候选页先用 HTTP 验证
+状态和正文，再用 Jina Reader 提取内容；需要登录态或浏览器渲染时交给 OpenCLI。同一游戏的多语言
+页面合并成一个实体，并分别记录「平台首次收录时间」与「游戏发布时间」。
 
 项目新增的平台写入项目 `.rankup/research.md`，记录站点、sitemap、语言、市场和最近有效信号；
 验证稳定后再加入通用清单。
@@ -128,7 +136,7 @@ AI 用于整理元数据、翻译草稿、生成代码和维护模板；玩家�
 | 每日 | iframe 加载与开始入口 | 项目冒烟测试 | 标记 `active/watch/replace` |
 | 每日 | PV、UV、开始率、局数、分享率、国家 | GA/Cloudflare/项目事件 | 找到增长页面与地区 |
 | 每日 | 广告覆盖、RPM、流量质量 | 广告后台 | 调整渠道与广告位 |
-| 每周 | Trends、SERP、排名、前十变化 | `gt.py` + SERP 数据 | 加深增长词的页面 |
+| 每日 | 候选 Trends、KD、SERP、搜索量 | `gt.py` + Web.Cafe + Semrush | 生成可上线、优先研究、观察三组 |
 | 每周 | 竞品流量渠道与关键词 | Similarweb/Semrush | 更新候选与路线图 |
 | 每周 | 新增/丢失引荐域 | `backlink` Skill | 验收并扩展有效来源 |
 | 每周 | sitemap、索引率、GSC 查询/页面 | GSC + `seo-audit.mjs` | 更新页面与内链 |
@@ -137,9 +145,9 @@ AI 用于整理元数据、翻译草稿、生成代码和维护模板；玩家�
 调度使用项目现有 CI、cron 或自动化平台。结果写入 `.rankup/demand/`，登录后台的任务复用固定
 浏览器会话，每个站点保持一个会话。
 
-## 九、每周加码
+## 九、持续加码
 
-每周汇总：
+每天筛选新候选；每周汇总已上线站点：
 
 - 搜索：曝光、点击、查询覆盖、排名、索引率；
 - 产品：开始率、加载成功率、每用户局数、重玩、分享、7 日回访；

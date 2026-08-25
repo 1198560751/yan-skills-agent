@@ -160,11 +160,15 @@ Respect plan quotas and exports. Never capture or print session secrets.
 
 | 维度 | 脚本 | `--db` 的含义 | 有没有全球合计 |
 |---|---|---|---|
-| 关键词（`semrush-keyword.mjs`） | `volume`＝该国搜索量 | 必填项，默认悄悄落到 `jp` | **有**，同一行的 `globalVolume`；`byCountry` 只是页面列出的 Top-N，不穷举，加总到不了 `globalVolume` |
+| 关键词（`semrush-keyword.mjs`） | `volume`＝该国搜索量；`--bulk` 同库一次最多 100 词 | 必填项，默认悄悄落到 `jp` | 单词模式有 `globalVolume` 与 Top-N `byCountry`；批量模式专注当前国家库 |
 | 域名（`semrush-overview.mjs` / `semrush-batch.mjs` / `semrush-report.mjs` 的四张报表） | `organicTraffic` 等＝该国估算 | 省略不等于全球，只是落到 Semrush 自己的默认库 | **没有**——这几个脚本目前没有全球选项，域名维度想要全球规模只能换一个独立信源（比如 Similarweb）按国家占比折算，不能靠不传 `--db` 拿到 |
 
 Semrush 网页版本身是否提供一档「Worldwide」数据库供域名概览选择，**这一点没有验证过**，
 不要替它下结论；如果哪天验证到了，回来更新上面这张表，而不是继续假设「没有」。
+
+关键词先按国家分文件，用 `--bulk --db <cc>` 一次筛最多 100 个；入选词再用单词模式读取
+`globalVolume` 和 `byCountry`，随后对主要国家与项目目标市场分别跑对应 `--db`。这样美国库的零值
+不会覆盖其他国家的真实需求。
 
 跟别的面板对比时（尤其是 Similarweb），三件事都要对齐，缺一个都能吵出一个假的倍数差：
 1. **地理范围**——Semrush 的数字是一个国家库，Similarweb 默认是全球，先把两边扳到同一个地理范围（乘目标国占比，或用 Semrush 关键词维度的 `globalVolume`）再比；

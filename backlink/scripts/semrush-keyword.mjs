@@ -24,6 +24,7 @@
  * 用法：
  *   node semrush-keyword.mjs --kw 診断 --db jp      # --db 是按国家的，别省
  *   node semrush-keyword.mjs --kw-file words.txt --db kr --out kr.jsonl
+ *   node semrush-keyword.mjs --kw-file words.txt --db us --bulk --out us.jsonl
  *   # 想要全球规模：读输出里的 globalVolume 字段，不要重算 --db 或加总 byCountry
  *
  * 已验证 2026-08-25：冻结/登录失效页立即停止；同机 Semrush 查询跨进程串行；
@@ -31,8 +32,9 @@
  */
 import { defaultSession, parseFlags, printJson, validateSession, showHelpIfRequested} from './opencli-core.mjs';
 import { acquireToolsShareLock, assertToolsShareAvailable, expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
-import { appendFile, readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { randomInt } from 'node:crypto';
+import assert from 'node:assert/strict';
 
 const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
@@ -70,6 +72,32 @@ function parseCompact(value) {
   const mult = { k: 1e3, m: 1e6, b: 1e9 }[(m[2] || '').toLowerCase()] || 1;
   return Math.round(Number(m[1]) * mult);
 }
+
+const BULK_INTENTS = ['Informational', 'Navigational', 'Commercial', 'Transactional'];
+function parseBulkApi(keywords, rows) {
+  const byPhrase = new Map(rows.map((row) => [row.phrase, row]));
+  return keywords.map((keyword) => {
+    const row = byPhrase.get(keyword);
+    const noData = !row || row.volume == null;
+    return {
+      keyword,
+      db,
+      volume: noData ? 0 : row.volume,
+      kd: row?.difficulty ?? null,
+      cpc: row?.cpc == null ? null : `$${row.cpc}`,
+      competition: row?.competition_level == null ? null : String(row.competition_level),
+      results: row?.results ?? null,
+      trend: row?.trend ?? null,
+      globalVolume: null,
+      byCountry: null,
+      intentRaw: row?.intents ?? null,
+      intent: row?.intents?.map((code) => BULK_INTENTS[code]).filter(Boolean).join(', ') || null,
+      noData,
+      status: noData ? 'absent' : 'ok',
+    };
+  });
+}
+
 /**
  * 页面上出现的所有指标标签，`pick` 拿它当**扫描边界**。
  * 单独列出来是因为「往后找」必须知道自己什么时候越界了。
@@ -142,6 +170,21 @@ function pickCountries(lines) {
   return Object.keys(out).length ? out : null;
 }
 
+if (flags['self-test']) {
+  const sample = parseBulkApi(['x', 'missing'], [{
+    phrase: 'x', volume: 1400, difficulty: 29, cpc: 0.16, competition_level: 0.01,
+    results: 100, trend: [1, 2], intents: [0],
+  }]);
+  assert.deepEqual(sample[0], {
+    keyword: 'x', db, volume: 1400, kd: 29, cpc: '$0.16', competition: '0.01', results: 100,
+    trend: [1, 2], globalVolume: null, byCountry: null, intentRaw: [0], intent: 'Informational',
+    noData: false, status: 'ok',
+  });
+  assert.equal(sample[1].status, 'absent');
+  console.log('semrush-keyword bulk self-test passed');
+  process.exit(0);
+}
+
 const accountLock = await acquireToolsShareLock('semrush', {
   timeoutMs: Math.max(0, Number(flags['lock-timeout'] ?? 600)) * 1000,
 });
@@ -157,7 +200,40 @@ const launched = await launchTool({
 const warn = expiryWarning(launched.state);
 if (warn) console.error(`[subscription] ${warn}`);
 
-const results = [];
+let results = [];
+if (flags.bulk) {
+  if (keywords.length > 100) throw new Error(`Semrush bulk accepts at most 100 keywords, received ${keywords.length}.`);
+  const params = { phrases: keywords, database: db, date: '', currency: 'USD' };
+  const cap = assertToolsShareAvailable(await launched.evalPage(`(async () => {
+    const response = await fetch('/kwogw/v2/webapi', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'keywords.GetBulk', params: ${JSON.stringify(params)} }),
+      mode: 'cors',
+      cache: 'default',
+    });
+    const text = await response.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch { /* handled below without exposing response text */ }
+    return JSON.stringify({
+      url: location.href,
+      title: document.title,
+      bodyText: (document.body?.innerText || '').slice(0, 1000),
+      httpStatus: response.status,
+      rpcError: data?.error || null,
+      invalidJson: data === null,
+      rows: Array.isArray(data?.result) ? data.result : [],
+    });
+  })()`, Number(flags.timeout || 90) * 1000));
+  if (cap.httpStatus !== 200 || cap.rpcError || cap.invalidJson) {
+    throw new Error(`Semrush bulk request failed (db=${db}, HTTP ${cap.httpStatus}, ${cap.rpcError?.message || 'empty or invalid response'})`);
+  }
+  results = parseBulkApi(keywords, cap.rows);
+  console.error(`bulk ${db}: ${results.length} keywords in one report`);
+  if (typeof flags.out === 'string') {
+    await writeFile(flags.out, results.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf8');
+  }
+} else {
 for (const kw of keywords) {
   if (results.length) await pace();
   let row;
@@ -214,12 +290,14 @@ for (const kw of keywords) {
     await writeFile(flags.out, results.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf8');
   }
 }
+}
 
 printJson({
   version: 1,
-  source: 'Semrush keyword overview via authenticated Tools Share browser session',
-  note: `volume 是 db=${db} 这一个国家库的月搜量，globalVolume 是全球合计，byCountry 只是` +
-    '页面列出的 Top-N（不穷举，加总不等于 globalVolume）——三者不可互相替代。',
+  source: `Semrush keyword overview${flags.bulk ? ' bulk' : ''} via authenticated Tools Share browser session`,
+  note: flags.bulk
+    ? `bulk volume/KD/CPC 是 db=${db} 这一个国家库的数据；对筛出的候选再用单词模式读取 globalVolume 与 byCountry。`
+    : `volume 是 db=${db} 这一个国家库的月搜量，globalVolume 是全球合计，byCountry 是页面列出的 Top-N（不穷举，加总不等于 globalVolume）——三者不可互相替代。`,
   retrievedAt: new Date().toISOString(),
   db,
   session,
