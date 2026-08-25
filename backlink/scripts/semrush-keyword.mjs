@@ -40,6 +40,7 @@ const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
 const dbGiven = flags.db !== undefined && String(flags.db).trim() !== '';
 const db = String(flags.db || 'jp').trim().toLowerCase();
+if (flags.bulk && !dbGiven) throw new Error('Bulk keyword lookup requires an explicit country database, for example --db us or --db jp.');
 // The default exists because this Skill's first callers were all JP-market, and
 // changing it now would silently re-point their saved runs. But an English
 // keyword queried against the JP database returns real, plausible, wrong

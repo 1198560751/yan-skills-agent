@@ -160,7 +160,7 @@ Respect plan quotas and exports. Never capture or print session secrets.
 
 | 维度 | 脚本 | `--db` 的含义 | 有没有全球合计 |
 |---|---|---|---|
-| 关键词（`semrush-keyword.mjs`） | `volume`＝该国搜索量；`--bulk` 同库一次最多 100 词 | 必填项，默认悄悄落到 `jp` | 单词模式有 `globalVolume` 与 Top-N `byCountry`；批量模式专注当前国家库 |
+| 关键词（`semrush-keyword.mjs`） | `volume`＝该国搜索量；`--bulk` 同库一次最多 100 词 | 批量模式必填；单词模式省略时沿用历史默认 `jp` 并给出提示 | 单词模式有 `globalVolume` 与 Top-N `byCountry`；批量模式专注当前国家库 |
 | 域名（`semrush-overview.mjs` / `semrush-batch.mjs` / `semrush-report.mjs` 的四张报表） | `organicTraffic` 等＝该国估算 | 省略不等于全球，只是落到 Semrush 自己的默认库 | **没有**——这几个脚本目前没有全球选项，域名维度想要全球规模只能换一个独立信源（比如 Similarweb）按国家占比折算，不能靠不传 `--db` 拿到 |
 
 Semrush 网页版本身是否提供一档「Worldwide」数据库供域名概览选择，**这一点没有验证过**，
