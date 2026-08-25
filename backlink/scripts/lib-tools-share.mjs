@@ -14,6 +14,9 @@
  */
 import { firstJson, opencli } from './opencli-core.mjs';
 import { readFileSync } from 'node:fs';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 export const DEFAULT_DASHBOARD = 'https://dash.3ue.co/zh-Hans/#/page/m/home';
 
@@ -42,6 +45,82 @@ export const TOOLS = {
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Tools Share 会按账号统计并发与请求频率。真实 Chrome 不等于真人节奏：多个 agent
+ * 仍会共用同一张会话票，同时撞同一上游。用 mkdir 的原子性做跨进程单实例锁，避免
+ * 两个脚本同时消耗同一个账号；锁文件只记 PID，不读取、更不落盘令牌。
+ */
+export async function acquireToolsShareLock(toolKey, {
+  timeoutMs = 10 * 60_000,
+  pollMs = 500,
+  lockRoot = tmpdir(),
+} = {}) {
+  const key = String(toolKey || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
+  if (!key) throw new Error('A tool key is required for the Tools Share lock.');
+  const path = join(lockRoot, `yan-tools-share-${key}.lock`);
+  const deadline = Date.now() + timeoutMs;
+  while (true) {
+    try {
+      await mkdir(path);
+      await writeFile(join(path, 'owner.json'), JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
+      let released = false;
+      return {
+        path,
+        async release() {
+          if (released) return;
+          released = true;
+          await rm(path, { recursive: true, force: true });
+        },
+      };
+    } catch (error) {
+      if (error?.code !== 'EEXIST') throw error;
+      // 崩溃遗留的锁可以回收；活进程的锁必须等，不能靠换 OpenCLI session 绕开。
+      let owner = null;
+      try { owner = JSON.parse(await readFile(join(path, 'owner.json'), 'utf8')); } catch { /* mkdir 与写 owner 之间的短窗口 */ }
+      if (Number.isInteger(owner?.pid)) {
+        try { process.kill(owner.pid, 0); } catch (probe) {
+          if (probe?.code === 'ESRCH') { await rm(path, { recursive: true, force: true }); continue; }
+        }
+      }
+      if (Date.now() >= deadline) {
+        throw new Error(`Another ${key} Tools Share job is still running; waited ${Math.round(timeoutMs / 1000)}s and stopped without querying.`);
+      }
+      await sleep(pollMs);
+    }
+  }
+}
+
+const BLOCKED_PAGE = /(?:登录|登入|login|session|会话).{0,20}(?:过期|失效|无效|expired|invalid)|(?:冻结|封禁|冷却|cooldown|frozen|temporarily blocked|too many requests|请求过于频繁)/i;
+
+/** 返回可公开的原因，不返回页面正文，避免错误日志夹带会话信息。 */
+export function toolsShareBlockReason({ url = '', title = '', bodyText = '' } = {}) {
+  let host = '';
+  let path = '';
+  let message = '';
+  try {
+    const parsed = new URL(url);
+    host = parsed.hostname;
+    path = parsed.pathname;
+    message = parsed.searchParams.get('msg') || '';
+  } catch { /* 非 URL 交给正文判据 */ }
+  if (host === 'gmitm.redirect.dash' || host.endsWith('.gmitm.redirect.dash')) return 'Tools Share redirected to its access-denied page';
+  // 实际错误页仍挂在工具 host 下：/gmitm.redirect.dash?msg=登录过期或无效。
+  if (path === '/gmitm.redirect.dash' || BLOCKED_PAGE.test(`${message}\n${title}\n${bodyText}`)) {
+    return 'Tools Share session is expired, frozen, or cooling down';
+  }
+  return null;
+}
+
+export function assertToolsShareAvailable(capture) {
+  const reason = toolsShareBlockReason(capture);
+  if (reason) {
+    const error = new Error(`${reason}; stopped immediately without retrying.`);
+    error.code = 'TOOLS_SHARE_BLOCKED';
+    throw error;
+  }
+  return capture;
+}
 
 /** 启动 URL 的查询串里带会话令牌。**任何时候都不要打印它。** */
 export const scrub = (url) => String(url || '').split('?')[0];
@@ -98,7 +177,7 @@ export async function launchTool({
     const entry = `https://${tool.origin}/home/?__gmitm=${encodeURIComponent(directToken)}`;
     await opencli(['browser', session, 'open', entry], { env, timeoutMs: 90_000 });
     await sleep(Math.max(4, Number(wait)) * 1000);
-    const here = await evalPage('(() => JSON.stringify({ url: location.href, title: document.title, len: (document.body?.innerText||"").trim().length }))()');
+    const here = assertToolsShareAvailable(await evalPage('(() => { const bodyText = (document.body?.innerText||"").trim(); return JSON.stringify({ url: location.href, title: document.title, len: bodyText.length, bodyText: bodyText.slice(0, 1000) }); })()'));
     const onTool = (() => { try { return new URL(here.url).hostname.endsWith(tool.origin); } catch { return false; } })();
     if (onTool && here.len > 40) {
       return {
@@ -260,7 +339,7 @@ export async function launchTool({
   const deadline = Date.now() + timeout * 1000;
   while (Date.now() < deadline) {
     await sleep(3000);
-    const here = await evalPage('(() => JSON.stringify({ url: location.href, title: document.title }))()');
+    const here = assertToolsShareAvailable(await evalPage('(() => JSON.stringify({ url: location.href, title: document.title, bodyText: (document.body?.innerText||"").slice(0, 1000) }))()'));
     if (here.url && hostOf(here.url).endsWith(tool.origin)) { landed = here; break; }
   }
   if (!landed) {
@@ -280,7 +359,7 @@ export async function gotoInTool(evalPage, target, settleSeconds = 15) {
   const url = target.startsWith('http') ? target : target.replace(/^\/?/, '/');
   await evalPage(`(() => { location.href = ${JSON.stringify(url)}; return JSON.stringify({ navigating: true }); })()`);
   await sleep(settleSeconds * 1000);
-  return evalPage('(() => JSON.stringify({ url: location.href, title: document.title }))()');
+  return assertToolsShareAvailable(await evalPage('(() => JSON.stringify({ url: location.href, title: document.title, bodyText: (document.body?.innerText||"").slice(0, 1000) }))()'));
 }
 
 /** 订阅快到期时的提醒文案，几个脚本都要用。 */

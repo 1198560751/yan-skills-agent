@@ -25,10 +25,14 @@
  *   node semrush-keyword.mjs --kw 診断 --db jp      # --db 是按国家的，别省
  *   node semrush-keyword.mjs --kw-file words.txt --db kr --out kr.jsonl
  *   # 想要全球规模：读输出里的 globalVolume 字段，不要重算 --db 或加总 byCountry
+ *
+ * 已验证 2026-08-25：冻结/登录失效页立即停止；同机 Semrush 查询跨进程串行；
+ * 批量关键词之间默认等待 12–25 秒，不对冻结页自动重试。
  */
 import { defaultSession, parseFlags, printJson, validateSession, showHelpIfRequested} from './opencli-core.mjs';
-import { expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
+import { acquireToolsShareLock, assertToolsShareAvailable, expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
 import { appendFile, readFile, writeFile } from 'node:fs/promises';
+import { randomInt } from 'node:crypto';
 
 const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
@@ -51,6 +55,14 @@ if (typeof flags['kw-file'] === 'string') {
   keywords = keywords.concat(text.split(/\r?\n/).map((s) => s.trim()).filter((s) => s && !s.startsWith('#')));
 }
 if (!keywords.length) throw new Error('Need --kw "a,b" or --kw-file <path>');
+const minDelaySeconds = Number(flags['min-delay'] ?? 12);
+const maxDelaySeconds = Number(flags['max-delay'] ?? 25);
+if (![minDelaySeconds, maxDelaySeconds].every(Number.isFinite) || minDelaySeconds < 0 || maxDelaySeconds < minDelaySeconds) {
+  throw new Error('--min-delay and --max-delay must be finite non-negative seconds, with max >= min.');
+}
+const minDelayMs = minDelaySeconds * 1000;
+const maxDelayMs = maxDelaySeconds * 1000;
+const pace = () => new Promise((resolve) => setTimeout(resolve, randomInt(Math.floor(minDelayMs), Math.floor(maxDelayMs) + 1)));
 
 function parseCompact(value) {
   const m = String(value || '').replace(/,/g, '').trim().match(/^([\d.]+)\s*([KMB])?$/i);
@@ -130,6 +142,10 @@ function pickCountries(lines) {
   return Object.keys(out).length ? out : null;
 }
 
+const accountLock = await acquireToolsShareLock('semrush', {
+  timeoutMs: Math.max(0, Number(flags['lock-timeout'] ?? 600)) * 1000,
+});
+try {
 const launched = await launchTool({
   session,
   tool: 'semrush',
@@ -143,6 +159,7 @@ if (warn) console.error(`[subscription] ${warn}`);
 
 const results = [];
 for (const kw of keywords) {
+  if (results.length) await pace();
   let row;
   try {
     const url = `${appOrigin}/analytics/keywordoverview/?q=${encodeURIComponent(kw)}&db=${encodeURIComponent(db)}`;
@@ -152,6 +169,8 @@ for (const kw of keywords) {
     const deadline = Date.now() + Number(flags.timeout || 90) * 1000;
     while (Date.now() < deadline) {
       cap = await launched.evalPage(`(() => { const t = document.body?.innerText || ''; return JSON.stringify({
+        url: location.href,
+        title: document.title,
         ready: /关键词难度|Keyword Difficulty/.test(t),
         // 库里完全没有这个词时，页面渲染完也不会出现任何指标块，只留一个
         // 「更新指标 / 提供最新的关键词数据」的取数按钮。这是**观测到的空**，
@@ -159,6 +178,7 @@ for (const kw of keywords) {
         absent: /提供最新的关键词数据|更新指标/.test(t) && !/关键词难度|搜索量/.test(t),
         bodyText: t.slice(0, 20000),
       }); })()`);
+      assertToolsShareAvailable(cap);
       if (cap.ready || cap.absent) break;
       await new Promise((r) => setTimeout(r, 2500));
     }
@@ -184,6 +204,7 @@ for (const kw of keywords) {
     };
     if (flags.debug) row.bodyText = cap.bodyText.slice(0, 3000);
   } catch (error) {
+    if (error?.code === 'TOOLS_SHARE_BLOCKED') throw error;
     row = { keyword: kw, db, status: 'error', error: error.message };
   }
   results.push(row);
@@ -205,3 +226,6 @@ printJson({
   subscription: { expiry: launched.state.expiry, daysLeft: launched.state.daysLeft, warning: warn || null },
   results,
 });
+} finally {
+  await accountLock.release();
+}
