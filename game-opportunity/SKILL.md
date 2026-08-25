@@ -24,10 +24,12 @@ description: 小游戏机会的每日发现、筛选和调查 Skill。用户提�
 
 24 小时内的新名字先从发布源和玩家现场发现，再进入搜索量验证：
 
-1. 供给端：游戏平台 sitemap、itch.io / Steam 新发布与更新、App Store / Google Play 新游戏；
+1. 供给端：游戏平台 sitemap、itch.io 最近 7 天、GameJolt Hot、Poki / CrazyGames 新游位、
+   Scratch / Cocrea、SteamDB New & Trending、GitHub 游戏仓库与 App Store / Google Play 新游戏；
 2. 玩家端：Reddit 的 `r/WebGames`、`r/playmygame`、`r/IndieGaming`、玩法垂直社区；
 3. 传播端：YouTube 当日上传、X 最新帖，以及目标语言的本地游戏论坛；
-4. 搜索端：Google Trends 实时热搜、7 天曲线和 related rising；
+4. 搜索端：Google Trends 实时热搜、7 天曲线和 related rising，以及 Google Autocomplete / Related
+   Searches 里的 `play <name> online`、`<name> unblocked`、`<name> html5` 等长尾萌芽；
 5. 验证端：Similarweb 最近 28 天关键词与流量去向、Semrush 分国家搜索量与 KD。
 
 使用 Agent Reach 当前可用后端读取社区；桌面登录态优先走 OpenCLI：
@@ -40,12 +42,56 @@ opencli twitter search '"<游戏名>" since:<YYYY-MM-DD>' --product live --limit
 
 同时搜索 `new browser game`、`playable demo`、`release trailer`、`HTML5 game` 与各语言对应表达，
 从正文、标题和落地链接提取新实体。每条雷达记录保存 `firstSeen`、来源 URL、发布时间、互动量、
-可玩链接、语言、市场和别名。官方发布页加一条独立社区/视频信号，或两个独立社区同时出现，即进入
-候选；单一来源进入观察队列。
+可玩链接、语言、市场和别名。同一作者、官方账号及相同文案的跨社区发布合并为一个 `campaign`；
+独立发布者、平台类型和非官方互动分别计数。雷达线索先进入验证队列，达到下方早期爆发闸门后升级。
 
 新词按首次发现后的第 3、7、14、28 天复查。早期保存 `volumeStatus: not-yet-observed`，继续用
 社区增速、跨平台重复、可玩供给和 Trends 判断；搜索量出现后再并入常规 KD、SERP 和国家筛选。
 Similarweb 用于最近 28 天的关键词、国家和流量去向验证，Semrush 用于分国家搜索量与 KD。
+
+## 外部需求双轨闸门
+
+站内新增页、首页入口和 sitemap 批量更新时间负责发现候选。外部需求分从独立 Google SERP、本地
+搜索量、Trends、竞品自然搜索词，以及非官方社区传播中取得。
+
+### 搜索需求轨
+
+| 项目 | 分值 |
+|---|---:|
+| 目标国家精确词月搜：1–99 / 100–499 / 500–1999 / 2000+ | 5 / 10 / 15 / 20 |
+| Google 前十存在多个独立域名且意图与游戏一致 | 10 |
+| 30 天或 7 天 Trends 形成连续曲线并向上 | 10 |
+| Similarweb 能在竞品自然搜索词中看到该词 | 5 |
+| KD：≤30 / 31–40 / 41–50 / >50 | 15 / 12 / 8 / 3 |
+| SERP 有低权重、新页面或独立站空位 | 10 |
+| 可玩供给 / 移动端稳定 / 两天内可上线 | 10 / 5 / 5 |
+| 目标国家与搜索意图匹配 | 10 |
+
+精确词、玩法大类和多语言变体分别打分。独立单游戏站采用“全球精确词月搜超过 1,000，或目标国家
+精确词月搜至少 500 且意图高度一致”为初始闸门；更小的词进入合集页或继续观察。候选再计算 KGR
+（`allintitle` 结果数 ÷ 月搜）：社区初筛线为 KGR <0.25 或 `allintitle` <100；同时查看 EMD 与前十
+专业站占位。总分 70+ 进入 `quick-ship`，50–69 进入 `priority-research`，其余进入 `watch`。
+
+### 早期爆发轨
+
+面板尚未形成数据时，保存 4 小时、24 小时、7 天三个快照，并以去重后的 `campaign` 计算：
+
+| 项目 | 初始通过线（先运行 1–2 周回测再校准） |
+|---|---|
+| 24 小时非官方独立发布者 | ≥3 |
+| 独立平台类型 | ≥2（如 Reddit + YouTube） |
+| 24 小时发布速率 / 前 7 天日均 | ≥3 倍 |
+| 非官方互动或观看 | ≥20 次互动，或 ≥500 次观看 |
+| 搜索萌芽 | Trends rising、Autocomplete 长尾、相关查询或新 SERP 页面命中一项 |
+| 可玩供给 | 已有可打开的网页游戏、demo 或稳定 iframe |
+
+前四项全部达到并在 4 小时复查后继续增长，进入 `priority-research`；再取得搜索萌芽与可玩供给，
+升级为 `quick-ship`。这些数字是自动化的第一版校准值：每天保存命中与后续真实搜索结果，运行 1–2 周
+后按成功样本调整。每个发布者的账号、文案、落地链接和发布时间都保存在证据里，方便识别自然扩散
+与集中推广。
+
+新词用 7 天、30 天窗口看加速度；有历史的玩法词再看 3 年、5 年窗口，区分长期向上与短时毛刺。
+同一痛点在 3 个以上独立平台重复出现，记录为跨平台需求证据。
 
 ## 数据边界
 
@@ -157,6 +203,8 @@ sitemap 噪声。
       "playable": true,
       "embed": {},
       "keywords": [],
+      "demandProof": {"track": "search", "score": 0, "evidence": []},
+      "promotionRisk": {"internalLinks": false, "campaigns": 0, "independentPublishers": 0},
       "trend": {},
       "decision": "quick-ship",
       "reasons": [],

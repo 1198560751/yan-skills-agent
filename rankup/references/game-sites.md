@@ -58,13 +58,20 @@ node scripts/demand/sitemap-diff.mjs --domain example.com --slug-words
 
 - Trends：记录 12 个月、30 天、7 天斜率，以及增长地区和 related rising。
 - Google SERP：记录首页/内页比例、结果类型、页面新鲜度和前十引荐域。
-- 24 小时雷达：按最新排序读取 Reddit 游戏社区、YouTube 当日上传、X 最新帖、itch/Steam/应用商店
-  发布页；提取游戏名、别名、玩法词、发布时间、互动量和可玩链接。
-- Reddit、短视频和论坛：记录玩家玩法、抱怨、分享点和实际点击；两个独立来源共同出现即进入候选。
+- 24 小时雷达：按最新排序读取 itch 最近 7 天、GameJolt Hot、Poki/CrazyGames 新游位、
+  Scratch/Cocrea、SteamDB New & Trending、GitHub、应用商店、Reddit、YouTube 和 X；提取游戏名、
+  别名、玩法词、发布时间、互动量和可玩链接。
+- Reddit、短视频和论坛：按作者、文案和落地链接合并 `campaign`，记录非官方发布者、平台数、互动、
+  4 小时/24 小时/7 天发布速率；同一开发者跨社区发布按一次推广计算。
 - 站点与频道清单：筛选最近仍在更新、持续发布网页游戏的来源。
 - Similarweb：用最近 28 天的关键词、国家和流量去向验证社区信号；Semrush 继续给分国家量与 KD。
 - 新词在首次发现后的第 3、7、14、28 天复查；搜索量尚未形成时使用社区增速、跨平台重复、可玩供给
   与 Trends 共同排序。
+- 站内新增页负责发现。外部需求用独立 SERP、本地搜索量、Trends、竞品自然搜索词和非官方传播验证。
+- 早期爆发初始线：24 小时 ≥3 位非官方发布者、≥2 类平台、发布速率达到前 7 天日均 3 倍，并取得
+  ≥20 次互动或 ≥500 次观看；4 小时后仍增长再升级。连续运行 1–2 周后按成功样本校准这些数字。
+- Autocomplete / Related Searches 出现 `play X online`、`X unblocked`、`X html5` 等长尾时，记录为
+  搜索萌芽；候选再用月搜、KGR、EMD 与前十专业站占位收敛。
 
 ## 三、建立候选卡
 
