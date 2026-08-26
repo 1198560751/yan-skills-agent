@@ -16,7 +16,12 @@ const scanFunction = `(() => {
   const visible = (element) => {
     if (!element || element.hidden || element.disabled) return false;
     const style = getComputedStyle(element);
-    return style.display !== 'none' && style.visibility !== 'hidden';
+    const rect = element.getBoundingClientRect();
+    const pageWidth = Math.max(document.documentElement.clientWidth, innerWidth || 0);
+    const pageHeight = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0);
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0'
+      && rect.width >= 2 && rect.height >= 2
+      && rect.right > 0 && rect.left < pageWidth && rect.bottom > 0 && rect.top < pageHeight;
   };
   const label = (element) => {
     const explicit = element.id ? document.querySelector('label[for="' + CSS.escape(element.id) + '"]')?.innerText : '';

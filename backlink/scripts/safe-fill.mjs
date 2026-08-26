@@ -28,6 +28,16 @@ const fillFunction = `(() => {
     element.getAttribute('autocomplete') || '',
     element.getAttribute('placeholder') || ''
   ];
+  const visible = (element) => {
+    if (!element || element.hidden || element.disabled) return false;
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    const pageWidth = Math.max(document.documentElement.clientWidth, innerWidth || 0);
+    const pageHeight = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0);
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0'
+      && rect.width >= 2 && rect.height >= 2
+      && rect.right > 0 && rect.left < pageWidth && rect.bottom > 0 && rect.top < pageHeight;
+  };
   const pageText = document.body?.innerText || '';
   const captcha = document.querySelector('[class*="captcha" i],[id*="captcha" i],[class*="turnstile" i],[id*="turnstile" i],[data-sitekey],iframe[src*="recaptcha" i],iframe[src*="hcaptcha" i],iframe[src*="turnstile" i],iframe[src*="challenges.cloudflare.com" i]');
   if (captcha || /\\b(captcha|recaptcha|hcaptcha|turnstile|security challenge)\\b/i.test(pageText)) return { ok: false, reason: 'captcha', filled: [], submitAttempted: false };
@@ -39,7 +49,7 @@ const fillFunction = `(() => {
   for (const [kind, expected] of Object.entries(input.fingerprint.fields)) {
     if (!expected) { nodes[kind] = null; continue; }
     const field = [...form.querySelectorAll('input,textarea,select')].find((candidate) => candidate.__backlinkOpenCliScan === expected.marker);
-    if (!field || JSON.stringify(semantic(field)) !== JSON.stringify(expected.semantic)) {
+    if (!field || !visible(field) || JSON.stringify(semantic(field)) !== JSON.stringify(expected.semantic)) {
       return { ok: false, reason: 'field_changed', filled: [], submitAttempted: false };
     }
     nodes[kind] = field;

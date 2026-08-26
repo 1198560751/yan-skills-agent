@@ -634,8 +634,12 @@ them. It records nothing as verified: every row comes out `candidate` or
 `excluded`, because a source's column is not an observation.
 
 ```bash
-node scripts/third-party-list-ingest.mjs   --input THEIR-LIST.md   --known data/free-channels.json --known <project>/.rankup/backlink-targets.json   --drop-pattern 'dead|shut ?down|停服|入口关闭'   --flag-pattern 'paid|reciprocal|收费|互链|已收录'   --new-only --out .backlink/leads.json
+node scripts/third-party-list-ingest.mjs   --input THEIR-LIST.md   --known data/free-channels.json --known <project>/.rankup/backlink-targets.json   --blocklist data/network-fingerprints.json   --drop-pattern 'dead|shut ?down|停服|入口关闭'   --flag-pattern 'paid|reciprocal|收费|互链|已收录'   --new-only --out .backlink/leads.json
 ```
+
+`--blocklist` preserves known automation/PBN-family matches as explicit excluded
+rows. Do not drop them: a reusable negative registry prevents the same impressive
+looking DR/DA list from being re-investigated or submitted to on the next site.
 
 Run against the 743-entry `Free-backlink-list.md` from
 [flaqai/backlink_skills](https://github.com/flaqai/backlink_skills) on 2026-08-19,

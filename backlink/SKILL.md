@@ -41,6 +41,7 @@ backlink/
 │   ├── free-channels.json       places that publish a link at no cost
 │   ├── submission-targets.json  routes that ACCEPT a submission — first-pass library
 │   ├── paid-platforms.json      platforms observed carrying purchased placements
+│   ├── network-fingerprints.json known automation/PBN families; negative evidence, never placements
 │   ├── index-submission.json    engines that take a URL and publish NO link
 │   └── schema/                  JSON Schema for the files above
 │
@@ -144,7 +145,8 @@ backlink/
   per target and wrong per campaign.
 </route>
 <route ask="Someone published a list of backlink sites, is it useful">
-  `scripts/third-party-list-ingest.mjs` to normalise and diff it, then the
+  `scripts/third-party-list-ingest.mjs --blocklist data/network-fingerprints.json`
+  to normalise, diff, and preserve known network-family exclusions, then the
   "Reading a third-party list" section of
   <ref file="references/instant-publish.md"/>.
 </route>

@@ -16,16 +16,20 @@ const LIST = `| # | Site | Note |
 | 3 | [https://beta.example/](<https://beta.example/>) | 网站已停服 |
 | 4 | [https://gamma.example/x](<https://gamma.example/x>) | 需收费 5 刀 |
 | 5 | [https://known.example/](<https://known.example/>) | fine |
+| 6 | [https://network.example/post](<https://network.example/post>) | looks open |
+| 7 | [https://child.network.example/post](<https://child.network.example/post>) | network subdomain |
 `;
 
 async function run(dir, extra) {
   const listPath = path.join(dir, "list.md");
   const knownPath = path.join(dir, "known.json");
+  const blocklistPath = path.join(dir, "network.json");
   const outPath = path.join(dir, "out.json");
   await writeFile(listPath, LIST);
   await writeFile(knownPath, JSON.stringify({ targets: [{ url: "https://known.example/" }] }));
+  await writeFile(blocklistPath, JSON.stringify({ networks: [{ domains: ["network.example"], exceptions: [{ domain: "known.example" }] }] }));
   const res = spawnSync(process.execPath, [
-    script, "--input", listPath, "--known", knownPath, "--out", outPath,
+    script, "--input", listPath, "--known", knownPath, "--blocklist", blocklistPath, "--out", outPath,
     "--drop-pattern", "停服", "--flag-pattern", "收费|刀", ...extra,
   ], { encoding: "utf8" });
   assert.equal(res.status, 0, res.stderr);
@@ -38,13 +42,22 @@ test("dedupes by registrable domain, honours known/drop/flag", async (t) => {
   const out = await run(dir, []);
 
   // www.alpha.example and alpha.example are one lead, not two
-  assert.equal(out.stats.uniqueDomains, 4);
+  assert.equal(out.stats.uniqueDomains, 6);
   const alpha = out.records.find((r) => r.domain === "alpha.example");
   assert.equal(alpha.urls.length, 2);
 
   assert.equal(out.records.find((r) => r.domain === "beta.example").verdict, "excluded");
   assert.equal(out.records.find((r) => r.domain === "gamma.example").needsCheck, true);
-  assert.equal(out.records.find((r) => r.domain === "known.example").known, true);
+  const known = out.records.find((r) => r.domain === "known.example");
+  assert.equal(known.known, true);
+  assert.equal(known.networkRisk, null);
+  const network = out.records.find((r) => r.domain === "network.example");
+  assert.equal(network.verdict, "excluded");
+  assert.equal(network.networkRisk, "known-network-family");
+  const networkChild = out.records.find((r) => r.domain === "child.network.example");
+  assert.equal(networkChild.verdict, "excluded");
+  assert.equal(networkChild.networkRisk, "known-network-family");
+  assert.equal(out.stats.blocklisted, 2);
 
   // nothing is ever emitted as verified
   assert.ok(out.records.every((r) => r.verdict === "candidate" || r.verdict === "excluded"));

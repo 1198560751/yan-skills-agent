@@ -72,6 +72,19 @@
         "Does not proceed while the eligibility gate fails.",
         "Offers only permanent, reader-useful alternatives."
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "A forum post gives me 246 high-DA Money Robot blog domains, including full-design.com, and asks three agents to submit comments to all of them while another agent recursively finds more. Use $backlink and make this a reusable campaign lane.",
+      "expected_output": "Runs forum-list normalization as a parallel discovery lane, matches the 245 family-blocked Money Robot roots against the network registry, distinguishes the 172 current hard-fingerprint matches, keeps edublogs.org as an explicit independent exception, and routes only independently verified survivors to traffic screening and exact-page OpenCLI inspection. It does not treat 246 roots as independent endorsements or submit to the network.",
+      "files": [],
+      "assertions": [
+        "Uses third-party-list-ingest with data/network-fingerprints.json instead of trusting forum DA/dofollow claims.",
+        "Preserves family matches as excluded evidence rather than silently dropping them.",
+        "Counts shared templates and infrastructure as one network event until independence is proven.",
+        "Keeps authority, traffic, form, submitted, public, indexed, and rel evidence separate.",
+        "Uses distinct OpenCLI sessions for parallel screeners and never bypasses login, CAPTCHA, paywall, or anti-spam controls."
+      ]
     }
   ]
 }

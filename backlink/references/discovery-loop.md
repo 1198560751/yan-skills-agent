@@ -54,6 +54,40 @@ low-competition site discover opportunities, but it is not a substitute for
 editorial links in a competitive niche. Do not repeat unsupported causal claims
 that backlinks alone caused traffic growth.
 
+## Parallel lane: forum lists and automation-network footprints
+
+Run this lane beside competitor/commenter expansion when a forum post or shared
+table claims hundreds of comment targets:
+
+1. Save the exact source URL and ingest the list as assertions, not verified
+   channels, with `third-party-list-ingest.mjs`.
+2. Match the normalized roots against `data/network-fingerprints.json` using
+   `--blocklist`. A family match is emitted as `excluded`; it is never silently
+   deleted, because the negative result is reusable backlink-audit evidence.
+3. Cluster the remainder by repeated page title, form-field signature, template
+   copy, CSS class, analytics ID, and shared comment backend. Count a cluster as
+   one network event until independent operation is actually demonstrated.
+4. Send only independent survivors into the ordinary traffic screen and page
+   inspection loop. DR, DA, a live homepage, a visible Register button, or a
+   third-party “dofollow” column cannot undo a network-family rejection.
+5. Keep explicit exceptions. A legitimate platform accidentally mixed into a
+   network list must be verified on its own; it does not inherit either the
+   family rejection or the list's claimed authority.
+
+```bash
+node scripts/third-party-list-ingest.mjs \
+  --input forum-list.md \
+  --known data/free-channels.json \
+  --blocklist data/network-fingerprints.json \
+  --out .backlink/forum-leads.json
+```
+
+Measured 2026-08-27: the BlackHatWorld Money Robot thread contained 246 unique
+roots. `full-design.com` was row 14; 172 roots still shared the fixed homepage
+copy plus `motive-2017`. `edublogs.org` was retained as an explicit independent
+exception, leaving 245 family-blocked roots. This is a discovery/filter source,
+not a submission queue.
+
 ## State separation
 
 Keep these states distinct:

@@ -19878,6 +19878,114 @@
         "finalUrl": "https://zeuspage.org/directory",
         "title": null
       }
+    },
+    {
+      "domain": "sailorgirl.com",
+      "route": "https://www.sailorgirl.com/october-2014-giveaway-fire-opal-earrings/",
+      "name": "October 2014 Giveaway: Fire Opal Earrings",
+      "kind": "comment-form",
+      "gate": "open-form",
+      "gates": [
+        "open-form"
+      ],
+      "cohort": "open",
+      "payment": "none-seen",
+      "price": null,
+      "priceCheckedAt": null,
+      "status": "usable",
+      "sourceList": "BHW-style recursive article search",
+      "notes": "Browser scan found one unambiguous comment form with Website, name, email, and comment fields. A reviewed page-specific payload was safe-filled with the submit guard active; it was not submitted.",
+      "lastProbedAt": "2026-08-27",
+      "evidence": {
+        "method": "browser-dom",
+        "what": "Live browser scan found exactly one safe comment form and safe-fill revalidated every field before filling; submitAttempted=false.",
+        "httpStatus": 200,
+        "finalUrl": "https://www.sailorgirl.com/october-2014-giveaway-fire-opal-earrings/",
+        "title": "October 2014 Giveaway: Fire Opal Earrings"
+      },
+      "traffic": {
+        "monthlyVisits": null,
+        "verdict": "below-floor",
+        "checkedAt": "2026-08-27T03:04:48.587+08:00",
+        "source": "Similarweb total visits via authenticated Tools Share browser session"
+      },
+      "authority": {
+        "score": 14,
+        "metric": "Semrush Authority Score",
+        "checkedAt": "2026-08-27T02:52:26.925+08:00"
+      }
+    },
+    {
+      "domain": "ohheybrian.com",
+      "route": "https://ohheybrian.com/blog/2024/03/extending-comments-on-the-blog/",
+      "name": "Extending Comments on the Blog",
+      "kind": "comment-form",
+      "gate": "open-form",
+      "gates": [
+        "open-form"
+      ],
+      "cohort": "open",
+      "payment": "none-seen",
+      "price": null,
+      "priceCheckedAt": null,
+      "status": "usable",
+      "sourceList": "BHW-style recursive article search",
+      "notes": "Browser scan found one unambiguous comment form with Website, name, and comment fields. A reviewed page-specific payload was safe-filled with the submit guard active; it was not submitted.",
+      "lastProbedAt": "2026-08-27",
+      "evidence": {
+        "method": "browser-dom",
+        "what": "Live browser scan found exactly one safe comment form and safe-fill revalidated every field before filling; submitAttempted=false.",
+        "httpStatus": 200,
+        "finalUrl": "https://ohheybrian.com/blog/2024/03/extending-comments-on-the-blog/",
+        "title": "Extending Comments on the Blog"
+      },
+      "traffic": {
+        "monthlyVisits": 1931,
+        "verdict": "pass",
+        "checkedAt": "2026-08-27T03:05:01.064+08:00",
+        "source": "Similarweb total visits via authenticated Tools Share browser session"
+      },
+      "authority": {
+        "score": 17,
+        "metric": "Semrush Authority Score",
+        "checkedAt": "2026-08-27T03:03:30.565+08:00"
+      }
+    },
+    {
+      "domain": "wpkube.com",
+      "route": "https://www.wpkube.com/create-viral-quizzes-wordpress/",
+      "name": "How to Create Viral Quizzes for Your WordPress Website Using Quiz Cat",
+      "kind": "comment-form",
+      "gate": "open-form",
+      "gates": [
+        "open-form"
+      ],
+      "cohort": "open",
+      "payment": "none-seen",
+      "price": null,
+      "priceCheckedAt": null,
+      "status": "usable",
+      "sourceList": "BHW-style recursive article search",
+      "notes": "Browser scan found one unambiguous comment form with Website, name, email, and comment fields. A reviewed page-specific payload was safe-filled with the submit guard active; it was not submitted.",
+      "lastProbedAt": "2026-08-27",
+      "evidence": {
+        "method": "browser-dom",
+        "what": "Live browser scan rejected off-screen controls, found exactly one safe comment form, and safe-fill revalidated every field before filling; submitAttempted=false.",
+        "httpStatus": 200,
+        "finalUrl": "https://www.wpkube.com/create-viral-quizzes-wordpress/",
+        "title": "How to Create Viral Quizzes for Your WordPress Website Using Quiz Cat"
+      },
+      "traffic": {
+        "monthlyVisits": 27770,
+        "verdict": "pass",
+        "checkedAt": "2026-08-27T03:17:57.794+08:00",
+        "source": "Similarweb total visits via authenticated Tools Share browser session"
+      },
+      "authority": {
+        "score": 32,
+        "metric": "Semrush Authority Score",
+        "checkedAt": "2026-08-27T03:01:07.039+08:00"
+      }
     }
   ]
 }
