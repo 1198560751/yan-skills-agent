@@ -15,16 +15,18 @@ description: 小游戏机会的每日发现、筛选和调查 Skill。用户提�
 | `discover` | 抓取全部平台 sitemap、按站点路径过滤、与上次快照做 diff | `.rankup/demand/game-review/YYYY-MM-DD-discovery.json` |
 | `radar` | 扫描 24 小时发布源与玩家社区，提取刚出现的游戏名、别名和玩法词 | `.rankup/demand/game-review/YYYY-MM-DD-radar.json` |
 | `collect` | 依次完成 `discover` 和 `radar`，并合并当天新增游戏 | 上述两个输入文件与 `YYYY-MM-DD-new-games.json` |
+| `collect-checklist` | 执行采集并完成 10 项硬验收 | `YYYY-MM-DD-collect-checklist.{json,md}` |
 | `dedupe` | 不联网，读取当天 discovery/radar，去掉重复游戏与社交 campaign | `.rankup/demand/game-review/YYYY-MM-DD-new-games.json` |
 | `plan` | 从真实游戏生成原名、英文名、本地名的全球优先查询计划 | `YYYY-MM-DD-demand-plan.json` 与 `YYYY-MM-DD-global-keywords.txt` |
 | `demand` | 先查全球量和主要国家，再一次性查询各国家库 | `YYYY-MM-DD-demand-results.json` |
 | `evaluate` | 验活、合并实体、查量/KD/趋势/SERP/供给、排序 | `.rankup/demand/game-review/YYYY-MM-DD-candidates.json` 与 `YYYY-MM-DD-report.md` |
+| `decision-checklist` | 执行需求调查、日报并完成 10 项硬验收 | `YYYY-MM-DD-decision-checklist.{json,md}` |
 | `daily` | 依次完成 `collect`、`demand` 和 `evaluate` | 上述全部产物 |
 
 所有任务都走同一个真实入口：
 
 ```bash
-node game-opportunity/scripts/game-opportunity.mjs <discover|radar|collect|dedupe|plan|demand|evaluate|render|daily>
+node game-opportunity/scripts/game-opportunity.mjs <discover|radar|collect|collect-checklist|dedupe|plan|demand|evaluate|decision-checklist|render|daily>
 ```
 
 用户只说“运行小游戏监测”时执行 `daily`。自动任务分成 `collect` 和 `demand + evaluate` 两个时段：
@@ -77,8 +79,10 @@ Similarweb 用于最近 28 天的关键词、国家和流量去向验证，Semru
 | 可玩供给 / 移动端稳定 / 两天内可上线 | 10 / 5 / 5 |
 | 目标国家与搜索意图匹配 | 10 |
 
-精确词、玩法大类和多语言变体分别打分。独立单游戏站采用“全球精确词月搜超过 1,000，或目标国家
-精确词月搜至少 500 且意图高度一致”为初始闸门；更小的词进入合集页或继续观察。候选再计算 KGR
+精确词、玩法大类和多语言变体分别打分。搜索量达到“全球精确词 1,000，或目标国家精确词 500”
+只进入调研，不代表可以开发。独立单游戏站的开发硬门槛是全球精确词至少 10,000、最高国家至少
+2,000、KD 不高于 30、游戏意图已核实、存在独立外部需求并且可玩供给稳定；任一项缺失就进入调研
+或观察。候选再计算 KGR
 （`allintitle` 结果数 ÷ 月搜）：社区初筛线为 KGR <0.25 或 `allintitle` <100；同时查看 EMD 与前十
 专业站占位。总分 70+ 进入 `quick-ship`，50–69 进入 `priority-research`，其余进入 `watch`。
 
@@ -210,7 +214,7 @@ HTTP 状态、加载页、移动端与全屏线索。
 
 把候选放进三组：
 
-- `quick-ship`：页面可读、供给可玩、搜索量已确认、KD 或 SERP 存在可竞争空间；
+- `quick-ship`：全球量、主要国家量、KD、游戏意图、独立需求与可玩供给全部通过开发硬门槛；
 - `priority-research`：已有需求信号，还需要补一项供给、趋势或竞争证据；
 - `watch`：游戏相关信号成立，等待下一次平台、趋势或搜索量信号。
 
@@ -237,6 +241,9 @@ node game-opportunity/scripts/game-opportunity.mjs render \
 分开显示“全球量、最高国家及其量、发现市场及其量”，不能把最高国家的数字写到发现市场名下；同时
 带该主要市场 KD、可玩状态和一句下一步。自动任务完成时直接把三组 List 与这些链接返回
 给用户，由用户决定继续调研或创建网站开发任务。
+
+没有候选通过开发硬门槛时，日报明确写“今天没有达到开发门槛的机会，静候下一轮”，不把中小词
+或意图未核实的泛词升级成建议开发。
 
 前一日的 `research/watch` 会自动续带；首次发现后的第 3、7、14、28 天在 `carryForward.recheckDue`
 标记复查。新候选始终排在续带候选之前。
@@ -282,6 +289,8 @@ node game-opportunity/scripts/game-opportunity.mjs render \
 
 ## 完成判定
 
+- 早间任务以 `game-opportunity-collect` 的 10 项 Checklist 为唯一完成门槛；
+- 决策任务以 `game-opportunity-decision` 的 10 项 Checklist 为唯一完成门槛；
 - discovery 报告存在，并给出成功、baseline、失败和新增数量；
 - 每条新增 URL 都有可访问性结论；
 - 多语言重复页已经合并；

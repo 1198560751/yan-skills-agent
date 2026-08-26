@@ -154,7 +154,8 @@ async function main() {
     try { count = JSON.parse(fs.readFileSync(snapshot, 'utf8')).count ?? 0; } catch { /* 由 rows 兜底 */ }
     const added = baseline ? [] : result.rows.filter((row) => row.status === 'added');
     const changed = baseline ? [] : result.rows.filter((row) => row.status === 'changed');
-    return { ...platform, status: baseline ? 'baseline_created' : 'compared', count, added, changed };
+    const removed = baseline ? [] : result.rows.filter((row) => row.status === 'removed');
+    return { ...platform, status: baseline ? 'baseline_created' : 'compared', count, added, changed, removed, notes: result.notes || null };
   });
 
   const candidates = platforms.flatMap((p) => (p.added ?? []).map((row) => ({

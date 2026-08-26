@@ -14,7 +14,7 @@
  *   node scripts/demand/sitemap-diff.mjs --domain example.com --state ./my-snapshots --out new.jsonl
  *
  * 依赖：无 token、无登录态。纯公开 HTTP。
- * 已验证日期：2026-08-23
+ * 已验证日期：2026-08-26
  *
  * 快照目录：--state <dir>，默认 `.rankup/demand/sitemap-snapshots/`（相对当前工作目录）。
  *   每个域名一个 `<域名>.json`，里面是 { fetchedAt, sitemaps[], urls[] }。
@@ -63,6 +63,7 @@ sitemap-diff.mjs — 竞品 sitemap 增量监控（新增的长尾页 = 它押�
   --all              输出全部 URL 而不是 diff（第一次调研用）
   --slug-words       额外统计新增 URL 的 slug 词频（看它在铺哪个词族）
   --top-words <n>    --slug-words 显示多少个词（默认 30）
+  --self-test        运行离线解析检查
   --no-save          只看 diff，不更新快照
   --json / --out <f>
   --help
@@ -85,20 +86,47 @@ const decode = (s) => String(s)
   .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
   .trim();
 
+const xmlEscape = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+function markdownSitemap(markdown) {
+  const lines = String(markdown).split(/\r?\n/);
+  const rows = [];
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(/^\[[^\]]*\]\((https?:\/\/[^)]+)\)\s*$/);
+    if (!match) continue;
+    const next = lines.slice(i + 1, i + 4).find((line) => /^\d{4}-\d{2}-\d{2}/.test(line.trim()));
+    rows.push({ url: match[1], lastmod: next?.trim() ?? '' });
+  }
+  const unique = [...new Map(rows.map((row) => [row.url, row])).values()];
+  if (!unique.length) return null;
+  const index = /^Title:\s*Sitemap Index/im.test(markdown);
+  const item = index ? 'sitemap' : 'url';
+  const root = index ? 'sitemapindex' : 'urlset';
+  return `<${root}>${unique.map((row) => `<${item}><loc>${xmlEscape(row.url)}</loc>${row.lastmod ? `<lastmod>${xmlEscape(row.lastmod)}</lastmod>` : ''}</${item}>`).join('')}</${root}>`;
+}
+
 /** 取一个 sitemap，处理 .gz 与各种奇怪 content-type */
 async function fetchSitemap(url) {
-  const res = await get(url, { ua: BROWSER_UA, headers: { accept: 'application/xml,text/xml,*/*' }, timeout: 45000 });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  const gzipish = url.endsWith('.gz')
-    || (buf[0] === 0x1f && buf[1] === 0x8b)
-    || /gzip/i.test(res.headers.get('content-type') ?? '');
-  if (gzipish) {
-    for (const fn of [zlib.gunzipSync, zlib.inflateSync, zlib.inflateRawSync]) {
-      try { return fn(buf).toString('utf8'); } catch { /* 换下一种 */ }
+  try {
+    const res = await get(url, { ua: BROWSER_UA, headers: { accept: 'application/xml,text/xml,*/*' }, timeout: 45000 });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const gzipish = url.endsWith('.gz')
+      || (buf[0] === 0x1f && buf[1] === 0x8b)
+      || /gzip/i.test(res.headers.get('content-type') ?? '');
+    if (gzipish) {
+      for (const fn of [zlib.gunzipSync, zlib.inflateSync, zlib.inflateRawSync]) {
+        try { return { text: fn(buf).toString('utf8'), fallback: null }; } catch { /* 换下一种 */ }
+      }
     }
+    return { text: buf.toString('utf8'), fallback: null };
+  } catch (directError) {
+    const reader = await get(`https://r.jina.ai/${url}`, { ua: 'agent-reach/1.0', timeout: 45000 });
+    if (!reader.ok) throw directError;
+    const text = markdownSitemap(await reader.text());
+    if (!text) throw directError;
+    return { text, fallback: `Jina Reader（直连失败：${directError.message}）` };
   }
-  return buf.toString('utf8');
 }
 
 /** 递归展开 sitemap index，返回 { urls: Map<loc, {lastmod, sitemap}>, sitemaps: [] } */
@@ -108,14 +136,17 @@ async function crawl(startUrls, { maxSitemaps, maxDepth, delay }) {
   const seen = new Set();
   const queue = startUrls.map((u) => ({ url: u, depth: 0 }));
   const errors = [];
+  const fallbacks = [];
 
   while (queue.length && sitemaps.length < maxSitemaps) {
     const { url, depth } = queue.shift();
     if (seen.has(url) || depth > maxDepth) continue;
     seen.add(url);
-    let xml;
-    try { xml = await fetchSitemap(url); }
+    let fetched;
+    try { fetched = await fetchSitemap(url); }
     catch (e) { errors.push(`${url} :: ${e.message}`); continue; }
+    const xml = fetched.text;
+    if (fetched.fallback) fallbacks.push({ url, via: fetched.fallback });
     sitemaps.push(url);
 
     const isIndex = /<sitemapindex[\s>]/i.test(xml);
@@ -136,7 +167,7 @@ async function crawl(startUrls, { maxSitemaps, maxDepth, delay }) {
     }
     if (queue.length) await sleep(delay);
   }
-  return { urls, sitemaps, errors, truncated: queue.length > 0 };
+  return { urls, sitemaps, errors, fallbacks, truncated: queue.length > 0 };
 }
 
 async function discover(domain) {
@@ -173,6 +204,12 @@ function slugWords(urls, topN) {
 async function main() {
   const args = parseArgs();
   if (args.help || args.h) { console.log(HELP); return; }
+  if (args['self-test']) {
+    const parsed = markdownSitemap('Title: Sitemap Index\n\n[https://example.com/games.xml](https://example.com/games.xml)\n\n2026-08-26');
+    if (!parsed?.includes('<sitemapindex>') || !parsed.includes('<lastmod>2026-08-26</lastmod>')) die('Jina sitemap 解析检查失败');
+    console.log('sitemap-diff self-test passed');
+    return;
+  }
 
   const explicit = [].concat(args.sitemap ?? []).map(String);
   const domain = args.domain ? String(args.domain).replace(/^https?:\/\//, '').replace(/\/.*$/, '') : '';
@@ -199,12 +236,13 @@ async function main() {
     if (!starts.length) die(`没找到 ${domain} 的 sitemap（robots.txt 里没有，常见路径也都不是）。用 --sitemap 手动指定。`);
   }
 
-  const { urls, sitemaps, errors, truncated } = await crawl(starts, {
+  const { urls, sitemaps, errors, fallbacks, truncated } = await crawl(starts, {
     maxSitemaps: Number(args['max-sitemaps'] ?? 200),
     maxDepth: Number(args['max-depth'] ?? 4),
     delay: Number(args.delay ?? 300),
   });
   for (const e of errors) console.error(`抓取失败：${e}`);
+  for (const f of fallbacks) console.error(`降级抓取：${f.url} → ${f.via}`);
   if (truncated) console.error(`注意：达到 --max-sitemaps 上限，还有子 sitemap 没抓完，结果不完整`);
   if (!urls.size) die('一条 <loc> 都没解析出来 —— 可能被 403 挡了，或者这个 sitemap 是空的');
 

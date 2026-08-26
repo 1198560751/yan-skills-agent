@@ -23,10 +23,12 @@ const HELP = `game-opportunity.mjs — 每日小游戏机会发现、筛选与�
   discover   运行游戏平台 sitemap diff
   radar      聚合 Steam、itch.io、Poki 新标题并做历史 diff
   collect    依次运行 discover + radar，供早间自动任务采集
+  collect-checklist  执行早间采集并逐项验收
   dedupe     合并当天 discovery + radar，只保留新增游戏
   plan       生成“全球先查、国家再下钻”的关键词计划
   demand     执行全球量查询，再查询主要国家与英语大市场
   evaluate   合并当天输入、验活 URL、生成候选与最终日报
+  decision-checklist 执行需求调查、日报并逐项验收
   render     从已有候选或 --evaluation 文件重新生成日报
   daily      依次运行 collect + demand + evaluate
 
@@ -36,6 +38,7 @@ const HELP = `game-opportunity.mjs — 每日小游戏机会发现、筛选与�
   --evaluation <file>     人工或外部量化结果；数组或 {candidates:[...]}
   --project-root <dir>    .rankup 所在项目（默认当前目录）
   --no-social             radar 不调用 Reddit、YouTube、X（离线检查用）
+  --check-only            只检查已有产物，不重新取数
   --dry-run               只显示将执行的动作，不联网、不写文件
   --self-test             运行内置离线检查
   -h, --help
@@ -57,6 +60,7 @@ function parseArgs(argv) {
     else if (a === '--evaluation') out.evaluation = path.resolve(next());
     else if (a === '--project-root') out.root = path.resolve(next());
     else if (a === '--no-social') out.noSocial = true;
+    else if (a === '--check-only') out.checkOnly = true;
     else if (a === '--dry-run') out.dryRun = true;
     else if (a === '--self-test') out.selfTest = true;
     else if (a === '-h' || a === '--help') out.help = true;
@@ -160,6 +164,12 @@ function files(o) {
     candidates: `${base}-candidates.json`, report: `${base}-report.md`,
     latestJson: path.join(o.reviewDir, 'latest.json'), latestMd: path.join(o.reviewDir, 'latest.md'),
     latestNewGames: path.join(o.reviewDir, 'latest-new-games.json'),
+    collectChecklist: `${base}-collect-checklist.json`, collectChecklistMd: `${base}-collect-checklist.md`,
+    decisionChecklist: `${base}-decision-checklist.json`, decisionChecklistMd: `${base}-decision-checklist.md`,
+    latestCollectChecklist: path.join(o.reviewDir, 'latest-collect-checklist.json'),
+    latestCollectChecklistMd: path.join(o.reviewDir, 'latest-collect-checklist.md'),
+    latestDecisionChecklist: path.join(o.reviewDir, 'latest-decision-checklist.json'),
+    latestDecisionChecklistMd: path.join(o.reviewDir, 'latest-decision-checklist.md'),
   };
 }
 
@@ -419,11 +429,26 @@ function keywordSignal(c) {
   return { volume, globalVolume, kd: topKd ?? (kdValues.length ? Math.min(...kdValues) : null), trend: c.trend ?? {} };
 }
 
+function buildReadiness(c) {
+  const k = keywordSignal(c);
+  const intentValidated = c.demandProof?.intentValidated === true;
+  const independentDemand = c.demandProof?.independentDemand === true || Number(c.promotionRisk?.independentPublishers ?? 0) >= 2;
+  const checks = {
+    playable: c.playable === true,
+    volume: k.globalVolume >= 10_000 && k.volume >= 2_000,
+    kd: k.kd !== null && k.kd <= 30,
+    intentValidated,
+    independentDemand,
+  };
+  return { ready: Object.values(checks).every(Boolean), checks };
+}
+
 function decide(c) {
   const explicit = c.action ?? ({ 'quick-ship': 'develop', 'priority-research': 'research', watch: 'watch', develop: 'develop', research: 'research' }[c.decision]);
-  if (ACTIONS.includes(explicit)) return explicit;
+  if (explicit === 'develop') return buildReadiness(c).ready ? 'develop' : 'research';
+  if (['research', 'watch'].includes(explicit)) return explicit;
   const k = keywordSignal(c);
-  if (c.playable && (k.globalVolume >= 1000 || k.volume >= 500) && (k.kd === null || k.kd <= 40)) return 'develop';
+  if (buildReadiness(c).ready) return 'develop';
   if (c.reachable || c.playable || k.volume > 0 || k.globalVolume > 0 || arr(c.evidenceLinks).length > 1) return 'research';
   return 'watch';
 }
@@ -435,13 +460,13 @@ function finishCandidate(c) {
   const evidenceLinks = uniq([...arr(c.evidenceLinks), ...sourceLinks].filter(validUrl));
   c = { ...c, urls, sourceLinks, playLinks, evidenceLinks };
   const action = decide(c);
-  const decision = c.decision ?? ({ develop: 'quick-ship', research: 'priority-research', watch: 'watch' }[action]);
+  const decision = ({ develop: 'quick-ship', research: 'priority-research', watch: 'watch' })[action];
   const nextAction = c.nextAction ?? ({
     develop: '确认目标市场 SERP 与可玩供给后，直接建立网站开发任务。',
     research: '补查目标国家搜索量、KD、趋势与 SERP，再决定是否开发。',
     watch: '保留链接，等待下一次平台或搜索需求信号。',
   }[action]);
-  return { ...c, action, decision, keywordMetrics: keywordSignal(c), trend: c.trend ?? {}, nextAction };
+  return { ...c, action, decision, buildGate: buildReadiness(c), keywordMetrics: keywordSignal(c), trend: c.trend ?? {}, nextAction };
 }
 
 function staleReason(c) {
@@ -483,7 +508,7 @@ const metric = (c) => {
 
 function renderMarkdown(report) {
   const labels = { develop: '建议开发', research: '继续调研', watch: '继续观察' };
-  const lines = [`# 小游戏机会日报 · ${report.date}`, '', `共 ${report.candidates.length} 个候选：建议开发 ${report.stats.develop} 个，继续调研 ${report.stats.research} 个，继续观察 ${report.stats.watch} 个。`, ''];
+  const lines = [`# 小游戏机会日报 · ${report.date}`, '', `共 ${report.candidates.length} 个候选：建议开发 ${report.stats.develop} 个，继续调研 ${report.stats.research} 个，继续观察 ${report.stats.watch} 个。`, '', `结论：${report.verdict.text}`, ''];
   for (const action of ACTIONS) {
     lines.push(`## ${labels[action]}`, '');
     const rows = report.candidates.filter((c) => c.action === action);
@@ -507,9 +532,13 @@ function renderMarkdown(report) {
 function saveReport(o, candidates, errors = [], excluded = []) {
   const f = files(o);
   const done = candidates.map(finishCandidate);
+  const stats = Object.fromEntries(ACTIONS.map((a) => [a, done.filter((c) => c.action === a).length]));
   const report = {
     date: o.date, generatedAt: new Date().toISOString(), errors: uniq(errors.filter(Boolean)),
-    stats: Object.fromEntries(ACTIONS.map((a) => [a, done.filter((c) => c.action === a).length])),
+    stats,
+    verdict: stats.develop > 0
+      ? { action: 'act', text: `有 ${stats.develop} 个候选达到开发门槛，进入建站决策。` }
+      : { action: 'wait', text: '今天没有达到开发门槛的机会，静候下一轮。' },
     candidates: done, excluded: excluded.map(finishCandidate),
   };
   writeJson(f.candidates, report);
@@ -871,15 +900,110 @@ async function daily(o) {
   return { ok: gathered.ok && demandResult.ok && result.ok, collect: gathered, demand: demandResult, evaluate: result };
 }
 
+const checkItem = (id, text, passed, evidence) => ({ id, text, passed: Boolean(passed), evidence: String(evidence ?? '') });
+const dated = (data, date) => String(data?.date ?? data?.generatedAt ?? '').startsWith(date);
+
+function saveChecklist(o, kind, checks, summary = {}) {
+  const f = files(o);
+  const isCollect = kind === 'collect';
+  const file = isCollect ? f.collectChecklist : f.decisionChecklist;
+  const markdownFile = isCollect ? f.collectChecklistMd : f.decisionChecklistMd;
+  const latestFile = isCollect ? f.latestCollectChecklist : f.latestDecisionChecklist;
+  const latestMarkdown = isCollect ? f.latestCollectChecklistMd : f.latestDecisionChecklistMd;
+  const result = { date: o.date, generatedAt: new Date().toISOString(), kind, ok: checks.every((item) => item.passed), checks, summary };
+  const title = isCollect ? '小游戏每日采集 Checklist' : '小游戏每日决策 Checklist';
+  const markdown = [`# ${title} · ${o.date}`, '', `状态：${result.ok ? '全部通过' : '未通过'}`, '', ...checks.flatMap((item) => [`- [${item.passed ? 'x' : ' '}] ${item.id} ${item.text}`, `  - ${item.evidence}`]), ''].join('\n');
+  writeJson(file, result); writeText(markdownFile, markdown);
+  fs.copyFileSync(file, latestFile); fs.copyFileSync(markdownFile, latestMarkdown);
+  return { ...result, file, markdownFile, latestFile, latestMarkdown };
+}
+
+function inspectCollect(o) {
+  const f = files(o);
+  const discovery = readJson(f.discovery);
+  const radarData = readJson(f.radar);
+  const newGames = readJson(f.newGames);
+  const config = readJson(discovery?.config ?? path.join(o.root, '.rankup/demand/game-platforms.json'));
+  const platforms = arr(discovery?.platforms);
+  const radarSources = arr(radarData?.sources);
+  const games = arr(newGames?.games);
+  const failedPlatforms = platforms.filter((row) => row.status === 'failed');
+  const failedRadar = radarSources.filter((row) => row.status === 'failed');
+  const gameKeys = games.map((game) => normalizeName(arr(game.names)[0] ?? game.name) || normalizeUrl(arr(game.urls)[0]));
+  const expectedRadar = o.noSocial ? 3 : 6;
+  const ignored = fs.readFileSync(path.join(o.root, '.gitignore'), 'utf8').split(/\r?\n/).some((line) => line.trim() === '.rankup/');
+  const checks = [
+    checkItem('C01', '平台配置已读取且本次覆盖全部配置平台。', arr(config?.platforms).length > 0 && Number(discovery?.selectedPlatforms) === arr(config?.platforms).length, `${discovery?.selectedPlatforms ?? 0}/${arr(config?.platforms).length} 个平台`),
+    checkItem('C02', '每个平台都有 compared、baseline 或 failed 的明确结果。', platforms.length === Number(discovery?.selectedPlatforms) && platforms.every((row) => ['compared', 'baseline_created', 'failed'].includes(row.status)), `${platforms.length} 条平台结果`),
+    checkItem('C03', '全部 sitemap 抓取成功且没有平台失败。', failedPlatforms.length === 0, failedPlatforms.length ? failedPlatforms.map((row) => row.id).join('、') : '0 个失败'),
+    checkItem('C04', '每个平台都分别记录 added、changed 和 removed。', platforms.filter((row) => row.status !== 'failed').every((row) => ['added', 'changed', 'removed'].every((key) => Array.isArray(row[key]))), '三类 diff 字段已核对'),
+    checkItem('C05', 'Steam、itch、Poki 与启用的社区雷达全部执行成功。', radarSources.length >= expectedRadar && failedRadar.length === 0, `${radarSources.length} 个来源，失败 ${failedRadar.length}`),
+    checkItem('C06', 'discovery、radar 与 new-games 均属于当天。', [discovery, radarData, newGames].every((data) => dated(data, o.date)), o.date),
+    checkItem('C07', 'discovery 与 radar 已合并且统计数量和实体数量一致。', Number(newGames?.stats?.dedupedGames) === games.length && Number(newGames?.stats?.duplicatesRemoved) >= 0, `${games.length} 个去重游戏`),
+    checkItem('C08', '社交 campaign 与非游戏记录没有混入新增游戏。', games.every((game) => !game.campaignId && game.pageType !== 'game-adjacent'), `${newGames?.stats?.ignoredCampaigns ?? 0} 个 campaign 已隔离`),
+    checkItem('C09', '新增游戏按名称或 URL 去重且没有重复实体。', gameKeys.every(Boolean) && new Set(gameKeys).size === gameKeys.length, `${new Set(gameKeys).size}/${games.length} 个唯一实体`),
+    checkItem('C10', '采集产物、名称、来源链接和 Git 忽略边界全部完整。', [f.discovery, f.radar, f.newGames, f.latestNewGames].every(exists) && games.every((game) => arr(game.names).length && [...arr(game.sourceLinks), ...arr(game.urls)].some(validUrl)) && ignored, '4 个产物与 .rankup/ 忽略规则已核对'),
+  ];
+  return saveChecklist(o, 'collect', checks, { platforms: platforms.length, games: games.length, failedPlatforms: failedPlatforms.map((row) => row.id), failedRadar: failedRadar.map((row) => row.source) });
+}
+
+async function collectChecklist(o) {
+  if (!o.checkOnly) await collect(o);
+  return inspectCollect(o);
+}
+
+function inspectDecision(o) {
+  const f = files(o);
+  const collectResult = readJson(f.collectChecklist);
+  const planData = readJson(f.demandPlan);
+  const globalRows = readJsonLines(f.globalSemrush);
+  const countryPlan = readJson(f.countryPlan, {});
+  const countryRows = readJsonLines(f.countrySemrush);
+  const demandData = readJson(f.demandResults);
+  const report = readJson(f.candidates);
+  const latest = readJson(f.latestJson);
+  const markdown = exists(f.report) ? fs.readFileSync(f.report, 'utf8') : '';
+  const globalKeys = new Set(globalRows.filter((row) => row.status !== 'error').map((row) => normalizeName(row.keyword)));
+  const countryKeys = new Set(countryRows.map((row) => `${String(row.db).toLowerCase()}:${normalizeName(row.keyword)}`));
+  const priority = arr(planData?.candidates);
+  const finalPriority = priority.map((candidate) => arr(report?.candidates).find((row) => row.entityId === candidate.entityId || sameCandidate(row, candidate))).filter(Boolean);
+  const plannedCountryRows = Object.entries(countryPlan).flatMap(([db, words]) => arr(words).map((word) => `${db}:${normalizeName(word)}`));
+  const stats = report?.stats ?? {};
+  const statsMatch = ACTIONS.every((action) => Number(stats[action] ?? 0) === arr(report?.candidates).filter((row) => row.action === action).length);
+  const latestMatch = JSON.stringify(latest?.stats) === JSON.stringify(report?.stats) && arr(latest?.candidates).map((row) => row.entityId).join('|') === arr(report?.candidates).map((row) => row.entityId).join('|');
+  const checks = [
+    checkItem('D01', '当天采集 Checklist 已全部通过。', collectResult?.ok === true && collectResult?.date === o.date, collectResult?.ok ? '采集通过' : '采集未通过或缺失'),
+    checkItem('D02', '已按优先级选出不超过 6 个真实游戏进入深查。', priority.length > 0 && priority.length <= 6 && priority.every((row) => row.entityId && arr(row.urls).some(validUrl)), `${priority.length} 个深查游戏`),
+    checkItem('D03', '每个深查游戏都有 1–3 个去重后的原名、英文名或本地名关键词。', priority.every((row) => arr(row.keywords).length >= 1 && arr(row.keywords).length <= 3 && new Set(arr(row.keywords).map(normalizeName)).size === arr(row.keywords).length && (!arr(row.names).some(latinKeyword) || arr(row.latinKeywords).length > 0)), `${arr(planData?.globalKeywords).length} 个全球关键词`),
+    checkItem('D04', '每个计划关键词都有全球量与主要国家结果或明确无数据状态。', arr(planData?.globalKeywords).length > 0 && arr(planData?.globalKeywords).every((word) => globalKeys.has(normalizeName(word))), `${globalRows.length}/${arr(planData?.globalKeywords).length} 条全球结果`),
+    checkItem('D05', '国家计划已在同一批次取完且没有缺少国家关键词组合。', plannedCountryRows.every((key) => countryKeys.has(key)), `${countryRows.length}/${plannedCountryRows.length} 条国家结果`),
+    checkItem('D06', '每个深查游戏都记录已查关键词、国家和 demandCoverage。', arr(demandData?.candidates).length === priority.length && arr(demandData?.candidates).every((row) => row.demandCoverage?.globalChecked && arr(row.demandCoverage?.keywordsChecked).length && arr(row.demandCoverage?.countriesChecked).length), `${arr(demandData?.candidates).length} 个需求结果`),
+    checkItem('D07', '每个深查游戏都完成页面可达性与可玩供给核对。', finalPriority.length === priority.length && finalPriority.every((row) => arr(row.urlChecks).length > 0 && typeof row.reachable === 'boolean' && typeof row.playable === 'boolean'), `${finalPriority.length}/${priority.length} 个页面已核对`),
+    checkItem('D08', '所有建议开发候选都通过流量、KD、意图、独立需求和可玩性硬门槛。', arr(report?.candidates).filter((row) => row.action === 'develop').every((row) => row.buildGate?.ready === true), `${stats.develop ?? 0} 个达到开发门槛`),
+    checkItem('D09', '最终结论与建议开发数量一致并允许明确选择静候。', report?.verdict?.action === (Number(stats.develop ?? 0) > 0 ? 'act' : 'wait') && Boolean(report?.verdict?.text), report?.verdict?.text ?? '缺少结论'),
+    checkItem('D10', 'JSON、Markdown、latest、分组数量、链接和异常信息彼此一致。', statsMatch && latestMatch && markdown.includes(report?.verdict?.text ?? '') && arr(report?.candidates).every((row) => [...arr(row.sourceLinks), ...arr(row.urls)].some(validUrl)) && (!arr(report?.errors).length || markdown.includes('本次异常')), `${arr(report?.candidates).length} 个候选，异常 ${arr(report?.errors).length}`),
+  ];
+  return saveChecklist(o, 'decision', checks, { verdict: report?.verdict, stats, priority: priority.length, errors: arr(report?.errors) });
+}
+
+async function decisionChecklist(o) {
+  if (!o.checkOnly) {
+    const demandResult = await demand(o);
+    await evaluate(o, demandResult.ok ? [] : [`demand: ${demandResult.error ?? demandResult.stage ?? '查询失败'}`]);
+  }
+  return inspectDecision(o);
+}
+
 function selfTest() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'game-opportunity-'));
   try {
     const o = parseArgs(['render', '--date', '2099-01-02', '--project-root', tmp]);
     const merged = mergeCandidates([
-      { names: ['Foo Game'], urls: ['https://example.com/foo'], keywords: [{ keyword: 'foo', semrushGlobalVolume: 1200, semrushKd: 22 }], playable: true },
+      { names: ['Foo Game'], urls: ['https://example.com/foo'], keywords: [{ keyword: 'foo', semrushVolume: 5000, semrushGlobalVolume: 12000, semrushKd: 22 }], playable: true, demandProof: { intentValidated: true, independentDemand: true } },
       { names: ['foo-game'], urls: ['https://example.com/foo/'], evidenceLinks: ['https://reddit.com/r/games/foo'] },
     ]);
     if (merged.length !== 1 || decide(merged[0]) !== 'develop') throw new Error('实体合并或分组失败');
+    if (decide({ names: ['Small Game'], urls: ['https://example.com/small'], action: 'develop', playable: true, keywords: [{ semrushVolume: 4400, semrushGlobalVolume: 4400, semrushKd: 35 }] }) !== 'research') throw new Error('严格开发门槛失败');
     const carried = mergeRichIntoOrdered(
       [{ names: ['New Game'], urls: ['https://example.com/new'] }],
       carryForward({ date: '2099-01-01', candidates: [{ names: ['Old Game'], firstSeen: '2098-12-30', sourceLinks: ['https://example.com/old'], action: 'research' }] }, o.date),
@@ -894,7 +1018,7 @@ function selfTest() {
     const ranked = rankCandidates([
       { names: ['Old Watch'], urls: ['https://example.com/watch'], action: 'watch' },
       fresh,
-      { names: ['Verified Winner'], urls: ['https://example.com/winner'], action: 'develop', keywords: [{ semrushVolume: 1000, semrushKd: 20 }] },
+      { names: ['Verified Winner'], urls: ['https://example.com/winner'], action: 'develop', playable: true, demandProof: { intentValidated: true, independentDemand: true }, keywords: [{ semrushVolume: 5000, semrushGlobalVolume: 12000, semrushKd: 20 }] },
     ], [fresh]);
     if (ranked.map((v) => v.names[0]).join('|') !== 'Verified Winner|Fresh Game|Old Watch') throw new Error('候选优先级排序失败');
     const partial = discoveryHealth({ compared: 45, baselineCreated: 0, platforms: [{ id: 'bad-a', status: 'failed', error: 'timeout' }] });
@@ -907,6 +1031,8 @@ function selfTest() {
     if (cleanPageTitle('スネークデュエル｜対戦バトル｜無料ゲームならワウゲーム') !== 'スネークデュエル') throw new Error('全角站点后缀清洗失败');
     saveReport(o, merged, []);
     const f = files(o);
+    const checklist = saveChecklist(o, 'collect', [checkItem('C01', '测试检查。', true, 'ok')]);
+    if (!checklist.ok || !exists(f.collectChecklistMd) || !fs.readFileSync(f.collectChecklistMd, 'utf8').includes('- [x] C01')) throw new Error('Checklist 产物失败');
     const newGames = saveNewGames(o,
       { date: o.date, candidates: [{ url: 'https://example.com/foo' }] },
       { date: o.date, candidates: [
@@ -921,7 +1047,7 @@ function selfTest() {
     if (!challengePageTitle('Just a moment...')) throw new Error('Cloudflare 验证页过滤失败');
     if (![f.candidates, f.report, f.latestJson, f.latestMd].every(exists)) throw new Error('报告产物不完整');
     if (!fs.readFileSync(f.report, 'utf8').includes('[Foo Game](https://example.com/foo)')) throw new Error('Markdown 链接缺失');
-    return { ok: true, checks: ['normalize-and-merge', 'decision', 'carry-forward-order', 'candidate-priority', 'partial-discovery', 'stale-vs-timeout', 'title-and-iframe', 'campaign-dedupe', 'new-games-dedupe', 'global-demand-plan', 'challenge-filter', 'markdown-links', 'stable-latest'] };
+    return { ok: true, checks: ['normalize-and-merge', 'decision', 'strict-build-gate', 'checklist-output', 'carry-forward-order', 'candidate-priority', 'partial-discovery', 'stale-vs-timeout', 'title-and-iframe', 'campaign-dedupe', 'new-games-dedupe', 'global-demand-plan', 'challenge-filter', 'markdown-links', 'stable-latest'] };
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }
 
@@ -929,10 +1055,10 @@ async function main() {
   const o = parseArgs(process.argv.slice(2));
   if (o.help) { console.log(HELP); return; }
   if (o.selfTest) { console.log(JSON.stringify(selfTest(), null, 2)); return; }
-  if (!['discover', 'radar', 'collect', 'dedupe', 'plan', 'demand', 'evaluate', 'render', 'daily'].includes(o.command)) {
+  if (!['discover', 'radar', 'collect', 'collect-checklist', 'dedupe', 'plan', 'demand', 'evaluate', 'decision-checklist', 'render', 'daily'].includes(o.command)) {
     console.log(HELP); process.exitCode = 2; return;
   }
-  const result = await ({ discover, radar, collect, dedupe, plan, demand, evaluate, render, daily })[o.command](o);
+  const result = await ({ discover, radar, collect, 'collect-checklist': collectChecklist, dedupe, plan, demand, evaluate, 'decision-checklist': decisionChecklist, render, daily })[o.command](o);
   console.log(JSON.stringify(result, null, 2));
   if (!result.ok) process.exitCode = 1;
 }
