@@ -14,18 +14,21 @@ description: 小游戏机会的每日发现、筛选和调查 Skill。用户提�
 |---|---|---|
 | `discover` | 抓取全部平台 sitemap、按站点路径过滤、与上次快照做 diff | `.rankup/demand/game-review/YYYY-MM-DD-discovery.json` |
 | `radar` | 扫描 24 小时发布源与玩家社区，提取刚出现的游戏名、别名和玩法词 | `.rankup/demand/game-review/YYYY-MM-DD-radar.json` |
-| `collect` | 依次完成 `discover` 和 `radar`，供早间自动任务使用 | 上述两个输入文件 |
+| `collect` | 依次完成 `discover` 和 `radar`，并合并当天新增游戏 | 上述两个输入文件与 `YYYY-MM-DD-new-games.json` |
+| `dedupe` | 不联网，读取当天 discovery/radar，去掉重复游戏与社交 campaign | `.rankup/demand/game-review/YYYY-MM-DD-new-games.json` |
+| `plan` | 从真实游戏生成原名、英文名、本地名的全球优先查询计划 | `YYYY-MM-DD-demand-plan.json` 与 `YYYY-MM-DD-global-keywords.txt` |
+| `demand` | 先查全球量和主要国家，再一次性查询各国家库 | `YYYY-MM-DD-demand-results.json` |
 | `evaluate` | 验活、合并实体、查量/KD/趋势/SERP/供给、排序 | `.rankup/demand/game-review/YYYY-MM-DD-candidates.json` 与 `YYYY-MM-DD-report.md` |
-| `daily` | 依次完成 `discover`、`radar` 和 `evaluate` | 上述全部产物 |
+| `daily` | 依次完成 `collect`、`demand` 和 `evaluate` | 上述全部产物 |
 
 所有任务都走同一个真实入口：
 
 ```bash
-node game-opportunity/scripts/game-opportunity.mjs <discover|radar|collect|evaluate|render|daily>
+node game-opportunity/scripts/game-opportunity.mjs <discover|radar|collect|dedupe|plan|demand|evaluate|render|daily>
 ```
 
-用户只说“运行小游戏监测”时执行 `daily`。自动任务分成 `collect` 和 `evaluate` 两个时段：平台增量与
-24 小时雷达先形成稳定输入，量化评估再查面板并生成最终日报。`daily` 用于随时手动完整重跑。
+用户只说“运行小游戏监测”时执行 `daily`。自动任务分成 `collect` 和 `demand + evaluate` 两个时段：
+平台增量与 24 小时雷达先形成稳定输入，需求阶段再按全球、国家、竞争顺序查数并生成日报。
 
 ## `radar`
 
@@ -110,6 +113,9 @@ Similarweb 用于最近 28 天的关键词、国家和流量去向验证，Semru
 
 这些都是当前项目自己的数据。复用规则和脚本保存在本 Skill、Rankup 与 Backlink 中。
 
+`collect` 会把当天 discovery URL 与 radar 的 Steam/itch/Poki 游戏标题合并成唯一的 `games[]`，社交
+`campaign` 只保留在 radar 原始输入里，不计入新增游戏数。`dedupe` 可在不联网的情况下重建该文件。
+
 ## `discover`
 
 在仓库根目录执行：
@@ -143,12 +149,31 @@ node game-opportunity/scripts/game-opportunity.mjs evaluate
 
 ### 2. 生成关键词
 
-每个有效实体提取 1–3 个真实搜索表达：游戏名、目标语言名、玩法大类。每个词带上 `gl`、`hl`、
-来源 URL 和实体 ID。多语言市场分别查询，不把英文数据套给本地语言。
+每个有效实体提取 1–3 个真实搜索表达：官方原名、官方英文名、已有本地名。大小写变体合并；`Demo`
+只作为版本标记，不单独占一个词。平台所在国家只记录发现来源，不用于断定游戏产地或目标市场。
+
+英文不能因为游戏来自小语种平台而省略：有官方英文名或通用英文名就进入全球查询。非英语原名也
+单独查全球，因为全球查询只统计完全相同的字符串，不会自动把 `ノノグラム` 翻译成 `nonogram`。
+
+先执行：
+
+```bash
+node game-opportunity/scripts/game-opportunity.mjs plan
+node game-opportunity/scripts/game-opportunity.mjs demand
+```
+
+`demand` 固定按下面顺序运行：
+
+1. 按优先级取前 6 个真实游戏，查询其原名、英文名和本地名，读取 `globalVolume` 与 Top-N `byCountry`；
+2. 把发现市场、`byCountry` 中有量的国家合并成国家计划；
+3. 在同一个 Semrush 页面会话中批量取完所有国家的当地量、KD、CPC 和意图；
+4. 已完整取得的全球和国家结果直接复用，重跑时不重复打开浏览器。
+
+Semrush 启动时出现一次工具主页属于初始化；国家查询不得为每个国家重新启动工具或反复跳主页。
 
 ### 3. 查询竞争与需求
 
-先批量查询哥飞 Web.Cafe 的 KD 与 SERP 盘面：
+全球与国家分布完成后，再对主要机会查询哥飞 Web.Cafe 的 KD 与 SERP 盘面：
 
 ```bash
 node rankup/scripts/seo-webcafe.mjs kd \
@@ -167,16 +192,17 @@ node backlink/scripts/semrush-keyword.mjs \
   --out ".rankup/demand/game-review/${TODAY}-semrush-<db>.jsonl"
 ```
 
-每个文件只放同一个国家库的词，`--db` 始终显式填写；批量页一次提交最多 100 个词。第一轮得到
-当地搜索量、KD、CPC、竞争程度和意图。进入候选组的词再用单词模式读取全球量和主要国家：
+单个国家文件仍可独立补查，`--db` 始终显式填写；批量页一次提交最多 100 个词。跨国家自动任务使用：
 
 ```bash
-node backlink/scripts/semrush-keyword.mjs --kw "<keyword>" --db <primary-db> \
-  --out ".rankup/demand/game-review/${TODAY}-semrush-<keyword>-countries.json"
+node backlink/scripts/semrush-keyword.mjs \
+  --bulk-plan ".rankup/demand/game-review/${TODAY}-country-plan.json" \
+  --out ".rankup/demand/game-review/${TODAY}-semrush-countries.jsonl"
 ```
 
-`globalVolume` 表示全球合计，`byCountry` 表示页面列出的主要国家。把这些国家和项目目标市场分别
-建立 `<db>` 批量文件，再取各地自己的量与 KD。Semrush 的零值单词单独复查一次。趋势用
+`globalVolume` 表示完全相同关键词的全球合计，`byCountry` 只表示页面列出的主要国家，不等于全部
+国家。全球量不能证明搜索意图属于这款游戏：`Island Survival` 这类泛词必须再查 `<name> game`、
+`play <name>`、SERP 实体和竞品页面。Semrush 的零值单词单独复查一次。趋势用
 `rankup/scripts/gt.py` 查询 12 个月、30 天和 7 天窗口。对可玩候选提取 iframe 或游戏入口，记录
 HTTP 状态、加载页、移动端与全屏线索。
 
@@ -207,8 +233,9 @@ node game-opportunity/scripts/game-opportunity.mjs render \
 - `.rankup/demand/game-review/latest.json`：机器可读候选；
 - `.rankup/demand/game-review/latest.md`：给用户阅读的最新日报。
 
-日报按 `develop`、`research`、`watch` 三组展示，每个候选必须有发现页、可玩页或证据链接，带目标
-市场、当地量、全球量、KD、可玩状态和一句下一步。自动任务完成时直接把三组 List 与这些链接返回
+日报按 `develop`、`research`、`watch` 三组展示，每个候选必须有发现页、可玩页或证据链接。搜索量
+分开显示“全球量、最高国家及其量、发现市场及其量”，不能把最高国家的数字写到发现市场名下；同时
+带该主要市场 KD、可玩状态和一句下一步。自动任务完成时直接把三组 List 与这些链接返回
 给用户，由用户决定继续调研或创建网站开发任务。
 
 前一日的 `research/watch` 会自动续带；首次发现后的第 3、7、14、28 天在 `carryForward.recheckDue`
@@ -259,6 +286,8 @@ node game-opportunity/scripts/game-opportunity.mjs render \
 - 每条新增 URL 都有可访问性结论；
 - 多语言重复页已经合并；
 - 每个进入排序的候选都有供给状态和至少一组市场关键词数据；
+- 候选先有 `globalVolume/byCountry`，再有发现市场和主要国家的当地量；有英文名时英语词已进入全球查询；
+- `demandCoverage` 明确记录查过的关键词和国家，日报不把平台国家当成游戏产地；
 - JSON 与 Markdown 数字一致，所有私有产物都位于 `.rankup/`。
 - `latest.json` 与当日 candidates 一致，`latest.md` 与当日日报一致；
 - 最终回复包含 `develop/research/watch` 三组候选和可点击来源链接。

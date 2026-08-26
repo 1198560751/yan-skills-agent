@@ -25,6 +25,7 @@
  *   node semrush-keyword.mjs --kw 診断 --db jp      # --db 是按国家的，别省
  *   node semrush-keyword.mjs --kw-file words.txt --db kr --out kr.jsonl
  *   node semrush-keyword.mjs --kw-file words.txt --db us --bulk --out us.jsonl
+ *   node semrush-keyword.mjs --bulk-plan countries.json --out countries.jsonl
  *   # 想要全球规模：读输出里的 globalVolume 字段，不要重算 --db 或加总 byCountry
  *
  * 已验证 2026-08-25：冻结/登录失效页立即停止；同机 Semrush 查询跨进程串行；
@@ -38,14 +39,15 @@ import assert from 'node:assert/strict';
 
 const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
+const bulkPlanFile = typeof flags['bulk-plan'] === 'string' ? flags['bulk-plan'] : null;
 const dbGiven = flags.db !== undefined && String(flags.db).trim() !== '';
 const db = String(flags.db || 'jp').trim().toLowerCase();
-if (flags.bulk && !dbGiven) throw new Error('Bulk keyword lookup requires an explicit country database, for example --db us or --db jp.');
+if (flags.bulk && !bulkPlanFile && !dbGiven) throw new Error('Bulk keyword lookup requires an explicit country database, for example --db us or --db jp.');
 // The default exists because this Skill's first callers were all JP-market, and
 // changing it now would silently re-point their saved runs. But an English
 // keyword queried against the JP database returns real, plausible, wrong
 // numbers with nothing to signal it, so a defaulted --db announces itself.
-if (!dbGiven) {
+if (!dbGiven && !bulkPlanFile) {
   console.error(`⚠ --db not given, defaulting to "jp". volume/KD/CPC will be Japan's numbers even for an English or global keyword — pass --db us (or uk/de/…) for any non-Japan market. Need a worldwide figure instead? Read globalVolume in the output, it doesn't depend on --db.`);
 }
 const session = flags.session ? validateSession(flags.session) : defaultSession('semrush-keyword');
@@ -57,7 +59,17 @@ if (typeof flags['kw-file'] === 'string') {
   const text = await readFile(flags['kw-file'], 'utf8');
   keywords = keywords.concat(text.split(/\r?\n/).map((s) => s.trim()).filter((s) => s && !s.startsWith('#')));
 }
-if (!keywords.length) throw new Error('Need --kw "a,b" or --kw-file <path>');
+let bulkPlan = null;
+if (bulkPlanFile) {
+  bulkPlan = JSON.parse(await readFile(bulkPlanFile, 'utf8'));
+  if (!bulkPlan || Array.isArray(bulkPlan) || typeof bulkPlan !== 'object') throw new Error('--bulk-plan must be a JSON object: {"us":["keyword"]}');
+  for (const [country, words] of Object.entries(bulkPlan)) {
+    if (!/^[a-z]{2}$/i.test(country) || !Array.isArray(words) || !words.length || words.length > 100) {
+      throw new Error(`Invalid --bulk-plan entry for ${country}; each country needs 1-100 keywords.`);
+    }
+  }
+}
+if (!keywords.length && !bulkPlanFile) throw new Error('Need --kw "a,b", --kw-file <path>, or --bulk-plan <json>');
 const minDelaySeconds = Number(flags['min-delay'] ?? 12);
 const maxDelaySeconds = Number(flags['max-delay'] ?? 25);
 if (![minDelaySeconds, maxDelaySeconds].every(Number.isFinite) || minDelaySeconds < 0 || maxDelaySeconds < minDelaySeconds) {
@@ -75,14 +87,14 @@ function parseCompact(value) {
 }
 
 const BULK_INTENTS = ['Informational', 'Navigational', 'Commercial', 'Transactional'];
-function parseBulkApi(keywords, rows) {
+function parseBulkApi(keywords, rows, database = db) {
   const byPhrase = new Map(rows.map((row) => [row.phrase, row]));
   return keywords.map((keyword) => {
     const row = byPhrase.get(keyword);
     const noData = !row || row.volume == null;
     return {
       keyword,
-      db,
+      db: database,
       volume: noData ? 0 : row.volume,
       kd: row?.difficulty ?? null,
       cpc: row?.cpc == null ? null : `$${row.cpc}`,
@@ -202,16 +214,11 @@ const warn = expiryWarning(launched.state);
 if (warn) console.error(`[subscription] ${warn}`);
 
 let results = [];
-if (flags.bulk) {
-  if (keywords.length > 100) throw new Error(`Semrush bulk accepts at most 100 keywords, received ${keywords.length}.`);
+async function fetchBulk(database, phrases) {
+  if (phrases.length > 100) throw new Error(`Semrush bulk accepts at most 100 keywords, received ${phrases.length}.`);
   // The launcher now lands on /home/, whose gateway rejects keyword RPCs with 405.
   // Enter the keyword app first so the request uses the report gateway and session context.
-  await gotoInTool(
-    launched.evalPage,
-    `${appOrigin}/analytics/keywordoverview/?q=${encodeURIComponent(keywords[0])}&db=${encodeURIComponent(db)}`,
-    Number(flags.settle || 8),
-  );
-  const params = { phrases: keywords, database: db, date: '', currency: 'USD' };
+  const params = { phrases, database, date: '', currency: 'USD' };
   const cap = assertToolsShareAvailable(await launched.evalPage(`(async () => {
     const response = await fetch('/kwogw/v2/webapi', {
       method: 'POST',
@@ -234,10 +241,24 @@ if (flags.bulk) {
     });
   })()`, Number(flags.timeout || 90) * 1000));
   if (cap.httpStatus !== 200 || cap.rpcError || cap.invalidJson) {
-    throw new Error(`Semrush bulk request failed (db=${db}, HTTP ${cap.httpStatus}, ${cap.rpcError?.message || 'empty or invalid response'})`);
+    throw new Error(`Semrush bulk request failed (db=${database}, HTTP ${cap.httpStatus}, ${cap.rpcError?.message || 'empty or invalid response'})`);
   }
-  results = parseBulkApi(keywords, cap.rows);
-  console.error(`bulk ${db}: ${results.length} keywords in one report`);
+  return parseBulkApi(phrases, cap.rows, database);
+}
+
+if (flags.bulk || bulkPlan) {
+  const jobs = bulkPlan ? Object.entries(bulkPlan).map(([database, phrases]) => [database.toLowerCase(), phrases]) : [[db, keywords]];
+  const [firstDb, firstPhrases] = jobs[0];
+  await gotoInTool(
+    launched.evalPage,
+    `${appOrigin}/analytics/keywordoverview/?q=${encodeURIComponent(firstPhrases[0])}&db=${encodeURIComponent(firstDb)}`,
+    Number(flags.settle || 8),
+  );
+  for (const [database, phrases] of jobs) {
+    const rows = await fetchBulk(database, phrases);
+    results.push(...rows);
+    console.error(`bulk ${database}: ${rows.length} keywords`);
+  }
   if (typeof flags.out === 'string') {
     await writeFile(flags.out, results.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf8');
   }
@@ -302,9 +323,9 @@ for (const kw of keywords) {
 
 printJson({
   version: 1,
-  source: `Semrush keyword overview${flags.bulk ? ' bulk' : ''} via authenticated Tools Share browser session`,
-  note: flags.bulk
-    ? `bulk volume/KD/CPC 是 db=${db} 这一个国家库的数据；对筛出的候选再用单词模式读取 globalVolume 与 byCountry。`
+  source: `Semrush keyword overview${flags.bulk || bulkPlan ? ' bulk' : ''} via authenticated Tools Share browser session`,
+  note: flags.bulk || bulkPlan
+    ? `bulk volume/KD/CPC 是每行 db 对应国家库的数据；对筛出的候选先用单词模式读取 globalVolume 与 byCountry。`
     : `volume 是 db=${db} 这一个国家库的月搜量，globalVolume 是全球合计，byCountry 是页面列出的 Top-N（不穷举，加总不等于 globalVolume）——三者不可互相替代。`,
   retrievedAt: new Date().toISOString(),
   db,

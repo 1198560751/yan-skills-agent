@@ -58,7 +58,7 @@ backlink/
 │   ├── similarweb-batch.mjs        bulk traffic screen — one login, N domains, resumable
 │   ├── semrush-batch.mjs           same, on the other card's quota (organic traffic)
 │   ├── semrush-overview.mjs        AS / organic traffic / ref-domains / keywords
-│   ├── semrush-keyword.mjs         up to 100 keywords per country; shortlisted terms add global and country split
+│   ├── semrush-keyword.mjs         global keyword detail plus one-session multi-country bulk plans
 │   ├── semrush-report.mjs          the OTHER four no-export reports; reuses one session
 │   │                               table reports paginate — pass --all-pages or it warns
 │   ├── page-read.mjs               render a public page → text, prices, paywall shape

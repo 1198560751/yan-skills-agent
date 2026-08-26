@@ -581,6 +581,7 @@ node backlink/scripts/similarweb-batch.mjs --domains-file domains.txt --out traf
 
 # 同一国家一次查最多 100 个词；入选词再单查全球量和主要国家
 node backlink/scripts/semrush-keyword.mjs --kw-file words.txt --db us --bulk --out keywords-us.jsonl
+node backlink/scripts/semrush-keyword.mjs --bulk-plan countries.json --out keywords-countries.jsonl
 
 # 台账
 node backlink/scripts/ledger.mjs list --state public

@@ -11,6 +11,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '../..');
 const MONITOR = path.join(REPO, 'rankup/scripts/demand/game-platform-monitor.mjs');
 const NEW_TITLES = path.join(REPO, 'rankup/scripts/demand/game-newtitles.mjs');
+const SEMRUSH_KEYWORD = path.join(REPO, 'backlink/scripts/semrush-keyword.mjs');
 const ACTIONS = ['develop', 'research', 'watch'];
 
 const HELP = `game-opportunity.mjs — 每日小游戏机会发现、筛选与报告
@@ -22,9 +23,12 @@ const HELP = `game-opportunity.mjs — 每日小游戏机会发现、筛选与�
   discover   运行游戏平台 sitemap diff
   radar      聚合 Steam、itch.io、Poki 新标题并做历史 diff
   collect    依次运行 discover + radar，供早间自动任务采集
+  dedupe     合并当天 discovery + radar，只保留新增游戏
+  plan       生成“全球先查、国家再下钻”的关键词计划
+  demand     执行全球量查询，再查询主要国家与英语大市场
   evaluate   合并当天输入、验活 URL、生成候选与最终日报
   render     从已有候选或 --evaluation 文件重新生成日报
-  daily      依次运行 discover + radar + evaluate
+  daily      依次运行 collect + demand + evaluate
 
 选项:
   --date YYYY-MM-DD       报告日期（默认今天）
@@ -36,8 +40,8 @@ const HELP = `game-opportunity.mjs — 每日小游戏机会发现、筛选与�
   --self-test             运行内置离线检查
   -h, --help
 
-固定产物：.rankup/demand/game-review/YYYY-MM-DD-{discovery,radar,candidates}.json、
-          YYYY-MM-DD-report.md、latest.json、latest.md`;
+固定产物：.rankup/demand/game-review/YYYY-MM-DD-{discovery,radar,new-games,demand-plan,demand-results,candidates}.json、
+          YYYY-MM-DD-report.md、latest.json、latest.md、latest-new-games.json`;
 
 function parseArgs(argv) {
   const out = { command: null, date: new Date().toISOString().slice(0, 10), limit: 30, root: process.cwd() };
@@ -104,6 +108,7 @@ function cleanPageTitle(title) {
   return decodeHtml(title).replace(/\s+/g, ' ').trim().split(/\s+(?:\||[-–—])\s+|[：｜]/)[0].replace(/\s*[|｜]\s*$/, '').trim();
 }
 const errorPageTitle = (title) => /^(?:404|410)\b|\bnot found\b|\bpage not found\b/i.test(String(title ?? '').trim());
+const challengePageTitle = (title) => /^just a moment(?:\.\.\.)?$/i.test(String(title ?? '').trim());
 function noisyName(candidate) {
   const name = arr(candidate.names)[0] ?? candidate.name ?? '';
   if (!name) return true;
@@ -147,8 +152,14 @@ function files(o) {
   const base = path.join(o.reviewDir, o.date);
   return {
     discovery: `${base}-discovery.json`, radar: `${base}-radar.json`,
+    newGames: `${base}-new-games.json`,
+    demandPlan: `${base}-demand-plan.json`, globalKeywords: `${base}-global-keywords.txt`,
+    globalSemrush: `${base}-semrush-global.jsonl`, countryPlan: `${base}-country-plan.json`,
+    countrySemrush: `${base}-semrush-countries.jsonl`, demandResults: `${base}-demand-results.json`,
+    evaluation: `${base}-evaluation.json`,
     candidates: `${base}-candidates.json`, report: `${base}-report.md`,
     latestJson: path.join(o.reviewDir, 'latest.json'), latestMd: path.join(o.reviewDir, 'latest.md'),
+    latestNewGames: path.join(o.reviewDir, 'latest-new-games.json'),
   };
 }
 
@@ -356,10 +367,11 @@ function rankCandidates(candidates, todayRows) {
   const rank = (c) => {
     const action = finishCandidate(c).action;
     if (isQuantified(c) && action === 'develop') return 0;
-    if (todayRows.some((v) => sameCandidate(v, c))) return 1;
-    if (isQuantified(c) && action === 'research') return 2;
-    if (c.carryForward?.recheckDue) return 3;
-    return 4;
+    if (c.demandCoverage?.globalChecked && isQuantified(c)) return 1;
+    if (todayRows.some((v) => sameCandidate(v, c))) return 2;
+    if (isQuantified(c) && action === 'research') return 3;
+    if (c.carryForward?.recheckDue) return 4;
+    return 5;
   };
   return candidates.map((c, i) => ({ c, i, rank: rank(c) })).sort((a, b) => a.rank - b.rank || a.i - b.i).map((v) => v.c);
 }
@@ -401,8 +413,10 @@ function keywordSignal(c) {
   const keywords = arr(c.keywords);
   const volume = Math.max(0, ...keywords.map((k) => Number(k.semrushVolume ?? k.volume ?? k.localVolume ?? 0) || 0));
   const globalVolume = Math.max(0, ...keywords.map((k) => Number(k.semrushGlobalVolume ?? k.globalVolume ?? 0) || 0));
+  const top = keywords.map((k) => ({ row: k, volume: Number(k.semrushVolume ?? k.volume ?? k.localVolume ?? 0) || 0 })).sort((a, b) => b.volume - a.volume)[0]?.row;
+  const topKd = [top?.semrushKd, top?.webcafeKd, top?.kd].filter(nonempty).map(Number).find(Number.isFinite);
   const kdValues = keywords.flatMap((k) => [k.semrushKd, k.webcafeKd, k.kd]).filter(nonempty).map(Number).filter(Number.isFinite);
-  return { volume, globalVolume, kd: kdValues.length ? Math.min(...kdValues) : null, trend: c.trend ?? {} };
+  return { volume, globalVolume, kd: topKd ?? (kdValues.length ? Math.min(...kdValues) : null), trend: c.trend ?? {} };
 }
 
 function decide(c) {
@@ -455,9 +469,14 @@ const md = (v) => String(v ?? '').replace(/([|[\]])/g, '\\$1').replace(/\n/g, ' 
 const link = (label, url) => validUrl(url) ? `[${md(label)}](${url})` : md(label);
 const metric = (c) => {
   const k = c.keywordMetrics ?? keywordSignal(c);
+  const rows = arr(c.keywords).map((row) => ({ row, volume: Number(row.semrushVolume ?? row.volume ?? row.localVolume ?? 0) || 0 }));
+  const top = rows.sort((a, b) => b.volume - a.volume)[0];
+  const discovery = new Set(arr(c.discoveryMarkets).map((market) => String(market).toUpperCase()));
+  const discoveryTop = rows.filter(({ row }) => discovery.has(String(row.market ?? row.gl ?? '').toUpperCase())).sort((a, b) => b.volume - a.volume)[0];
   const parts = [];
-  if (k.volume) parts.push(`当地 ${k.volume.toLocaleString('en-US')}`);
   if (k.globalVolume) parts.push(`全球 ${k.globalVolume.toLocaleString('en-US')}`);
+  if (top?.volume) parts.push(`最高 ${String(top.row.market ?? top.row.gl).toUpperCase()} ${top.volume.toLocaleString('en-US')}`);
+  if (discoveryTop?.volume && discoveryTop.row !== top?.row) parts.push(`发现市场 ${String(discoveryTop.row.market ?? discoveryTop.row.gl).toUpperCase()} ${discoveryTop.volume.toLocaleString('en-US')}`);
   if (k.kd !== null) parts.push(`KD ${k.kd}`);
   return parts.join('；') || '待查';
 };
@@ -501,6 +520,225 @@ function saveReport(o, candidates, errors = [], excluded = []) {
   return { report, files: f };
 }
 
+const SOCIAL_PLATFORMS = new Set(['reddit', 'youtube', 'x']);
+const cleanKeyword = (value) => String(value ?? '')
+  .replace(/\s+(?:demo|play online|online game)$/i, '')
+  .replace(/\s+/g, ' ').trim();
+const usefulKeyword = (value) => {
+  const v = cleanKeyword(value);
+  return v.length >= 2 && v.length <= 80
+    && !/^just a moment/i.test(v)
+    && !/^reddit$/i.test(v)
+    && !/^https?:/i.test(v)
+    && !/\b(?:launch date trailer|looking for|need advice|until a new game comes out)\b/i.test(v);
+};
+const latinKeyword = (value) => /[a-z]/i.test(value) && !/[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/u.test(value);
+const marketDbs = (candidate) => uniq([
+  ...arr(candidate.markets),
+  ...arr(candidate.keywords).flatMap((k) => [k.gl, k.market]),
+]).flatMap((value) => String(value).toLowerCase().split(/[^a-z]+/)).filter((v) => /^[a-z]{2}$/.test(v));
+
+function demandKeywords(candidate) {
+  const existing = arr(candidate.keywords).map((k) => k.keyword);
+  const names = [...existing, ...arr(candidate.names), candidate.name].map(cleanKeyword).filter(usefulKeyword);
+  const seen = new Set();
+  return names.filter((keyword) => {
+    const key = normalizeName(keyword);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 3);
+}
+
+function demandCandidate(candidate) {
+  if (candidate.pageType === 'game-adjacent') return false;
+  if (arr(candidate.platforms).some((p) => SOCIAL_PLATFORMS.has(String(p).toLowerCase()))) return false;
+  return demandKeywords(candidate).length > 0 && arr(candidate.urls).some(validUrl);
+}
+
+function demandPriority(candidate) {
+  const action = finishCandidate(candidate).action;
+  if (action === 'develop') return 0;
+  if (action === 'research' && isQuantified(candidate)) return 1;
+  if (candidate.playable) return 2;
+  if (arr(candidate.platforms).some((p) => /poki|itch/i.test(p))) return 3;
+  if (arr(candidate.platforms).some((p) => /steam/i.test(p))) return 5;
+  return 4;
+}
+
+function buildDemandPlan(o) {
+  const f = files(o);
+  const newGames = readJson(f.newGames);
+  const latest = readJson(f.latestJson);
+  const evaluation = readJson(f.evaluation);
+  const pool = mergeCandidates([
+    ...inputCandidates({ candidates: arr(evaluation?.candidates) }, 'verified-evaluation'),
+    ...inputCandidates({ candidates: arr(latest?.candidates) }, 'previous-report'),
+    ...inputCandidates({ candidates: arr(newGames?.games) }, 'new-games'),
+  ]).filter(demandCandidate)
+    .map((candidate, index) => ({ candidate, index, priority: demandPriority(candidate) }))
+    .sort((a, b) => a.priority - b.priority || a.index - b.index)
+    .slice(0, Math.min(o.limit, 6))
+    .map((row) => row.candidate);
+  const candidates = pool.map((candidate) => {
+    const keywords = demandKeywords(candidate);
+    return {
+      entityId: candidate.entityId,
+      names: candidate.names,
+      urls: candidate.urls,
+      sourceLinks: candidate.sourceLinks,
+      evidenceLinks: candidate.evidenceLinks,
+      playLinks: candidate.playLinks,
+      platforms: candidate.platforms,
+      languages: candidate.languages,
+      markets: candidate.markets,
+      playable: candidate.playable,
+      reachable: candidate.reachable,
+      action: candidate.action,
+      decision: candidate.decision,
+      nextAction: candidate.nextAction,
+      discoveryMarkets: candidate.markets,
+      keywords,
+      latinKeywords: keywords.filter(latinKeyword),
+      mandatoryCountryDbs: uniq(marketDbs(candidate)),
+    };
+  });
+  const globalKeywords = uniq(candidates.flatMap((candidate) => candidate.keywords));
+  const planData = {
+    date: o.date,
+    generatedAt: new Date().toISOString(),
+    rule: '先查每个原名、英文名和已有本地名的 globalVolume/byCountry，再查主要国家、发现市场和英语大市场。',
+    sourceFiles: { verifiedEvaluation: f.evaluation, newGames: f.newGames, previousReport: f.latestJson },
+    candidates,
+    globalKeywords,
+  };
+  if (!o.dryRun) {
+    writeJson(f.demandPlan, planData);
+    writeText(f.globalKeywords, globalKeywords.join('\n'));
+  }
+  return { ok: true, plan: planData, files: { plan: f.demandPlan, keywords: f.globalKeywords } };
+}
+
+function readJsonLines(file) {
+  if (!exists(file)) return [];
+  return fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+}
+
+function demandOverlay(o, planData, globalRows, countryRows) {
+  const f = files(o);
+  const globalByKeyword = new Map(globalRows.map((row) => [normalizeName(row.keyword), row]));
+  const localByKey = new Map(countryRows.map((row) => [`${normalizeName(row.keyword)}:${row.db}`, row]));
+  const candidates = planData.candidates.map((candidate) => ({
+    entityId: candidate.entityId,
+    names: candidate.names,
+    urls: candidate.urls,
+    sourceLinks: candidate.sourceLinks,
+    evidenceLinks: candidate.evidenceLinks,
+    playLinks: candidate.playLinks,
+    platforms: candidate.platforms,
+    languages: candidate.languages,
+    markets: candidate.markets,
+    playable: candidate.playable,
+    reachable: candidate.reachable,
+    action: candidate.action,
+    decision: candidate.decision,
+    nextAction: candidate.nextAction,
+    discoveryMarkets: candidate.discoveryMarkets,
+    demandCoverage: {
+      globalChecked: true,
+      keywordsChecked: candidate.keywords,
+      countriesChecked: uniq(countryRows.filter((row) => candidate.keywords.some((kw) => normalizeName(kw) === normalizeName(row.keyword))).map((row) => row.db.toUpperCase())),
+    },
+    keywords: candidate.keywords.flatMap((keyword) => {
+      const global = globalByKeyword.get(normalizeName(keyword)) ?? {};
+      const dbs = uniq([
+        ...candidate.mandatoryCountryDbs,
+        ...Object.entries(global.byCountry ?? {}).filter(([, volume]) => Number(volume) > 0).map(([db]) => db.toLowerCase()),
+      ]);
+      return dbs.map((db) => {
+        const local = localByKey.get(`${normalizeName(keyword)}:${db}`) ?? (db === 'us' ? global : {});
+        return {
+          keyword, market: db.toUpperCase(), gl: db,
+          semrushVolume: local.volume ?? 0,
+          semrushGlobalVolume: global.globalVolume ?? 0,
+          semrushByCountry: global.byCountry ?? null,
+          semrushKd: local.kd ?? null,
+          cpc: local.cpc ?? null,
+          competition: local.competition ?? null,
+          intent: local.intent ?? global.intent ?? null,
+          noData: local.noData ?? true,
+          status: local.status ?? 'not-queried',
+          queryTime: o.date,
+          rawResultFiles: [f.globalSemrush, f.countrySemrush],
+        };
+      });
+    }),
+  }));
+  return { date: o.date, generatedAt: new Date().toISOString(), candidates };
+}
+
+async function plan(o) {
+  return buildDemandPlan(o);
+}
+
+async function demand(o) {
+  const f = files(o);
+  const planned = buildDemandPlan(o);
+  if (!planned.plan.globalKeywords.length) return { ok: false, error: '没有可查询的真实游戏关键词' };
+  if (o.dryRun) return { ok: true, dryRun: true, plan: planned.plan, outputs: [f.globalSemrush, f.demandResults] };
+  let globalRows = readJsonLines(f.globalSemrush);
+  const globalKeys = new Set(globalRows.filter((row) => row.status !== 'error').map((row) => normalizeName(row.keyword)));
+  const canReuseGlobal = planned.plan.globalKeywords.every((keyword) => globalKeys.has(normalizeName(keyword)));
+  if (!canReuseGlobal) {
+    const globalRun = await runNode(SEMRUSH_KEYWORD, ['--kw-file', f.globalKeywords, '--db', 'us', '--out', f.globalSemrush], o.root);
+    if (!globalRun.ok) return { ok: false, stage: 'global', error: globalRun.error, stderr: globalRun.stderr, plan: planned.plan };
+    globalRows = readJsonLines(f.globalSemrush);
+  }
+  const countryKeywords = new Map();
+  for (const candidate of planned.plan.candidates) {
+    for (const keyword of candidate.keywords) {
+      const global = globalRows.find((row) => normalizeName(row.keyword) === normalizeName(keyword));
+      const dbs = uniq([
+        ...candidate.mandatoryCountryDbs,
+        ...Object.entries(global?.byCountry ?? {}).filter(([, volume]) => Number(volume) > 0).map(([db]) => db.toLowerCase()),
+      ]).slice(0, 8);
+      for (const db of dbs) {
+        if (db === 'us') continue;
+        if (!countryKeywords.has(db)) countryKeywords.set(db, new Set());
+        countryKeywords.get(db).add(keyword);
+      }
+    }
+  }
+  const countryRows = globalRows.map((row) => ({ ...row, db: 'us' }));
+  const countryPlan = Object.fromEntries([...countryKeywords].map(([db, words]) => [db, [...words]]));
+  const cachedCountryRows = readJsonLines(f.countrySemrush);
+  const cachedCountryKeys = new Set(cachedCountryRows.map((row) => `${row.db}:${normalizeName(row.keyword)}`));
+  const canReuseCountries = Object.entries(countryPlan).every(([db, words]) => words.every((word) => cachedCountryKeys.has(`${db}:${normalizeName(word)}`)));
+  let countries = { ok: true, count: 0, reused: canReuseCountries, plan: f.countryPlan, output: f.countrySemrush };
+  for (const [db, words] of countryKeywords) {
+    const input = path.join(o.reviewDir, `${o.date}-keywords-country-${db}.txt`);
+    writeText(input, [...words].join('\n'));
+  }
+  if (Object.keys(countryPlan).length) {
+    writeJson(f.countryPlan, countryPlan);
+    if (canReuseCountries) {
+      countryRows.push(...cachedCountryRows);
+      countries.count = cachedCountryRows.length;
+    } else {
+      const run = await runNode(SEMRUSH_KEYWORD, ['--bulk-plan', f.countryPlan, '--out', f.countrySemrush], o.root);
+      countries = { ...countries, ok: run.ok, error: run.error };
+      if (run.ok) {
+        const rows = readJsonLines(f.countrySemrush);
+        countryRows.push(...rows);
+        countries.count = rows.length;
+      }
+    }
+  }
+  const overlay = demandOverlay(o, planned.plan, globalRows, countryRows);
+  writeJson(f.demandResults, overlay);
+  return { ok: countries.ok, plan: planned.plan, global: { file: f.globalSemrush, count: globalRows.length, reused: canReuseGlobal }, countries, results: f.demandResults };
+}
+
 async function evaluate(o, inheritedErrors = []) {
   const f = files(o);
   if (o.dryRun) return { ok: true, dryRun: true, inputs: [f.discovery, f.radar, o.evaluation].filter(Boolean), outputs: [f.candidates, f.report, f.latestJson, f.latestMd] };
@@ -516,13 +754,16 @@ async function evaluate(o, inheritedErrors = []) {
   errors.push(...arr(discovery?.warnings), ...health.warnings, ...(health.usable > 0 ? [] : arr(discovery?.errors)), ...arr(radarData?.errors));
   if (discovery && health.usable === 0) fatalErrors.push(...arr(discovery.errors), ...health.warnings, 'discovery 没有可用平台结果');
   fatalErrors.push(...arr(radarData?.coreErrors));
-  const todayRows = mergeCandidates([
-    ...inputCandidates(discovery, 'discovery'),
-    ...inputCandidates(radarData, 'radar'),
-  ]);
+  const newGames = readJson(f.newGames);
+  const todayRows = (newGames?.games?.length
+    ? mergeCandidates(inputCandidates({ candidates: newGames.games }, 'new-games'))
+    : mergeCandidates([...inputCandidates(discovery, 'discovery'), ...inputCandidates(radarData, 'radar')]))
+    .filter((candidate) => candidate.pageType !== 'game-adjacent' && !arr(candidate.platforms).some((p) => SOCIAL_PLATFORMS.has(String(p).toLowerCase())));
   let candidates = [...todayRows];
-  if (old?.candidates?.length) candidates = mergeRichIntoOrdered(candidates, old.candidates);
+  if (old?.candidates?.length) candidates = mergeRichIntoOrdered(candidates, old.candidates.filter((row) => todayRows.some((today) => sameCandidate(today, row))));
   candidates = mergeRichIntoOrdered(candidates, carryForward(latest, o.date));
+  const automaticDemand = readJson(f.demandResults);
+  if (automaticDemand) candidates = overlayCandidates(candidates, automaticDemand);
   if (o.evaluation) {
     const overlay = readJson(o.evaluation);
     if (!overlay) errors.push(`无法读取 --evaluation ${o.evaluation}`);
@@ -535,8 +776,8 @@ async function evaluate(o, inheritedErrors = []) {
     const primary = arr(c.urls)[0] ?? arr(c.sourceLinks)[0] ?? arr(c.playLinks)[0];
     if (primary) checks.push(await checkUrl(primary));
     const first = checks[0];
-    if (first?.title && errorPageTitle(first.title)) c.names = arr(c.names).filter((name) => normalizeName(name) !== normalizeName(first.title));
-    if (first?.title && !errorPageTitle(first.title) && (noisyName(c) || normalizeName(arr(c.names)[0]) === normalizeName(first.title))) {
+    if (first?.title && (errorPageTitle(first.title) || challengePageTitle(first.title))) c.names = arr(c.names).filter((name) => normalizeName(name) !== normalizeName(first.title));
+    if (first?.title && !errorPageTitle(first.title) && !challengePageTitle(first.title) && (noisyName(c) || normalizeName(arr(c.names)[0]) === normalizeName(first.title))) {
       const title = cleanPageTitle(first.title);
       if (title) c.names = uniq([title, ...arr(c.names)]);
     }
@@ -549,6 +790,10 @@ async function evaluate(o, inheritedErrors = []) {
   }
   const excluded = [];
   candidates = candidates.filter((c) => {
+    if (arr(c.urlChecks).some((check) => challengePageTitle(check.title))) {
+      excluded.push({ ...c, excludedReason: '页面返回 Cloudflare 验证页，保留原始线索但不进入今日候选' });
+      return false;
+    }
     const reason = staleReason(c);
     if (!reason) return true;
     excluded.push({ ...c, pageType: 'stale-url', excludedReason: reason, excludedLinks: uniq([...arr(c.urls), ...arr(c.playLinks)]) });
@@ -569,20 +814,61 @@ function render(o) {
   return { ok: true, ...saveReport(o, candidates, arr(current?.errors), arr(current?.excluded)) };
 }
 
+function saveNewGames(o, discovery, radar) {
+  const f = files(o);
+  const discoveryRows = mergeCandidates(inputCandidates(discovery, 'discovery'));
+  const radarTitles = arr(radar?.candidates).filter((row) => !row.campaignId);
+  const radarRows = mergeCandidates(inputCandidates({ candidates: radarTitles }, 'radar'));
+  const games = mergeCandidates([...radarRows, ...discoveryRows])
+    .filter((candidate) => candidate.pageType !== 'game-adjacent')
+    .map(finishCandidate);
+  const discoveryUrls = uniq(arr(discovery?.candidates).map((row) => row.url).filter(validUrl)).length;
+  const report = {
+    date: o.date,
+    generatedAt: new Date().toISOString(),
+    sourceFiles: { discovery: f.discovery, radar: f.radar },
+    stats: {
+      discoveryUrls,
+      radarTitleRecords: radarTitles.length,
+      ignoredCampaigns: arr(radar?.candidates).filter((row) => row.campaignId).length,
+      dedupedGames: games.length,
+      duplicatesRemoved: discoveryUrls + radarTitles.length - games.length,
+    },
+    errors: uniq([...arr(discovery?.errors), ...arr(discovery?.warnings), ...arr(radar?.errors)]),
+    games,
+  };
+  writeJson(f.newGames, report);
+  fs.copyFileSync(f.newGames, f.latestNewGames);
+  return { file: f.newGames, latestFile: f.latestNewGames, count: games.length, stats: report.stats };
+}
+
+function dedupe(o) {
+  const f = files(o);
+  if (o.dryRun) return { ok: true, dryRun: true, inputs: [f.discovery, f.radar], outputs: [f.newGames, f.latestNewGames] };
+  const discovery = readJson(f.discovery);
+  const radarData = readJson(f.radar);
+  const missing = [!discovery && path.basename(f.discovery), !radarData && path.basename(f.radar)].filter(Boolean);
+  if (missing.length) return { ok: false, error: `缺少 ${missing.join('、')}` };
+  return { ok: true, ...saveNewGames(o, discovery, radarData) };
+}
+
 async function collect(o) {
-  if (o.dryRun) return { ok: true, dryRun: true, stages: [await discover(o), await radar(o)] };
+  if (o.dryRun) return { ok: true, dryRun: true, stages: [await discover(o), await radar(o)], newGames: { file: files(o).newGames } };
   const stages = [];
   const d = await discover(o); stages.push({ stage: 'discover', ok: d.ok, error: d.error, file: d.file });
   const r = await radar(o); stages.push({ stage: 'radar', ok: r.ok, errors: r.errors, file: r.file });
-  return { ok: stages.every((s) => s.ok), stages };
+  const merged = saveNewGames(o, readJson(files(o).discovery), readJson(files(o).radar));
+  return { ok: stages.every((s) => s.ok), stages, newGames: merged };
 }
 
 async function daily(o) {
-  if (o.dryRun) return { ok: true, dryRun: true, collect: await collect(o), evaluate: await evaluate(o) };
+  if (o.dryRun) return { ok: true, dryRun: true, collect: await collect(o), demand: await demand(o), evaluate: await evaluate(o) };
   const gathered = await collect(o);
   const errors = gathered.stages.flatMap((s) => s.ok ? [] : [s.error, ...arr(s.errors)].filter(Boolean).map((e) => `${s.stage}: ${e}`));
+  const demandResult = await demand(o);
+  if (!demandResult.ok) errors.push(`demand: ${demandResult.error ?? demandResult.stage ?? '查询失败'}`);
   const result = await evaluate(o, errors);
-  return { ok: gathered.ok && result.ok, collect: gathered, evaluate: result };
+  return { ok: gathered.ok && demandResult.ok && result.ok, collect: gathered, demand: demandResult, evaluate: result };
 }
 
 function selfTest() {
@@ -621,9 +907,21 @@ function selfTest() {
     if (cleanPageTitle('スネークデュエル｜対戦バトル｜無料ゲームならワウゲーム') !== 'スネークデュエル') throw new Error('全角站点后缀清洗失败');
     saveReport(o, merged, []);
     const f = files(o);
+    const newGames = saveNewGames(o,
+      { date: o.date, candidates: [{ url: 'https://example.com/foo' }] },
+      { date: o.date, candidates: [
+        { source: 'steam', name: 'Foo', url: 'https://store.steampowered.com/app/1/Foo/' },
+        { campaignId: 'campaign-001', name: 'Foo campaign', urls: ['https://reddit.com/r/games/1'] },
+      ] },
+    );
+    if (newGames.count !== 1 || newGames.stats.ignoredCampaigns !== 1 || !exists(f.newGames) || !exists(f.latestNewGames)) throw new Error('新增游戏去重失败');
+    writeJson(f.newGames, { games: Array.from({ length: 7 }, (_, i) => ({ names: [`New Game ${i}`], urls: [`https://example.com/new-${i}`] })) });
+    const demandPlan = buildDemandPlan(o).plan;
+    if (demandPlan.candidates.length !== 6 || !demandPlan.globalKeywords.includes('foo') || !demandPlan.candidates[0].latinKeywords.includes('Foo Game')) throw new Error('全球优先关键词计划失败');
+    if (!challengePageTitle('Just a moment...')) throw new Error('Cloudflare 验证页过滤失败');
     if (![f.candidates, f.report, f.latestJson, f.latestMd].every(exists)) throw new Error('报告产物不完整');
     if (!fs.readFileSync(f.report, 'utf8').includes('[Foo Game](https://example.com/foo)')) throw new Error('Markdown 链接缺失');
-    return { ok: true, checks: ['normalize-and-merge', 'decision', 'carry-forward-order', 'candidate-priority', 'partial-discovery', 'stale-vs-timeout', 'title-and-iframe', 'campaign-dedupe', 'markdown-links', 'stable-latest'] };
+    return { ok: true, checks: ['normalize-and-merge', 'decision', 'carry-forward-order', 'candidate-priority', 'partial-discovery', 'stale-vs-timeout', 'title-and-iframe', 'campaign-dedupe', 'new-games-dedupe', 'global-demand-plan', 'challenge-filter', 'markdown-links', 'stable-latest'] };
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }
 
@@ -631,10 +929,10 @@ async function main() {
   const o = parseArgs(process.argv.slice(2));
   if (o.help) { console.log(HELP); return; }
   if (o.selfTest) { console.log(JSON.stringify(selfTest(), null, 2)); return; }
-  if (!['discover', 'radar', 'collect', 'evaluate', 'render', 'daily'].includes(o.command)) {
+  if (!['discover', 'radar', 'collect', 'dedupe', 'plan', 'demand', 'evaluate', 'render', 'daily'].includes(o.command)) {
     console.log(HELP); process.exitCode = 2; return;
   }
-  const result = await ({ discover, radar, collect, evaluate, render, daily })[o.command](o);
+  const result = await ({ discover, radar, collect, dedupe, plan, demand, evaluate, render, daily })[o.command](o);
   console.log(JSON.stringify(result, null, 2));
   if (!result.ok) process.exitCode = 1;
 }
