@@ -19986,6 +19986,88 @@
         "metric": "Semrush Authority Score",
         "checkedAt": "2026-08-27T03:01:07.039+08:00"
       }
+    },
+    {
+      "domain": "megafreetools.com",
+      "route": "https://megafreetools.com/blogs/best-image-resizer-tools-website-social-media/",
+      "name": "MegaFreeTools verified comment forms",
+      "kind": "comment-form",
+      "gate": "open-form",
+      "gates": [
+        "open-form"
+      ],
+      "cohort": "open",
+      "payment": "none-seen",
+      "price": null,
+      "priceCheckedAt": null,
+      "status": "usable",
+      "sourceList": "BHW-style recursive article search",
+      "notes": "Two article routes were browser-verified with native Website comment forms, and one reviewed submission on each route was accepted into moderation. Both reviewer-only author anchors used ugc external nofollow; anonymous public verification is pending.",
+      "verifiedRoutes": [
+        {
+          "url": "https://megafreetools.com/blogs/best-color-picker-tools-for-web-designers/",
+          "outcome": "submitted-awaiting-moderation"
+        },
+        {
+          "url": "https://megafreetools.com/blogs/best-image-resizer-tools-website-social-media/",
+          "outcome": "submitted-awaiting-moderation"
+        }
+      ],
+      "lastProbedAt": "2026-08-27",
+      "evidence": {
+        "method": "browser-dom",
+        "what": "Two reviewed real submissions on the verified routes were accepted into moderation; neither public backlink is verified yet.",
+        "httpStatus": 200,
+        "finalUrl": "https://megafreetools.com/blogs/best-image-resizer-tools-website-social-media/",
+        "title": "Best Free Image Resizer Tools for Web & Social Media 2026"
+      },
+      "traffic": {
+        "monthlyVisits": 3353,
+        "verdict": "pass",
+        "checkedAt": "2026-08-27T03:40:08.893+08:00",
+        "source": "Similarweb total visits via authenticated Tools Share browser session"
+      },
+      "authority": {
+        "score": 9,
+        "metric": "Semrush Authority Score",
+        "checkedAt": "2026-08-27T02:57:26.026+08:00"
+      }
+    },
+    {
+      "domain": "leahremillet.com",
+      "route": "https://leahremillet.com/2011/06/15/tell-your-story/",
+      "name": "Tell YOUR Story",
+      "kind": "comment-form",
+      "gate": "open-form",
+      "gates": [
+        "open-form"
+      ],
+      "cohort": "open",
+      "payment": "none-seen",
+      "price": null,
+      "priceCheckedAt": null,
+      "status": "usable",
+      "sourceList": "BHW-style recursive article search",
+      "notes": "A real browser recheck found a native comment form with Website, name, email, and comment fields; the separate LOGIN navigation did not gate the form. One reviewed submission was accepted into moderation. The reviewer preview rendered the author as plain text, so the public anchor and rel remain unknown.",
+      "lastProbedAt": "2026-08-27",
+      "evidence": {
+        "method": "browser-dom",
+        "what": "One reviewed real submission was accepted into moderation; anonymous public verification is pending.",
+        "httpStatus": 200,
+        "finalUrl": "https://leahremillet.com/2011/06/15/tell-your-story/",
+        "title": "Tell YOUR Story... - leahremillet.com"
+      },
+      "traffic": {
+        "monthlyVisits": 2789,
+        "verdict": "pass",
+        "checkedAt": "2026-08-27T03:44:01.315+08:00",
+        "source": "Similarweb total visits via authenticated Tools Share browser session"
+      },
+      "authority": {
+        "score": 19,
+        "metric": "Semrush Authority Score",
+        "checkedAt": "2026-08-27T03:50:47.082+08:00"
+      }
     }
   ]
 }
