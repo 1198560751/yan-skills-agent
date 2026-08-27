@@ -76,7 +76,8 @@
           "Google Shopping Ads Research columns: 广告, 关键词, 排名, 位差, 搜索量, 产品标题和 URL, 价格 (USD), 趋势, SERP, 上次更新. The earlier failure was the test domain, not loading - amazon.com carries no shopping-ads data in the US database, while walmart.com renders immediately.",
           "Organic Positions and Keyword Magic pagination, both captured after the reload-and-retry rule; each needed 2-3 reloads before the table body appeared."
         ],
-        "keywordMagicLimitation": "The table lists keywords and clusters, but the volume, KD, and CPC columns come back 不可用 with a 要更新指标数据，请刷新 prompt. This account reads keyword lists freely; per-keyword metrics need an explicit refresh that most likely spends quota, so treat bulk expansion as list-first."
+        "keywordMagicLimitation": "CORRECTION 2026-08-28: an earlier note called the metrics quota-gated. They are not. The 不可用 / 要更新指标数据 state is progressive hydration - waiting for the parse to stabilise returns every metric. Two live runs (seeds nonogram and tower defense) came back 100/100 rows with volume, KD, and CPC filled in.",
+        "keywordMagicMeasured": "seed nonogram: 20.1K keywords over 201 pages; seed tower defense: 98.5K. 100 rows per page, 15 columns, read via DOM cells because the innerText row shape is variable-length."
       },
       "scriptCoverage": {
         "status": "script-verified",

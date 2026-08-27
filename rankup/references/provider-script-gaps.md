@@ -140,6 +140,30 @@
 输出 JSONL：`{version, source, retrievedAt, seed, country, keyword, volume, kd, cpc, trafficShare, scope:'28d', session}`
 难点：Keyword Research 是另一段 hash 路由（不能照抄）；虚拟滚动长表要分批 + 硬上限；就绪判据认数据行不认 chip。
 
+### 2. ~~`backlink/scripts/semrush-keyword-magic.mjs`~~ → **已实现，但没有新建脚本**
+
+**2026-08-28 落地为 `semrush-report.mjs --report keyword-magic`。**
+
+不新建脚本的理由：那个文件已经有分页、逐页稳定性判定、覆盖率校验和「不许静默截断」的
+全套机制，新写一个等于把这些复制一遍——正是本 Skill 的红线。实际改动只有三处：
+给 REPORTS 加一条、把 DOM 单元格透传给解析器、让覆盖率检查按报表定义「一条记录长什么样」。
+
+```bash
+node backlink/scripts/semrush-report.mjs --report keyword-magic --keyword "nonogram" --db us
+node backlink/scripts/semrush-report.mjs --report keyword-magic --keyword "nonogram" --db us --all-pages --max-pages 20
+```
+
+实测：`nonogram` 20.1K 词 / 201 页，`tower defense` 98.5K 词，每页 100 行 15 列。
+
+**为什么走 DOM 而不是按行解析**：意图列可以是 0 到多个字母、趋势列是 sparkline 不进
+innerText、指标可以整格「不可用」——同一页里第 1 行有 8 个尾值、第 3 行只有 7 个。
+按位置切列会算出一组**读起来完全正常的错数字**。解析器按**列名**取值，列顺序变了
+得到 null 并记进 `missingColumns`，不会静默错位。
+
+**收回一条之前的结论**：指标不是配额门禁。「不可用 / 要更新指标数据」是渐进水合的中间态，
+等解析结果稳定下来就全有了——两个种子词各 100/100 行的量、KD、CPC 都拿到了。
+
+### 旧草案（保留作对照）
 ### 2. `backlink/scripts/semrush-keyword-magic.mjs`
 ```
 --seed "png to svg" --db us [--match broad|phrase|exact|related]

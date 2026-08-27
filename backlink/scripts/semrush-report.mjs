@@ -57,6 +57,26 @@ const escapeRe = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * `ready` 必须认**只有数据渲染完才会出现**的字样。认页面标题或左侧菜单会在
  * 骨架阶段就通过，拿到一个空壳——similarweb-query.mjs 已经为这个坑付过一次学费。
  */
+/**
+ * 关键词魔法工具的单元格提取器。
+ *
+ * 这张表**不能按 innerText 行数切**。意图列可以是 0 个、1 个或多个字母，趋势列是
+ * sparkline 完全不进 innerText，指标可以整格是「不可用」——实测同一页里第 1 行有 8 个
+ * 尾值、第 3 行只有 7 个。按位置切列会算出一组读起来完全正常的错数字，正是本仓库
+ * 最不能接受的失败形态。所以走 DOM，并且**按列名取值而不是按下标**：列顺序变了会
+ * 得到 null 并记进 missingColumns，不会静默错位。
+ *
+ * 顺带一个好处：DOM 给的是 `27,100`，innerText 给的是 `27.1K`。
+ */
+const KEYWORD_MAGIC_CELLS = `(() => {
+  const headers = [...document.querySelectorAll('[role=columnheader]')].map((e) => (e.innerText || '').trim());
+  if (!headers.length) return null;
+  const rows = [...document.querySelectorAll('[role=row]')]
+    .map((r) => [...r.querySelectorAll('[role=gridcell],[role=cell]')].map((c) => (c.innerText || '').trim()))
+    .filter((cells) => cells.length === headers.length);
+  return { headers, rows };
+})()`;
+
 const REPORTS = {
   'organic-overview': {
     needs: 'domain',
@@ -111,6 +131,33 @@ const REPORTS = {
    * 只认标签会在骨架阶段通过——那正是 similarweb-query.mjs 和 organic-positions
    * 各栽过一次的坑，这里不再栽第三次。
    */
+  /**
+   * 关键词魔法工具——种子词批量扩词 + 侧栏聚簇。
+   *
+   * 与 keyword-overview 的分工：那张回答「这一个词值不值得做」，这张回答「围绕这个
+   * 种子还有哪几千个词」。semrush-keyword.mjs 的头部注释早就写明了这个分工，
+   * 但另一半一直没实现，选词流水线因此卡在源头。
+   *
+   * **配额提醒**：搜索量 / KD / CPC 这几列在本账号上回的是「不可用」，要点页面上的
+   * 「刷新指标」才补齐，那一下大概率消耗配额。所以本报表只读词表和聚簇，指标缺就缺，
+   * 并把 metricsPending 标出来——要指标请走 semrush-keyword.mjs 按需补，
+   * 不要指望一次拿全。
+   */
+  'keyword-magic': {
+    needs: 'keyword',
+    path: (t, db) => `/analytics/keywordmagic/?q=${encodeURIComponent(t)}${db ? `&db=${db}` : ''}&type=all&mode=0`,
+    // 就绪判据认**表体**：列名在骨架阶段就挂出来了，认它等于在空表上解析。
+    ready: (t) => /(?:Page|页码)\s*[:：]/.test(t) || /未找到|No results|没有数据/.test(t),
+    cells: KEYWORD_MAGIC_CELLS,
+    parse: parseKeywordMagic,
+    paginated: true,
+    // 每行都有一个带零宽空格的重复关键词单元格，正好一行一条。
+    // 页面标题 `\u200b\u200b关键词魔法工具\u200b\u200b` 两侧都带零宽空格，会多算一条——
+    // 数据行只在**末尾**带，所以要把开头也带的排除掉。
+    recordLine: (line) => line.endsWith('\u200b') && !line.startsWith('\u200b'),
+    // 「所有关键词: 20.1K」是全量，不是本页量——交给 pagination 报。
+    crossPageTotal: true,
+  },
   'keyword-overview': {
     needs: 'keyword',
     path: (t, db) => `/analytics/keywordoverview/?q=${encodeURIComponent(t)}${db ? `&db=${db}` : ''}`,
@@ -279,9 +326,9 @@ function looksEmpty(parsed) {
 async function loadReport(url, spec, { settle = 10, timeout = 120, retries = 3, intervalMs = 3000 } = {}) {
   // ready 可以是正则（页面级字样）或函数 (bodyText, target) => boolean（需要认数据行时）。
   const isReady = typeof spec.ready === 'function' ? spec.ready : (t) => spec.ready.test(t);
-  const parseText = (t) => {
+  const parseText = (t, cells) => {
     // 中间态的文本什么形状都有，解析器抛错只说明「这一拍还不能读」，不是致命错误。
-    try { return spec.parse(String(t || '').split(/\n+/).map((l) => l.trim()).filter(Boolean)); } catch { return null; }
+    try { return spec.parse(String(t || '').split(/\n+/).map((l) => l.trim()).filter(Boolean), cells); } catch { return null; }
   };
   let last = { capture: null, reads: 0 };
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -292,12 +339,13 @@ async function loadReport(url, spec, { settle = 10, timeout = 120, retries = 3, 
         url: location.href.split('?')[0], title: document.title,
         transient: ${TRANSIENT.toString()}.test(t),
         bodyText: t.slice(0, 60000),
+        cells: ${spec.cells || 'null'},
       }); })()`),
       // 瞬时错误页要的是重载，不是更长的超时——立刻出让，别把 timeout 白烧完。
       abortIf: (cap) => Boolean(cap?.transient),
       fingerprint: (cap) => {
         if (!cap?.bodyText || !isReady(cap.bodyText, target)) return null;
-        const parsed = parseText(cap.bodyText);
+        const parsed = parseText(cap.bodyText, cap.cells);
         return parsed === null ? null : JSON.stringify(parsed);
       },
       // 空结果多要一次确认：它出现在水合中途的概率，比一组具体数字高得多。
@@ -320,6 +368,54 @@ async function loadReport(url, spec, { settle = 10, timeout = 120, retries = 3, 
 }
 
 // ---------- 解析器 ----------
+
+/**
+ * 「不可用」「n/a」「—」都表示这一格没有值——绝不能落成 0。
+ *
+ * 计数列走 parseCompact（页面上是 `27.1K` / `1.1M` / `1.6万`，直接 Number() 会得到
+ * NaN，然后把一个月搜 27,100 的词报成「没有搜索量」）；小数列不能走它，它会把
+ * CPC 0.97 四舍五入成 1。
+ */
+function magicValue(raw, { compact = false } = {}) {
+  const value = String(raw ?? '').trim();
+  if (!value || /^(?:不可用|n\/a|—|-|N\/A)$/i.test(value)) return null;
+  return compact ? parseCompact(value) : toNum(value.replace(/[,%]/g, ''));
+}
+
+function parseKeywordMagic(lines, cells) {
+  // 侧栏聚簇的总量，用来核对「翻完了没有」。
+  const totalLine = lines.find((l, i) => l === 'All' && /^[\d.,]+[KMB]?$/.test(lines[i + 1] || ''));
+  const total = totalLine ? lines[lines.indexOf(totalLine) + 1] : null;
+  if (!cells?.headers?.length) return { rows: [], seedTotal: total, metricsPending: null, missingColumns: ['<no DOM cells>'] };
+
+  const at = (name) => cells.headers.indexOf(name);
+  const wanted = {
+    keyword: '关键词', intent: '意图', relevance: 'Relevance', volume: '搜索量',
+    kd: 'KD', cpc: 'CPC (USD)', competition: '竞争程度', serpFeatures: 'SF',
+    results: '结果', updated: '已更新',
+  };
+  const index = Object.fromEntries(Object.entries(wanted).map(([key, label]) => [key, at(label)]));
+  const missingColumns = Object.entries(index).filter(([, i]) => i < 0).map(([key]) => wanted[key]);
+  const cell = (row, key) => (index[key] >= 0 ? row[index[key]] : null);
+
+  const rows = cells.rows.map((row) => ({
+    keyword: String(cell(row, 'keyword') ?? '').replace(/\u200b/g, '').trim(),
+    // 一个词可以同时带多个意图，页面用换行分隔。
+    intent: String(cell(row, 'intent') ?? '').split(/\s+/).filter(Boolean),
+    relevance: magicValue(cell(row, 'relevance')),
+    volume: magicValue(cell(row, 'volume'), { compact: true }),
+    kd: magicValue(cell(row, 'kd')),
+    cpc: magicValue(cell(row, 'cpc')),
+    competition: magicValue(cell(row, 'competition')),
+    serpFeatures: magicValue(cell(row, 'serpFeatures')),
+    results: magicValue(cell(row, 'results'), { compact: true }),
+    updated: String(cell(row, 'updated') ?? '').trim() || null,
+  })).filter((row) => row.keyword);
+
+  // 指标待刷新的行要能被下游认出来，否则 null 会被当成「这个词没量」。
+  const metricsPending = rows.filter((row) => row.volume === null).length;
+  return { rows, seedTotal: total, metricsPending, missingColumns };
+}
 
 function parseOrganicOverview(lines) {
   return {
@@ -372,10 +468,24 @@ function parseBacklinks(lines) {
  * 都试过，页码指示器纹丝不动停在 1。这与本 Skill 既有的「分页多半是 URL 驱动，
  * 确认后可直接拼 URL」相反——**这里是反例，只能点「下一页」**。
  */
+/**
+ * 分页器有两种渲染：中文 `页码： 1 / 201`，英文 `Page:` `of` `201` `Page: 1`。
+ *
+ * 只认中文那种时，英文页面一律读出 total=1，于是「只读了第 1 页」被写成
+ * `complete: true`——本文件三令五申禁止的静默截断，正好由分页检测自己制造出来。
+ * 两个数都可能带千位逗号，旧的 `(\\d+)` 在 `1,848` 上同样匹配不到——**任何超过 999 页
+ * 的报表都会被宣称「已读完」**。实测：关键词魔法工具 seed=nonogram 是 201 页、
+ * 自然排名 coolmathgames.com 是 1,848 页，旧实现两个都报 1 页且不报警。
+ */
 function readPageInfo(bodyText) {
-  const m = bodyText.match(/页码：\s*\n?\s*(\d+)?[\s\S]{0,6}?\/\s*\n?\s*(\d+)/);
-  const cur = bodyText.match(/页码：\s*(\d+)\s*$/m);
-  return { current: cur ? Number(cur[1]) : (m && m[1] ? Number(m[1]) : 1), total: m ? Number(m[2]) : 1 };
+  const zh = bodyText.match(/页码：\s*\n?\s*([\d,]+)?[\s\S]{0,6}?\/\s*\n?\s*([\d,]+)/);
+  const zhCur = bodyText.match(/页码：\s*(\d+)\s*$/m);
+  const plain = (v) => Number(String(v).replace(/,/g, ''));
+  if (zh) return { current: zhCur ? plain(zhCur[1]) : (zh[1] ? plain(zh[1]) : 1), total: plain(zh[2]) };
+  const en = bodyText.match(/Page:\s*\n?\s*of\s*\n?\s*([\d,]+)/i);
+  const enCur = bodyText.match(/Page:\s*(\d+)\s*$/mi);
+  if (en) return { current: enCur ? plain(enCur[1]) : 1, total: plain(en[1]) };
+  return { current: 1, total: 1 };
 }
 
 /** 点「下一页」，等页码真的变了再返回。页码没变就是到头了。 */
@@ -492,13 +602,24 @@ function parsePages(lines) {
   return { rows, rowsVisible: rows.length };
 }
 
-function reportCoverage(report, bodyTexts, parsedRows) {
+/**
+ * 一条「原始记录」长什么样是**按报表定的**，不是通用的。
+ *
+ * 默认那条 URL 启发式只对 organic-positions / organic-pages 成立。关键词类报表的
+ * 记录行是关键词，一条 URL 都没有，于是 rawRecordCount 恒为 0 而 parsedRows 是 100，
+ * 每次都报一条假的 parser-gap。假警报和漏警报一样有害——看多了就没人再看它。
+ */
+const DEFAULT_RECORD_LINE = (line) => /^https?:\/\//i.test(line) || /^[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(line);
+
+function reportCoverage(report, bodyTexts, parsedRows, spec = {}) {
+  const isRecordLine = spec.recordLine || DEFAULT_RECORD_LINE;
   const rawRecordCount = bodyTexts.reduce((sum, text) => sum + String(text).split(/\n+/)
-    .map((line) => line.trim()).filter((line) => /^https?:\/\//i.test(line) || /^[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(line)).length, 0);
+    .map((line) => line.trim()).filter(isRecordLine).length, 0);
   const first = String(bodyTexts[0] || '');
-  const headline = report === 'organic-positions'
+  // 跨页总量由 pagination 负责报，别让它冒充「本页被虚拟滚动截断了」。
+  const headline = spec.crossPageTotal ? null : (report === 'organic-positions'
     ? first.match(/自然搜索排名：\s*\n?\s*([\d,]+)|Organic Search Positions:?\s*\n?\s*([\d,]+)/i)
-    : first.match(/所有页面\s*\n\s*([\d,]+)|All Pages\s*\n\s*([\d,]+)/i);
+    : first.match(/所有页面\s*\n\s*([\d,]+)|All Pages\s*\n\s*([\d,]+)/i));
   const headlineTotal = headline ? Number((headline[1] || headline[2]).replace(/,/g, '')) : null;
   return {
     pageSelfReportedTotal: headlineTotal,
@@ -560,11 +681,55 @@ if (flags['self-test']) {
     'grid for artists', 'I', '2', '5', '0.8', '390', '9', 'example.com/',
     'cold keyword', 'I', '48', '6', '0', '< 0.01', '40', '不可用', 'example.com/',
   ]);
-  if (parsed.rows.length !== 2 || parsed.rows[0].fields.join('|') !== '12|+3|40|8|0|2|alpha|I'
+  // 关键词魔法工具：真实抓到的 15 列，第 1 行有指标、第 3 行是「不可用」。
+  // 关键是**按列名取值**——下面把列顺序打乱一次，值必须还落在同样的字段上。
+  const magicHeaders = ['选择所有关键词', '关键词', '意图', 'Relevance', '相关性', '搜索量', '趋势', '潜在流量', 'PKD %', 'KD', 'CPC (USD)', '竞争程度', 'SF', '结果', '已更新'];
+  const magicRows = [
+    // 缩写是页面上的常态：27.1K / 1.1M。直接 Number() 会 NaN，然后把有量的词报成没量。
+    ['nonogram', 'nonogram\u200b', 'C', '100', '0', '27.1K', '', '不可用', '不可用', '62', '0.97', '0.01', '7', '1.1M', '3 周'],
+    ['nonogram.', 'nonogram.\u200b', 'I\nC', '87', '0', '170', '', '不可用', '不可用', '43', '0.97', '0.01', '3', '95', '3 周'],
+    ['blank nonogram', 'blank nonogram\u200b', '', '69', '0', '不可用', '', '不可用', '不可用', '20', '不可用', '0.33', '0', '12', '要更新指标数据，请刷新'],
+  ];
+  const magic = parseKeywordMagic(['Topic', 'Keywords', 'All', '20.1K'], { headers: magicHeaders, rows: magicRows });
+  // 同样的数据，把「搜索量」和「KD」两列对调，按名取值的结果必须一模一样。
+  const swap = (arr, a, b) => { const c = [...arr]; [c[a], c[b]] = [c[b], c[a]]; return c; };
+  const shuffled = parseKeywordMagic([], { headers: swap(magicHeaders, 5, 9), rows: magicRows.map((r) => swap(r, 5, 9)) });
+  const magicOk = magic.rows.length === 3
+    && magic.rows[0].volume === 27100 && magic.rows[0].results === 1100000
+    && magic.rows[0].kd === 62 && magic.rows[0].intent.join('') === 'C'
+    // CPC 是小数，不能走计数列那条四舍五入的路。
+    && magic.rows[0].cpc === 0.97 && magic.rows[1].competition === 0.01
+    && magic.rows[1].intent.join('') === 'IC'
+    // 「不可用」必须是 null，落成 0 会被下游读成「这个词没人搜」。
+    && magic.rows[2].volume === null && magic.rows[2].cpc === null && magic.rows[2].competition === 0.33
+    && magic.rows[2].intent.length === 0
+    && magic.metricsPending === 1 && magic.seedTotal === '20.1K' && magic.missingColumns.length === 0
+    && JSON.stringify(shuffled.rows) === JSON.stringify(magic.rows);
+  // 列名改了要报出来，而不是悄悄给一列 null。
+  const renamed = parseKeywordMagic([], { headers: magicHeaders.map((h) => (h === '搜索量' ? 'Volume' : h)), rows: magicRows });
+  const renamedOk = renamed.missingColumns.includes('搜索量') && renamed.rows[0].volume === null;
+
+  const magicRecordLine = (line) => line.endsWith('\u200b') && !line.startsWith('\u200b');
+  const magicCoverage = reportCoverage('keyword-magic',
+    // 第一行是页面标题，两侧都带零宽空格，不能算成一条记录。
+    ['\u200b\u200b关键词魔法工具\u200b\u200b\nnonogram\nnonogram\u200b\nC\n100\nblank nonogram\nblank nonogram\u200b\n69'], 2,
+    { recordLine: magicRecordLine, crossPageTotal: true });
+  const coverageOk = magicCoverage.rawRecordCount === 2 && magicCoverage.parserAligned
+    && magicCoverage.pageSelfReportedTotal === null && !magicCoverage.virtualScrollTruncated;
+
+  const pagerZh = readPageInfo('行\n上一页\n下一页\n页码：\n/\n1,848\n页码： 3');
+  const pagerEn = readPageInfo('rows\nPrev\nNext\nPage:\nof\n201\nPage: 1');
+  const pagerNone = readPageInfo('just a table with no pager');
+  const pagerOk = pagerZh.total === 1848 && pagerZh.current === 3
+    && pagerEn.total === 201 && pagerEn.current === 1
+    && pagerNone.total === 1;
+
+  if (!pagerOk || !coverageOk || parsed.rows.length !== 2 || parsed.rows[0].fields.join('|') !== '12|+3|40|8|0|2|alpha|I'
       || parsed.rows[1].fields.join('|') !== '5|-1|20|3|0|1|beta|C'
       || !coverage.parserAligned || coverage.virtualScrollTruncated || coverage.pageSelfReportedTotal !== 2
-      || positions.rows.length !== 3 || positions.rows[1].serpFeatures !== null || positions.rows[2].kd !== null) {
-    throw new Error(`semrush-report self-test failed: ${JSON.stringify({ parsed, coverage, positions })}`);
+      || positions.rows.length !== 3 || positions.rows[1].serpFeatures !== null || positions.rows[2].kd !== null
+      || !magicOk || !renamedOk) {
+    throw new Error(`semrush-report self-test failed: ${JSON.stringify({ parsed, coverage, positions, magic, renamed, pagerZh, pagerEn })}`);
   }
   console.log('semrush-report self-test: PASS');
   process.exit(0);
@@ -621,10 +786,10 @@ try {
         // 而 rowKey 去重会把它悄悄吞掉，表现为「翻了 5 页只多出 12 行」。
         // 所以这里同样要等到解析结果稳定，**并且与上一页不同**。
         const nextPage = await captureStable({
-          read: () => evalPage('(() => JSON.stringify({ bodyText: document.body?.innerText || "" }))()'),
+          read: () => evalPage(`(() => JSON.stringify({ bodyText: document.body?.innerText || "", cells: ${spec.cells || 'null'} }))()`),
           fingerprint: (c) => {
             let print = null;
-            try { print = JSON.stringify(spec.parse(String(c?.bodyText || '').split(/\n+/).map((l) => l.trim()).filter(Boolean))); } catch { return null; }
+            try { print = JSON.stringify(spec.parse(String(c?.bodyText || '').split(/\n+/).map((l) => l.trim()).filter(Boolean), c?.cells)); } catch { return null; }
             return print === prevPrint ? null : print;   // 还是上一页的内容，继续等
           },
           timeoutMs: Number(flags['page-timeout'] || 30) * 1000,
@@ -654,7 +819,7 @@ try {
     }
   }
 
-  const coverage = spec.paginated ? reportCoverage(name, rawPages, (parsed.rows || []).length) : null;
+  const coverage = spec.paginated ? reportCoverage(name, rawPages, (parsed.rows || []).length, spec) : null;
   if (coverage && !coverage.parserAligned) {
     console.error(`[parser-gap] ${name}: raw record lines=${coverage.rawRecordCount}, parsed rows=${coverage.parsedRows}.`);
   }
