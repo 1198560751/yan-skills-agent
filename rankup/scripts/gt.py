@@ -5,16 +5,19 @@
   compare KW1 KW2 ...   关键词热度对比曲线（interest over time，0-100 归一化）
   region  KW1 [KW2...]  地区热度分布（哪个国家/州搜得多）
   related KW            相关查询（rising 飙升词 + top 高频词）
+  close                  释放 browser 路由的 Trends 会话
   hot                   每日热搜榜（走 opencli，不需要 venv）
 
 通用选项：
   --geo CODE     地区代码，如 US/JP/GB；留空 "" = 全球（compare/region/related 默认全球）
-  --time RANGE   时间范围：1m/3m/12m/5y/all 或 2024-01-01:2025-01-01（默认 12m）
+  --time RANGE   时间范围：7d/28d/30d/1m/3m/12m/5y/all 或 2024-01-01:2025-01-01（默认 12m）
   --raw          compare 不做月度聚合，输出原始（周级）数据
   --top N        region/related 显示前 N 条（默认 15）
   --region CODE  hot 的地区（默认 US；不支持 CN）
   --limit N      hot 显示条数（默认 20）
   --via ROUTE    取数路由：browser（默认）/ pytrends / auto
+  --session NAME  browser 会话名（默认 rankup-gt-trends）
+  --keep-session  browser 跑完保留会话，连续查询后用 close 释放
 
 路由说明：
   browser  走 gt-browser.mjs：OpenCLI 驱动已登录 Chrome，在 trends.google.com
@@ -34,7 +37,7 @@ import sys
 VENV_DIR = os.path.expanduser("~/.cache/gt-skill/venv")
 VENV_PY = os.path.join(VENV_DIR, "bin", "python")
 BROWSER_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gt-browser.mjs")
-BROWSER_CMDS = ("compare", "region", "related")
+BROWSER_CMDS = ("compare", "region", "related", "close")
 
 
 def run_browser(argv):
@@ -65,7 +68,7 @@ def parse_args(argv):
     i = 0
     while i < len(argv):
         a = argv[i]
-        if a in ("--raw",):
+        if a in ("--raw", "--keep-session"):
             opts[a[2:]] = True
             i += 1
         elif a.startswith("--"):
@@ -86,6 +89,9 @@ def die(msg, code=1):
 
 def to_timeframe(t):
     presets = {
+        "7d": "now 7-d",
+        "28d": "today 4-w",
+        "30d": "today 1-m",
         "1m": "today 1-m",
         "3m": "today 3-m",
         "12m": "today 12-m",
@@ -208,7 +214,7 @@ def main():
         print(__doc__)
         sys.exit(0)
     cmd = argv[0]
-    if cmd not in COMMANDS:
+    if cmd not in COMMANDS and cmd != "close":
         die(f"未知子命令 {cmd}，可用：{', '.join(COMMANDS)}")
 
     rest = argv[1:]
@@ -221,6 +227,11 @@ def main():
         rest = rest[:i] + rest[i + 2 :]
     if via not in ("browser", "pytrends", "auto"):
         die(f"未知路由 {via}，可用：browser / pytrends / auto")
+
+    if cmd == "close":
+        if via != "browser":
+            die("close 只能走 browser 路由")
+        run_browser([cmd] + rest)
 
     if cmd in BROWSER_CMDS and via == "browser":
         run_browser([cmd] + rest)

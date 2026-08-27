@@ -284,6 +284,43 @@ async function socialRadar(o) {
   return { sources, candidates: mergeCampaigns(rows), errors };
 }
 
+function mergeRadarReport(previous, current, date) {
+  if (!previous || previous.date !== date) return { ...current, runCount: 1, sameDayMerged: false };
+  const sourceMap = new Map(arr(previous.sources).map((row) => [row.source, row]));
+  for (const row of arr(current.sources)) {
+    const older = sourceMap.get(row.source);
+    sourceMap.set(row.source, older ? {
+      ...older,
+      ...row,
+      added: [...new Map([...arr(older.added), ...arr(row.added)].map((item) => [itemKeys(item)[0] ?? JSON.stringify(item), item])).values()],
+    } : row);
+  }
+  const candidateMap = new Map();
+  for (const row of [...arr(previous.candidates), ...arr(current.candidates)]) {
+    const key = row.campaignId ?? itemKeys(row)[0] ?? normalizeName(row.name ?? row.title);
+    const older = candidateMap.get(key);
+    candidateMap.set(key, older ? {
+      ...older, ...row,
+      names: uniq([...arr(older.names), ...arr(row.names)]),
+      urls: uniq([...arr(older.urls), ...arr(row.urls)]),
+      sourceLinks: uniq([...arr(older.sourceLinks), ...arr(row.sourceLinks)]),
+      evidenceLinks: uniq([...arr(older.evidenceLinks), ...arr(row.evidenceLinks)]),
+      socialEvidence: [...arr(older.socialEvidence), ...arr(row.socialEvidence)],
+    } : row);
+  }
+  const candidates = [...candidateMap.values()];
+  return {
+    ...current,
+    runCount: Number(previous.runCount ?? 1) + 1,
+    sameDayMerged: true,
+    sources: [...sourceMap.values()],
+    candidates,
+    queue: candidates,
+    coreErrors: uniq([...arr(previous.coreErrors), ...arr(current.coreErrors)]),
+    errors: uniq([...arr(previous.errors), ...arr(current.errors)]),
+  };
+}
+
 async function radar(o) {
   const f = files(o);
   if (o.dryRun) return { ok: true, dryRun: true, sources: ['steam', 'itch', 'poki', ...(o.noSocial ? [] : ['reddit', 'youtube', 'x'])], file: f.radar };
@@ -309,7 +346,8 @@ async function radar(o) {
   sources.push(...social.sources);
   errors.push(...social.errors);
   const candidates = [...sources.flatMap((s) => s.added ?? []), ...social.candidates];
-  const report = { date: o.date, generatedAt: new Date().toISOString(), window: '24h-and-since-last-snapshot', sources, candidates, queue: candidates, coreErrors, errors };
+  const current = { date: o.date, generatedAt: new Date().toISOString(), window: '24h-and-since-last-snapshot', sources, candidates, queue: candidates, coreErrors, errors };
+  const report = mergeRadarReport(readJson(f.radar), current, o.date);
   writeJson(f.radar, report);
   return { ok: !coreErrors.length, file: f.radar, errors, candidates: candidates.length };
 }
@@ -338,6 +376,10 @@ function inputCandidates(data, origin) {
       keywords: arr(row.keywords), trend: row.trend ?? {}, demandProof: row.demandProof ?? {},
       promotionRisk: row.promotionRisk ?? {}, reasons: arr(row.reasons),
       origin: uniq([...arr(row.origin), origin]),
+      // Age has to survive normalisation the same way firstSeen does. Dropping it
+      // here made every carried candidate look brand new to demandPriority, which
+      // is how six stale candidates kept holding the whole deep-check queue.
+      ...(row.carryForward ? { carryForward: row.carryForward } : {}),
       ...(row.decision ? { decision: row.decision } : {}),
       ...(row.action ? { action: row.action } : {}),
       ...(row.nextAction ? { nextAction: row.nextAction } : {}),
@@ -346,6 +388,7 @@ function inputCandidates(data, origin) {
 }
 
 function sameCandidate(a, b) {
+  if (a.entityId && b.entityId && normalizeName(a.entityId) === normalizeName(b.entityId)) return true;
   const names = new Set(arr(a.names).map(normalizeName).filter(Boolean));
   const urls = new Set(arr(a.urls).map(normalizeUrl).filter(Boolean));
   return arr(b.names).some((v) => names.has(normalizeName(v))) || arr(b.urls).some((v) => urls.has(normalizeUrl(v)));
@@ -386,13 +429,43 @@ function rankCandidates(candidates, todayRows) {
   return candidates.map((c, i) => ({ c, i, rank: rank(c) })).sort((a, b) => a.rank - b.rank || a.i - b.i).map((v) => v.c);
 }
 
+const RECHECK_MILESTONES = [3, 7, 14, 28];
+
+/**
+ * A recheck is due when the candidate has *crossed* a milestone since the last
+ * run, not when its age lands exactly on one.
+ *
+ * `includes(ageDays)` used to decide this, which quietly broke the day-3/7/14/28
+ * promise every time the daily task skipped a day: age jumped 2 -> 4, no milestone
+ * matched, and that recheck was never retried. Nothing turned red, so the miss was
+ * invisible. Comparing against the previous age fires each milestone exactly once
+ * and survives any gap.
+ */
+function annotateCarryForward(candidate, latestDate, date) {
+  const first = String(candidate.firstSeen ?? latestDate).slice(0, 10);
+  const ageDays = Math.max(0, Math.round((new Date(`${date}T00:00:00Z`) - new Date(`${first}T00:00:00Z`)) / 86_400_000));
+  const previousAge = Number.isFinite(Number(candidate.carryForward?.ageDays)) ? Number(candidate.carryForward.ageDays) : -1;
+  const crossed = RECHECK_MILESTONES.filter((day) => ageDays >= day && previousAge < day);
+  return { ...candidate, firstSeen: candidate.firstSeen ?? latestDate, carryForward: { from: latestDate, ageDays, recheckDue: crossed.length > 0, recheckMilestones: crossed } };
+}
+
 function carryForward(latest, date) {
   if (!latest?.date || latest.date >= date) return [];
-  return arr(latest.candidates).filter((c) => ['research', 'watch'].includes(finishCandidate(c).action)).map((c) => {
-    const first = String(c.firstSeen ?? latest.date).slice(0, 10);
-    const ageDays = Math.max(0, Math.round((new Date(`${date}T00:00:00Z`) - new Date(`${first}T00:00:00Z`)) / 86_400_000));
-    return { ...c, firstSeen: c.firstSeen ?? latest.date, carryForward: { from: latest.date, ageDays, recheckDue: [3, 7, 14, 28].includes(ageDays) } };
-  });
+  return arr(latest.candidates).filter((c) => ['research', 'watch'].includes(finishCandidate(c).action)).map((c) => annotateCarryForward(c, latest.date, date));
+}
+
+/**
+ * The plan stage has to age the previous report itself.
+ *
+ * It reads latest.json straight from disk, and on a candidate's first carry-over
+ * day that file has no carryForward field yet — evaluate only stamps one while
+ * carrying. Without ageing them here every stale candidate looked brand new to
+ * demandPriority and kept its deep-check slot regardless. Unlike carryForward()
+ * this keeps every action, because the plan pool ranks them rather than filtering.
+ */
+function previousReportPool(latest, date) {
+  if (!latest?.date || latest.date >= date) return arr(latest?.candidates);
+  return arr(latest.candidates).map((c) => annotateCarryForward(c, latest.date, date));
 }
 
 async function checkUrl(url) {
@@ -461,12 +534,18 @@ function finishCandidate(c) {
   c = { ...c, urls, sourceLinks, playLinks, evidenceLinks };
   const action = decide(c);
   const decision = ({ develop: 'quick-ship', research: 'priority-research', watch: 'watch' })[action];
+  const reasons = arr(c.reasons).length ? arr(c.reasons) : [
+    action === 'watch' ? '当前只有发现信号，尚无足够的外部需求证据。' : '已有需求线索，但开发所需证据尚未齐全。',
+  ];
+  const decisionAudit = action === 'research' && !arr(c.decisionAudit?.missingEvidence).length
+    ? { ...c.decisionAudit, missingEvidence: ['开发所需的需求、竞争、趋势或供给证据尚未齐全。'] }
+    : c.decisionAudit;
   const nextAction = c.nextAction ?? ({
     develop: '确认目标市场 SERP 与可玩供给后，直接建立网站开发任务。',
     research: '补查目标国家搜索量、KD、趋势与 SERP，再决定是否开发。',
     watch: '保留链接，等待下一次平台或搜索需求信号。',
   }[action]);
-  return { ...c, action, decision, buildGate: buildReadiness(c), keywordMetrics: keywordSignal(c), trend: c.trend ?? {}, nextAction };
+  return { ...c, action, decision, reasons, decisionAudit, buildGate: buildReadiness(c), keywordMetrics: keywordSignal(c), trend: c.trend ?? {}, nextAction };
 }
 
 function staleReason(c) {
@@ -476,6 +555,19 @@ function staleReason(c) {
   const hasUsablePlay = checks.some((v) => playLinks.includes(v.url) && v.ok);
   const hasUnverifiedPlay = playLinks.some((url) => !checks.some((v) => v.url === url));
   return !hasUsablePlay && !hasUnverifiedPlay ? '所有已响应 URL 均明确返回 404/410，且没有可用游戏链接' : null;
+}
+
+/**
+ * Where the judgement calls come from.
+ *
+ * buildDemandPlan has always read the dated evaluation file from this conventional
+ * path, but evaluate honoured only an explicit --evaluation. `decision-checklist`
+ * calls evaluate without one, so brand/category, SERP intent, trend direction and
+ * platform-traffic risk were dropped on every unattended run and D03/D06/D07/D08
+ * reported 0/6 no matter how carefully the file had been filled in.
+ */
+function evaluationOverlayPath(o, f) {
+  return o.evaluation ?? (exists(f.evaluation) ? f.evaluation : null);
 }
 
 function overlayCandidates(current, overlay) {
@@ -503,6 +595,9 @@ const metric = (c) => {
   if (top?.volume) parts.push(`最高 ${String(top.row.market ?? top.row.gl).toUpperCase()} ${top.volume.toLocaleString('en-US')}`);
   if (discoveryTop?.volume && discoveryTop.row !== top?.row) parts.push(`发现市场 ${String(discoveryTop.row.market ?? discoveryTop.row.gl).toUpperCase()} ${discoveryTop.volume.toLocaleString('en-US')}`);
   if (k.kd !== null) parts.push(`KD ${k.kd}`);
+  if (c.keywordStrategy?.entityType) parts.push(`类型 ${c.keywordStrategy.entityType}`);
+  if (c.trend?.direction) parts.push(`近 7 天 ${c.trend.direction}`);
+  if (c.promotionRisk?.internalTrafficRisk) parts.push(`站内流量风险 ${c.promotionRisk.internalTrafficRisk}`);
   return parts.join('；') || '待查';
 };
 
@@ -531,7 +626,7 @@ function renderMarkdown(report) {
 
 function saveReport(o, candidates, errors = [], excluded = []) {
   const f = files(o);
-  const done = candidates.map(finishCandidate);
+  const done = mergeCandidates(candidates).map(finishCandidate);
   const stats = Object.fromEntries(ACTIONS.map((a) => [a, done.filter((c) => c.action === a).length]));
   const report = {
     date: o.date, generatedAt: new Date().toISOString(), errors: uniq(errors.filter(Boolean)),
@@ -585,10 +680,27 @@ function demandCandidate(candidate) {
   return demandKeywords(candidate).length > 0 && arr(candidate.urls).some(validUrl);
 }
 
+// Deep-check slots are capped at six, so this order decides what actually gets
+// investigated each day. DEFERRED_RESEARCH sits below everything else on purpose.
+const DEFERRED_RESEARCH = 6;
+
+/**
+ * A carried research candidate holds a slot only on the days its recheck is due.
+ *
+ * It used to hold one every single day. Once six candidates reached `research`
+ * the queue was saturated for good: their evidence gap does not close on its own,
+ * so they were re-selected forever and newly discovered games could never enter.
+ * Measured on 2026-08-27: five of six slots were held by carry-overs while 224
+ * fresh games competed for the one that was left. Deferring them between
+ * milestones keeps the recheck promise and still lets discovery through.
+ */
 function demandPriority(candidate) {
   const action = finishCandidate(candidate).action;
   if (action === 'develop') return 0;
-  if (action === 'research' && isQuantified(candidate)) return 1;
+  if (action === 'research' && isQuantified(candidate)) {
+    const carried = candidate.carryForward;
+    return carried && !carried.recheckDue ? DEFERRED_RESEARCH : 1;
+  }
   if (candidate.playable) return 2;
   if (arr(candidate.platforms).some((p) => /poki|itch/i.test(p))) return 3;
   if (arr(candidate.platforms).some((p) => /steam/i.test(p))) return 5;
@@ -602,7 +714,7 @@ function buildDemandPlan(o) {
   const evaluation = readJson(f.evaluation);
   const pool = mergeCandidates([
     ...inputCandidates({ candidates: arr(evaluation?.candidates) }, 'verified-evaluation'),
-    ...inputCandidates({ candidates: arr(latest?.candidates) }, 'previous-report'),
+    ...inputCandidates({ candidates: previousReportPool(latest, o.date) }, 'previous-report'),
     ...inputCandidates({ candidates: arr(newGames?.games) }, 'new-games'),
   ]).filter(demandCandidate)
     .map((candidate, index) => ({ candidate, index, priority: demandPriority(candidate) }))
@@ -770,7 +882,8 @@ async function demand(o) {
 
 async function evaluate(o, inheritedErrors = []) {
   const f = files(o);
-  if (o.dryRun) return { ok: true, dryRun: true, inputs: [f.discovery, f.radar, o.evaluation].filter(Boolean), outputs: [f.candidates, f.report, f.latestJson, f.latestMd] };
+  // A dry run that hides an input it will actually read is worse than no dry run.
+  if (o.dryRun) return { ok: true, dryRun: true, inputs: [f.discovery, f.radar, evaluationOverlayPath(o, f)].filter(Boolean), outputs: [f.candidates, f.report, f.latestJson, f.latestMd] };
   const discovery = readJson(f.discovery);
   const radarData = readJson(f.radar);
   const old = readJson(f.candidates);
@@ -793,9 +906,15 @@ async function evaluate(o, inheritedErrors = []) {
   candidates = mergeRichIntoOrdered(candidates, carryForward(latest, o.date));
   const automaticDemand = readJson(f.demandResults);
   if (automaticDemand) candidates = overlayCandidates(candidates, automaticDemand);
-  if (o.evaluation) {
-    const overlay = readJson(o.evaluation);
-    if (!overlay) errors.push(`无法读取 --evaluation ${o.evaluation}`);
+  // The dated evaluation file is where the judgement calls live — brand vs category,
+  // SERP intent, weak positions, the 7-day direction. buildDemandPlan already reads
+  // it from this conventional path; evaluate only honoured an explicit --evaluation,
+  // so `decision-checklist` never picked it up and D03/D06/D07/D08 always reported
+  // 0/6. Default to the same file both stages already agree on.
+  const overlayPath = evaluationOverlayPath(o, f);
+  if (overlayPath) {
+    const overlay = readJson(overlayPath);
+    if (!overlay) errors.push(`无法读取 evaluation ${overlayPath}`);
     else candidates = overlayCandidates(candidates, overlay);
   }
   candidates = rankCandidates(candidates, todayRows).slice(0, o.limit);
@@ -938,10 +1057,10 @@ function inspectCollect(o) {
     checkItem('C03', '全部 sitemap 抓取成功且没有平台失败。', failedPlatforms.length === 0, failedPlatforms.length ? failedPlatforms.map((row) => row.id).join('、') : '0 个失败'),
     checkItem('C04', '每个平台都分别记录 added、changed 和 removed。', platforms.filter((row) => row.status !== 'failed').every((row) => ['added', 'changed', 'removed'].every((key) => Array.isArray(row[key]))), '三类 diff 字段已核对'),
     checkItem('C05', 'Steam、itch、Poki 与启用的社区雷达全部执行成功。', radarSources.length >= expectedRadar && failedRadar.length === 0, `${radarSources.length} 个来源，失败 ${failedRadar.length}`),
-    checkItem('C06', 'discovery、radar 与 new-games 均属于当天。', [discovery, radarData, newGames].every((data) => dated(data, o.date)), o.date),
+    checkItem('C06', '当天重跑会累积早先增量，且 discovery、radar 与 new-games 均属于当天。', [discovery, radarData, newGames].every((data) => dated(data, o.date)) && [discovery, radarData].every((data) => Number(data?.runCount ?? 1) === 1 || data?.sameDayMerged === true), `${o.date}；discovery ${discovery?.runCount ?? 1} 次，radar ${radarData?.runCount ?? 1} 次`),
     checkItem('C07', 'discovery 与 radar 已合并且统计数量和实体数量一致。', Number(newGames?.stats?.dedupedGames) === games.length && Number(newGames?.stats?.duplicatesRemoved) >= 0, `${games.length} 个去重游戏`),
     checkItem('C08', '社交 campaign 与非游戏记录没有混入新增游戏。', games.every((game) => !game.campaignId && game.pageType !== 'game-adjacent'), `${newGames?.stats?.ignoredCampaigns ?? 0} 个 campaign 已隔离`),
-    checkItem('C09', '新增游戏按名称或 URL 去重且没有重复实体。', gameKeys.every(Boolean) && new Set(gameKeys).size === gameKeys.length, `${new Set(gameKeys).size}/${games.length} 个唯一实体`),
+    checkItem('C09', '新增游戏按名称、URL 与多语言页面归并且没有重复实体。', gameKeys.every(Boolean) && games.every((game, i) => !games.slice(i + 1).some((other) => sameCandidate(game, other))), `${games.length} 个唯一实体`),
     checkItem('C10', '采集产物、名称、来源链接和 Git 忽略边界全部完整。', [f.discovery, f.radar, f.newGames, f.latestNewGames].every(exists) && games.every((game) => arr(game.names).length && [...arr(game.sourceLinks), ...arr(game.urls)].some(validUrl)) && ignored, '4 个产物与 .rankup/ 忽略规则已核对'),
   ];
   return saveChecklist(o, 'collect', checks, { platforms: platforms.length, games: games.length, failedPlatforms: failedPlatforms.map((row) => row.id), failedRadar: failedRadar.map((row) => row.source) });
@@ -971,16 +1090,47 @@ function inspectDecision(o) {
   const stats = report?.stats ?? {};
   const statsMatch = ACTIONS.every((action) => Number(stats[action] ?? 0) === arr(report?.candidates).filter((row) => row.action === action).length);
   const latestMatch = JSON.stringify(latest?.stats) === JSON.stringify(report?.stats) && arr(latest?.candidates).map((row) => row.entityId).join('|') === arr(report?.candidates).map((row) => row.entityId).join('|');
+  const strategyReady = (row) => {
+    const strategy = row.keywordStrategy ?? {};
+    const clusters = arr(strategy.clusters);
+    const terms = uniq(clusters.flatMap((cluster) => arr(cluster.terms)).map(normalizeName).filter(Boolean));
+    return ['brand', 'category', 'generic'].includes(strategy.entityType)
+      && clusters.length > 0
+      && clusters.every((cluster) => cluster.intent && arr(cluster.terms).length)
+      && (strategy.entityType === 'brand' || terms.length >= 2);
+  };
+  const competitionReady = (row) => {
+    if (!isQuantified(row)) return row.earlyDemand?.status === 'not-yet-observed';
+    const review = row.competitionReview ?? {};
+    return typeof review.serpIntent === 'string'
+      && Array.isArray(review.weakPositions)
+      && typeof review.newSitePresent === 'boolean'
+      && typeof review.kdInterpretation === 'string'
+      && ['consistent', 'reviewed', 'not-applicable'].includes(review.metricConflict);
+  };
+  const trendReady = (row) => {
+    const windows = row.trend?.windows ?? {};
+    return Boolean(windows['28d'] ?? windows['30d'])
+      && Boolean(windows['7d'])
+      && ['rising', 'flat', 'cooling', 'insufficient'].includes(row.trend?.direction);
+  };
+  const demandSeparated = (row) => typeof row.demandProof?.independentDemand === 'boolean'
+    && ['low', 'medium', 'high'].includes(row.promotionRisk?.internalTrafficRisk);
+  const decisionExplained = (row) => row.action === 'develop'
+    ? row.buildGate?.ready === true
+    : row.action === 'research'
+      ? arr(row.decisionAudit?.missingEvidence).length > 0
+      : arr(row.reasons).length > 0;
   const checks = [
     checkItem('D01', '当天采集 Checklist 已全部通过。', collectResult?.ok === true && collectResult?.date === o.date, collectResult?.ok ? '采集通过' : '采集未通过或缺失'),
     checkItem('D02', '已按优先级选出不超过 6 个真实游戏进入深查。', priority.length > 0 && priority.length <= 6 && priority.every((row) => row.entityId && arr(row.urls).some(validUrl)), `${priority.length} 个深查游戏`),
-    checkItem('D03', '每个深查游戏都有 1–3 个去重后的原名、英文名或本地名关键词。', priority.every((row) => arr(row.keywords).length >= 1 && arr(row.keywords).length <= 3 && new Set(arr(row.keywords).map(normalizeName)).size === arr(row.keywords).length && (!arr(row.names).some(latinKeyword) || arr(row.latinKeywords).length > 0)), `${arr(planData?.globalKeywords).length} 个全球关键词`),
-    checkItem('D04', '每个计划关键词都有全球量与主要国家结果或明确无数据状态。', arr(planData?.globalKeywords).length > 0 && arr(planData?.globalKeywords).every((word) => globalKeys.has(normalizeName(word))), `${globalRows.length}/${arr(planData?.globalKeywords).length} 条全球结果`),
-    checkItem('D05', '国家计划已在同一批次取完且没有缺少国家关键词组合。', plannedCountryRows.every((key) => countryKeys.has(key)), `${countryRows.length}/${plannedCountryRows.length} 条国家结果`),
-    checkItem('D06', '每个深查游戏都记录已查关键词、国家和 demandCoverage。', arr(demandData?.candidates).length === priority.length && arr(demandData?.candidates).every((row) => row.demandCoverage?.globalChecked && arr(row.demandCoverage?.keywordsChecked).length && arr(row.demandCoverage?.countriesChecked).length), `${arr(demandData?.candidates).length} 个需求结果`),
-    checkItem('D07', '每个深查游戏都完成页面可达性与可玩供给核对。', finalPriority.length === priority.length && finalPriority.every((row) => arr(row.urlChecks).length > 0 && typeof row.reachable === 'boolean' && typeof row.playable === 'boolean'), `${finalPriority.length}/${priority.length} 个页面已核对`),
-    checkItem('D08', '所有建议开发候选都通过流量、KD、意图、独立需求和可玩性硬门槛。', arr(report?.candidates).filter((row) => row.action === 'develop').every((row) => row.buildGate?.ready === true), `${stats.develop ?? 0} 个达到开发门槛`),
-    checkItem('D09', '最终结论与建议开发数量一致并允许明确选择静候。', report?.verdict?.action === (Number(stats.develop ?? 0) > 0 ? 'act' : 'wait') && Boolean(report?.verdict?.text), report?.verdict?.text ?? '缺少结论'),
+    checkItem('D03', '每个深查游戏都已区分品牌词或品类词，并建立去重的关键词需求簇。', finalPriority.length === priority.length && finalPriority.every(strategyReady), `${finalPriority.filter(strategyReady).length}/${priority.length} 个需求簇已核对`),
+    checkItem('D04', '每个计划关键词都有全球与国家结果、来源和明确的数据状态。', arr(planData?.globalKeywords).length > 0 && arr(planData?.globalKeywords).every((word) => globalKeys.has(normalizeName(word))) && plannedCountryRows.every((key) => countryKeys.has(key)) && [...globalRows, ...countryRows].every((row) => row.status !== 'error'), `${globalRows.length} 条全球、${countryRows.length}/${plannedCountryRows.length} 条国家结果`),
+    checkItem('D05', '每个深查游戏都记录关键词、国家、主要市场和 demandCoverage。', arr(demandData?.candidates).length === priority.length && arr(demandData?.candidates).every((row) => row.demandCoverage?.globalChecked && arr(row.demandCoverage?.keywordsChecked).length && arr(row.demandCoverage?.countriesChecked).length), `${arr(demandData?.candidates).length} 个需求结果`),
+    checkItem('D06', '有量候选都完成 KD 口径、SERP 意图、弱位、新站和冲突复核。', finalPriority.length === priority.length && finalPriority.every(competitionReady), `${finalPriority.filter(competitionReady).length}/${priority.length} 个竞争盘面已核对`),
+    checkItem('D07', '每个深查游戏都分开记录近 28 天总量与最近 7 天方向。', finalPriority.length === priority.length && finalPriority.every(trendReady), `${finalPriority.filter(trendReady).length}/${priority.length} 个趋势已核对`),
+    checkItem('D08', '每个深查游戏都区分平台内流量与独立外部需求，并核对页面和可玩供给。', finalPriority.length === priority.length && finalPriority.every((row) => demandSeparated(row) && arr(row.urlChecks).length > 0 && typeof row.reachable === 'boolean' && typeof row.playable === 'boolean'), `${finalPriority.filter((row) => demandSeparated(row) && arr(row.urlChecks).length > 0).length}/${priority.length} 个独立需求与供给已核对`),
+    checkItem('D09', '开发候选通过硬门槛，调研和观察候选写明缺失证据或原因。', arr(report?.candidates).every(decisionExplained) && report?.verdict?.action === (Number(stats.develop ?? 0) > 0 ? 'act' : 'wait') && Boolean(report?.verdict?.text), report?.verdict?.text ?? '缺少结论'),
     checkItem('D10', 'JSON、Markdown、latest、分组数量、链接和异常信息彼此一致。', statsMatch && latestMatch && markdown.includes(report?.verdict?.text ?? '') && arr(report?.candidates).every((row) => [...arr(row.sourceLinks), ...arr(row.urls)].some(validUrl)) && (!arr(report?.errors).length || markdown.includes('本次异常')), `${arr(report?.candidates).length} 个候选，异常 ${arr(report?.errors).length}`),
   ];
   return saveChecklist(o, 'decision', checks, { verdict: report?.verdict, stats, priority: priority.length, errors: arr(report?.errors) });
@@ -1004,15 +1154,48 @@ function selfTest() {
     ]);
     if (merged.length !== 1 || decide(merged[0]) !== 'develop') throw new Error('实体合并或分组失败');
     if (decide({ names: ['Small Game'], urls: ['https://example.com/small'], action: 'develop', playable: true, keywords: [{ semrushVolume: 4400, semrushGlobalVolume: 4400, semrushKd: 35 }] }) !== 'research') throw new Error('严格开发门槛失败');
+    if (!finishCandidate({ names: ['Unquantified Game'], urls: ['https://example.com/unquantified'], action: 'watch' }).reasons.length) throw new Error('观察项决策解释失败');
     const carried = mergeRichIntoOrdered(
       [{ names: ['New Game'], urls: ['https://example.com/new'] }],
       carryForward({ date: '2099-01-01', candidates: [{ names: ['Old Game'], firstSeen: '2098-12-30', sourceLinks: ['https://example.com/old'], action: 'research' }] }, o.date),
     );
     if (carried[0].names[0] !== 'New Game' || carried[1].firstSeen !== '2098-12-30' || carried[1].sourceLinks[0] !== 'https://example.com/old' || carried[1].carryForward.recheckDue !== true) throw new Error('旧候选续查或新词顺序失败');
+    // A skipped run must not swallow a milestone. Age jumps 2 -> 4 here, so the
+    // day-3 recheck has to fire late rather than never.
+    const skipped = carryForward({ date: '2099-01-01', candidates: [{ names: ['Gap Game'], urls: ['https://example.com/gap'], firstSeen: '2098-12-29', action: 'watch', carryForward: { ageDays: 2 } }] }, o.date);
+    if (skipped[0].carryForward.ageDays !== 4 || skipped[0].carryForward.recheckDue !== true || !skipped[0].carryForward.recheckMilestones.includes(3)) throw new Error('跨过里程碑的复查未触发');
+    // And a milestone already crossed must not re-fire every single day after.
+    const settled = carryForward({ date: '2099-01-01', candidates: [{ names: ['Gap Game'], urls: ['https://example.com/gap'], firstSeen: '2098-12-29', action: 'watch', carryForward: { ageDays: 4 } }] }, o.date);
+    if (settled[0].carryForward.recheckDue !== false || settled[0].carryForward.recheckMilestones.length) throw new Error('已完成的里程碑重复触发');
+    // The deep-check queue must not be permanently held by carry-overs.
+    const quantified = { keywords: [{ semrushVolume: 4400, semrushGlobalVolume: 4400, semrushKd: 35 }], playable: true, action: 'research', urls: ['https://example.com/q'], names: ['Q'] };
+    if (demandPriority({ ...quantified, carryForward: { ageDays: 5, recheckDue: false } }) !== DEFERRED_RESEARCH) throw new Error('遗留 research 未让出深查名额');
+    if (demandPriority({ ...quantified, carryForward: { ageDays: 7, recheckDue: true } }) !== 1) throw new Error('到期复查的候选未取回名额');
+    if (demandPriority(quantified) !== 1) throw new Error('当天新确认的 research 不应被推迟');
+    // The deferral only works if the age survives normalisation, which is where it
+    // was being dropped. Assert the field end-to-end, not just on a raw object.
+    const normalised = inputCandidates({ candidates: [{ ...quantified, carryForward: { ageDays: 5, recheckDue: false } }] }, 'previous-report');
+    if (normalised[0].carryForward?.recheckDue !== false || demandPriority(normalised[0]) !== DEFERRED_RESEARCH) throw new Error('carryForward 未能通过规范化');
+    if (previousReportPool({ date: '2099-01-01', candidates: [{ names: ['Aged'], firstSeen: '2098-12-31', action: 'develop' }] }, o.date)[0].carryForward.ageDays !== 2) throw new Error('计划阶段未给上一份报告计龄');
+    // decision-checklist runs evaluate with no --evaluation, so the conventional
+    // dated file has to be found on its own or every judgement field is lost.
+    const evalFiles = files(o);
+    if (evaluationOverlayPath({}, evalFiles) !== null) throw new Error('不存在的 evaluation 文件不应被采用');
+    fs.mkdirSync(path.dirname(evalFiles.evaluation), { recursive: true });
+    fs.writeFileSync(evalFiles.evaluation, JSON.stringify({ candidates: [] }));
+    if (evaluationOverlayPath({}, evalFiles) !== evalFiles.evaluation) throw new Error('未自动采用约定位置的 evaluation 文件');
+    if (evaluationOverlayPath({ evaluation: '/tmp/explicit.json' }, evalFiles) !== '/tmp/explicit.json') throw new Error('显式 --evaluation 应当优先');
+    fs.rmSync(evalFiles.evaluation, { force: true });
     const campaigns = mergeCampaigns([
       { source: 'reddit', title: 'Try My Browser Game', author: 'same-maker', url: 'https://reddit.com/r/games/1' },
       { source: 'youtube', title: 'Browser Game Trailer', author: 'same-maker', url: 'https://youtube.com/watch?v=1' },
     ]);
+    const radarMerged = mergeRadarReport(
+      { date: '2099-01-02', runCount: 1, sources: [{ source: 'steam', status: 'compared', added: [{ title: 'First Game' }] }], candidates: [{ campaignId: 'c1', names: ['First'], urls: ['https://example.com/first'] }] },
+      { date: '2099-01-02', sources: [{ source: 'steam', status: 'compared', added: [] }], candidates: [] },
+      '2099-01-02',
+    );
+    if (radarMerged.runCount !== 2 || radarMerged.sources[0].added.length !== 1 || radarMerged.candidates.length !== 1) throw new Error('雷达同日累积合并失败');
     if (campaigns.length !== 1 || campaigns[0].mentions !== 2) throw new Error('campaign 去重失败');
     const fresh = { names: ['Fresh Game'], urls: ['https://example.com/fresh'] };
     const ranked = rankCandidates([
@@ -1031,6 +1214,7 @@ function selfTest() {
     if (cleanPageTitle('スネークデュエル｜対戦バトル｜無料ゲームならワウゲーム') !== 'スネークデュエル') throw new Error('全角站点后缀清洗失败');
     saveReport(o, merged, []);
     const f = files(o);
+    if (overlayCandidates([{ entityId: 'foo', names: ['Foo'], urls: ['https://example.com/foo'] }], { candidates: [{ entityId: 'foo', keywordStrategy: { entityType: 'brand' } }] }).length !== 1) throw new Error('entityId 覆盖合并失败');
     const checklist = saveChecklist(o, 'collect', [checkItem('C01', '测试检查。', true, 'ok')]);
     if (!checklist.ok || !exists(f.collectChecklistMd) || !fs.readFileSync(f.collectChecklistMd, 'utf8').includes('- [x] C01')) throw new Error('Checklist 产物失败');
     const newGames = saveNewGames(o,
@@ -1047,7 +1231,7 @@ function selfTest() {
     if (!challengePageTitle('Just a moment...')) throw new Error('Cloudflare 验证页过滤失败');
     if (![f.candidates, f.report, f.latestJson, f.latestMd].every(exists)) throw new Error('报告产物不完整');
     if (!fs.readFileSync(f.report, 'utf8').includes('[Foo Game](https://example.com/foo)')) throw new Error('Markdown 链接缺失');
-    return { ok: true, checks: ['normalize-and-merge', 'decision', 'strict-build-gate', 'checklist-output', 'carry-forward-order', 'candidate-priority', 'partial-discovery', 'stale-vs-timeout', 'title-and-iframe', 'campaign-dedupe', 'new-games-dedupe', 'global-demand-plan', 'challenge-filter', 'markdown-links', 'stable-latest'] };
+    return { ok: true, checks: ['normalize-and-merge', 'decision', 'strict-build-gate', 'checklist-output', 'carry-forward-order', 'recheck-milestone-crossing', 'deep-check-queue-fairness', 'evaluation-overlay-discovery', 'candidate-priority', 'partial-discovery', 'stale-vs-timeout', 'title-and-iframe', 'campaign-dedupe', 'radar-same-day-merge', 'new-games-dedupe', 'global-demand-plan', 'challenge-filter', 'markdown-links', 'stable-latest'] };
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }
 

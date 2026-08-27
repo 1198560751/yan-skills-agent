@@ -150,6 +150,18 @@ function cli(action_, { timeout = 30000 } = {}) {
 function evalJs(js) { return cli(`eval '${`(()=>{${js}})()`.replace(/'/g, "'\\''")}'`) }
 function open(url) { cli(`open "${url}"`) }
 
+/**
+ * `wait time` is broken in opencli 1.8.7: it echoes the seconds back but returns
+ * in well under a second, so the two settles below were reading the panel before
+ * it had re-rendered. An in-page timer is accurate. Preferring `wait selector` or
+ * `wait text` is still better whenever there is something concrete to wait for.
+ * See backlink/tests/opencli-wait.test.mjs.
+ */
+function settle(seconds) {
+  const ms = Math.max(0, Math.round(Number(seconds) * 1000))
+  cli(`eval '(async()=>{await new Promise(r=>setTimeout(r,${ms}));return true})()'`, { timeout: ms + 30000 })
+}
+
 /** 坑 1：只取文字，且切片。extract 会把内嵌 base64 图片一起吐出来。 */
 function pageText(max = 4000) {
   return evalJs(`return (document.querySelector('main')||document.body).innerText.replace(/\\n{2,}/g,'\\n').slice(0,${max})`)
@@ -285,7 +297,7 @@ if (action === "status") {
   const openForm = wanted("openForm")
   if (openForm) {
     stampAndClick(openForm)
-    cli("wait time 2")
+    settle(2)
   }
 
   // 提交。输入框是受控组件（React/Angular 一类），直接改 .value 不触发框架状态，
@@ -313,7 +325,7 @@ if (action === "status") {
 
   const clicked = stampAndClick(wanted("submit"))
   console.log(`已点击提交按钮 ${clicked.replace(/^OK:/, "")}`)
-  cli("wait time 3")
+  settle(3)
   console.log()
   const rows = printTable()
 

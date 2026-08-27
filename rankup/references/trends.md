@@ -123,7 +123,17 @@ python3 $GT related Claude --geo US
 python3 $GT hot --region JP --limit 10
 ```
 
-选项速查：`--geo`（US/JP/ID…，留空=全球，任意 ISO 国家码都行）、`--time`（1m/3m/12m/5y/all 或 起:止 日期）、`--raw`（compare 不聚合）、`--top N`、`--region`/`--limit`（仅 hot）。
+选项速查：`--geo`（US/JP/ID…，留空=全球，任意 ISO 国家码都行）、`--time`（7d/28d/30d/1m/3m/12m/5y/all 或 起:止 日期）、`--raw`（compare 不聚合）、`--top N`、`--region`/`--limit`（仅 hot）。
+
+连续查多个时间窗或国家时，给这批命令加 `--keep-session`，脚本会复用同一个 Trends 页面，不会每条命令重新打开；全部查完后释放会话：
+
+```bash
+python3 $GT compare "keyword" --geo JP --time 30d --keep-session
+python3 $GT compare "keyword" --geo JP --time 7d --keep-session
+python3 $GT close
+```
+
+单条查询默认仍会在结束后关闭会话；`--session NAME` 可为并行任务指定独立会话名。
 
 ### KD 难度估算
 

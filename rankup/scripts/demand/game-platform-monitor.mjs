@@ -29,6 +29,7 @@ game-platform-monitor.mjs — 批量监测多语种游戏平台 sitemap
   --delay <ms>          子 sitemap 抓取间隔（默认 100）
   --timeout <seconds>   单个平台运行时间上限（默认 300 秒）
   --dry-run             校验清单并显示本次选择，不联网、不写快照
+  --self-test           运行同日累积合并离线检查
   --json                stdout 输出完整 JSON
   --help
 `.trim();
@@ -114,9 +115,51 @@ async function pool(items, concurrency, worker) {
   return results;
 }
 
+const rowKey = (row) => `${row.status ?? ''}:${row.url ?? row.loc ?? ''}:${row.lastmod ?? ''}`;
+const mergeRows = (older, newer) => [...new Map([...(older ?? []), ...(newer ?? [])].map((row) => [rowKey(row), row])).values()];
+
+function mergeSameDay(previous, current, day) {
+  if (!previous || String(previous.generatedAt ?? '').slice(0, 10) !== day) return { ...current, runCount: 1, sameDayMerged: false };
+  const olderById = new Map((previous.platforms ?? []).map((row) => [row.id, row]));
+  const platforms = current.platforms.map((row) => {
+    const older = olderById.get(row.id);
+    if (!older) return row;
+    return {
+      ...older,
+      ...row,
+      added: mergeRows(older.added, row.added),
+      changed: mergeRows(older.changed, row.changed),
+      removed: mergeRows(older.removed, row.removed),
+    };
+  });
+  const candidates = platforms.flatMap((p) => (p.added ?? []).map((row) => ({
+    platformId: p.id, platform: p.name, kind: p.kind ?? 'playable-game',
+    languages: p.languages, markets: p.markets, ...row,
+  })));
+  return {
+    ...current,
+    runCount: Number(previous.runCount ?? 1) + 1,
+    sameDayMerged: true,
+    runHistory: [...(previous.runHistory ?? [{ generatedAt: previous.generatedAt, failures: previous.failures ?? 0 }]), { generatedAt: current.generatedAt, failures: current.failures ?? 0 }],
+    baselineCreated: platforms.filter((p) => p.status === 'baseline_created').length,
+    compared: platforms.filter((p) => p.status === 'compared').length,
+    failures: platforms.filter((p) => p.status === 'failed').length,
+    candidates,
+    platforms,
+  };
+}
+
 async function main() {
   const args = parseArgs();
   if (args.help || args.h) { console.log(HELP); return; }
+  if (args['self-test']) {
+    const older = { generatedAt: '2099-01-02T01:00:00Z', selectedPlatforms: 1, failures: 0, platforms: [{ id: 'a', name: 'A', status: 'compared', added: [{ status: 'added', url: 'https://a.test/one' }], changed: [], removed: [] }] };
+    const newer = { generatedAt: '2099-01-02T02:00:00Z', selectedPlatforms: 1, failures: 0, platforms: [{ id: 'a', name: 'A', status: 'compared', added: [], changed: [{ status: 'changed', url: 'https://a.test/two', lastmod: '2099-01-02' }], removed: [] }] };
+    const merged = mergeSameDay(older, newer, '2099-01-02');
+    if (merged.runCount !== 2 || merged.candidates.length !== 1 || merged.platforms[0].changed.length !== 1) die('同日累积合并检查失败');
+    console.log('game-platform-monitor self-test passed');
+    return;
+  }
 
   const config = path.resolve(process.cwd(), String(args.config ?? DEFAULT_CONFIG));
   const data = loadPlatforms(config);
@@ -166,7 +209,7 @@ async function main() {
     markets: p.markets,
     ...row,
   })));
-  const report = {
+  let report = {
     generatedAt: new Date().toISOString(),
     config,
     selectedPlatforms: selected.length,
@@ -178,6 +221,9 @@ async function main() {
   };
   const day = report.generatedAt.slice(0, 10);
   const out = String(args.out ?? `.rankup/demand/game-review/${day}.json`);
+  let previous = null;
+  try { previous = JSON.parse(fs.readFileSync(out, 'utf8')); } catch { /* 首次运行 */ }
+  report = mergeSameDay(previous, report, day);
   const written = writeOut(out, report);
   if (args.json) console.log(JSON.stringify(report, null, 2));
   else console.log(`平台 ${selected.length}｜新 baseline ${report.baselineCreated}｜已对比 ${report.compared}｜候选 ${candidates.length}｜失败 ${report.failures}\n报告 ${written}`);

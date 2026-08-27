@@ -3,8 +3,9 @@
 用户提到「小游戏站」「游戏新词」「监控游戏站」「游戏 iframe」时，按本文件执行；建站、上线、
 索引和分析平台接入继续走 [`lifecycle.md`](lifecycle.md)。
 
-每日机会流水线由 `game-opportunity` Skill 执行：`discover` 负责 sitemap 增量，`evaluate` 负责验活、
-查量/KD、供给检查和候选排序。
+每日机会流水线由 Rankup 的专项模块 `game-opportunity` 执行：`discover` 负责 sitemap 增量，
+`evaluate` 负责验活、需求簇、查量/KD、趋势、独立需求、供给检查和候选排序。通用能力保存在仓库，
+项目 `.rankup/` 只保存该项目的私有运行数据。
 
 ## 一、目标
 
@@ -78,10 +79,14 @@ node scripts/demand/sitemap-diff.mjs --domain example.com --slug-words
 | 字段 | 内容 |
 |---|---|
 | `name / aliases / slug` | 主词、拼写、多语言变体 |
+| `entity_type / keyword_clusters` | 品牌词、品类词或泛词；同义词与承接意图分簇 |
 | `first_seen / sources` | 首次发现时间和两个独立信号 |
 | `trend` | 12 月、30 日、7 日趋势与地区 |
 | `serp_shape` | 前十页面类型、新鲜度和品牌强度 |
 | `volume / KD / CPC` | 已取得的数据与查询日期 |
+| `metric_scope` | 全球、国家、28 天总量、7 天方向与数据来源 |
+| `competition_review` | KD 口径、SERP 意图、弱位、新站与数据冲突 |
+| `internal_traffic_risk` | 平台内推荐与独立外部需求是否已经分开 |
 | `top10_ref_domains` | 前十页面的真实引荐域 |
 | `playable_source / embed` | iframe 来源、加载、移动端、全屏、声音 |
 | `ship_time` | 最小版本预计上线时间 |
@@ -90,6 +95,10 @@ node scripts/demand/sitemap-diff.mjs --domain example.com --slug-words
 
 快速上线信号：两个独立来源同时出现、Trends 斜率向上、SERP 出现独立站空位、游戏稳定运行、
 最小版本赶得上流量窗口、目标地区具备广告收入空间。
+
+KD 执行线：`<20` 可直接复核，`20–39` 是新站主战场，`40–49` 必须同时看到 SERP 弱位/新站、
+集中意图和可形成的体验差异，`>=50` 不作为 DR≈0 新站主攻词。近 28 天总量与最近 7 天方向分开写；
+“月度仍高、短期回落”不能写成“仍在上涨”。同义词分别展示，不简单相加。
 
 ## 四、接入游戏供给
 

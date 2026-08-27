@@ -1,6 +1,6 @@
 ---
 name: game-opportunity
-description: 小游戏机会的每日发现、筛选和调查 Skill。用户提到监测游戏平台 sitemap、发现新游戏内页、24 小时小游戏新词、Reddit/YouTube/X 游戏源头、游戏 KD、搜索量、可玩 iframe、每日候选报告、从老游戏里找仍有流量的竞争词，或要求自动运行小游戏机会流水线时使用。它复用 Rankup 与 Backlink 的现有脚本，把项目私有数据统一写进被 Git 忽略的 .rankup/。
+description: Rankup 的小游戏机会专项 Skill。用于监测游戏平台 sitemap、发现 24 小时游戏新词、建立多语言关键词需求簇、核对 KD/SERP/近 7 天趋势/独立需求/可玩供给并生成每日决策报告；通用规则和脚本随 Rankup 提交，项目私有结果写进被 Git 忽略的 .rankup/。
 ---
 
 # Game Opportunity
@@ -109,6 +109,12 @@ Similarweb 用于最近 28 天的关键词、国家和流量去向验证，Semru
 
 ## 数据边界
 
+本 Skill 是 Rankup 的可复用专项能力，不是项目 `.rankup/` 里的临时流程：
+
+- 通用 SOP、Checklist 与脚本保存在 `game-opportunity*`、`rankup/` 和 `backlink/`；
+- 每个网站自己的平台清单、快照、候选、取数结果与日报只保存在该项目 `.rankup/`；
+- 项目中验证稳定的新规则写回通用 Skill，项目名、域名和私有数据不写入通用规则。
+
 - 平台清单：`.rankup/demand/game-platforms.json`
 - sitemap 快照：`.rankup/demand/game-sitemap-snapshots/`
 - 发布源快照：`.rankup/demand/game-radar-snapshots/`
@@ -158,6 +164,16 @@ node game-opportunity/scripts/game-opportunity.mjs evaluate
 
 英文不能因为游戏来自小语种平台而省略：有官方英文名或通用英文名就进入全球查询。非英语原名也
 单独查全球，因为全球查询只统计完全相同的字符串，不会自动把 `ノノグラム` 翻译成 `nonogram`。
+
+先把候选标成 `brand`、`category` 或 `generic`，再建立需求簇：
+
+1. `brand`：官方名、英文名、本地名，以及已有信号支持的 `pc`、`online`、`guide` 等承接意图；
+2. `category`：本地用户对同一玩法的不同叫法、免费/在线/直接玩等意图词；
+3. `generic`：先用 SERP 确认它确实指向同一种游戏需求，再决定是否保留。
+
+Semrush/Similarweb 的相关词用于扩展候选，不能直接当开发证据；扩出的词仍要分别查国家量、KD 和
+SERP。同义词可能由同一批用户搜索，报告分别列数，不把它们简单相加成市场总量。游戏平台所在国家
+只代表发现来源；全球、英语大市场和真实有量国家不能因小语种来源而跳过。
 
 先执行：
 
@@ -210,6 +226,33 @@ node backlink/scripts/semrush-keyword.mjs \
 `rankup/scripts/gt.py` 查询 12 个月、30 天和 7 天窗口。对可玩候选提取 iframe 或游戏入口，记录
 HTTP 状态、加载页、移动端与全屏线索。
 
+#### KD 与 SERP 的统一判断
+
+| KD | 新站动作 |
+|---|---|
+| `<20` | 有量、意图和供给成立时直接进入开发复核 |
+| `20–39` | 新站主战场，完成 SERP 与独立需求核对后推进 |
+| `40–49` | 只有前十存在弱位/新站、意图集中、页面能明显更好且接受外链成本时继续 |
+| `>=50` | 不作为 DR≈0 新站主攻词，可留作需求簇副页或观察词 |
+
+KD 40 是深查触发线，不是自动放弃线。品牌衍生 KD 只说明攻略、下载、评测等第三方页面的切入难度；
+品类词用普通 KD。Semrush 与 Web.Cafe 相差 10 分以上、关键词类型不一致或某一方无数据时，必须写明
+口径冲突并人工复核 SERP，不能挑较低数字下结论。竞争证据至少保存搜索意图、前十弱位、低权重/新站
+是否存在，以及当前页面能否形成体验差异。
+
+#### 总量与最近方向分开
+
+Similarweb 的近 28 天总量回答“这个月有没有需求”，Google Trends 最近 7 天回答“现在还在加速、持平
+还是回落”。每个深查候选同时保存 `28d/30d` 与 `7d`，结论只用 `rising`、`flat`、`cooling`、
+`insufficient` 四种。近 28 天高于长期均值但最近 7 天回落，应写成“月度仍高、短期降温”，不能写成
+“仍在上涨”。样本不足是 `insufficient`，不是零需求。
+
+#### 独立需求与平台内流量分开
+
+游戏平台新增页、首页推荐和站内入口只证明平台愿意推这个游戏。外部需求要从独立 Google SERP、
+分国家搜索量、非官方社区/视频、竞品自然搜索词取得。每个候选记录 `internalTrafficRisk` 和
+`independentDemand`；只有平台内信号时留在观察，不因该页存在或可 iframe 就升级。
+
 ### 4. 排序
 
 把候选放进三组：
@@ -224,13 +267,27 @@ sitemap 噪声。
 ### 5. 写回并生成日报
 
 把量化结果写成 `.rankup/demand/game-review/YYYY-MM-DD-evaluation.json`，格式为
-`{"candidates":[...]}`；每项用 `entityId`、名称或 URL 与队列合并。然后执行：
+`{"candidates":[...]}`；每项用 `entityId`、名称或 URL 与队列合并。
+
+**这个文件是整条链路唯一的人工判断入口。** 品牌词/品类词、SERP 意图、前十弱位、7 天方向、
+站内流量风险这几项脚本算不出来，只能写在这里；D03、D06、D07、D08 四项验收查的就是它们。
+`evaluate` 与 `decision-checklist` 会**自动读取这个约定路径**，不需要每次传 `--evaluation`：
+
+```bash
+node game-opportunity/scripts/game-opportunity.mjs decision-checklist
+```
+
+只有要用别处的文件覆盖时才显式传参（显式传参优先）：
 
 ```bash
 TODAY=$(date +%F)
 node game-opportunity/scripts/game-opportunity.mjs render \
   --evaluation ".rankup/demand/game-review/${TODAY}-evaluation.json"
 ```
+
+> **2026-08-27 修复**：此前 `evaluate` 只认显式 `--evaluation`，而 `decision-checklist`
+> 调用它时不传参，于是人工判断**每次无人值守运行都被丢掉**，D03/D06/D07/D08 恒为 0/6。
+> 现在两个阶段读同一个约定路径。
 
 入口脚本固定生成日期文件和两个稳定入口：
 
@@ -247,6 +304,28 @@ node game-opportunity/scripts/game-opportunity.mjs render \
 
 前一日的 `research/watch` 会自动续带；首次发现后的第 3、7、14、28 天在 `carryForward.recheckDue`
 标记复查。新候选始终排在续带候选之前。
+
+### 深查名额：续带候选只在复查日占位
+
+每天只有 **6 个深查名额**（要花 Semrush 配额），所以谁占名额是硬约束：
+
+| 情况 | 是否占名额 |
+|---|---|
+| 已达开发门槛 | 占，最高优先级 |
+| 当天新确认为 `research` | 占 |
+| **续带的 `research`，今天正好跨过第 3/7/14/28 天** | **占**（这就是复查） |
+| **续带的 `research`，今天不是复查日** | **不占，把名额让给新发现** |
+| 新发现的可玩游戏 / Poki/itch / 其他 / Steam | 按此顺序补位 |
+
+> **2026-08-27 修复了两个会让流水线停止发现新机会的 bug：**
+>
+> 1. **复查判定用的是精确相等** `[3,7,14,28].includes(ageDays)`。流水线漏跑一天，
+>    age 从 2 跳到 4，第 3 天的复查就**永久错过且不会补**——而且不会有任何报错。
+>    改成「跨过里程碑就触发」。
+> 2. **续带候选每天都占着全部名额**。实测 2026-08-27：6 个名额里 5 个被续带占住，
+>    **224 个当天新发现的游戏只能抢 1 个**；而这些续带候选的证据缺口不会自己补上，
+>    等于队列永久饱和。根因是 `inputCandidates` 规范化时把 `carryForward` 字段丢了，
+>    续带候选在排序时看起来像全新的。
 
 ## JSON 产物
 
@@ -272,9 +351,12 @@ node game-opportunity/scripts/game-opportunity.mjs render \
       "playable": true,
       "embed": {},
       "keywords": [],
+      "keywordStrategy": {"entityType": "brand", "clusters": []},
       "demandProof": {"track": "search", "score": 0, "evidence": []},
-      "promotionRisk": {"internalLinks": false, "campaigns": 0, "independentPublishers": 0},
-      "trend": {},
+      "promotionRisk": {"internalTrafficRisk": "medium", "campaigns": 0, "independentPublishers": 0},
+      "competitionReview": {"serpIntent": "", "weakPositions": [], "newSitePresent": false, "kdInterpretation": "", "metricConflict": "reviewed"},
+      "trend": {"direction": "flat", "windows": {"28d": {}, "7d": {}}},
+      "decisionAudit": {"missingEvidence": []},
       "decision": "quick-ship",
       "reasons": [],
       "nextAction": "..."
@@ -289,14 +371,16 @@ node game-opportunity/scripts/game-opportunity.mjs render \
 
 ## 完成判定
 
-- 早间任务以 `game-opportunity-collect` 的 10 项 Checklist 为唯一完成门槛；
-- 决策任务以 `game-opportunity-decision` 的 10 项 Checklist 为唯一完成门槛；
+- 早间任务以本 Skill 的 `collect-checklist` 10 项验收为唯一完成门槛；
+- 决策任务以本 Skill 的 `decision-checklist` 10 项验收为唯一完成门槛；
 - discovery 报告存在，并给出成功、baseline、失败和新增数量；
 - 每条新增 URL 都有可访问性结论；
 - 多语言重复页已经合并；
 - 每个进入排序的候选都有供给状态和至少一组市场关键词数据；
 - 候选先有 `globalVolume/byCountry`，再有发现市场和主要国家的当地量；有英文名时英语词已进入全球查询；
 - `demandCoverage` 明确记录查过的关键词和国家，日报不把平台国家当成游戏产地；
+- 每个深查候选已标注品牌词/品类词，建立同义词与承接意图需求簇，并避免把重叠搜索量相加；
+- KD 口径、SERP 弱位/新站、28 天总量、7 天方向和平台内流量风险均有明确字段；
 - JSON 与 Markdown 数字一致，所有私有产物都位于 `.rankup/`。
 - `latest.json` 与当日 candidates 一致，`latest.md` 与当日日报一致；
 - 最终回复包含 `develop/research/watch` 三组候选和可点击来源链接。

@@ -136,10 +136,26 @@ wait selector "<css>" [--timeout ms]
 wait text "<substring>" [--timeout ms]
 wait xhr "<url 片段>" [--timeout ms]
 wait download [pattern] [--timeout ms]
-wait time <seconds>                      # 硬睡，最后手段
+wait time <seconds>                      # 坏的，见下
 ```
 
 默认超时 10000 ms。SPA 路由、登录跳转、懒加载列表在 `state`/`get` 之前都需要 `wait`。
+
+> **`wait time` 不要用（opencli 1.8.7 实测）。** 它会把秒数原样回显，然后**不到一秒就返回**。
+> 干净会话上实测：`wait time 1`、`wait time 5`、`wait time 12` 全部约 0.97 秒返回，
+> `--timeout` 调大也没用。任何写了 `wait time 12` 的脚本实际只等了不到一秒，
+> 于是在页面渲染完之前就去读它——**失败是静默的，表现为"偶发抓不到数据"。**
+>
+> `wait selector` / `wait text` / `wait xhr` **都是好的**，能正确尊重 `--timeout`，优先用它们。
+> 确实只能硬睡时，在页面里睡：
+>
+> ```bash
+> opencli browser "$S" eval '(async()=>{await new Promise(r=>setTimeout(r,12000));return true})()'
+> ```
+>
+> 实测准确到 45 秒仍无误差。本仓库把它封装成了 `backlink/scripts/opencli-core.mjs` 的
+> `sleepStep(seconds)`，回归测试在 `backlink/tests/opencli-wait.test.mjs`——
+> **那个测试失败就说明 opencli 修好了，可以改回原生 `wait time`。**
 
 `wait download` 需要扩展 1.0.8+。尽量传窄一点的文件名或 URL 片段（如 `receipt.pdf`）；
 空 pattern 会等超时窗口内的下一次下载。成功返回

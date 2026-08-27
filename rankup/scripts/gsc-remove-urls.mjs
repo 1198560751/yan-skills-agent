@@ -113,8 +113,15 @@ function waitText(text, timeout = 15000) {
   cli(`wait text "${text}" --timeout ${timeout}`)
 }
 
+// `wait time` is broken in opencli 1.8.7 — it returns in well under a second no
+// matter what you ask for, so this used to hand back control before the panel had
+// caught up. Sleeping inside the page is accurate. The cli() timeout has to clear
+// the sleep itself, or execSync kills the call it is waiting on.
+// See backlink/tests/opencli-wait.test.mjs.
 function waitTime(sec) {
-  cli(`wait time ${sec}`)
+  const ms = Math.max(0, Math.round(Number(sec) * 1000))
+  const js = `(async()=>{await new Promise(r=>setTimeout(r,${ms}));return true})()`
+  cli(`eval '${js}'`, { timeout: ms + 15000 })
 }
 
 function click(text) {

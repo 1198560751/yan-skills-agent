@@ -13,6 +13,7 @@
  *   related KW             相关查询（rising + top）
  *
  * 选项：--geo CODE  --time 1m|3m|12m|5y|all|START:END  --top N  --raw
+ *       --session NAME  --keep-session
  *
  * 依赖：opencli（浏览器桥要绿，先跑 opencli doctor）
  */
@@ -21,10 +22,14 @@ import { execFileSync } from "node:child_process";
 
 // 会话名必须是描述性常量。Bash tool 每次调用都是新进程，$$ / process.pid
 // 在那里会每次生成新名字，导致上一条命令开的标签页被遗弃。
-const SESSION = "rankup-gt-trends";
+const DEFAULT_SESSION = "rankup-gt-trends";
 const EXPLORE_URL = "https://trends.google.com/trends/explore?hl=en-US";
+const OPENCLI = process.env.GT_OPENCLI ?? "opencli";
 
 const PRESETS = {
+  "7d": "now 7-d",
+  "28d": "today 4-w",
+  "30d": "today 1-m",
   "1m": "today 1-m",
   "3m": "today 3-m",
   "12m": "today 12-m",
@@ -50,6 +55,11 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--raw") opts.raw = true;
+    else if (a === "--keep-session") opts.keepSession = true;
+    else if (a === "--session") {
+      if (i + 1 >= argv.length) die(`选项 ${a} 缺少值`);
+      opts.session = argv[++i];
+    }
     else if (a.startsWith("--")) {
       if (i + 1 >= argv.length) die(`选项 ${a} 缺少值`);
       opts[a.slice(2)] = argv[++i];
@@ -64,6 +74,7 @@ function extractor({ keywords, geo, timeframe, resolution }) {
   const strip = t => JSON.parse(t.replace(/^\\)\\]\\}'?,?\\n?/, ''));
   const tz = new Date().getTimezoneOffset();
   const kws = ${JSON.stringify(keywords)};
+  if (location.hostname !== 'trends.google.com') return {error: 'wrong_page'};
   const req = {comparisonItem: kws.map(k => ({keyword: k, geo: ${JSON.stringify(geo)}, time: ${JSON.stringify(timeframe)}})), category: 0, property: ""};
   const eu = 'https://trends.google.com/trends/api/explore?hl=en-US&tz=' + tz + '&req=' + encodeURIComponent(JSON.stringify(req));
   const er = await fetch(eu, {credentials: 'include'});
@@ -96,26 +107,35 @@ function extractor({ keywords, geo, timeframe, resolution }) {
 
 // 租约还在、标签页已经没了的时候，opencli 报的是这个。它不会自愈，必须先 close
 // 把旧租约丢掉再重开——所以这里只重试一次，重试前无条件 close。
-const STALE = /stale page identity|Page not found|session_not_found/i;
+const SESSION_NOT_FOUND = /session_not_found|No active session/i;
+const STALE = /stale page identity|Page not found/i;
 
-function runBatch(js, { retry = true } = {}) {
+function runBatch(js, session, { retry = true, open = false } = {}) {
   const commands = JSON.stringify([
-    { cmd: "open", args: { url: EXPLORE_URL } },
-    { cmd: "wait", args: { type: "time", value: "2000" } },
+    ...(open ? [
+      { cmd: "open", args: { url: EXPLORE_URL } },
+      // `wait time` is broken in opencli 1.8.7 — it returns in well under a second
+      // whatever you ask for, so Trends got queried before its bundle had booted.
+      // An in-page timer is accurate. See backlink/tests/opencli-wait.test.mjs.
+      { cmd: "eval", args: { js: "(async()=>{await new Promise(r=>setTimeout(r,2000));return true})()" } },
+    ] : []),
     { cmd: "eval", args: { js } },
   ]);
   let raw;
   try {
     raw = execFileSync(
-      "opencli",
-      ["browser", SESSION, "--window", "background", "batch", "--commands", commands],
+      OPENCLI,
+      ["browser", session, "--window", "background", "batch", "--commands", commands],
       { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] },
     );
   } catch (e) {
     const msg = (e.stderr || e.message || "").toString();
+    if (retry && SESSION_NOT_FOUND.test(msg)) {
+      return runBatch(js, session, { retry: false, open: true });
+    }
     if (retry && STALE.test(msg)) {
-      closeSession();
-      return runBatch(js, { retry: false });
+      closeSession(session);
+      return runBatch(js, session, { retry: false, open: true });
     }
     die(`opencli 调用失败：${msg.trim().slice(0, 400)}`);
   }
@@ -131,13 +151,19 @@ function runBatch(js, { retry = true } = {}) {
   const evalStep = steps.find((s) => s.cmd === "eval");
   if (!evalStep?.ok) {
     const err = String(evalStep?.error || "eval 步骤缺失");
+    if (retry && SESSION_NOT_FOUND.test(err)) {
+      return runBatch(js, session, { retry: false, open: true });
+    }
     if (retry && STALE.test(err)) {
-      closeSession();
-      return runBatch(js, { retry: false });
+      closeSession(session);
+      return runBatch(js, session, { retry: false, open: true });
     }
     die(`页面取数失败：${err}`);
   }
   const data = evalStep.result?.value ?? evalStep.result;
+  if (retry && data?.error === "wrong_page") {
+    return runBatch(js, session, { retry: false, open: true });
+  }
   if (!data || data.error) {
     if (String(data?.error).includes("_429")) {
       die("Google 在浏览器里也限流了（429）。这次是真的要等，或者换网络");
@@ -147,9 +173,9 @@ function runBatch(js, { retry = true } = {}) {
   return data;
 }
 
-function closeSession() {
+function closeSession(session) {
   try {
-    execFileSync("opencli", ["browser", SESSION, "close"], { stdio: "ignore" });
+    execFileSync(OPENCLI, ["browser", session, "close"], { stdio: "ignore" });
   } catch {
     /* 关不掉不影响已经拿到的数据 */
   }
@@ -159,10 +185,11 @@ function fetchTrends(keywords, opts, { resolution } = {}) {
   if (keywords.length > 5) die("Google Trends 一次最多对比 5 个关键词");
   const geo = opts.geo ?? "";
   const timeframe = toTimeframe(opts.time);
+  const session = opts.session ?? DEFAULT_SESSION;
   try {
-    return { data: runBatch(extractor({ keywords, geo, timeframe, resolution })), geo, timeframe };
+    return { data: runBatch(extractor({ keywords, geo, timeframe, resolution }), session), geo, timeframe };
   } finally {
-    closeSession();
+    if (!opts.keepSession) closeSession(session);
   }
 }
 
@@ -266,7 +293,14 @@ function cmdRelated(kws, opts) {
   }
 }
 
-const COMMANDS = { compare: cmdCompare, region: cmdRegion, related: cmdRelated };
+function cmdClose(kws, opts) {
+  if (kws.length) die("close 不需要关键词");
+  const session = opts.session ?? DEFAULT_SESSION;
+  closeSession(session);
+  console.log(`已释放 Trends 会话：${session}`);
+}
+
+const COMMANDS = { compare: cmdCompare, region: cmdRegion, related: cmdRelated, close: cmdClose };
 
 function main() {
   const argv = process.argv.slice(2);
@@ -278,9 +312,12 @@ function main() {
         "  node gt-browser.mjs compare KW1 [KW2...]  热度对比",
         "  node gt-browser.mjs region  KW1 [KW2...]  地区分布",
         "  node gt-browser.mjs related KW            相关查询",
+        "  node gt-browser.mjs close                 释放浏览器会话",
         "",
-        "  --geo CODE   地区（留空=全球）   --time 1m|3m|12m|5y|all|START:END",
+        "  --geo CODE   地区（留空=全球）   --time 7d|28d|30d|1m|3m|12m|5y|all|START:END",
         "  --top N      条数（默认 15）     --raw  compare 不做月度聚合",
+        "  --session NAME  会话名（默认 rankup-gt-trends）",
+        "  --keep-session  跑完保留会话，连续查询后用 close 释放",
       ].join("\n"),
     );
     process.exit(0);

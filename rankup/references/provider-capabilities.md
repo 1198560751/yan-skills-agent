@@ -61,8 +61,15 @@ JSON 是给脚本用的数据。改了一边必须改另一边**——`provider-
 
 ```bash
 opencli browser <session> open "<同一个 url>"      # 或 eval 里 location.reload()
-opencli browser <session> wait time 5000
+# 别用 `wait time` —— opencli 1.8.7 里它不到一秒就返回，等于没等（实测见下）
+opencli browser <session> eval '(async()=>{await new Promise(r=>setTimeout(r,5000));return true})()'
 ```
+
+> **`wait time N` 是坏的，这条会直接害你误判。** opencli 1.8.7 实测：`wait time 1`、`5`、`12`
+> 全部约 0.97 秒返回，`--timeout` 调大无效。**"等 20 秒还没渲染出来" 很可能根本没等够 1 秒。**
+> 本轮审计里那些「表格 25–40 秒仍不渲染」的失败，有多少是这个原因造成的，现在无法回溯确认。
+> 有条件可等时优先 `wait selector` / `wait text`（这两个是好的）；只能硬睡就用上面那行 eval。
+> 详见 `opencli` Skill 的 `references/browser-driving.md`。
 
 - 刷新 **2–3 次**仍然卡住，才记 `unavailable`，并写明「刷新 N 次后仍卡加载」。
 - **绝对不要把「卡加载」写成「该功能不存在」或「零流量」。**

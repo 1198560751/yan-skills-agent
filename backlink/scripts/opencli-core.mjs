@@ -186,6 +186,25 @@ export async function batchBrowser(session, commands, options = {}) {
 }
 
 /**
+ * A settle step that actually sleeps.
+ *
+ * `wait time <seconds>` is broken in opencli 1.8.7: it reports the seconds back
+ * but returns after well under a second, so every `wait time 12` in this repo
+ * used to be a no-op and pages were read before they had rendered. Measured on
+ * a fresh session with a live page: `wait time 1`, `5`, and `12` all returned in
+ * ~0.97s, while an in-page timer of the same length was accurate to within a
+ * second. `wait selector` and `wait text` are unaffected and stay preferred —
+ * reach for this only when there is no condition to wait on.
+ *
+ * `tests/opencli-wait.test.mjs` pins this. If it starts failing because the
+ * sleep got accurate, opencli fixed `wait time` and this can go back.
+ */
+export function sleepStep(seconds) {
+  const ms = Math.max(0, Math.round(Number(seconds) * 1000));
+  return { cmd: 'eval', args: { js: `(async () => { await new Promise((resolve) => setTimeout(resolve, ${ms})); return true; })()` } };
+}
+
+/**
  * Open a URL, optionally wait, then eval an expression — the most common
  * three-step browser sequence, collapsed into one CLI call.
  */
@@ -193,7 +212,7 @@ export async function openAndEval(session, url, expression, options = {}) {
   const wait = options.wait ?? 3;
   const commands = [
     { cmd: 'open', args: { url } },
-    ...(wait > 0 ? [{ cmd: 'wait', args: { seconds: wait } }] : []),
+    ...(wait > 0 ? [sleepStep(wait)] : []),
     { cmd: 'eval', args: { js: expression } },
   ];
   const results = await batchBrowser(session, commands, options);
