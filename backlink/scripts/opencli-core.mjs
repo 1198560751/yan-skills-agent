@@ -69,6 +69,27 @@ export function validateSession(value) {
   return value;
 }
 
+export function makeSubmitGuard(handoffOnly = false) {
+  const blockSubmit = (event) => { event.preventDefault(); event.stopImmediatePropagation(); };
+  const blockClick = (event) => {
+    if (event.target?.closest?.('button[type="submit"],input[type="submit"]')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  };
+  return { blockSubmit, blockClick, handoffOnly: Boolean(handoffOnly) };
+}
+
+export function releaseSubmitGuard(target, documentTarget, humanHandoff = false) {
+  const guard = target.__backlinkOpenCliSubmitGuard;
+  if (!guard) return { released: false, reason: 'no_guard' };
+  if (guard.handoffOnly && !humanHandoff) return { released: false, reason: 'captcha_handoff_only', handoffOnly: true };
+  documentTarget.removeEventListener('submit', guard.blockSubmit, true);
+  documentTarget.removeEventListener('click', guard.blockClick, true);
+  delete target.__backlinkOpenCliSubmitGuard;
+  return { released: true, handoffOnly: Boolean(guard.handoffOnly), submitAttempted: false };
+}
+
 /**
  * A session name is a tab claim: two tasks that pick the same name share one tab
  * and read back each other's pages, which looks exactly like the CLI stealing

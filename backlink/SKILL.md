@@ -41,6 +41,7 @@ backlink/
 │   ├── free-channels.json       places that publish a link at no cost
 │   ├── submission-targets.json  routes that ACCEPT a submission — first-pass library
 │   ├── paid-platforms.json      platforms observed carrying purchased placements
+│   ├── network-fingerprints.json known automation/PBN families; negative evidence, never placements
 │   ├── index-submission.json    engines that take a URL and publish NO link
 │   └── schema/                  JSON Schema for the files above
 │
@@ -144,7 +145,8 @@ backlink/
   per target and wrong per campaign.
 </route>
 <route ask="Someone published a list of backlink sites, is it useful">
-  `scripts/third-party-list-ingest.mjs` to normalise and diff it, then the
+  `scripts/third-party-list-ingest.mjs --blocklist data/network-fingerprints.json`
+  to normalise, diff, and preserve known network-family exclusions, then the
   "Reading a third-party list" section of
   <ref file="references/instant-publish.md"/>.
 </route>
@@ -609,8 +611,10 @@ then sampled five for traffic — every filled form was discarded.
 <read><ref file="references/submission-lanes.md"/></read>
 <inspect>
 Inspect every target independently. Never infer a form from a sibling site. A
-page is fillable only when there is one unambiguous qualifying form and no
-detected CAPTCHA/login wall.
+page is directly fillable only when there is one unambiguous qualifying form
+and no detected CAPTCHA/login wall. A CAPTCHA page may be staged only when the
+owner explicitly accepts normal human completion; never bypass or solve it by
+an external CAPTCHA service.
 <cmd><![CDATA[
 node scripts/inspect-page.mjs --session "inspect-$$" --mode comment \
   --url https://example.com/article --out .backlink/scan.json
@@ -640,6 +644,12 @@ rendered page and performs final submission. Only after the user explicitly
 authorizes one exact reviewed submission may the agent run
 `release-submit-guard.mjs` — and releasing the guard still does not click
 Submit.
+When the owner has explicitly accepted normal CAPTCHA completion, add
+`--allow-captcha`; this only permits guarded filling and leaves the CAPTCHA and
+final submission untouched. CAPTCHA routes are always handoff-only. Once the
+filled form is visibly ready for the owner, release only the guard with
+`release-submit-guard.mjs --human-handoff`, then stop. The agent must not solve
+the challenge or click Submit, even when a batch authorization already exists.
 </fill>
 <staged-queue>
 Lane B leaves forms on screen for the owner to finish. **One session name per

@@ -20,6 +20,7 @@
  *   node scripts/third-party-list-ingest.mjs --input LIST.md --out out.json
  *   node scripts/third-party-list-ingest.mjs --input LIST.md \
  *     --known data/free-channels.json --known ../project/.rankup/backlink-targets.json \
+ *     --blocklist data/network-fingerprints.json \
  *     --drop-pattern '停服|已停止|dead|shut ?down' --out out.json
  *
  * Flags:
@@ -27,6 +28,8 @@
  *   --out <json>          write normalised rows here (default: stdout summary only)
  *   --known <json>        repeatable; any JSON — every http(s) URL and bare
  *                         hostname anywhere inside it counts as "already known"
+ *   --blocklist <json>    repeatable; matching domains are emitted as excluded
+ *                         family risks, never silently dropped
  *   --drop-pattern <re>   rows whose text matches are marked `excluded` with the
  *                         matched reason, not silently deleted
  *   --flag-pattern <re>   rows whose text matches get `needsCheck` set
@@ -36,7 +39,7 @@
 import fs from 'node:fs';
 
 function parseArgs(argv) {
-  const out = { input: [], known: [], dropPattern: null, flagPattern: null, out: null, newOnly: false };
+  const out = { input: [], known: [], blocklist: [], dropPattern: null, flagPattern: null, out: null, newOnly: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const val = () => {
@@ -46,6 +49,7 @@ function parseArgs(argv) {
     };
     if (a === '--input') out.input.push(val());
     else if (a === '--known') out.known.push(val());
+    else if (a === '--blocklist') out.blocklist.push(val());
     else if (a === '--out') out.out = val();
     else if (a === '--drop-pattern') out.dropPattern = new RegExp(val(), 'iu');
     else if (a === '--flag-pattern') out.flagPattern = new RegExp(val(), 'iu');
@@ -85,6 +89,24 @@ function collectKnown(files) {
   return known;
 }
 
+function collectBlocked(files) {
+  const blocked = new Set();
+  for (const file of files) {
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    for (const network of data.networks || []) {
+      for (const domain of network.domains || []) {
+        const normalized = normDomain(domain);
+        if (normalized) blocked.add(normalized);
+      }
+    }
+  }
+  return blocked;
+}
+
+function isBlocked(domain, blocked) {
+  return [...blocked].some((root) => domain === root || domain.endsWith(`.${root}`));
+}
+
 function rowsFrom(md) {
   const rows = [];
   for (const line of md.split(/\r?\n/)) {
@@ -101,6 +123,7 @@ function rowsFrom(md) {
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const known = collectKnown(args.known);
+  const blocked = collectBlocked(args.blocklist);
 
   const byDomain = new Map();
   let rawRows = 0;
@@ -120,12 +143,18 @@ function main() {
           known: known.has(domain),
           excluded: null,
           needsCheck: false,
+          networkRisk: null,
         };
         if (!rec.urls.includes(url)) rec.urls.push(url);
         if (!rec.sourceText.includes(row.text)) rec.sourceText.push(row.text);
         if (args.dropPattern && args.dropPattern.test(row.text)) {
           rec.excluded = `matched --drop-pattern: ${(row.text.match(args.dropPattern) || [''])[0]}`;
           rec.verdict = 'excluded';
+        }
+        if (isBlocked(domain, blocked)) {
+          rec.excluded = 'matched a network-family blocklist';
+          rec.verdict = 'excluded';
+          rec.networkRisk = 'known-network-family';
         }
         if (args.flagPattern && args.flagPattern.test(row.text)) rec.needsCheck = true;
         byDomain.set(domain, rec);
@@ -140,6 +169,7 @@ function main() {
     alreadyKnown: records.filter((r) => r.known).length,
     excluded: records.filter((r) => r.verdict === 'excluded').length,
     needsCheck: records.filter((r) => r.needsCheck).length,
+    blocklisted: records.filter((r) => r.networkRisk === 'known-network-family').length,
   };
   if (args.newOnly) records = records.filter((r) => !r.known);
   stats.emitted = records.length;
@@ -148,6 +178,7 @@ function main() {
   const payload = {
     ingestedFrom: args.input,
     knownFrom: args.known,
+    blocklists: args.blocklist,
     note: 'Every row is a LEAD, not a verified channel. verdict is always candidate|excluded; nothing here has been observed. Screen each domain before any submission.',
     stats,
     records,

@@ -79,6 +79,38 @@ for (const c of free.channels) {
   }
 }
 
+// —— network-fingerprints —————————————————————————————————————
+// Family-level negatives stay separate from individual channels. A domain in
+// this file is evidence to stop and cluster, never evidence that a link exists.
+const networkData = JSON.parse(await readFile(join(DATA, 'network-fingerprints.json'), 'utf8'));
+const networkIds = new Set();
+const networkDomains = new Set();
+for (const network of networkData.networks || []) {
+  const at = `network-fingerprints[${network.id || '?'}]`;
+  if (!network.id || !/^[a-z0-9][a-z0-9-]*$/.test(network.id)) err(at, 'id 缺失或不是小写短横线 slug');
+  if (networkIds.has(network.id)) err(at, 'id 重复');
+  networkIds.add(network.id);
+  if (network.policy !== 'exclude-family') err(at, `policy 非法：${network.policy}`);
+  if (!Array.isArray(network.evidence) || network.evidence.length < 2 || network.evidence.some((u) => !/^https?:\/\//.test(u))) {
+    err(at, 'evidence 至少需要两个 http(s) 来源，避免单帖传闻直接变成族级黑名单');
+  }
+  if (!Array.isArray(network.fingerprints) || network.fingerprints.length < 2) err(at, 'fingerprints 至少需要两个独立指纹');
+  if (!Array.isArray(network.domains) || network.domains.length < 2) err(at, 'domains 至少需要两个域名，单域名不构成网络');
+  const local = new Set();
+  for (const domain of network.domains || []) {
+    if (!/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(domain)) err(at, `非法域名：${domain}`);
+    if (local.has(domain)) err(at, `域名重复：${domain}`);
+    if (networkDomains.has(domain)) err(at, `域名跨网络重复：${domain}`);
+    local.add(domain);
+    networkDomains.add(domain);
+  }
+  const exceptions = new Set((network.exceptions || []).map((x) => x.domain));
+  for (const domain of exceptions) if (local.has(domain)) err(at, `例外域名仍在 domains 中：${domain}`);
+  if (network.observed?.excludedDomains !== local.size) err(at, 'observed.excludedDomains 必须等于 domains 数');
+  if (network.observed?.listedDomains !== local.size + exceptions.size) err(at, 'observed.listedDomains 必须等于 domains + exceptions 数');
+  if (!isDate(network.observed?.checkedAt)) err(at, 'observed.checkedAt 必须是 YYYY-MM-DD');
+}
+
 // —— index-submission ————————————————————————————————————————
 // **这张表里没有一条外链。** 它记的是「把 URL 交给谁去收录」，
 // 和 free-channels 是两类东西，混进去会直接毁掉那张表的语义
@@ -219,6 +251,7 @@ for (const [host, p] of Object.entries(paid.platforms || {})) {
 
 if (!quiet || errors.length) {
   process.stdout.write(`free-channels: ${free.channels.length} 条（live ${free.channels.filter((c) => c.status === 'live').length}）\n`);
+  process.stdout.write(`network-fingerprints: ${networkIds.size} 个网络（排除域名 ${networkDomains.size}）\n`);
   process.stdout.write(`paid-platforms: ${Object.keys(paid.platforms || {}).length} 条\n`);
   process.stdout.write(`index-submission: ${(idx.engines || []).length} 条（收录提交口，**不是外链**）\n`);
   const tl = (targets.targets || []);
