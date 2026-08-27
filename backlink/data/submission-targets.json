@@ -19930,11 +19930,11 @@
       "priceCheckedAt": null,
       "status": "usable",
       "sourceList": "BHW-style recursive article search",
-      "notes": "Browser scan found one unambiguous comment form with Website, name, and comment fields. A reviewed page-specific payload was safe-filled with the submit guard active; it was not submitted.",
+      "notes": "Browser scan found one unambiguous comment form with Website, name, and comment fields. One reviewed real submission was accepted and published, but the public template rendered the author name as plain text and omitted the Website anchor; keep this as a comment route, not a published-link channel.",
       "lastProbedAt": "2026-08-27",
       "evidence": {
         "method": "browser-dom",
-        "what": "Live browser scan found exactly one safe comment form and safe-fill revalidated every field before filling; submitAttempted=false.",
+        "what": "A reviewed real submission was accepted and published, but anonymous public verification showed no Website anchor.",
         "httpStatus": 200,
         "finalUrl": "https://ohheybrian.com/blog/2024/03/extending-comments-on-the-blog/",
         "title": "Extending Comments on the Blog"
@@ -19966,11 +19966,11 @@
       "priceCheckedAt": null,
       "status": "usable",
       "sourceList": "BHW-style recursive article search",
-      "notes": "Browser scan found one unambiguous comment form with Website, name, email, and comment fields. A reviewed page-specific payload was safe-filled with the submit guard active; it was not submitted.",
+      "notes": "Browser scan found one unambiguous comment form with Website, name, email, and comment fields. One reviewed real submission was accepted into moderation. The reviewer-only view rendered an external nofollow author link, but anonymous public verification is pending; do not infer a public backlink.",
       "lastProbedAt": "2026-08-27",
       "evidence": {
         "method": "browser-dom",
-        "what": "Live browser scan rejected off-screen controls, found exactly one safe comment form, and safe-fill revalidated every field before filling; submitAttempted=false.",
+        "what": "A reviewed real submission was accepted into moderation; anonymous public verification is still pending.",
         "httpStatus": 200,
         "finalUrl": "https://www.wpkube.com/create-viral-quizzes-wordpress/",
         "title": "How to Create Viral Quizzes for Your WordPress Website Using Quiz Cat"
