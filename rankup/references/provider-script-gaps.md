@@ -131,6 +131,32 @@
 
 > 以下是设计草案，**尚未实现**。动手前先读第四节的硬约束。
 
+### 1. ~~`backlink/scripts/similarweb-keywords.mjs`~~ → **已实现**
+
+**2026-08-28 落地。** 这是排第 1 的缺口——选词流水线的入口。
+
+```bash
+node backlink/scripts/similarweb-keywords.mjs --seed "nonogram" --tab relatedKeywords
+node backlink/scripts/similarweb-keywords.mjs --seed-file roots.txt --tab relatedKeywords --jsonl --out kw.jsonl
+```
+
+路由是**点出来的不是猜的**（上一轮猜的那条不存在）：
+`#/digitalsuite/acquisition/findkeywords/keyword-generator-tool/<country>/28d?...&tab=<tab>&keyword=<seed>`
+四个标签页各自的口径：`phraseMatch`（词组匹配）、`relatedKeywords`（相关词，量最大）、
+`trending`、`questions`。实测 `nonogram` 在 relatedKeywords 下有 **8,888 个词**。
+
+**为什么必须走 DOM 列**：这张表在 DOM 里**按列渲染**，`.swReactTable-column` 一个容器
+装一整列，innerText 出来是「100 个行号一块、100 个关键词一块」。按行切分时只要某列
+有空值就整列上移一格，得到一组读起来完全正常的错数据。按列取值由 DOM 结构保证对齐。
+
+**不同标签页的列不一样**：实测 relatedKeywords 没有「28 天的体量」这一列。脚本按列名
+取值，缺列会整列 null **并在 stderr 报 `[missing-columns]`**——不会把「平均体量」的
+数字挪过去冒充它。
+
+**只读当前页 100 行**，`shownTotal` / `complete` 如实报出总量差距，并打 `[partial]`。
+
+### 旧草案（保留作对照）
+
 ### 1. `backlink/scripts/similarweb-keywords.mjs`
 ```
 --seed "json editor" --mode generator|overview|competitors

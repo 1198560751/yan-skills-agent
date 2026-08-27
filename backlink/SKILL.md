@@ -56,6 +56,9 @@ backlink/
 │   ├── lib-tools-share.mjs         ★ the ONE panel launcher
 │   ├── tools-share-open.mjs        launch a tool by name; --goto for a deep link
 │   ├── similarweb-query.mjs        performance | channels | similar-sites
+│   ├── similarweb-keywords.mjs     seed keyword → thousands of related keywords.
+│   │                               The keyword-research entry point the pipeline was missing.
+│   │                               Column-major DOM table; parsing lives in lib-similarweb.mjs
 │   ├── similarweb-batch.mjs        bulk traffic screen — one login, N domains, resumable
 │   ├── semrush-batch.mjs           same, on the other card's quota (organic traffic)
 │   ├── semrush-overview.mjs        AS / organic traffic / ref-domains / keywords

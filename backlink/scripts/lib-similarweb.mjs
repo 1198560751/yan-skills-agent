@@ -120,3 +120,67 @@ export function deriveChannels(lines) {
   }
   return { totalFromChannels: total || null, sharePercent, visits };
 }
+
+/**
+ * 关键词生成器的表格提取器（在页面里跑）。
+ *
+ * **这张表在 DOM 里是按列渲染的**：`.swReactTable-column` 一个容器装一整列，
+ * 表头列和数据列还是分开的两组。innerText 出来是「100 个行号一块、100 个关键词一块」，
+ * 按行切分必然错位——某一列有空值时 innerText 不会留空行，于是整列往上挪一格，
+ * 得到一组读起来完全正常的错数据。
+ *
+ * 按 DOM 列取值则由结构本身保证对齐：第 i 个数据列的第 j 个格子，就是第 j 行的该列值。
+ * 表头列（子元素 <= 2 个）与数据列（子元素上百个）按出现顺序一一对应。
+ * 末尾有一个空的占位格，靠关键词为空过滤掉。
+ */
+export const SW_KEYWORD_TABLE_CELLS = `(() => {
+  const all = [...document.querySelectorAll('.swReactTable-column')];
+  const headerCols = all.filter((c) => c.children.length <= 2);
+  const dataCols = all.filter((c) => c.children.length > 2);
+  if (!dataCols.length || headerCols.length !== dataCols.length) return null;
+  const headers = headerCols.map((c) => (c.children[0]?.innerText || '').trim().split('\\n')[0].trim());
+  const columns = dataCols.map((c) => [...c.children].map((x) => (x.innerText || '').trim()));
+  const depth = Math.min(...columns.map((c) => c.length));
+  const rows = [];
+  for (let i = 0; i < depth; i++) rows.push(columns.map((c) => c[i]));
+  return { headers, rows };
+})()`;
+
+/** 「44%」「$1.21」这类带符号的值。空串与占位符一律 null，绝不落成 0。 */
+function swCell(value, { percent = false, currency = false } = {}) {
+  const text = String(value ?? '').trim();
+  if (!text || /^(?:-|—|N\/A|n\/a|不可用)$/i.test(text)) return null;
+  if (percent) return parseNumber(text.replace(/%$/, ''));
+  if (currency) return parseNumber(text.replace(/^[$¥€£]/, ''));
+  return parseNumber(text);
+}
+
+/**
+ * 把提取到的列表变成行对象。**按列名取值，不按下标**——列顺序变了会得到 null 并
+ * 记进 missingColumns，而不是把体量的数字安到 KD 头上。
+ */
+export function deriveKeywordRows(cells) {
+  if (!cells?.headers?.length || !Array.isArray(cells.rows)) {
+    return { rows: [], missingColumns: ['<no DOM columns>'] };
+  }
+  const wanted = {
+    keyword: '关键词', volume28d: '28 天的体量', avgVolume: '平均体量',
+    zeroClickPercent: '零点击搜索', kd: 'KD', intent: '意图', cpc: 'CPC',
+  };
+  const index = Object.fromEntries(Object.entries(wanted).map(([key, label]) => [key, cells.headers.indexOf(label)]));
+  const missingColumns = Object.entries(index).filter(([, i]) => i < 0).map(([key]) => wanted[key]);
+  const cell = (row, key) => (index[key] >= 0 ? row[index[key]] : null);
+
+  const rows = cells.rows.map((row) => ({
+    keyword: String(cell(row, 'keyword') ?? '').trim(),
+    volume28d: swCell(cell(row, 'volume28d')),
+    avgVolume: swCell(cell(row, 'avgVolume')),
+    zeroClickPercent: swCell(cell(row, 'zeroClickPercent'), { percent: true }),
+    kd: swCell(cell(row, 'kd')),
+    // 一个词可以同时带多个意图，页面用换行分隔。
+    intent: String(cell(row, 'intent') ?? '').split(/\s+/).filter(Boolean),
+    cpc: swCell(cell(row, 'cpc'), { currency: true }),
+  })).filter((row) => row.keyword);
+
+  return { rows, missingColumns };
+}
