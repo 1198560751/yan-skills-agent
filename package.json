@@ -1,0 +1,15 @@
+{
+  "name": "@yan-labs/rankup",
+  "version": "2.56.0",
+  "type": "module",
+  "bin": {
+    "rankup": "rankup/scripts/rankup-cli.mjs"
+  },
+  "files": [
+    "rankup/scripts/rankup-cli.mjs",
+    "rankup/data/provider-capabilities.json",
+    "backlink/scripts/tools-share-evidence.mjs",
+    "backlink/scripts/opencli-core.mjs",
+    "backlink/scripts/lib-tools-share.mjs"
+  ]
+}

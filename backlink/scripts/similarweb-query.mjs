@@ -78,12 +78,13 @@ let evaluate = null;
 
 let output;
 let subscription = null;
+let launched;
 try {
   // 启动一律走 lib-tools-share.mjs 的那一份。**之前这里自己写了一份简化版**：
   // 靠 logo 的 style 找卡片、直接点「打开」、不选节点。它漏掉了三个已知坑
   // （会话焊死、卡片无文字、节点会挂），于是稳定报 shared_proxy_blank_or_unavailable，
   // 而真正的原因每次都不一样。删掉重复实现之后这类误报才有唯一的排查入口。
-  const launched = await launchTool({
+  launched = await launchTool({
     session,
     tool: 'similarweb',
     node: flags.node,
@@ -228,5 +229,6 @@ try {
   printJson(output);
   process.exitCode = 1;
 } finally {
+  await launched?.releaseBrowserLocks();
   if (!keepOpen) await closeSession(session);
 }

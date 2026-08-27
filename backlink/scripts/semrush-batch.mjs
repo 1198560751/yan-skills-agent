@@ -97,6 +97,7 @@ const launched = await launchTool({
   window: flags.window === 'foreground' ? 'foreground' : 'background',
   wait: Number(flags.wait || 7), timeout: Number(flags.launchTimeout || 60),
 });
+try {
 const evaluate = launched.evalPage;
 if (expiryWarning(launched.state)) console.error(`[sem] ${expiryWarning(launched.state)}`);
 
@@ -180,3 +181,6 @@ for (const domain of todo) {
   console.error(`[sem] ${n}/${todo.length} ${domain} → ${row.verdict}${row.organicTraffic != null ? ` (${row.organicTraffic})` : ''} ${Math.round((Date.now() - startedAt) / 1000)}s`);
 }
 console.error('[sem] done');
+} finally {
+  await launched.releaseBrowserLocks?.();
+}

@@ -492,9 +492,32 @@ node scripts/demand/word-roots.mjs expand converter \
    ↓ ③ 这个站到底多大、流量从哪来
    backlink/scripts/similarweb-query.mjs            # 总访问量、渠道构成、相似站
    backlink/scripts/semrush-overview.mjs            # 自然流量、引荐域、关键词库
+   # 这两家还有哪些面板能力、哪些是死路 → provider-capabilities.md（实测测绘，先查表再开浏览器）
    ↓ ④ 这个方向在涨还是在跌
    scripts/gt.py                                    # Google Trends
 ```
+
+社交帖子或收入榜案例要复核整条链路时，不要手工拼表，也不要重写采集逻辑：
+
+候选发现先用 `boards.mjs trustmrr`；它负责从收入榜找候选。拿到对应 TrustMRR 详情链接后，
+再交给 `revenue-site-audit.mjs` 读取公开 `.md`，核验 Stripe、MRR、订阅数、30 天收入与同步时间。
+两者分工是“boards 发现 → audit 复核”，audit 不再造一套榜单发现器。
+
+```bash
+node scripts/demand/revenue-site-audit.mjs \
+  --domain <域名> --source-url <原始说法链接> \
+  --claimed-visits <声称月访> --claimed-organic-share <声称自然占比> \
+  --keyword <主词> --db us --out audit.json
+```
+
+它顺序调用现有域名画像、Similarweb 两张报表、Semrush 国家库、sitemap 和 KD 脚本。
+输出必须保留 `unavailable`，不能把失败写成 0；AITDK 与 Similarweb 的近月估算相差
+超过 2 倍会报 `traffic_estimates_conflict`。Semrush 的国家库自然流量只并列展示，
+不和 Similarweb 全球总访问做倍数或渠道占比运算。用 `--from <目录>` 可离线重整已经
+保存的 `aitdk.json` / `similarweb-*.json` / `semrush.json` / `sitemap.json` / `kd.json`。
+Similarweb 的 Performance 总访问与 Marketing Channels 渠道行合计也要互核；同一范围仍差
+超过 35% 会报 `similarweb_report_conflict`。报告必须留下页面 URL、as-of 日期、流量类型和
+原始字段名，渠道行合计不得悄悄冒充 Performance 总访问。
 
 ### ②·五 盘面里有低 DR 站时，先查它的**域名年龄**，再查它的流量
 

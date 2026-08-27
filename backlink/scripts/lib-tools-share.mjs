@@ -11,9 +11,12 @@
  * 于是稳定报 shared_proxy_blank_or_unavailable。**要用就用这一份。**
  *
  * 本模块从不输入密码。面板未登录就明确报错并停下，登录是机主自己在自己的 Chrome 里做的事。
+ * 已验证 2026-08-26：同一 session 已在目标工具页时必须原地复用；重复打开 dashboard
+ * 可能被面板计作新的客户端登录。
  */
 import { firstJson, opencli } from './opencli-core.mjs';
 import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -91,6 +94,36 @@ export async function acquireToolsShareLock(toolKey, {
   }
 }
 
+export async function acquireToolsShareBrowserLocks(session, tool, options = {}) {
+  const locks = [];
+  try {
+    for (const key of ['opencli-session-' + session, tool]) {
+      locks.push(await acquireToolsShareLock(key, { timeoutMs: options.timeoutMs ?? 10 * 60_000, lockRoot: options.lockRoot }));
+    }
+  } catch (error) {
+    await Promise.all(locks.reverse().map((lock) => lock.release()));
+    throw error;
+  }
+  let released = false;
+  const onExit = () => {
+    if (released) return;
+    released = true;
+    for (const lock of locks.slice().reverse()) {
+      try { rmSync(lock.path, { recursive: true, force: true }); } catch {}
+    }
+  };
+  process.once('exit', onExit);
+  return {
+    async release() {
+      if (released) return;
+      released = true;
+      process.removeListener('exit', onExit);
+      await Promise.all(locks.reverse().map((lock) => lock.release()));
+    },
+    keys: ['opencli-session-' + session, tool],
+  };
+}
+
 const BLOCKED_PAGE = /(?:登录|登入|login|session|会话).{0,20}(?:过期|失效|无效|expired|invalid)|(?:冻结|封禁|冷却|cooldown|frozen|temporarily blocked|too many requests|请求过于频繁)/i;
 
 /** 返回可公开的原因，不返回页面正文，避免错误日志夹带会话信息。 */
@@ -122,6 +155,13 @@ export function assertToolsShareAvailable(capture) {
   return capture;
 }
 
+export function isReusableToolCapture(capture, origin) {
+  let host = '';
+  try { host = new URL(capture?.url || '').hostname; } catch { return false; }
+  const bodyLength = Number(capture?.len) || String(capture?.bodyText || '').trim().length;
+  return (host === origin || host.endsWith(`.${origin}`)) && bodyLength > 40;
+}
+
 /** 启动 URL 的查询串里带会话令牌。**任何时候都不要打印它。** */
 export const scrub = (url) => String(url || '').split('?')[0];
 
@@ -132,7 +172,7 @@ export const scrub = (url) => String(url || '').split('?')[0];
  * `opencli` 命令失败时会把当前活动会话连同完整 URL 打进 stderr，
  * 而 `run()` 会把那段 stderr 原样抛成 Error.message，脚本再把它塞进
  * `output.error.message` —— 于是 `printJson` 打出来、`--out` 写进文件、
- * 整段进日志。2026-08-24 实测到一次：`__gmitm=ayWzA3*...` 完整出现在报错里。
+ * 整段进日志。2026-08-24 实测到一次：`__gmitm=<redacted>` 完整出现在报错里。
  * **凡是要外发的错误文本都要过这一层**，别指望每个调用点自己记得。
  */
 export function redactSecrets(text) {
@@ -149,21 +189,39 @@ export function redactSecrets(text) {
  * 打开面板、（可选）选节点、点「打开」、等落到工具域名。
  * 返回 { evalPage, state, landed, tool }，evalPage 已绑定会话，供调用方继续驱动工具页。
  */
-export async function launchTool({
+async function launchToolInner({
   session,
   tool: toolKey,
   node,
   window: windowMode = 'background',
   wait = 7,
   timeout = 40,
+  evalTimeoutMs = 60_000,
   dashboardUrl = process.env.TOOLS_SHARE_DASHBOARD_URL || DEFAULT_DASHBOARD,
 }) {
   const tool = TOOLS[String(toolKey || '').toLowerCase()];
   if (!tool) throw new Error(`tool must be one of: ${Object.keys(TOOLS).join(', ')}`);
   const env = { OPENCLI_WINDOW: windowMode === 'foreground' ? 'foreground' : 'background' };
 
-  const evalPage = async (expression, timeoutMs = 60_000) =>
+  const evalPage = async (expression, timeoutMs = evalTimeoutMs) =>
     firstJson((await opencli(['browser', session, 'eval', expression], { env, timeoutMs })).stdout);
+
+  // 同一任务会连续查很多域名/关键词。先复用已经停在目标工具 origin 的 session；
+  // dashboard 每次打开都可能被平台计作一个新客户端登录，不能拿它当普通导航页反复进。
+  try {
+    const existing = assertToolsShareAvailable(await evalPage('(() => { const bodyText = (document.body?.innerText||"").trim(); return JSON.stringify({ url: location.href, title: document.title, len: bodyText.length, bodyText: bodyText.slice(0, 1000) }); })()'));
+    if (isReusableToolCapture(existing, tool.origin)) {
+      return {
+        tool,
+        state: { loggedIn: true, cards: [], expiry: null, daysLeft: null, quotas: [], via: 'existing-tool-session' },
+        landed: { url: scrub(existing.url), title: existing.title },
+        evalPage, env, index: -1, reused: true,
+      };
+    }
+  } catch (error) {
+    if (error?.code === 'TOOLS_SHARE_BLOCKED') throw error;
+    if (!/No active session|No tab with given id|session.+not found/i.test(String(error?.message || ''))) throw error;
+  }
 
   // ── 直连兜底 ───────────────────────────────────────────────────────────────
   // 面板的 dashboard 登录态**会单独掉**，而工具域的会话令牌此时往往还活着
@@ -352,6 +410,17 @@ export async function launchTool({
   }
 
   return { tool, state, landed, evalPage, env, index };
+}
+
+export async function launchTool(options) {
+  const locks = await acquireToolsShareBrowserLocks(options.session, String(options.tool || '').toLowerCase());
+  try {
+    const launched = await launchToolInner(options);
+    return { ...launched, releaseBrowserLocks: locks.release };
+  } catch (error) {
+    await locks.release();
+    throw error;
+  }
 }
 
 /** 在已登录的工具页内部深链跳转。**只有在 launchTool 跑完之后才有效。** */

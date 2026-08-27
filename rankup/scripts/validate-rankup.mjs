@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.52.0";
+const expectedVersion = "2.56.0";
 const requiredReferences = [
   "lifecycle.md",
   "cloudflare-stack.md",
@@ -43,6 +43,8 @@ const requiredContent = {
     "scripts/sessions.mjs",
     "scripts/indexnow-submit.mjs",
     "scripts/webmaster-sitemap.mjs",
+    "scripts/rankup-cli.mjs",
+    "npx @yan-labs/rankup audit similarweb",
     "断言绝不能被 git 追踪",
     "--new-only",
     "review-state.json",
@@ -215,6 +217,13 @@ async function validate() {
       `SKILL.md metadata.version must be ${expectedVersion}, found ${frontmatterVersion ?? "missing"}`,
     );
   }
+
+  try {
+    const repositoryReadme = await readFile(path.join(skillRoot, "..", "README.md"), "utf8");
+    if (repositoryReadme.startsWith("# yan-skills") && !repositoryReadme.includes(`版本 \`${expectedVersion}\``)) {
+      errors.push(`README.md version must be ${expectedVersion}`);
+    }
+  } catch {}
 
   for (const reference of requiredReferences) {
     try {

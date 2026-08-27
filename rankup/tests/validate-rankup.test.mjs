@@ -51,6 +51,15 @@ test("release validator accepts the complete installed Skill", async () => {
   });
 });
 
+test("release validator rejects a stale repository README version", async () => {
+  await withSkillCopy(async (skillRoot) => {
+    await writeFile(path.join(skillRoot, "..", "README.md"), "# yan-skills\n\n版本 `0.0.0`。\n");
+    const result = validate(skillRoot);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /README\.md version must be/);
+  });
+});
+
 // Skill 必须保持项目中立:项目可归属内容属于 <project>/.rankup/。
 // 每种泄漏形态都单独负向测试,否则闸门可能只是看起来存在。
 for (const [label, leak] of [

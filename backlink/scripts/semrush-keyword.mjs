@@ -27,12 +27,14 @@
  *   node semrush-keyword.mjs --kw-file words.txt --db us --bulk --out us.jsonl
  *   node semrush-keyword.mjs --bulk-plan countries.json --out countries.jsonl
  *   # 想要全球规模：读输出里的 globalVolume 字段，不要重算 --db 或加总 byCountry
+ *   # 单词模式默认自动复查显著的第一大国家；明确不要时传 --no-follow-top-country
  *
- * 已验证 2026-08-25：冻结/登录失效页立即停止；同机 Semrush 查询跨进程串行；
- * 批量关键词之间默认等待 12–25 秒，不对冻结页自动重试。
+ * 已验证 2026-08-26：冻结/登录失效页立即停止；同机 Semrush 查询跨进程串行；
+ * 批量关键词之间默认等待 12–25 秒；第一大国家份额 >=35% 或当前库量 <500 时，
+ * 同一 session 内自动 geo-hop 一次，不回 dashboard、不递归查询。
  */
 import { defaultSession, parseFlags, printJson, validateSession, showHelpIfRequested} from './opencli-core.mjs';
-import { acquireToolsShareLock, assertToolsShareAvailable, expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
+import { assertToolsShareAvailable, expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { randomInt } from 'node:crypto';
 import assert from 'node:assert/strict';
@@ -47,7 +49,7 @@ if (flags.bulk && !bulkPlanFile && !dbGiven) throw new Error('Bulk keyword looku
 // changing it now would silently re-point their saved runs. But an English
 // keyword queried against the JP database returns real, plausible, wrong
 // numbers with nothing to signal it, so a defaulted --db announces itself.
-if (!dbGiven && !bulkPlanFile) {
+if (!dbGiven && !bulkPlanFile && !flags['self-test']) {
   console.error(`⚠ --db not given, defaulting to "jp". volume/KD/CPC will be Japan's numbers even for an English or global keyword — pass --db us (or uk/de/…) for any non-Japan market. Need a worldwide figure instead? Read globalVolume in the output, it doesn't depend on --db.`);
 }
 const session = flags.session ? validateSession(flags.session) : defaultSession('semrush-keyword');
@@ -69,7 +71,7 @@ if (bulkPlanFile) {
     }
   }
 }
-if (!keywords.length && !bulkPlanFile) throw new Error('Need --kw "a,b", --kw-file <path>, or --bulk-plan <json>');
+if (!keywords.length && !bulkPlanFile && !flags['self-test']) throw new Error('Need --kw "a,b", --kw-file <path>, or --bulk-plan <json>');
 const minDelaySeconds = Number(flags['min-delay'] ?? 12);
 const maxDelaySeconds = Number(flags['max-delay'] ?? 25);
 if (![minDelaySeconds, maxDelaySeconds].every(Number.isFinite) || minDelaySeconds < 0 || maxDelaySeconds < minDelaySeconds) {
@@ -183,6 +185,23 @@ function pickCountries(lines) {
   return Object.keys(out).length ? out : null;
 }
 
+function geoHopDecision(row, currentDb) {
+  const countries = Object.entries(row?.byCountry || {}).sort((a, b) => b[1] - a[1]);
+  if (!countries.length) return { triggered: false, reason: 'no byCountry data' };
+  const [code, topCountryVolume] = countries[0];
+  const country = code.toLowerCase();
+  const share = row.globalVolume > 0 ? Math.round(topCountryVolume / row.globalVolume * 1000) / 10 : null;
+  if (country === currentDb) return { triggered: false, reason: 'top country is current db', country, share, topCountryVolume };
+  if (!(share >= 35 || Number(row.volume) < 500)) {
+    return { triggered: false, reason: 'top share below 35% and current volume >=500', country, share, topCountryVolume };
+  }
+  return {
+    triggered: true,
+    reason: share >= 35 ? 'top country share >=35%' : 'current db volume <500',
+    country, share, topCountryVolume,
+  };
+}
+
 if (flags['self-test']) {
   const sample = parseBulkApi(['x', 'missing'], [{
     phrase: 'x', volume: 1400, difficulty: 29, cpc: 0.16, competition_level: 0.01,
@@ -194,14 +213,15 @@ if (flags['self-test']) {
     noData: false, status: 'ok',
   });
   assert.equal(sample[1].status, 'absent');
+  assert.deepEqual(geoHopDecision({ volume: 100, globalVolume: 1000, byCountry: { IN: 600, US: 100 } }, 'us'), {
+    triggered: true, reason: 'top country share >=35%', country: 'in', share: 60, topCountryVolume: 600,
+  });
+  assert.equal(geoHopDecision({ volume: 5000, globalVolume: 10000, byCountry: { IN: 2000, US: 1000 } }, 'us').triggered, false);
+  assert.equal(geoHopDecision({ volume: 100, globalVolume: 1000, byCountry: { US: 600 } }, 'us').triggered, false);
   console.log('semrush-keyword bulk self-test passed');
   process.exit(0);
 }
 
-const accountLock = await acquireToolsShareLock('semrush', {
-  timeoutMs: Math.max(0, Number(flags['lock-timeout'] ?? 600)) * 1000,
-});
-try {
 const launched = await launchTool({
   session,
   tool: 'semrush',
@@ -210,6 +230,7 @@ const launched = await launchTool({
   wait: Number(flags.wait || 7),
   timeout: Number(flags.launchTimeout || 60),
 });
+try {
 const warn = expiryWarning(launched.state);
 if (warn) console.error(`[subscription] ${warn}`);
 
@@ -312,6 +333,21 @@ for (const kw of keywords) {
     if (error?.code === 'TOOLS_SHARE_BLOCKED') throw error;
     row = { keyword: kw, db, status: 'error', error: error.message };
   }
+  if (row.status === 'ok') {
+    const decision = geoHopDecision(row, db);
+    row.geoHop = decision;
+    if (decision.triggered && !flags['no-follow-top-country']) {
+      try {
+        const [followed] = await fetchBulk(decision.country, [kw]);
+        row.geoHop = { ...decision, result: followed };
+      } catch (error) {
+        if (error?.code === 'TOOLS_SHARE_BLOCKED') throw error;
+        row.geoHop = { ...decision, status: 'error', error: error.message };
+      }
+    } else if (decision.triggered) {
+      row.geoHop = { ...decision, triggered: false, reason: 'disabled by --no-follow-top-country' };
+    }
+  }
   results.push(row);
   console.error(`[${results.length}/${keywords.length}] ${kw} → ${row.status !== 'error' ? `vol=${row.volume} kd=${row.kd}` : row.error}`);
   // 每查完一个就落盘，中途被打断也留得下已有结果。
@@ -326,7 +362,7 @@ printJson({
   source: `Semrush keyword overview${flags.bulk || bulkPlan ? ' bulk' : ''} via authenticated Tools Share browser session`,
   note: flags.bulk || bulkPlan
     ? `bulk volume/KD/CPC 是每行 db 对应国家库的数据；对筛出的候选先用单词模式读取 globalVolume 与 byCountry。`
-    : `volume 是 db=${db} 这一个国家库的月搜量，globalVolume 是全球合计，byCountry 是页面列出的 Top-N（不穷举，加总不等于 globalVolume）——三者不可互相替代。`,
+    : `volume 是 db=${db} 这一个国家库的月搜量，globalVolume 是全球合计，byCountry 是页面列出的 Top-N（不穷举，加总不等于 globalVolume）——三者不可互相替代。geoHop 在第一大国家不同且份额 >=35% 或当前库量 <500 时，用同一 session 自动复查一次。`,
   retrievedAt: new Date().toISOString(),
   db,
   session,
@@ -334,5 +370,5 @@ printJson({
   results,
 });
 } finally {
-  await accountLock.release();
+  await launched.releaseBrowserLocks?.();
 }

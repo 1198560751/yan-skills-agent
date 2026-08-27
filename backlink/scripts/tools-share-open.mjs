@@ -15,7 +15,7 @@ const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
 const session = flags.session ? validateSession(flags.session) : defaultSession('backlink-panel');
 
-const { tool, state, landed, evalPage } = await launchTool({
+const launched = await launchTool({
   session,
   tool: flags.tool,
   node: flags.node,
@@ -23,6 +23,8 @@ const { tool, state, landed, evalPage } = await launchTool({
   wait: Number(flags.wait || 7),
   timeout: Number(flags.timeout || 40),
 });
+try {
+const { tool, state, landed, evalPage } = launched;
 
 // 深链只有在启动器跑完之后才有效——建立会话的是那次点击，所以这里是个 flag 而非独立命令。
 const final = typeof flags.goto === 'string'
@@ -38,3 +40,6 @@ printJson({
   subscription: { expiry: state.expiry, daysLeft: state.daysLeft, quotas: state.quotas },
   warning: expiryWarning(state),
 });
+} finally {
+  await launched.releaseBrowserLocks();
+}

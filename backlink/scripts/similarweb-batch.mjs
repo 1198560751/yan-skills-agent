@@ -88,6 +88,7 @@ const launched = await launchTool({
   wait: Number(flags.wait || 7),
   timeout: Number(flags.launchTimeout || 60),
 });
+try {
 const evaluate = launched.evalPage;
 const subscription = {
   expiry: launched.state.expiry,
@@ -185,3 +186,6 @@ for (const domain of todo) {
   console.error(`[batch] ${n}/${todo.length} ${domain} → ${row.verdict}${row.totalVisits !== null && row.totalVisits !== undefined ? ` (${row.totalVisits})` : ''} ${Math.round((Date.now() - startedAt) / 1000)}s`);
 }
 console.error('[batch] done');
+} finally {
+  await launched.releaseBrowserLocks?.();
+}

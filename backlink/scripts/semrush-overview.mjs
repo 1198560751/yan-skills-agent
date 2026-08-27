@@ -89,8 +89,9 @@ function readMetrics(bodyText) {
 }
 
 let output;
+let launched;
 try {
-  const launched = await launchTool({
+  launched = await launchTool({
     session,
     tool: 'semrush',
     node: flags.node,
@@ -177,6 +178,8 @@ try {
     // opencli 的报错里可能带着 __gmitm 令牌（它会打印活动会话的完整 URL）。
     error: { code: 'overview_failed', message: redactSecrets(error.message) },
   };
+} finally {
+  await launched?.releaseBrowserLocks();
 }
 
 if (typeof flags.out === 'string') {

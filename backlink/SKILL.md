@@ -466,6 +466,10 @@ quota text never re-renders — so no reused-session call prints a fresh reading
 A rule like "stop at 80%" cannot be enforced mid-run; decide the size of the
 run up front.
 
+**同一任务、同一工具固定传同一个 `--session`，零值复查也不新建，整批完成后只关一次。**
+`launchTool()` 会优先复用已经停在目标工具 origin 的 session，但调用方仍必须固定传入同名；
+重复打开 dashboard 可能被面板计作新的客户端登录，不能用换 session 代替复查。
+
 **Raise your shell timeout before a batch, not after it fails.** A panel launch
 costs 20–40s and each report ~15s, so five domains or a dozen keywords in one
 call runs for minutes and a two-minute default kills it mid-flight. The scripts

@@ -91,6 +91,11 @@ node scripts/tools-share-open.mjs --tool similarweb --node 5
 
 ### 会话会停在工具 origin 上
 
+**硬规则（2026-08-26 用户现场发现）**：同一任务、同一工具从头到尾固定一个 session；
+零值或异常复查仍复用它，整批完成后只 `close` 一次。每次重新打开 dashboard 都可能被平台
+计作新的客户端登录。共享启动器已增加 `existing-tool-session` 快速路径，但调用脚本仍必须
+显式传同一个 `--session`，不能靠默认名碰运气。
+
 点过一次「打开」之后，这个 OpenCLI 会话的标签页就留在 `sim`/`sem` 那边了。
 **再 `open` 面板不保证把它导航回来**，`close` + 重新 `open` 实测也可能救不回来。
 脚本已经在 `open` 之后核对当前 host，两次都不对就直接报错并指路，
@@ -173,6 +178,12 @@ Semrush 网页版本身是否提供一档「Worldwide」数据库供域名概览
 关键词先按国家分文件，用 `--bulk --db <cc>` 一次筛最多 100 个；入选词再用单词模式读取
 `globalVolume` 和 `byCountry`，随后对主要国家与项目目标市场分别跑对应 `--db`。这样美国库的零值
 不会覆盖其他国家的真实需求。
+
+单词模式会自动做一次 **geo-hop**：`byCountry` 第一大国家不是当前 `db`，且它占
+`globalVolume >=35%`，或当前库 `volume <500` 时，脚本在**同一个 session**里追加该国
+复查并写进 `geoHop.result`；只追一层，不递归，也不回 dashboard。用
+`--no-follow-top-country` 才会明确关闭。这样 US 低量但印度等市场占绝对多数的词不会被误判为
+“没有需求”，同时避免每个小差异都多查一次。
 
 跟别的面板对比时（尤其是 Similarweb），三件事都要对齐，缺一个都能吵出一个假的倍数差：
 1. **地理范围**——Semrush 的数字是一个国家库，Similarweb 默认是全球，先把两边扳到同一个地理范围（乘目标国占比，或用 Semrush 关键词维度的 `globalVolume`）再比；

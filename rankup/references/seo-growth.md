@@ -163,7 +163,7 @@
 | **哥飞其余工具(MINE/TRANSLATE/WHY/VALUE)** | 走 OAuth session,无法无头自动化;VALUE 是纯前端计算器 | KD 的认证方式不代表其他工具也可复用 |
 | **PSI API(干净 lab 性能数据)** | `curl ${HTTP_PROXY:+-x "$HTTP_PROXY"} "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=<enc>&strategy=mobile&category=performance"` | 匿名共享配额有每日上限,耗尽当天只能本地 lighthouse median-of-N 顶替;本地 lab 先跑一次"修复前"做同环境基线,绝对值不可跨环境比 |
 | **GSC Gen AI 效果报告(AI 曝光,2026-06 新)** | Search Console → 效果 → Generative AI 报告;追踪内容在 AI Overviews/AI Mode 中的曝光次数、页面、国家、设备 | 2026-06-03 上线,按子集推出,不是所有站都有;**暂无点击/CTR/查询词数据**;另有 opt-out 开关(不影响传统排名) |
-| **死路(勿再试)** | Ahrefs MCP(套餐无 API;2026-07-18 复验:全接口含 gsc-*/management-* 均 "Insufficient plan")、Semrush MCP(units=0)、agent-browser 连真实 Chrome(Chrome 136+ 禁 CDP)、Google Trends(共享代理 IP 常年 429) | |
+| **死路(勿再试)** | **Semrush / Similarweb / Ahrefs 的全部程序化接口(API + MCP)**——共享账号代理**出借的是会话,不是账号**;API key 与 OAuth 同意页都住在账号设置区,面板不会递出来,绕过面板去取等于绕过访问控制。2026-08-27 逐家核实:Semrush Analytics/Projects API 要 Business 档+另购 units、MCP 与 HTTP 共用同一份 units(实测 units=0,**换客户端/换传输/重连 OAuth 都不会改变**);Similarweb Data API 与 MCP 要 Business/Enterprise/API-only 档;Ahrefs 2026-07-18 复验全接口 "Insufficient plan"。**浏览器抓取不是临时替代方案,它是这个账号形态下唯一正确的方案**(详见 `provider-capabilities.md` 四·五)。另:agent-browser 连真实 Chrome(Chrome 136+ 禁 CDP)、Google Trends(共享代理 IP 常年 429) | |
 | 网络 | 本机 shell 直连部分外网 TLS 间歇重置(curl exit 35):Google 系/github/npm registry/ui.shadcn.com 走本机代理($HTTP_PROXY,按需)(node 系 CLI 另加 `NODE_USE_ENV_PROXY=1` 才吃 env,undici EHPA),git push 带 `HTTPS_PROXY`,所有 curl 带 `--retry-all-errors`;**api.cloudflare.com 反着来:必须直连**(2026-07-18 实证代理下 wrangler 全部 fetch failed,直连一次成)——wrangler deploy 不带代理+重试 | zsh 内联 for 循环易 parse error,写成 .sh 脚本跑;管道尾接 tail 会吞退出码,成功判定用输出 grep;刚部署完 workers.dev 可能瞬态回 CF 1042,几十秒自愈勿误判 |
 
 ## 二、SEO 项目接入

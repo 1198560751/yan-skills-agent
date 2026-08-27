@@ -20,6 +20,10 @@
  *   node semrush-report.mjs --report organic-positions --domain example.com --db us
  *   node semrush-report.mjs --report organic-pages     --domain example.com --db us
  *   node semrush-report.mjs --report backlinks-overview --domain example.com
+ *   node semrush-report.mjs --self-test
+ *
+ * 已验证 2026-08-26：organic-pages 从 URL 后方读取当前行；旧版向前读，首行会吞表头，
+ * 后续每个 URL 都会拿到上一页的字段，行数看似正确但内容整体错位。
  *
  * **关键词维度不在这里**：`semrush-keyword.mjs` 已经覆盖关键词概览，且它的取值函数
  * 比本文件早一步处理了「不可用」短路。2026-08-21 我在这里重复实现了一遍 keyword 报告，
@@ -128,22 +132,22 @@ const REPORTS = {
 
 const name = String(flags.report || '').trim();
 const spec = REPORTS[name];
-if (!spec) {
+if (!spec && !flags['self-test']) {
   console.error(`--report must be one of: ${Object.keys(REPORTS).join(', ')}`);
   process.exit(2);
 }
 // 关键词主体绝不能过 normalizeDomain——它会把空格后的部分当路径切掉，
 // 于是 "car wrap visualizer" 变成 "car"，查出来的是另一个词的数据且不报错。
-const target = spec.needs === 'keyword'
+const target = spec?.needs === 'keyword'
   ? String(flags.keyword || '').trim()
   : normalizeDomain(String(flags.domain || '').trim());
-if (!target) {
+if (!flags['self-test'] && !target) {
   console.error(`--report ${name} requires --${spec.needs}`);
   process.exit(2);
 }
 const dbGiven = flags.db !== undefined && String(flags.db).trim() !== '';
 const db = String(flags.db || '').trim().toLowerCase();
-if (!dbGiven && spec.needs !== 'keyword') {
+if (!flags['self-test'] && !dbGiven && spec.needs !== 'keyword') {
   console.error(`⚠ --db not given. organic-overview/organic-positions/organic-pages fall back to Semrush's own default country — not a global total; pass --db explicitly when the market matters.`);
 }
 
@@ -229,10 +233,6 @@ async function ensureTool() {
   // 名字会让整张报告变成 report_failed，报错还是「No active session」，
   // 读起来像 OpenCLI 坏了。2026-08-24 实测：这个脚本在新会话名下**根本跑不起来**。
   // 探测的语义只有一个：「我是不是已经站在工具页上了」。答不上来就当没有，去启动。
-  const cur = await evalPage(`(() => JSON.stringify({ host: location.host }))()`).catch(() => null);
-  if (cur && cur.host === APP_HOST) {
-    return { reused: true, state: { expiry: null, daysLeft: null, quotas: null } };
-  }
   const launched = await launchTool({
     session,
     tool: 'semrush',
@@ -241,7 +241,8 @@ async function ensureTool() {
     wait: Number(flags.wait || 7),
     timeout: Number(flags.launchTimeout || 60),
   });
-  return { reused: false, state: launched.state };
+  evalPage = launched.evalPage;
+  return { ...launched, reused: Boolean(launched.reused) };
 }
 
 /** 面板/工具页偶发的整页错误文案。站主口述：这是瞬时的，重载即恢复。 */
@@ -344,26 +345,6 @@ function parseBacklinks(lines) {
 }
 
 /**
- * 排名表与页面表：**启发式行扫**，不是可靠解析。
- *
- * 这两张表是虚拟滚动、非 <table>，页面只渲染前 10 行（脚注写着「10/15」）。
- * 想要全量必须走导出，而导出计入配额。所以这里只做「看得见的那几行」，
- * 并且**始终把 rawText 一起返回**——解析对不上时，人得能看原文，
- * 而不是拿到一个安静地少了一半的数组。
- */
-function parseRows(lines, fieldCount) {
-  // 不拿表头（Sortable）当起点——表头在没有数据时也在。直接扫 URL 单元格，
-  // 把它前面 fieldCount 行当作该行的其余字段带出。
-  const rows = [];
-  for (let i = 0; i < lines.length; i++) {
-    if (/^https?:\/\//i.test(lines[i]) || /^[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(lines[i])) {
-      rows.push({ url: lines[i], fields: lines.slice(Math.max(0, i - fieldCount), i) });
-    }
-  }
-  return rows;
-}
-
-/**
  * 自然排名表：**从 URL 往左数**，不要从左往右按固定宽度切。
  *
  * 列顺序是 关键词 / 意图 / 排名 / SF / 流量 / 流量% / 搜索量 / KD% / URL / 上次更改。
@@ -417,24 +398,29 @@ async function clickNextPage(evalPage, before) {
 
 function parsePositions(lines) {
   const NUMISH = /^(<\s*)?[\d.,]+\s*(?:[KMB]|万)?$|^< ?0\.01$/i;
+  const UNAVAILABLE = /^(?:不可用|n\/?a|-|—)$/i;
   const rows = [];
   for (let i = 0; i < lines.length; i++) {
     if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(lines[i]) && !/^https?:\/\//i.test(lines[i])) continue;
     const left = lines.slice(Math.max(0, i - 12), i);
-    // 从右往左取六个数值格；中间遇到非数值就放弃这一行（结构与预期不符，宁可不报）
-    const nums = [];
+    // KD 会是「不可用」，SF 也会整格缺失；这两列不能拿来当固定宽度锚点。
+    // 从右往左先取 KD/量/流量%，再取 1–2 个位置数（position 必有，SF 可无）。
     let j = left.length - 1;
-    while (j >= 0 && nums.length < 6) {
-      if (!NUMISH.test(left[j])) break;
-      nums.unshift(left[j]); j--;
-    }
-    if (nums.length < 6) continue;
+    const kdRaw = left[j];
+    if (!NUMISH.test(kdRaw) && !UNAVAILABLE.test(kdRaw)) continue;
+    j -= 1;
+    const tail = [];
+    while (j >= 0 && tail.length < 3 && NUMISH.test(left[j])) { tail.unshift(left[j]); j -= 1; }
+    if (tail.length < 3) continue;
+    const rankCells = [];
+    while (j >= 0 && rankCells.length < 2 && NUMISH.test(left[j])) { rankCells.unshift(left[j]); j -= 1; }
+    if (!rankCells.length) continue;
     const head = left.slice(0, j + 1).filter((x) => !/^\d+月\d+日$|^\d+ ?(小时|天|个月)$|^[A-Z]$/.test(x));
     rows.push({
       keyword: head[head.length - 1] ?? null,
-      position: Number(nums[0]), serpFeatures: Number(nums[1]),
-      traffic: Number(nums[2]), trafficPercent: nums[3],
-      volume: parseCompact(nums[4]), kd: Number(nums[5]),
+      position: Number(rankCells[0]), serpFeatures: rankCells.length > 1 ? Number(rankCells[1]) : null,
+      traffic: Number(tail[0]), trafficPercent: tail[1],
+      volume: parseCompact(tail[2]), kd: UNAVAILABLE.test(kdRaw) ? null : Number(kdRaw),
       url: lines[i],
     });
   }
@@ -497,8 +483,30 @@ function parseKeywordOverview(lines) {
  * 拿到的是数组。**字段名和内容必须对得上**，否则错在别处才被发现。
  */
 function parsePages(lines) {
-  const rows = parseRows(lines, 8);
+  const rows = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^https?:\/\//i.test(lines[i]) && !/^[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(lines[i])) continue;
+    const fields = lines.slice(i + 1, i + 10).filter((line) => line !== 'Generate SEO Brief').slice(0, 8);
+    if (fields.length === 8) rows.push({ url: lines[i], fields });
+  }
   return { rows, rowsVisible: rows.length };
+}
+
+function reportCoverage(report, bodyTexts, parsedRows) {
+  const rawRecordCount = bodyTexts.reduce((sum, text) => sum + String(text).split(/\n+/)
+    .map((line) => line.trim()).filter((line) => /^https?:\/\//i.test(line) || /^[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(line)).length, 0);
+  const first = String(bodyTexts[0] || '');
+  const headline = report === 'organic-positions'
+    ? first.match(/自然搜索排名：\s*\n?\s*([\d,]+)|Organic Search Positions:?\s*\n?\s*([\d,]+)/i)
+    : first.match(/所有页面\s*\n\s*([\d,]+)|All Pages\s*\n\s*([\d,]+)/i);
+  const headlineTotal = headline ? Number((headline[1] || headline[2]).replace(/,/g, '')) : null;
+  return {
+    pageSelfReportedTotal: headlineTotal,
+    rawRecordCount,
+    parsedRows,
+    parserAligned: rawRecordCount === parsedRows,
+    virtualScrollTruncated: headlineTotal !== null && headlineTotal > rawRecordCount,
+  };
 }
 
 /**
@@ -538,11 +546,36 @@ function parseBacklinksList(lines) {
   };
 }
 
+if (flags['self-test']) {
+  const parsed = parsePages([
+    'URL', '流量', '流量变化', '流量 (%)', '关键词', '大型语言模型提示', '引荐域名', '主要关键词', '意图', 'Sortable',
+    'example.com/page-a', 'Generate SEO Brief', '12', '+3', '40', '8', '0', '2', 'alpha', 'I',
+    'example.com/page-b', 'Generate SEO Brief', '5', '-1', '20', '3', '0', '1', 'beta', 'C',
+  ]);
+  const coverage = reportCoverage('organic-pages', [
+    '所有页面\n2\nexample.com/page-a\nGenerate SEO Brief\n12\n+3\n40\n8\n0\n2\nalpha\nI\nexample.com/page-b\nGenerate SEO Brief\n5\n-1\n20\n3\n0\n1\nbeta\nC',
+  ], parsed.rows.length);
+  const positions = parsePositions([
+    'grid maker', 'I', '1', '8', '10', '1.2', '1.9K', '17', 'example.com/',
+    'grid for artists', 'I', '2', '5', '0.8', '390', '9', 'example.com/',
+    'cold keyword', 'I', '48', '6', '0', '< 0.01', '40', '不可用', 'example.com/',
+  ]);
+  if (parsed.rows.length !== 2 || parsed.rows[0].fields.join('|') !== '12|+3|40|8|0|2|alpha|I'
+      || parsed.rows[1].fields.join('|') !== '5|-1|20|3|0|1|beta|C'
+      || !coverage.parserAligned || coverage.virtualScrollTruncated || coverage.pageSelfReportedTotal !== 2
+      || positions.rows.length !== 3 || positions.rows[1].serpFeatures !== null || positions.rows[2].kd !== null) {
+    throw new Error(`semrush-report self-test failed: ${JSON.stringify({ parsed, coverage, positions })}`);
+  }
+  console.log('semrush-report self-test: PASS');
+  process.exit(0);
+}
+
 // ---------- 主流程 ----------
 
 let output;
+let launched;
 try {
-  const tool = await ensureTool();
+  const tool = launched = await ensureTool();
   const url = `${APP_ORIGIN}${spec.path(target, db)}`;
   const loaded = await loadReport(url, spec, {
     settle: Number(flags.settle || 10),
@@ -568,6 +601,7 @@ try {
   }
   const cap = loaded.capture;
   const parsed = loaded.parsed;
+  const rawPages = [cap.bodyText];
   const pageInfo = readPageInfo(cap.bodyText);
   let pagesRead = 1;
   let stoppedBecause = null;
@@ -597,6 +631,7 @@ try {
           intervalMs: 1500,
         });
         if (!nextPage.stable) { pagesRead -= 1; stoppedBecause = `page ${pagesRead + 1} never settled`; break; }
+        rawPages.push(nextPage.capture.bodyText);
         prevPrint = nextPage.fingerprint;
         for (const r of JSON.parse(nextPage.fingerprint).rows || []) {
           const k = rowKey(r);
@@ -619,6 +654,14 @@ try {
     }
   }
 
+  const coverage = spec.paginated ? reportCoverage(name, rawPages, (parsed.rows || []).length) : null;
+  if (coverage && !coverage.parserAligned) {
+    console.error(`[parser-gap] ${name}: raw record lines=${coverage.rawRecordCount}, parsed rows=${coverage.parsedRows}.`);
+  }
+  if (coverage?.virtualScrollTruncated) {
+    console.error(`[truncated] ${name}: page reports ${coverage.pageSelfReportedTotal} records, raw captures contain ${coverage.rawRecordCount}.`);
+  }
+
   output = {
     version: 1,
     source: 'Semrush via authenticated Tools Share browser session',
@@ -638,9 +681,11 @@ try {
     pagination: spec.paginated
       ? { pages: pageInfo.total, pagesRead, complete: pagesRead >= pageInfo.total, stoppedBecause }
       : null,
+    coverage,
     reads: loaded.reads,
     parsed,
     rawText: cap.bodyText.slice(0, 20000),
+    rawPages: spec.paginated ? rawPages : null,
   };
 } catch (error) {
   output = {
@@ -650,6 +695,8 @@ try {
     // 打进 stderr，那段文本会一路进 output、进 --out 文件、进日志。
     status: 'unavailable', error: { code: 'report_failed', message: redactSecrets(error.message) },
   };
+} finally {
+  await launched?.releaseBrowserLocks?.();
 }
 
 if (typeof flags.out === 'string') await writeFile(flags.out, `${JSON.stringify(output, null, 2)}\n`, 'utf8');

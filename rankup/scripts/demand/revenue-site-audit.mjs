@@ -1,0 +1,245 @@
+#!/usr/bin/env node
+/**
+ * 薄编排：复用现有 AITDK / Similarweb / Semrush / sitemap / KD 脚本，
+ * 把「收入站案例」整理成同口径证据和 claim verdict 骨架。这里不采集、不解析面板。
+ *
+ *   node revenue-site-audit.mjs --domain example.com --source-url https://example.com/post \
+ *     --claimed-visits 150000 --claimed-organic-share 74.32 --keyword "png to svg" --out audit.json
+ *   node revenue-site-audit.mjs --domain example.com --from ./saved-results --out audit.json
+ *   node revenue-site-audit.mjs --self-test
+ */
+import { execFile } from 'node:child_process';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
+
+const execFileP = promisify(execFile);
+const here = path.dirname(fileURLToPath(import.meta.url));
+const repo = path.resolve(here, '../../..');
+const scripts = {
+  aitdk: path.join(here, 'aitdk-lookup.mjs'),
+  sitemap: path.join(here, 'sitemap-diff.mjs'),
+  kd: path.join(here, '../seo-webcafe.mjs'),
+  similarweb: path.join(repo, 'backlink/scripts/similarweb-query.mjs'),
+  semrush: path.join(repo, 'backlink/scripts/semrush-overview.mjs'),
+};
+
+function argsOf(argv) {
+  const out = { _: [], keyword: [] };
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i];
+    if (!token.startsWith('--')) out._.push(token);
+    else {
+      const key = token.slice(2);
+      const value = argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true;
+      if (key === 'keyword') out.keyword.push(value); else out[key] = value;
+    }
+  }
+  return out;
+}
+
+const normalizeDomain = (value) => {
+  const host = value?.includes('://') ? new URL(value).hostname : String(value || '').split('/')[0];
+  const domain = host.trim().toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+  if (!/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(domain)) {
+    throw new Error(`Invalid domain: ${value}`);
+  }
+  return domain;
+};
+
+async function json(file) {
+  try { return JSON.parse(await readFile(file, 'utf8')); } catch { return null; }
+}
+
+const money = (value) => {
+  const n = Number(String(value ?? '').replace(/[$,\s]/g, ''));
+  return Number.isFinite(n) ? n : null;
+};
+
+function parseTrustMrrMarkdown(markdown, sourceUrl) {
+  const pick = (pattern) => markdown.match(pattern)?.[1]?.trim() ?? null;
+  return {
+    status: 'available', source: 'TrustMRR public AI-readable Markdown', sourceUrl,
+    website: pick(/^- Website:\s*\[[^\]]+\]\((https?:\/\/[^)]+)\)/m),
+    paymentProvider: pick(/^- Verified payment provider API source:\s*([^\n]+)/m),
+    stripeVerified: /^- Verified payment provider API source:\s*Stripe\b/im.test(markdown),
+    mrr: money(pick(/^- Current MRR:\s*([^\n]+)/m)),
+    activeSubscriptions: money(pick(/^- Current active subscriptions:\s*([^\n]+)/m)),
+    revenueLast30d: money(pick(/^- Last 30 days revenue snapshot:\s*([^\n]+)/m)
+      ?? pick(/^\| Last 30 days \|\s*([^|]+)\|/m)),
+    revenueLastSynced: pick(/^- Revenue (?:data )?last synced:\s*([^\n]+)/mi),
+  };
+}
+
+async function fetchTrustMrr(sourceUrl) {
+  try {
+    const url = new URL(sourceUrl);
+    if (url.hostname !== 'trustmrr.com' || !/^\/startup\/[^/]+\/?$/.test(url.pathname)) return null;
+    const mdUrl = `${url.origin}${url.pathname.replace(/\/$/, '')}.md`;
+    const response = await fetch(mdUrl, { headers: { 'user-agent': 'rankup-revenue-audit/1.0' }, signal: AbortSignal.timeout(30_000) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const parsed = parseTrustMrrMarkdown(await response.text(), mdUrl);
+    if (!parsed.stripeVerified || parsed.mrr == null) throw new Error('Stripe verification or MRR missing from public Markdown');
+    return parsed;
+  } catch (error) {
+    return { status: 'unavailable', source: 'TrustMRR public AI-readable Markdown', sourceUrl, error: String(error.message).slice(0, 300) };
+  }
+}
+
+async function run(outputFile, commandArgs, cwd) {
+  try {
+    const { stdout } = await execFileP(process.execPath, commandArgs, { cwd, timeout: 300_000, maxBuffer: 32 * 1024 * 1024 });
+    return outputFile ? await json(outputFile) : JSON.parse(stdout);
+  } catch (error) {
+    const saved = outputFile ? await json(outputFile) : null;
+    return saved ?? { status: 'unavailable', error: { code: 'collector_failed', message: String(error.message).slice(0, 500) } };
+  }
+}
+
+async function collect(domain, keywords, db, work, sourceUrl) {
+  const files = Object.fromEntries(['similarweb-performance', 'similarweb-channels', 'semrush', 'sitemap-urls']
+    .map((name) => [name, path.join(work, `${name}.json`)]));
+  const aitdk = await run(null, [scripts.aitdk, domain, '--json'], work);
+  const swPerformance = await run(files['similarweb-performance'], [scripts.similarweb, '--domain', domain, '--report', 'performance', '--window', 'isolated', '--out', files['similarweb-performance']], work);
+  const swChannels = await run(files['similarweb-channels'], [scripts.similarweb, '--domain', domain, '--report', 'channels', '--window', 'isolated', '--out', files['similarweb-channels']], work);
+  const semrush = await run(files.semrush, [scripts.semrush, '--domain', domain, '--db', db, '--out', files.semrush], work);
+  await run(files['sitemap-urls'], [scripts.sitemap, '--domain', domain, '--all', '--track-lastmod', '--limit', '1000000', '--state', path.join(work, 'sitemap-state'), '--out', files['sitemap-urls'], '--json'], work);
+  const sitemap = await json(path.join(work, 'sitemap-state', `${domain}.json`));
+  const kd = [];
+  for (let i = 0; i < keywords.length; i++) {
+    const file = path.join(work, `kd-${i}.json`);
+    kd.push(await run(file, [scripts.kd, 'kd', '--keyword', keywords[i], '--out', file, '--json'], work));
+  }
+  const trustmrr = sourceUrl ? await fetchTrustMrr(sourceUrl) : null;
+  return { aitdk, similarweb: { performance: swPerformance, channels: swChannels }, semrush, sitemap, kd, trustmrr };
+}
+
+async function loadSaved(dir) {
+  const read = (name) => json(path.join(dir, name));
+  const kd = await read('kd.json');
+  return {
+    aitdk: await read('aitdk.json'),
+    similarweb: { performance: await read('similarweb-performance.json'), channels: await read('similarweb-channels.json') },
+    semrush: await read('semrush.json'), sitemap: await read('sitemap.json'), kd: Array.isArray(kd) ? kd : kd ? [kd] : [],
+    trustmrr: await read('trustmrr.json'),
+  };
+}
+
+const valueAt = (obj, paths) => {
+  for (const keys of paths) {
+    let value = obj;
+    for (const key of keys) value = value?.[key];
+    if (Number.isFinite(Number(value))) return Number(value);
+  }
+  return null;
+};
+
+function sitemapSummary(snapshot) {
+  const entries = Array.isArray(snapshot?.urls)
+    ? snapshot.urls.map((url) => [url, '']) : Object.entries(snapshot?.urls ?? {});
+  const pathCount = (needle) => entries.filter(([url]) => { try { return new URL(url).pathname.includes(needle); } catch { return false; } }).length;
+  const dates = new Map();
+  for (const [, lastmod] of entries) if (lastmod) dates.set(lastmod, (dates.get(lastmod) ?? 0) + 1);
+  const bulk = [...dates].sort((a, b) => b[1] - a[1])[0] ?? null;
+  return snapshot ? {
+    retrievedAt: snapshot.fetchedAt ?? null, source: snapshot.source ?? [], totalUrls: snapshot.count ?? entries.length,
+    routeCounts: { convert: pathCount('/convert/'), blog: pathCount('/blog') },
+    mostCommonLastmod: bulk ? { value: bulk[0], urls: bulk[1] } : null,
+  } : { status: 'unavailable' };
+}
+
+function buildAudit(domain, sourceUrl, raw, claimed = {}) {
+  const aitdkVisits = valueAt(raw.aitdk, [['monthlyVisits']]);
+  const swPerformanceVisits = valueAt(raw.similarweb?.performance, [['metrics', 'totalVisits']]);
+  const swChannelsSum = valueAt(raw.similarweb?.channels, [['channels', 'totalFromChannels']]);
+  const swVisits = swPerformanceVisits ?? swChannelsSum;
+  const swPerformanceOrganic = valueAt(raw.similarweb?.performance, [['metrics', 'organicSearchSharePct']]);
+  const swChannelsOrganic = valueAt(raw.similarweb?.channels, [['channels', 'sharePercent', 'Search - Organic']]);
+  const swOrganic = swPerformanceOrganic ?? swChannelsOrganic;
+  const estimates = [aitdkVisits, swVisits].filter((v) => v > 0);
+  const ratio = estimates.length > 1 ? Math.max(...estimates) / Math.min(...estimates) : null;
+  const trafficConflict = ratio != null && ratio > 2;
+  const trustDomain = (() => { try { return new URL(raw.trustmrr?.website).hostname.replace(/^www\./, ''); } catch { return null; } })();
+  const verifiedRevenue = raw.trustmrr?.status === 'available' && raw.trustmrr?.stripeVerified && trustDomain === domain;
+  const mrrRatio = verifiedRevenue && claimed.mrr ? Math.max(raw.trustmrr.mrr, claimed.mrr) / Math.min(raw.trustmrr.mrr, claimed.mrr) : null;
+  const swReportRatio = swPerformanceVisits && swChannelsSum
+    ? Math.max(swPerformanceVisits, swChannelsSum) / Math.min(swPerformanceVisits, swChannelsSum) : null;
+  const scopeFrom = (report, page, rawField) => ({
+    geography: /全球|Worldwide/i.test(report?.rawText ?? '') ? 'worldwide' : 'unknown',
+    period: (report?.rawText ?? '').match(/Last 28 days \(As of [^)]+\)|最后 28 天数 \(As of [^)]+\)/i)?.[0] ?? 'unknown',
+    trafficType: /所有流量|All Traffic|webSource=Total/i.test(`${report?.rawText ?? ''} ${report?.url ?? ''}`) ? 'all traffic' : 'unknown',
+    device: 'all traffic view; device split not exposed by collector', page, url: report?.url ?? null, rawField,
+  });
+  const scope = {
+    aitdk: { geography: 'worldwide estimate', period: 'latest month returned by provider' },
+    similarwebPerformance: scopeFrom(raw.similarweb?.performance, 'Website Performance', 'metrics.totalVisits'),
+    similarwebChannels: scopeFrom(raw.similarweb?.channels, 'Marketing Channels', 'channels.totalFromChannels (sum of parsed channel rows; not interchangeable with Performance total)'),
+    semrush: { geography: raw.semrush?.db ? `country database: ${raw.semrush.db}` : 'unknown country database', period: 'current overview', metric: 'organic search estimate; not total visits' },
+  };
+  const claims = [
+    {
+      claim: 'traffic scale', claimed: claimed.visits ?? null,
+      verdict: claimed.visits == null ? '待审计' : trafficConflict ? '无法证实' : estimates.some((v) => Math.max(v, claimed.visits) / Math.min(v, claimed.visits) <= 2) ? '部分证实' : '反证',
+      evidence: { aitdkMonthlyVisits: aitdkVisits, similarwebPerformanceTotalVisits: swPerformanceVisits, similarwebChannelRowsSum: swChannelsSum, estimateRatio: ratio, sameSourceReportRatio: swReportRatio },
+    },
+    {
+      claim: 'organic search share', claimed: claimed.organicShare ?? null,
+      verdict: claimed.organicShare == null || swOrganic == null ? '无法证实' : Math.abs(claimed.organicShare - swOrganic) <= 5 ? '证实' : Math.abs(claimed.organicShare - swOrganic) <= 20 ? '部分证实' : '反证',
+      evidence: { similarwebPerformanceOrganicSharePct: swPerformanceOrganic, similarwebChannelsOrganicSharePct: swChannelsOrganic },
+    },
+    {
+      claim: 'MRR', claimed: claimed.mrr ?? null,
+      verdict: !verifiedRevenue ? '无法证实' : claimed.mrr == null || mrrRatio <= 1.1 ? '证实' : mrrRatio <= 2 ? '部分证实' : '反证',
+      evidence: raw.trustmrr ?? { status: 'unavailable' },
+    },
+    { claim: 'revenue and product/channel causality', claimed: null, verdict: '无法证实', evidence: 'Stripe verifies revenue scale, not which page type or acquisition channel caused it.' },
+    { claim: 'pSEO matrix exists', claimed: null, verdict: raw.sitemap?.count > 1 ? '证实' : '无法证实', evidence: sitemapSummary(raw.sitemap) },
+  ];
+  return {
+    schemaVersion: 1, domain, sourceUrl: sourceUrl || null, retrievedAt: new Date().toISOString(),
+    methodology: 'Existing collectors are invoked unchanged; unavailable is never converted to zero. Semrush country organic traffic is not compared arithmetically with Similarweb worldwide total visits.',
+    scope, alerts: [
+      ...(trafficConflict ? [{ severity: 'high', code: 'traffic_estimates_conflict', message: `Comparable monthly/28-day estimates differ by ${ratio.toFixed(2)}x (>2x); do not quote the higher value as fact.` }] : []),
+      ...(swReportRatio > 1.35 ? [{ severity: 'high', code: 'similarweb_report_conflict', message: `Similarweb Performance total and Marketing Channels row sum differ by ${swReportRatio.toFixed(2)}x (>35%) under the recorded scope; keep both raw fields and do not silently substitute one for the other.` }] : []),
+    ],
+    claims, sources: { trustmrr: raw.trustmrr, aitdk: raw.aitdk, similarweb: raw.similarweb, semrush: raw.semrush, sitemap: sitemapSummary(raw.sitemap), kd: raw.kd },
+  };
+}
+
+async function main() {
+  const args = argsOf(process.argv.slice(2));
+  if (args['self-test']) {
+    const trustmrr = parseTrustMrrMarkdown(`- Website: [https://example.com/](https://example.com/)\n- Verified payment provider API source: Stripe (API key)\n- Revenue last synced: 2026-08-26T05:35:57.711Z\n- Last 30 days revenue snapshot: $2,863\n- Current MRR: $1,438\n- Current active subscriptions: 216\n`, 'https://trustmrr.com/startup/example.md');
+    const audit = buildAudit('example.com', '', {
+      aitdk: { monthlyVisits: 150000 },
+      similarweb: { performance: { metrics: { totalVisits: 126000, organicSearchSharePct: 69 } }, channels: { channels: { totalFromChannels: 45000, sharePercent: { 'Search - Organic': 59 } } } },
+      semrush: { db: 'us', metrics: { organicTraffic: 1100 } }, sitemap: { count: 2, urls: ['https://example.com/', 'https://example.com/convert/a'] }, kd: [], trustmrr,
+    }, { visits: 150000, organicShare: 74, mrr: 1400 });
+    if (!audit.alerts.some((a) => a.code === 'similarweb_report_conflict') || audit.claims[0].verdict !== '部分证实' || audit.claims.find((c) => c.claim === 'MRR')?.verdict !== '证实' || trustmrr.revenueLast30d !== 2863 || trustmrr.activeSubscriptions !== 216 || audit.sources.sitemap.routeCounts.convert !== 1) throw new Error('self-test failed');
+    console.log('revenue-site-audit self-test passed'); return;
+  }
+  if (args.help || !args.domain) {
+    console.log('Usage: revenue-site-audit.mjs --domain <domain> [--source-url <url>] [--claimed-visits <n>] [--claimed-organic-share <pct>] [--claimed-mrr <n>] [--keyword <kw> ...] [--db us] [--from <saved-dir>] --out <file>');
+    return;
+  }
+  const domain = normalizeDomain(args.domain);
+  const work = args.from ? null : await mkdtemp(path.join(tmpdir(), 'rankup-revenue-audit-'));
+  try {
+    const raw = args.from ? await loadSaved(path.resolve(args.from)) : await collect(domain, args.keyword, String(args.db || 'us'), work, args['source-url']);
+    if (args.from && !raw.trustmrr && args['source-url']) raw.trustmrr = await fetchTrustMrr(args['source-url']);
+    const audit = buildAudit(domain, args['source-url'], raw, {
+      visits: args['claimed-visits'] == null ? null : Number(args['claimed-visits']),
+      organicShare: args['claimed-organic-share'] == null ? null : Number(args['claimed-organic-share']),
+      mrr: args['claimed-mrr'] == null ? null : Number(args['claimed-mrr']),
+    });
+    const text = `${JSON.stringify(audit, null, 2)}\n`;
+    if (args.out) await writeFile(path.resolve(args.out), text, 'utf8');
+    console.log(text.trim());
+  } finally {
+    if (work) await rm(work, { recursive: true, force: true });
+  }
+}
+
+main().catch((error) => { console.error(error.message); process.exitCode = 1; });

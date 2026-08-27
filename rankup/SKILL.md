@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、挖需求、找需求、需求挖掘、找方向、找选题、"最近有什么能做的"、"找几个关键词"、"挖个新词的工具站"、"看看有什么游戏站能做"、竞品调研、榜单调研、差评挖掘、反查谁在赚钱、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 哥飞、web.cafe、哥飞论坛、哥飞的朋友们、悬赏、悬赏问答、经验帖、"群里怎么说的"、"社群里有没有讲过"、"论坛里搜一下"、"哥飞说过什么"、哥飞.ai，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
 metadata:
-  version: "2.52.0"
+  version: "2.56.0"
 ---
 
 # Rankup 2.0
@@ -115,6 +115,8 @@ opencli browser "$S" eval '(async()=>{ /* fetch(..., {credentials:"include"}) */
 |---|---|---|
 | `scripts/seo-webcafe.mjs` | **一个脚本覆盖 seo.web.cafe 全部 21 个工具**：`kd` 关键词难度+top9 盘面、`audit` 页面体检、`serp` 排名归因、`backlink` 外链估价、`worth` 网站估值、`history` 域名前世、`adsense` 过审预检、`chat` 站内 SEO Agent、`referring*` Stripe 引荐流量榜（不计配额）；**`translate*` 需求翻译器 / `mine*` 需求挖掘机 / `domain*` 起名+域名核验**（2026-08-24 补全）；**4 个本地命令 `kgr`/`string`/`money`/`email`**（纯本地计算、零网络零配额、可 `--batch` 批量）；`endpoints` 零配额普查、`tools` 列出确认无后端的工具及理由 | 问「这个词难不难做」「这盘面能不能进」「这条外链值不值」「这域名什么来历」「帮我想个站名」。零配置可跑，匿名 10 次/日。**本地那 4 个命令不消耗任何配额，可以放开批量跑** |
 | **`scripts/demand/` 一整组（21 个）** | **需求挖掘取数**：榜单、差评、外包、广告、新词平台、竞品 sitemap、站群反查、词根库、域名画像。全部零依赖、`--json`/`--out` 统一 | 用户说「找几个关键词」「挖点需求」「最近有什么能做的」时。**先读 [`demand-sources.md`](references/demand-sources.md) 那张源→脚本路由表，不要逐个翻脚本** |
+| `scripts/demand/revenue-site-audit.mjs` | **收入站案例复核薄编排**：调用现有 AITDK、Similarweb、Semrush、sitemap、KD 脚本，统一标明月份/国家/报告页，流量估算相差 >2 倍自动报警并生成 claim verdict 骨架 | 社交帖子或榜单声称「新站、月访、自然占比、MRR」时；它只整证据，不替采集器和人工因果审计 |
+| `scripts/rankup-cli.mjs` | **Semrush / Similarweb 能力目录与可续跑取证入口**：`catalog` 看能力（`--modules` 展开工具箱树、`--gaps` 只看没摸到的地方），`capture` 抓一个报告，`audit` 按 manifest 逐页保存原图、全文 HTML、DOM、AX、解析结果、应用 JSON、网络结构和哈希回执 | 第一次摸平台功能、复查页面能力、或把已发现的页面清单重复跑一遍时；底层复用 OpenCLI 登录态。**判断「这个面板能不能拿到 X」先读 [`provider-capabilities.md`](references/provider-capabilities.md)，不要现开浏览器翻** |
 | `scripts/gt.py` | Google Trends 统一入口：热度对比、地区分布、相关飙升词、每日热搜 | 问「XX 和 YY 哪个更火」「哪个国家有机会」「最近什么在涨」。**默认走浏览器路由，不需要 venv** |
 | `scripts/gt-browser.mjs` | gt 的 OpenCLI 取数层：驱动已登录 Chrome，在 trends.google.com 页面里 fetch Trends 内部 widget 接口 | 一般不直接调，由 `gt.py` 转发。pytrends 的 429 就是靠它绕开的；要它工作先 `opencli doctor` |
 | `scripts/chatbot-drive.browser.js` | 驱动只有网页形态的 AI Chatbot（要登录、按条扣费、**且确实没有 HTTP API**）。**seo.web.cafe 有 HTTP API，用 `seo-webcafe.mjs chat`，不要用这个** | 确认目标聊天工具没有 HTTP API 后才使用 |
@@ -186,6 +188,49 @@ npx skills add yan-labs/yan-skills --skill backlink -g -y
 | 这个站自然流量多大、有多少外链 | `node backlink/scripts/semrush-overview.mjs` | AS、自然流量、引荐域名数、关键词数——**只有分国家的，没有全球合计** |
 | 这个站排了哪些词、主要页面、反链详情 | `node backlink/scripts/semrush-report.mjs` | 自然排名、主要页面、反链概览、关键词报表 |
 | 批量域名有机流量 | `node backlink/scripts/semrush-batch.mjs` | 逐域名，与 similarweb-batch 同模式 |
+
+#### 先查能力表，再决定开不开浏览器
+
+**「这个面板能不能拿到 X」这个问题，答案已经写在
+[`provider-capabilities.md`](references/provider-capabilities.md) 里了**——
+2026-08-27 用真实登录态逐页点出来的：**Semrush 10 大工具箱 102 页、Similarweb 23 个模块**，
+外加一节明确的「没摸到的地方」。**先查表，不要现开浏览器翻一遍。**
+
+四条最省事的结论，先记住：
+
+1. **两家的 API 和 MCP 全是死路，别再试。** 共享账号代理**出借的是会话，不是账号**；
+   API key 和 OAuth 同意页都住在账号设置区，面板不会递出来。
+   **浏览器抓取不是临时替代方案，它是这个账号形态下唯一正确的方案。**
+2. **Semrush 有 49 个页面是「做」层**（写文章、发帖、建项目）——本项目**一个都不会用**。
+   连同 Similarweb 那边，**约 60 页（占两平台总页数 40%）在全部工作流里一次都没出现过**，
+   规划取数覆盖率时不要把它们算进分母。缺口与优先级见
+   [`provider-script-gaps.md`](references/provider-script-gaps.md)。
+3. **页面卡在「一直加载」时主动刷新重试**（刷 2–3 次才判 `unavailable`）。
+   **绝对不要把「卡加载」写成「功能不存在」或「零流量」**——静默错数是这里最贵的错误。
+4. **上一版审计报的 4 个「功能缺失」，3 个是误报**（PLA Research 存在、Link Building 是合并、
+   Content Analyzer 是改名）。判「缺失」前必须走三步：搜界面名 → 试旧路径看跳转 → 查更新日志。
+
+#### Rankup CLI：把探路结果变成可重复执行的清单
+
+```bash
+npx @yan-labs/rankup catalog semrush --json
+npx @yan-labs/rankup catalog semrush --modules     # 展开工具箱 → 功能页树
+npx @yan-labs/rankup catalog --gaps                # 只看两家没摸到的地方
+npx @yan-labs/rankup capture semrush keyword-overview \\
+  --keyword "photo signature resizer" --db us \\
+  --out-dir .rankup/provider-audit/keyword-us \\
+  --session rankup-semrush-keyword
+npx @yan-labs/rankup audit similarweb \\
+  --manifest .rankup/provider-audit/similarweb.json \\
+  --out-dir .rankup/provider-audit/live/similarweb \\
+  --session rankup-similarweb-audit --resume
+```
+
+- 一个任务固定一个明确的 `--session`；只操作自己的 session。看到别人的 session 不代表浏览器被占用，不得等待、复用或关闭它。
+- 同一个平台首页最多用于首次启动一次。进入工具域名后始终复用当前 session 并走内页，不要每项报告重新经过首页。
+- `audit` 的 manifest 既是页面目录也是续跑入口；可保留 `module`、`label`、`status`、`receiptPath`、`dataCompleteness` 供审计，人类字段不会传给网页。
+- 每页证据固定为八件：`page.txt`、完整分块 `page.html`、DOM、AX、parsed、app JSON、network shape、原始 full-page screenshot，再加带 SHA-256 的 `receipt.json`。截图不做遮罩；只有 Cookie、登录令牌等可直接接管账号的凭据不落盘。
+- 国家数据库不能只看默认美国。先看 global/country distribution，主要需求在别国时主动切到该国家库复核；抓取失败或权限不足不能写成零需求。
 
 **两边的「流量」口径不同，对不上很正常，但对不上的具体原因要查清楚，不能止步于「口径不同」：**
 
@@ -521,6 +566,8 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | **新域名接入 Cloudflare、拿 NS、切 NS、DNSSEC** | [`cloudflare-stack.md`](references/cloudflare-stack.md) 的「8.5 接入域名」 | 优先驱动**用户的浏览器**点 Add a domain；不可用时 `scripts/cf-zone-setup.mjs` |
 | 支付、订阅、账单、Stripe | [`integrations.md`](references/integrations.md)、[`project-memory.md`](references/project-memory.md) | stripe-best-practices |
 | SEO、GSC、排名、关键词、CTR、索引、内容 | [`seo-growth.md`](references/seo-growth.md)、[`trends.md`](references/trends.md)、[`project-memory.md`](references/project-memory.md) | SEO 或研究能力 |
+| **「Semrush/Similarweb 能不能查 X」「这个面板有什么功能」「这两家有什么区别」「该用哪个」「能不能走 API」** | [`provider-capabilities.md`](references/provider-capabilities.md) —— 实测测绘表 + 明确的知识边界 | `scripts/rankup-cli.mjs catalog`。**先查表再开浏览器**；判「功能缺失」前必须走该文件第二节末尾的三步核查。**API/MCP 已整条判死，见四·五节** |
+| **「要不要给这个报表写个脚本」「先补哪个」「现有脚本有什么坑」** | [`provider-script-gaps.md`](references/provider-script-gaps.md) —— 能力 × 脚本覆盖矩阵、Top 10 优先级、10 个已知短板的兜/不兜判决 | **按工作流频率排，不按页面数排**。写新脚本前先读该文件第四节的硬约束和反面写法 |
 | **接搜索平台：Bing Webmaster、GSC、Naver Search Advisor（韩国市场）、Yandex Webmaster、IndexNow、提交 sitemap、主动推送索引** | [`search-platforms.md`](references/search-platforms.md) | `scripts/indexnow-submit.mjs` + `scripts/webmaster-sitemap.mjs`。**IndexNow 排在站长工具前面**——它一样账号都不欠。DuckDuckGo 无需额外操作（用 Bing 索引） |
 | **GSC 移除 URL、废弃页面从搜索结果中去掉** | — | `scripts/gsc-remove-urls.mjs`（驱动用户浏览器批量提交，GSC 没有公开 API） |
 | **AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化** | [`seo-growth.md`](references/seo-growth.md) section 三-B「2026 AI 搜索范式」 | 无需额外工具——Google 官方定论：AEO/GEO 就是 SEO |
@@ -528,7 +575,7 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | 关键词难度、SERP 盘面、页面体检、域名与外链估值 | [`seo-webcafe.md`](references/seo-webcafe.md) | `scripts/seo-webcafe.mjs`（一个脚本覆盖全部工具，零配置可跑） |
 | **前期调研、挖需求、「做什么方向」、反推别人在赚什么钱、选题验证** | 判断先读 [`experiences/demand-discovery.md`](references/experiences/demand-discovery.md)（裁定集），取数直接查 [`demand-sources.md`](references/demand-sources.md)（源 → 脚本路由表） | `scripts/demand/` 整组 + `scripts/gt.py` + `seo-webcafe.mjs kd` 收敛成词 |
 | **「找几个关键词」「找点需求」「挖个新方向」「有什么新词的工具站能做」「挖游戏站/AI 产品」** | [`demand-sources.md`](references/demand-sources.md) —— **按「你现在缺哪一类信号」查表，不要凭印象挑站** | `scripts/demand/`。拿到候选后一律走该文件第十节的验证链路，别跳过 |
-| **小游戏站、游戏新词、监控游戏站、游戏 iframe、游戏站变现** | 先加载 `game-opportunity`，建站阶段再读 [`game-sites.md`](references/game-sites.md) + [`lifecycle.md`](references/lifecycle.md) | `game-opportunity` 每天完成 sitemap、验活、查量/KD、供给与排序；Rankup 接手建站和增长 |
+| **小游戏站、游戏新词、监控游戏站、游戏 iframe、游戏站变现** | 加载 Rankup 的专项模块 `game-opportunity`；建站阶段再读 [`game-sites.md`](references/game-sites.md) + [`lifecycle.md`](references/lifecycle.md) | 通用 SOP/Checklist/脚本属于 Rankup 仓库；项目 `.rankup/` 只存平台清单、快照、取数和日报 |
 | **0→1 怎么排优先级、「1」怎么定义、虚荣指标、要不要重构、什么时候止损、新站上线执行清单** | [`experiences/zero-to-one.md`](references/experiences/zero-to-one.md) | 无需工具，是裁定集。**接到「优化一下这个站」时默认打磨转化链路，不是重构架构** |
 | **转化率上不去、访客不注册、注册不付费、定价怎么定、用户行为数据怎么提** | [`experiences/conversion.md`](references/experiences/conversion.md) | 无需工具，是裁定集。**动页面之前先查上游流量意图** |
 | 老站救不救、多站会不会自我重复、品牌名不显示、KGR 怎么算、页面下限 | [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) | 无需工具，是裁定集 |
