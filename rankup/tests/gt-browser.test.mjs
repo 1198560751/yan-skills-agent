@@ -28,9 +28,15 @@ if (!existsSync(process.env.GT_FAKE_STATE) && !commands.some((command) => comman
   process.exit(1);
 }
 if (commands.some((command) => command.cmd === "open")) writeFileSync(process.env.GT_FAKE_STATE, "open");
-console.log(JSON.stringify(commands.map((command, index) => command.cmd === "eval"
-  ? { cmd: "eval", index, ok: true, result: { value: { timeseries: { default: { timelineData: [{ time: "1704067200", value: [42] }] } } } } }
-  : { cmd: command.cmd, index, ok: true, result: {} })));
+// The settle step is an eval too, and it answers true — exactly like the real
+// bridge. Anything that reaches for the first eval instead of the last picks this
+// up and reads it as an empty result.
+const isSettle = (command) => command.cmd === "eval" && /setTimeout/.test(command.args.js) && !/widgetdata/.test(command.args.js);
+console.log(JSON.stringify(commands.map((command, index) => {
+  if (isSettle(command)) return { cmd: "eval", index, ok: true, result: { value: true } };
+  if (command.cmd === "eval") return { cmd: "eval", index, ok: true, result: { value: { timeseries: { default: { timelineData: [{ time: "1704067200", value: [42] }] } } } } };
+  return { cmd: command.cmd, index, ok: true, result: {} };
+})));
 `);
 await chmod(fakeOpencli, 0o755);
 
@@ -55,6 +61,20 @@ try {
   assert.match(firstBatch.at(-1).args.js, /today 1-m/, "1m 应映射到 Trends 时间范围");
   assert.deepEqual(secondBatch.map((command) => command.cmd), ["eval"], "复用会话时不应重新 open");
   assert.match(secondBatch[0].args.js, /now 7-d/, "7d 应映射到 Trends 时间范围");
+
+  // Opening a session puts a settle eval in front of the extractor eval. Reading
+  // the wrong one made every cold start report an empty result while warm reuse
+  // kept working, which is what made the failure look intermittent.
+  run(["close", "--session", "gt-browser-test"]);
+  assert.equal(existsSync(state), false, "the cold-start case needs no session left behind");
+  const cold = run(["compare", "demo", "--time", "1m", "--session", "gt-browser-cold"]);
+  assert.equal(cold.status, 0, `cold start must read the extractor eval, not the settle: ${cold.stderr}`);
+  assert.match(cold.stdout, /42/, "cold start should surface the extractor's data");
+  const coldCalls = (await readFile(log, "utf8")).trim().split("\n").map(JSON.parse);
+  // The run closes its session afterwards, so skip past that call to the batch.
+  const lastBatchCall = coldCalls.filter((call) => call.includes("--commands")).at(-1);
+  const coldBatch = JSON.parse(lastBatchCall[lastBatchCall.indexOf("--commands") + 1]);
+  assert.deepEqual(coldBatch.map((command) => command.cmd), ["open", "eval", "eval"], "cold start opens, settles, then extracts");
 
   const close = run(["close", "--session", "gt-browser-test"]);
   assert.equal(close.status, 0, close.stderr);

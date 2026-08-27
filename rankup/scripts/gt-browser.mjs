@@ -25,6 +25,10 @@ import { execFileSync } from "node:child_process";
 const DEFAULT_SESSION = "rankup-gt-trends";
 const EXPLORE_URL = "https://trends.google.com/trends/explore?hl=en-US";
 const OPENCLI = process.env.GT_OPENCLI ?? "opencli";
+// How long to let the Trends bundle boot before querying its APIs from the page.
+const SETTLE_MS = 5000;
+// The bridge intermittently drops a large eval result; reopening clears it.
+const EMPTY_RESULT_ATTEMPTS = 3;
 
 const PRESETS = {
   "7d": "now 7-d",
@@ -71,7 +75,14 @@ function parseArgs(argv) {
 /** 在 Trends 页面上下文里跑的取数器。返回三个 widget 的原始数据。 */
 function extractor({ keywords, geo, timeframe, resolution }) {
   return `(async () => {
-  const strip = t => JSON.parse(t.replace(/^\\)\\]\\}'?,?\\n?/, ''));
+  // Never throw. opencli reports a rejected promise as ok:true with an empty
+  // result, which used to surface as "关键词太冷门" — Google answering with a
+  // consent page, an interstitial, or 429 HTML behind a 200 would parse-fail here
+  // and be read as an absence of search demand. Return the reason instead.
+  const strip = (t, what) => {
+    try { return JSON.parse(t.replace(/^\\)\\]\\}'?,?\\n?/, '')); }
+    catch { return {__parseFailed: what, head: String(t).slice(0, 120)}; }
+  };
   const tz = new Date().getTimezoneOffset();
   const kws = ${JSON.stringify(keywords)};
   if (location.hostname !== 'trends.google.com') return {error: 'wrong_page'};
@@ -79,7 +90,9 @@ function extractor({ keywords, geo, timeframe, resolution }) {
   const eu = 'https://trends.google.com/trends/api/explore?hl=en-US&tz=' + tz + '&req=' + encodeURIComponent(JSON.stringify(req));
   const er = await fetch(eu, {credentials: 'include'});
   if (!er.ok) return {error: 'explore_' + er.status};
-  const j = strip(await er.text());
+  const j = strip(await er.text(), 'explore');
+  if (j.__parseFailed) return {error: 'explore_not_json', head: j.head};
+  if (!Array.isArray(j.widgets)) return {error: 'explore_no_widgets'};
   const pick = id => j.widgets.find(w => w.id === id);
   const wd = async (path, w, patch) => {
     if (!w) return null;
@@ -90,10 +103,12 @@ function extractor({ keywords, geo, timeframe, resolution }) {
       + '&token=' + encodeURIComponent(w.token);
     const r = await fetch(u, {credentials: 'include'});
     if (!r.ok) return {error: path + '_' + r.status};
-    return strip(await r.text());
+    const parsed = strip(await r.text(), path);
+    return parsed.__parseFailed ? {error: path + '_not_json', head: parsed.head} : parsed;
   };
   const geoWidget = pick('GEO_MAP') || pick('GEO_MAP_0');
   const out = {keywords: kws};
+  try {
   out.timeseries = await wd('multiline', pick('TIMESERIES'));
   out.geo = await wd('comparedgeo', geoWidget, ${resolution ? JSON.stringify({ resolution }) : "null"});
   out.related = [];
@@ -101,6 +116,7 @@ function extractor({ keywords, geo, timeframe, resolution }) {
     const w = pick('RELATED_QUERIES_' + i) || (kws.length === 1 ? pick('RELATED_QUERIES') : null);
     out.related.push(await wd('relatedsearches', w));
   }
+  } catch (e) { return {error: 'extractor_threw', head: String(e && e.message || e).slice(0, 200)}; }
   return out;
 })()`;
 }
@@ -110,14 +126,17 @@ function extractor({ keywords, geo, timeframe, resolution }) {
 const SESSION_NOT_FOUND = /session_not_found|No active session/i;
 const STALE = /stale page identity|Page not found/i;
 
-function runBatch(js, session, { retry = true, open = false } = {}) {
+function runBatch(js, session, { retry = true, open = false, attempt = 1 } = {}) {
+  const settleMs = SETTLE_MS * attempt;
   const commands = JSON.stringify([
     ...(open ? [
       { cmd: "open", args: { url: EXPLORE_URL } },
       // `wait time` is broken in opencli 1.8.7 — it returns in well under a second
       // whatever you ask for, so Trends got queried before its bundle had booted.
       // An in-page timer is accurate. See backlink/tests/opencli-wait.test.mjs.
-      { cmd: "eval", args: { js: "(async()=>{await new Promise(r=>setTimeout(r,2000));return true})()" } },
+      // Two seconds still left the odd run reading an unbooted page, and each
+      // retry waits proportionally longer.
+      { cmd: "eval", args: { js: `(async()=>{await new Promise(r=>setTimeout(r,${settleMs}));return true})()` } },
     ] : []),
     { cmd: "eval", args: { js } },
   ]);
@@ -148,7 +167,12 @@ function runBatch(js, session, { retry = true, open = false } = {}) {
   } catch {
     die(`解析 opencli 输出失败：${raw.slice(0, 300)}`);
   }
-  const evalStep = steps.find((s) => s.cmd === "eval");
+  // The extractor is the LAST eval, not the first. The settle is an eval too now
+  // that `wait time` turned out to be broken, and picking the first one handed
+  // back the settle's `true` — which then looked like an empty result and burned
+  // every retry. It only showed up when the session had to be opened, because
+  // that is the only path with two evals in the batch.
+  const evalStep = [...steps].reverse().find((s) => s.cmd === "eval");
   if (!evalStep?.ok) {
     const err = String(evalStep?.error || "eval 步骤缺失");
     if (retry && SESSION_NOT_FOUND.test(err)) {
@@ -170,7 +194,39 @@ function runBatch(js, session, { retry = true, open = false } = {}) {
     }
     die(`Trends 接口返回异常：${data?.error || "空结果"}`);
   }
+  // An empty object means the eval result never came back. The extractor itself
+  // always returns at least `keywords`, so this is the bridge dropping it rather
+  // than Trends answering — reopening with a longer settle clears it most of the
+  // time. Never report it as "no search volume"; that is a wrong answer that looks
+  // like a real one.
+  if (!Object.keys(data).length) {
+    if (attempt < EMPTY_RESULT_ATTEMPTS) {
+      closeSession(session);
+      return runBatch(js, session, { retry, open: true, attempt: attempt + 1 });
+    }
+    die(`Trends 连续 ${EMPTY_RESULT_ATTEMPTS} 次返回空结果——页面脚本没跑完或结果没回传，不是没有搜索量。稍后重试`);
+  }
   return data;
+}
+
+/**
+ * Turn a missing widget into the reason it is missing.
+ *
+ * `explore` hands back tokens and then each `widgetdata` call can be throttled on
+ * its own, landing in data.timeseries.error rather than data.error. The top-level
+ * check never saw those, so a 429 arrived here as an empty timeline and got
+ * announced as "关键词太冷门" — a rate limit reported as an absence of demand. For
+ * a keyword tool that is the worst failure mode there is, because the wrong answer
+ * is the believable one. Each command asks only about the widget it needs, so a
+ * throttled geo widget no longer sinks a compare that already has its timeline.
+ */
+function widgetUnavailable(widget, whatFor) {
+  const error = widget && typeof widget === "object" ? widget.error : null;
+  if (!error) return null;
+  if (String(error).includes("_429")) {
+    return `Google 限流了${whatFor}接口（${error}）。**这不是「没有搜索量」，是没取到数**——等一会儿或换网络重试`;
+  }
+  return `${whatFor}接口失败：${error}。不要把它当成零需求`;
 }
 
 function closeSession(session) {
@@ -209,7 +265,7 @@ function cmdCompare(kws, opts) {
   if (!kws.length) die("compare 需要至少 1 个关键词，最多 5 个");
   const { data, geo, timeframe } = fetchTrends(kws, opts);
   const tl = data.timeseries?.default?.timelineData;
-  if (!tl?.length) die("没有数据：关键词太冷门，或该地区/时间范围内无足够搜索量");
+  if (!tl?.length) die(widgetUnavailable(data.timeseries, "热度曲线") ?? "没有数据：关键词太冷门，或该地区/时间范围内无足够搜索量");
 
   let rows;
   let note = "";
@@ -252,7 +308,7 @@ function cmdRegion(kws, opts) {
     resolution: opts.geo ? "REGION" : "COUNTRY",
   });
   const gm = data.geo?.default?.geoMapData;
-  if (!gm?.length) die("没有地区数据");
+  if (!gm?.length) die(widgetUnavailable(data.geo, "地区分布") ?? "没有地区数据");
   const topN = Number(opts.top || 15);
   const rows = gm
     .filter((g) => g.value.some((v) => v > 0))
@@ -268,6 +324,8 @@ function cmdRelated(kws, opts) {
   if (kws.length !== 1) die("related 只支持单个关键词");
   const { data, geo, timeframe } = fetchTrends(kws, opts);
   const ranked = data.related?.[0]?.default?.rankedList;
+  const relatedProblem = widgetUnavailable(data.related?.[0], "相关查询");
+  if (!ranked && relatedProblem) die(relatedProblem);
   console.log(`## 相关查询：${kws[0]}`);
   console.log(scopeLine(geo, timeframe));
   const topN = Number(opts.top || 15);
