@@ -14,7 +14,7 @@
 | 缺口 | 卡住了什么 |
 |---|---|
 | Similarweb **Keyword Generator**（词根批量扩词） | **整条选词流水线的源头**。`demand-discovery.md` 记的规模是「1,309 个词根 → 扩出 97,681 个词」，这一步现在**完全没有脚本** |
-| Semrush **Keyword Magic Tool**（整包扩词/聚簇） | `semrush-keyword.mjs` 自己在注释里写着"整包导出适合一次拉几千个词做聚簇；本脚本适合点查十几个词"——**另一半从来没实现** |
+| Semrush **Keyword Magic Tool**（整包扩词/聚簇） | `semrush-keyword.mjs` 自己在注释里写着"整包导出适合一次拉几千个词做聚簇；本脚本适合点查十几个词"——**另一半从来没实现**。2026-08-28 实测该页可用：种子词 `nonogram` 给出 20.1K 词 / 201 页 + Topics 聚簇 |
 | Similarweb **Audience → 国家分布** | 每次跨面板口径对齐都要手开浏览器看目标国占比 |
 | Similarweb **Website → Search**（该站自然搜索词 + 占比） | 隐含点击率校验只能手工做 |
 
@@ -147,6 +147,10 @@
 ```
 输出 JSONL：`{keyword, db, volume, kd, cpc, competition, results, intent, cluster, seed}`
 难点：第一个「分页 + 侧边聚簇树」的 Semrush 表；`--db` 强制必填；默认读页面不点导出。
+**关键约束（2026-08-28 实测）**：这个页面的**搜索量/KD/CPC 三列返回「不可用」**，
+要点「刷新指标」才补齐，大概率消耗配额。所以脚本应当**先只取词表和聚簇**（便宜、可大量），
+把指标标成 `null` + `metricsPending: true`，需要时再走 `semrush-keyword.mjs` 按需补。
+**不要设计成一次拿全，那会在不知不觉中烧配额。**
 顺手把 `semrush-keyword.mjs` 的 `parseCompact` 抽到共享 lib，**别第三次复制**。
 
 ### 3. `backlink/scripts/similarweb-audience.mjs`

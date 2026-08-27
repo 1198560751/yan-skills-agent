@@ -10,48 +10,313 @@
         "sameOriginPages": 102,
         "artifactBundles": 79,
         "fullHtmlPages": 79,
-        "outcomes": {"captured": 15, "bounded": 11, "permissionBlocked": 4, "writeConfirmationRequired": 49, "externalUnavailable": 1},
+        "outcomes": {
+          "captured": 15,
+          "bounded": 11,
+          "permissionBlocked": 4,
+          "writeConfirmationRequired": 49,
+          "externalUnavailable": 1
+        },
         "verifiedWorkflow": "keyword geo-hop from US/global demand to India database",
         "sidebarExtraction": "The toolkit sidebar lives in shadow DOM. Read it with document.querySelectorAll('snav-sidebar-ribbon-item, snav-sidebar-list-item') then el.shadowRoot.querySelector('a').getAttribute('href'). A plain querySelectorAll('a') returns only header and footer marketing links, which is why an earlier pass concluded the sidebar was invisible.",
-        "boundaries": ["Traffic analysis submission creates a project", "SEOquake is an external provider", "paid, account, and export actions were not executed", "the gmitm proxy anonymises some third-party domains, so competitor widgets can return placeholder domains such as silver-switchboard.net that are not real data", "several report tables failed to render across repeated reloads and are recorded as not-reached rather than missing"],
-        "knownMissing": ["Brand Monitoring: confirmed 404 on two reloads; replaced by the third-party Brand24 Media Monitoring app in App Center at $39/mo", "Link Building Tool: /link_building/ now 302s to /analytics/backlinks/, the Backlink Analytics landing page. The SEO sidebar 外链建设 group holds Backlinks, Referring Domains, and Backlink Audit instead. The landing copy still names a standalone Link Building Tool, but no sidebar entry matches it", "Content Analyzer: renamed to 内容优化工具 (Content Optimizer) at /content/articles/optimize/", "My Reports: Scheduled PDF Reports and Toolkit Widgets were not in the sidebar; possibly inside the report constructor, unverified"],
-        "previouslyMissingNowFound": ["PLA Research → exists as 谷歌购物广告研究 (Google Shopping Ads Research) at /analytics/pla/positions/ in Advertising Toolkit"],
-        "newlyFound": ["SEO: 页面 SEO 检查器 /on-page-seo-checker/", "SEO: 自然流量洞察 /organic_traffic_insights/", "AI SEO: 提示跟踪 /position-tracking/?filter=geo", "Traffic: 社会经济 /analytics/traffic/socioeconomics/", "Traffic: 行为 /analytics/traffic/behavior/", "Traffic: 每日趋势 /analytics/traffic/daily-trends/", "Traffic: 行业与批量分析 /analytics/traffic/industry-and-bulk-analysis/", "Traffic: Trends API /analytics/traffic/trends-api", "Traffic: 热门网站趋势 /trending-websites/global/all/", "Local: GBP 优化 /gbp-optimization/", "Local: Google 商家资料 AI 代理 /gbp-ai-agent/", "AI PR: 发件人和域名, 警告和摘要", "Social: standalone /media-monitoring/", "My Reports: GA4 / GSC / monthly-SEO templates, 主题, 关于我的报告套件"],
-        "rowCaps": {"referring-domains": "100 rows per page, 201 pages, header reads 1-100 (~20,001), so roughly 20,001 rows", "top-pages": "100 rows per page, 67 pages for coolmathgames.com against a stated 6,693 total"},
+        "boundaries": [
+          "Traffic analysis submission creates a project",
+          "SEOquake is an external provider",
+          "paid, account, and export actions were not executed",
+          "the gmitm proxy anonymises some third-party domains, so competitor widgets can return placeholder domains such as silver-switchboard.net that are not real data",
+          "several report tables failed to render across repeated reloads and are recorded as not-reached rather than missing"
+        ],
+        "knownMissing": [
+          "Brand Monitoring: confirmed 404 on two reloads; replaced by the third-party Brand24 Media Monitoring app in App Center at $39/mo",
+          "Link Building Tool: /link_building/ now 302s to /analytics/backlinks/, the Backlink Analytics landing page. The SEO sidebar 外链建设 group holds Backlinks, Referring Domains, and Backlink Audit instead. The landing copy still names a standalone Link Building Tool, but no sidebar entry matches it",
+          "Content Analyzer: renamed to 内容优化工具 (Content Optimizer) at /content/articles/optimize/",
+          "My Reports: Scheduled PDF Reports and Toolkit Widgets were not in the sidebar; possibly inside the report constructor, unverified"
+        ],
+        "previouslyMissingNowFound": [
+          "PLA Research → exists as 谷歌购物广告研究 (Google Shopping Ads Research) at /analytics/pla/positions/ in Advertising Toolkit"
+        ],
+        "newlyFound": [
+          "SEO: 页面 SEO 检查器 /on-page-seo-checker/",
+          "SEO: 自然流量洞察 /organic_traffic_insights/",
+          "AI SEO: 提示跟踪 /position-tracking/?filter=geo",
+          "Traffic: 社会经济 /analytics/traffic/socioeconomics/",
+          "Traffic: 行为 /analytics/traffic/behavior/",
+          "Traffic: 每日趋势 /analytics/traffic/daily-trends/",
+          "Traffic: 行业与批量分析 /analytics/traffic/industry-and-bulk-analysis/",
+          "Traffic: Trends API /analytics/traffic/trends-api",
+          "Traffic: 热门网站趋势 /trending-websites/global/all/",
+          "Local: GBP 优化 /gbp-optimization/",
+          "Local: Google 商家资料 AI 代理 /gbp-ai-agent/",
+          "AI PR: 发件人和域名, 警告和摘要",
+          "Social: standalone /media-monitoring/",
+          "My Reports: GA4 / GSC / monthly-SEO templates, 主题, 关于我的报告套件"
+        ],
+        "rowCaps": {
+          "referring-domains": "100 rows per page, 201 pages, header reads 1-100 (~20,001), so roughly 20,001 rows - a hard cap",
+          "top-pages": "100 rows per page, 67 pages for coolmathgames.com against a stated 6,693 total",
+          "organic-positions": "100 rows per page, 1,848 pages, 184.7K keywords for coolmathgames.com - the domain total, not a cap",
+          "keyword-magic": "100 rows per page, 201 pages, 20.1K keywords for the seed 'nonogram', with a Topics sidebar of clusters"
+        },
         "notReached": [
-          {"what": "谷歌购物广告研究 column names", "why": "skeleton and tabs render but the table body never appeared across 4 reloads at 25-40s; no paywall seen, so this is a load failure, not a missing feature"},
-          {"what": "Keyword Magic Tool pagination and row cap", "why": "column names captured, but the body returned an error banner twice and stayed empty after 3 reloads"},
-          {"what": "Organic Positions pagination and row cap", "why": "columns and filters captured on the first pass; the body did not render on 6 later reloads"},
-          {"what": "the 7 inner pages of the AI Visibility toolkit", "why": "with no campaign the route renders a marketing landing page, and starting one is a write action; adding ?q= returned an error 3 times"},
-          {"what": "App Center entries", "why": "not enumerated this round"},
-          {"what": "2 of the 17 columns in Advertising Research", "why": "the column manager reads 15/17 and was not opened"}
-        ]
+          {
+            "what": "the 7 inner pages of the AI Visibility toolkit",
+            "why": "with no campaign the route renders a marketing landing page, and starting one is a write action; read-only AI metrics are on Domain Overview instead"
+          },
+          {
+            "what": "App Center entries",
+            "why": "not enumerated"
+          },
+          {
+            "what": "2 of the 17 columns in Advertising Research",
+            "why": "the column manager reads 15/17 and was not opened"
+          }
+        ],
+        "retriedOn": "2026-08-28",
+        "resolvedOnRetry": [
+          "Google Shopping Ads Research columns: 广告, 关键词, 排名, 位差, 搜索量, 产品标题和 URL, 价格 (USD), 趋势, SERP, 上次更新. The earlier failure was the test domain, not loading - amazon.com carries no shopping-ads data in the US database, while walmart.com renders immediately.",
+          "Organic Positions and Keyword Magic pagination, both captured after the reload-and-retry rule; each needed 2-3 reloads before the table body appeared."
+        ],
+        "keywordMagicLimitation": "The table lists keywords and clusters, but the volume, KD, and CPC columns come back 不可用 with a 要更新指标数据，请刷新 prompt. This account reads keyword lists freely; per-keyword metrics need an explicit refresh that most likely spends quota, so treat bulk expansion as list-first."
       },
       "scriptCoverage": {
         "status": "script-verified",
-        "reports": ["organic-overview", "organic-positions", "organic-pages", "backlinks-overview", "backlinks-list", "keyword-overview"],
-        "targets": ["domain", "keyword"],
-        "gapsRanked": ["Keyword Magic Tool bulk export and clustering", "Referring Domains list with hit-count rollup", "Keyword Gap and Backlink Gap", "multi-country-database sum wrapper"],
-        "notWorthScripting": ["Local Toolkit (4 pages, write actions and no physical storefront)", "Social Toolkit (5 pages, publishing)", "AI PR Toolkit (5 pages, outbound email)", "My Reports (3 pages, export and account actions)", "Content Toolkit (7 pages, generation)"],
+        "reports": [
+          "organic-overview",
+          "organic-positions",
+          "organic-pages",
+          "backlinks-overview",
+          "backlinks-list",
+          "keyword-overview"
+        ],
+        "targets": [
+          "domain",
+          "keyword"
+        ],
+        "gapsRanked": [
+          "Keyword Magic Tool bulk export and clustering",
+          "Referring Domains list with hit-count rollup",
+          "Keyword Gap and Backlink Gap",
+          "multi-country-database sum wrapper"
+        ],
+        "notWorthScripting": [
+          "Local Toolkit (4 pages, write actions and no physical storefront)",
+          "Social Toolkit (5 pages, publishing)",
+          "AI PR Toolkit (5 pages, outbound email)",
+          "My Reports (3 pages, export and account actions)",
+          "Content Toolkit (7 pages, generation)"
+        ],
         "gapNote": "Page count does not rank priority. The Traffic and Market Toolkit is the largest block at 25 pages but ranks ninth, because it duplicates Similarweb-style estimates that are already known to disagree with each other."
       },
       "modules": [
-        {"name": "SEO Toolkit", "pages": 22, "groups": ["站点表现", "竞品分析", "关键词研究", "内容创意", "外链建设", "其他"], "examples": ["Dashboard", "Site Audit", "Position Tracking", "Domain Overview", "Organic Rankings", "Top Pages", "Compare Domains", "Keyword Gap", "Backlink Gap", "Keyword Overview", "Keyword Magic Tool", "Keyword Strategy Builder", "SEO Writing Assistant", "Topic Research", "Backlinks", "Referring Domains", "Backlink Audit", "On-Page SEO Checker", "Organic Traffic Insights", "Sensor", "SEOquake", "Semrush Ranking"]},
-        {"name": "Traffic & Market Toolkit", "pages": 28, "groups": ["流量分布", "页面和类别 (beta)", "地区趋势", "受众资料", "高级版"], "examples": ["Getting Started", "Traffic Analysis", "Market Overview", "Top Pages", "Competitor Monitoring", "AI Traffic", "Referral Traffic", "Organic Search", "Paid Search", "Organic Social", "Paid Social", "Email", "Display Ads", "Sources & Destinations", "Subfolders & Subdomains", "Page Groups (beta)", "US/Country/Business/Geographic Regions", "Demographics", "Audience Overlap", "Socioeconomics", "Behaviour", "Daily Trends", "Industry & Bulk Analysis", "Trends API", "Trending Websites"]},
-        {"name": "AI SEO / AI Visibility", "pages": 10, "examples": ["Visibility Overview", "Brand Performance", "Competitor Research", "Prompt Research", "Narrative Drivers", "Perception", "Questions", "Prompt Tracking"], "note": "the overview renders a marketing landing page until an AI-visibility campaign exists, and starting one is a write action; read-only AI metrics are available without a campaign on Domain Overview"},
-        {"name": "Content Toolkit", "pages": 7, "examples": ["Dashboard", "AI Article Generator", "Content Optimizer", "Content Repurposing", "Topic Finder", "SEO Brief Generator", "My Content"]},
-        {"name": "Advertising Toolkit", "pages": 6, "examples": ["Advertising Research", "Ads AI Agent", "Ads Launch Assistant", "Google Shopping Ads Research (PLA Research)", "AdClarity", "Getting Started"]},
-        {"name": "Social Toolkit", "pages": 7, "examples": ["Dashboard", "Social Poster", "Social Tracker", "Social Analytics", "Social Content Insights", "Influencer Marketing", "Media Monitoring"], "note": "sub-tools are query params on /social-media/, not distinct paths"},
-        {"name": "Local Toolkit", "pages": 6, "examples": ["Dashboard", "Listing Management", "Review Management", "GBP Optimisation", "Google Business Profile AI Agent", "Map Rank Tracker"]},
-        {"name": "AI PR Toolkit", "pages": 8, "examples": ["Dashboard", "AI Cited Media", "Contact Search (Media Database)", "Media Lists", "Your Emails", "Senders & Domains", "Media Monitoring", "Alerts & Digests"]},
-        {"name": "My Reports", "pages": 8, "examples": ["My Reports", "GA4 template", "Google Search Console template", "Monthly SEO template", "Create Report", "Templates", "Themes", "About My Reports Suite"], "note": "Scheduled PDF Reports and Toolkit Widgets were not in the sidebar; they may live inside the report constructor, unverified"},
-        {"name": "Apps (App Center)", "pages": 0, "observed": false, "note": "not enumerated this round"}
+        {
+          "name": "SEO Toolkit",
+          "pages": 22,
+          "groups": [
+            "站点表现",
+            "竞品分析",
+            "关键词研究",
+            "内容创意",
+            "外链建设",
+            "其他"
+          ],
+          "examples": [
+            "Dashboard",
+            "Site Audit",
+            "Position Tracking",
+            "Domain Overview",
+            "Organic Rankings",
+            "Top Pages",
+            "Compare Domains",
+            "Keyword Gap",
+            "Backlink Gap",
+            "Keyword Overview",
+            "Keyword Magic Tool",
+            "Keyword Strategy Builder",
+            "SEO Writing Assistant",
+            "Topic Research",
+            "Backlinks",
+            "Referring Domains",
+            "Backlink Audit",
+            "On-Page SEO Checker",
+            "Organic Traffic Insights",
+            "Sensor",
+            "SEOquake",
+            "Semrush Ranking"
+          ]
+        },
+        {
+          "name": "Traffic & Market Toolkit",
+          "pages": 28,
+          "groups": [
+            "流量分布",
+            "页面和类别 (beta)",
+            "地区趋势",
+            "受众资料",
+            "高级版"
+          ],
+          "examples": [
+            "Getting Started",
+            "Traffic Analysis",
+            "Market Overview",
+            "Top Pages",
+            "Competitor Monitoring",
+            "AI Traffic",
+            "Referral Traffic",
+            "Organic Search",
+            "Paid Search",
+            "Organic Social",
+            "Paid Social",
+            "Email",
+            "Display Ads",
+            "Sources & Destinations",
+            "Subfolders & Subdomains",
+            "Page Groups (beta)",
+            "US/Country/Business/Geographic Regions",
+            "Demographics",
+            "Audience Overlap",
+            "Socioeconomics",
+            "Behaviour",
+            "Daily Trends",
+            "Industry & Bulk Analysis",
+            "Trends API",
+            "Trending Websites"
+          ]
+        },
+        {
+          "name": "AI SEO / AI Visibility",
+          "pages": 10,
+          "examples": [
+            "Visibility Overview",
+            "Brand Performance",
+            "Competitor Research",
+            "Prompt Research",
+            "Narrative Drivers",
+            "Perception",
+            "Questions",
+            "Prompt Tracking"
+          ],
+          "note": "the overview renders a marketing landing page until an AI-visibility campaign exists, and starting one is a write action; read-only AI metrics are available without a campaign on Domain Overview"
+        },
+        {
+          "name": "Content Toolkit",
+          "pages": 7,
+          "examples": [
+            "Dashboard",
+            "AI Article Generator",
+            "Content Optimizer",
+            "Content Repurposing",
+            "Topic Finder",
+            "SEO Brief Generator",
+            "My Content"
+          ]
+        },
+        {
+          "name": "Advertising Toolkit",
+          "pages": 6,
+          "examples": [
+            "Advertising Research",
+            "Ads AI Agent",
+            "Ads Launch Assistant",
+            "Google Shopping Ads Research (PLA Research)",
+            "AdClarity",
+            "Getting Started"
+          ]
+        },
+        {
+          "name": "Social Toolkit",
+          "pages": 7,
+          "examples": [
+            "Dashboard",
+            "Social Poster",
+            "Social Tracker",
+            "Social Analytics",
+            "Social Content Insights",
+            "Influencer Marketing",
+            "Media Monitoring"
+          ],
+          "note": "sub-tools are query params on /social-media/, not distinct paths"
+        },
+        {
+          "name": "Local Toolkit",
+          "pages": 6,
+          "examples": [
+            "Dashboard",
+            "Listing Management",
+            "Review Management",
+            "GBP Optimisation",
+            "Google Business Profile AI Agent",
+            "Map Rank Tracker"
+          ]
+        },
+        {
+          "name": "AI PR Toolkit",
+          "pages": 8,
+          "examples": [
+            "Dashboard",
+            "AI Cited Media",
+            "Contact Search (Media Database)",
+            "Media Lists",
+            "Your Emails",
+            "Senders & Domains",
+            "Media Monitoring",
+            "Alerts & Digests"
+          ]
+        },
+        {
+          "name": "My Reports",
+          "pages": 8,
+          "examples": [
+            "My Reports",
+            "GA4 template",
+            "Google Search Console template",
+            "Monthly SEO template",
+            "Create Report",
+            "Templates",
+            "Themes",
+            "About My Reports Suite"
+          ],
+          "note": "Scheduled PDF Reports and Toolkit Widgets were not in the sidebar; they may live inside the report constructor, unverified"
+        },
+        {
+          "name": "Apps (App Center)",
+          "pages": 0,
+          "observed": false,
+          "note": "not enumerated this round"
+        }
       ],
       "interfaces": [
-        {"name": "analytics API v3/v4", "access": "blocked-shared-account", "mode": "read", "checkedAt": "2026-08-27", "reason": "requires SEO Business tier plus separately purchased API units; the api_key lives on the account Subscription Info page, which the Tools Share proxy does not expose", "evidence": "developer.semrush.com/api/v4/get-started/api-access/"},
-        {"name": "projects API v3", "access": "blocked-shared-account", "mode": "mixed", "checkedAt": "2026-08-27", "reason": "same Business tier and API key requirement as the analytics API", "evidence": "developer.semrush.com/api/v3/projects/basic-docs/"},
-        {"name": "MCP", "access": "blocked-shared-account", "mode": "read", "checkedAt": "2026-08-27", "reason": "shares the same API unit pool as HTTP, and this account has units=0; changing MCP client, transport, or OAuth flow cannot change that", "evidence": "developer.semrush.com/api/v4/introduction/semrush-mcp/ + rankup/references/seo-growth.md"},
-        {"name": "trends API", "access": "blocked-shared-account", "mode": "read", "checkedAt": "2026-08-27", "reason": "requires a separate Trends subscription this account does not hold", "evidence": "developer.semrush.com/api/v4/get-started/api-access/"}
+        {
+          "name": "analytics API v3/v4",
+          "access": "blocked-shared-account",
+          "mode": "read",
+          "checkedAt": "2026-08-27",
+          "reason": "requires SEO Business tier plus separately purchased API units; the api_key lives on the account Subscription Info page, which the Tools Share proxy does not expose",
+          "evidence": "developer.semrush.com/api/v4/get-started/api-access/"
+        },
+        {
+          "name": "projects API v3",
+          "access": "blocked-shared-account",
+          "mode": "mixed",
+          "checkedAt": "2026-08-27",
+          "reason": "same Business tier and API key requirement as the analytics API",
+          "evidence": "developer.semrush.com/api/v3/projects/basic-docs/"
+        },
+        {
+          "name": "MCP",
+          "access": "blocked-shared-account",
+          "mode": "read",
+          "checkedAt": "2026-08-27",
+          "reason": "shares the same API unit pool as HTTP, and this account has units=0; changing MCP client, transport, or OAuth flow cannot change that",
+          "evidence": "developer.semrush.com/api/v4/introduction/semrush-mcp/ + rankup/references/seo-growth.md"
+        },
+        {
+          "name": "trends API",
+          "access": "blocked-shared-account",
+          "mode": "read",
+          "checkedAt": "2026-08-27",
+          "reason": "requires a separate Trends subscription this account does not hold",
+          "evidence": "developer.semrush.com/api/v4/get-started/api-access/"
+        }
       ]
     },
     "similarweb": {
@@ -59,76 +324,366 @@
       "liveAudit": {
         "auditedAt": "2026-08-27",
         "planTier": "PRO 全球版, node 1, multiplier X1, expires 2027-02-21",
-        "inAppQuotas": {"rankTrackerCampaigns": "1/10", "searchTracking": "1984/2000", "monitorProtectCampaigns": "0/5", "keywordCrawl": "0/310", "projects": "1/1 (limit reached, upsell shown)"},
+        "inAppQuotas": {
+          "rankTrackerCampaigns": "1/10",
+          "searchTracking": "1984/2000",
+          "monitorProtectCampaigns": "0/5",
+          "keywordCrawl": "0/310",
+          "projects": "1/1 (limit reached, upsell shown)"
+        },
         "observedRoutes": 73,
         "capturedPagesWithData": 30,
-        "boundaries": ["Market Research needs an industry selected or created before it reports", "interaction changes require separate before/after evidence", "exports, PDF, and Excel were never clicked"],
+        "boundaries": [
+          "Market Research needs an industry selected or created before it reports",
+          "interaction changes require separate before/after evidence",
+          "exports, PDF, and Excel were never clicked"
+        ],
         "spaNavigation": "Launch through the panel with launchTool(), then navigate INSIDE the booted SPA by assigning location.href to the origin plus hash route, then wait 20-22s. Never run `opencli browser <session> open` against a hash deep link: that full-document-loads the route and yields the blank shell. This is exactly what gotoInTool() in backlink/scripts/lib-tools-share.mjs already does, so the working scripts were never blocked - only ad-hoc open calls were.",
         "stuckPageGuidance": "Retry the CLICK, not the page. Reload storms transiently destroy the left navigation, which made 11 pages falsely report 'nav item not found'; a 6x click-retry with 6s waits recovered all 11. Also, short innerText is not a stuck signal on this SPA - several pages render complete correct data in under 600 characters because the charts are SVG.",
         "knownMissing": [],
-        "resolvedQuestions": ["Audience Interests is the third tab on the Audience page, not a separate navigation item. Confirmed by clicking it. selectedTab= in the URL does not switch tabs on an already-mounted page, and switching to it forces the window to a 3-month range.", "Conversion Analysis is NOT a navigation stub. It is a complete module in an empty state: it carries three report slots (highest conversion rate, most improved year over year, stickiness index) each with month, device, and country filters. They return no matches only because this account has no custom group defined, and creating one is a write action."],
+        "resolvedQuestions": [
+          "Audience Interests is the third tab on the Audience page, not a separate navigation item. Confirmed by clicking it. selectedTab= in the URL does not switch tabs on an already-mounted page, and switching to it forces the window to a 3-month range.",
+          "Conversion Analysis is NOT a navigation stub. It is a complete module in an empty state: it carries three report slots (highest conversion rate, most improved year over year, stickiness index) each with month, device, and country filters. They return no matches only because this account has no custom group defined, and creating one is a write action."
+        ],
         "officialLabelCrosswalk": {
           "source": ".rankup/provider-audit/live/manifests/similarweb-official36-crosswalk.json in the project directory, 36 rows of which 32 are bounded-unmapped. The names were always on disk; only the count had been carried into this skill.",
           "belongToSeparateProducts": {
-            "App Intelligence": ["App Competitors", "App Keyword Ranking", "App Web Insights", "In-App Purchases", "Ratings & Reviews", "Usage"],
-            "Sales Intelligence": ["App Leads", "Company Research", "Intent Signals", "Lead Enrichment", "Lead Scoring", "CRM Integrations", "Prospecting/Meeting Prep/Sales Outreach Agents"],
-            "Retail Intelligence": ["Retail Price Intelligence", "Category Management", "Consumer Analytics", "Brand Health Tracking", "Digital Shelf Analytics"],
-            "Inventory Intelligence": ["Company Performance", "Forecasting", "Sector Performance"]
+            "App Intelligence": [
+              "App Competitors",
+              "App Keyword Ranking",
+              "App Web Insights",
+              "In-App Purchases",
+              "Ratings & Reviews",
+              "Usage"
+            ],
+            "Sales Intelligence": [
+              "App Leads",
+              "Company Research",
+              "Intent Signals",
+              "Lead Enrichment",
+              "Lead Scoring",
+              "CRM Integrations",
+              "Prospecting/Meeting Prep/Sales Outreach Agents"
+            ],
+            "Retail Intelligence": [
+              "Retail Price Intelligence",
+              "Category Management",
+              "Consumer Analytics",
+              "Brand Health Tracking",
+              "Digital Shelf Analytics"
+            ],
+            "Inventory Intelligence": [
+              "Company Performance",
+              "Forecasting",
+              "Sector Performance"
+            ]
           },
           "renamedOrNested": [
-            {"official": "Demographics & Interests", "actual": "the 受众人口特征 and 受众兴趣 tabs on the Audience page", "confidence": "high"},
-            {"official": "Benchmarking", "actual": "与类别对标 on the Traffic & Engagement page", "confidence": "high"},
-            {"official": "Technographics", "actual": "Website Technologies", "confidence": "high"},
-            {"official": "Trend Analysis / Market Trends", "actual": "Market Research → Demand Analysis, topic search volume and growth", "confidence": "medium"}
+            {
+              "official": "Demographics & Interests",
+              "actual": "the 受众人口特征 and 受众兴趣 tabs on the Audience page",
+              "confidence": "high"
+            },
+            {
+              "official": "Benchmarking",
+              "actual": "与类别对标 on the Traffic & Engagement page",
+              "confidence": "high"
+            },
+            {
+              "official": "Technographics",
+              "actual": "Website Technologies",
+              "confidence": "high"
+            },
+            {
+              "official": "Trend Analysis / Market Trends",
+              "actual": "Market Research → Demand Analysis, topic search volume and growth",
+              "confidence": "medium"
+            }
           ],
-          "stillUnknown": ["Strategy", "Video", "AI Leaderboard", "AI Search Optimization", "SEO Strategist Agent", "Trend Analyzer Agent"],
+          "stillUnknown": [
+            "Strategy",
+            "Video",
+            "AI Leaderboard",
+            "AI Search Optimization",
+            "SEO Strategist Agent",
+            "Trend Analyzer Agent"
+          ],
           "lesson": "A cross-product feature list must not be treated as a gap list for one product. Two thirds of these labels describe products this subscription never included."
         },
-        "openQuestions": ["6 official labels remain unclassified: Strategy, Video, AI Leaderboard, AI Search Optimization, SEO Strategist Agent, Trend Analyzer Agent. The last four look like a newer Similarweb AI product line and are probably sold separately, but there is no evidence either way.", "Premium Features renders only a 209-character navigation shell across 3 reloads and never opened."],
-        "separateProducts": ["Data Studio (NEW) - listed under 选择解决方案 alongside 网络情报, the tier this subscription sits in", "应用 情报 (App Intelligence)", "零售 情报 (Retail Intelligence)", "销售人员 情报 (Sales Intelligence)", "库存 情报 (Inventory Intelligence)"],
+        "openQuestions": [
+          "6 official labels remain unclassified: Strategy, Video, AI Leaderboard, AI Search Optimization, SEO Strategist Agent, Trend Analyzer Agent. The last four look like a newer Similarweb AI product line and are probably sold separately, but there is no evidence either way.",
+          "Premium Features renders only a 209-character navigation shell across 3 reloads and never opened."
+        ],
+        "separateProducts": [
+          "Data Studio (NEW) - listed under 选择解决方案 alongside 网络情报, the tier this subscription sits in",
+          "应用 情报 (App Intelligence)",
+          "零售 情报 (Retail Intelligence)",
+          "销售人员 情报 (Sales Intelligence)",
+          "库存 情报 (Inventory Intelligence)"
+        ],
         "separateProductsLocation": "CORRECTION: these are in the 选择解决方案 / 浏览其他解决方案 block in the FOOTER of every report page, not in a top-of-page product switcher. Clicking the logo and the top-bar icons opens no switcher menu. Whether the entries are clickable was not tested, because opening one means entering an unsubscribed product and may start an upgrade or purchase flow.",
         "discontinuation": "The Monetization pages (Advertisers, Ad Networks) carry a banner saying monetization features stop on 2025-12-01, directing users to the consolidated Publisher Overview under Display."
       },
       "scriptCoverage": {
         "status": "script-verified",
-        "reports": ["performance", "channels", "similar-sites"],
-        "partial": ["referrals via payment-referrers.mjs, welded to the payment-gateway scenario and unable to pair share percentages"],
-        "gapsRanked": ["Keyword Generator seed expansion, the entry point of the whole keyword pipeline", "Audience country distribution, needed before any cross-panel comparison", "Website Search keyword table with top-5 share", "Search Competitors keyword-level market share", "generalise the referrals scraper out of payment-referrers.mjs"],
-        "notWorthScripting": ["Advertiser Activity (16 pages, we do not buy ads)", "Rank Tracker (11 pages, needs a project and GSC already tracks rankings)", "the five separate products, which are outside this subscription"],
+        "reports": [
+          "performance",
+          "channels",
+          "similar-sites"
+        ],
+        "partial": [
+          "referrals via payment-referrers.mjs, welded to the payment-gateway scenario and unable to pair share percentages"
+        ],
+        "gapsRanked": [
+          "Keyword Generator seed expansion, the entry point of the whole keyword pipeline",
+          "Audience country distribution, needed before any cross-panel comparison",
+          "Website Search keyword table with top-5 share",
+          "Search Competitors keyword-level market share",
+          "generalise the referrals scraper out of payment-referrers.mjs"
+        ],
+        "notWorthScripting": [
+          "Advertiser Activity (16 pages, we do not buy ads)",
+          "Rank Tracker (11 pages, needs a project and GSC already tracks rankings)",
+          "the five separate products, which are outside this subscription"
+        ],
         "gapNote": "similar-sites returns body text only; performance is the sole report with structured metrics."
       },
       "modules": [
-        {"name": "Website Analysis", "pages": 15, "observed": true, "examples": ["Website Performance", "Traffic & Engagement", "Traffic Source Channels", "Audience (tabs: Geography, Demographics, Interests, Overlap)", "Search Overview", "Referrals (incoming and outgoing)", "Website Content", "Website Technologies", "Display / Advertiser Overview", "Publisher Overview", "Social", "Monetization: Advertisers", "Monetization: Ad Networks", "Similar Sites"], "note": "the two Monetization pages are being discontinued on 2025-12-01 in favour of Publisher Overview"},
-        {"name": "Keyword Research", "pages": 15, "observed": true, "examples": ["Keyword Lists", "Keyword Generator", "Keyword Overview", "SERP", "Market Players", "Pages", "Search Ads", "SERP Snapshot", "SEO Overview", "Keyword Clusters", "Website Keywords", "Landing Pages", "Search Competitors", "Ranking Distribution"]},
-        {"name": "Advertiser Activity", "pages": 16, "observed": true, "examples": ["Display: Overview, Campaigns, Ads, Publishers", "Social: Ads, AI Ads (NEW)", "Search: Keyword Lists, Keyword Landing Pages, SERP, Market Players, Keyword Ads, Website Keyword Clusters, Website Keywords, Website Landing Pages, Website Ads"], "note": "Social AI Ads carries an unlock badge and is outside this plan"},
-        {"name": "Rank Tracker", "pages": 11, "observed": true, "examples": ["Home", "Overview", "Keywords", "Keyword Trends", "Tags", "Pages", "Competitors", "SERP Features", "Ad Tracker: Home, Advertisers, Search Ads"], "note": "inner pages need a campaign selected; creating one is a write action"},
-        {"name": "Backlinks", "pages": 3, "observed": true, "examples": ["Overview", "Referring Sites", "Backlinks"]},
-        {"name": "AI Research", "pages": 3, "observed": true, "examples": ["Search by Brand", "Explore Industry"], "note": "BETA landing page, needs a brand or industry entered"},
-        {"name": "AI Brand Visibility", "pages": 1, "observed": true, "examples": ["Brand Overview", "Prompt Tracking", "Citation Analysis", "Sentiment Analysis"]},
-        {"name": "AI Traffic", "pages": 1, "observed": true, "note": "breaks traffic down across 21 named AI platforms; URL table caps at 999 rows, 20 per page"},
-        {"name": "Publisher Analysis", "pages": 3, "observed": true, "note": "NEW; landing page needs a publisher domain"},
-        {"name": "Conversion Analysis", "pages": 1, "observed": true, "note": "CORRECTION: not a navigation stub. A complete module in an empty state - three report slots with month, device, and country filters, returning no matches only because this account has no custom group. Creating one is a write action."},
-        {"name": "Market Research", "pages": 3, "observed": true, "examples": ["Market Analysis", "Demand Analysis", "Conversion Analysis"], "note": "Demand Analysis reads without setup and shows topic search volume plus growth"},
-        {"name": "Website Ranking", "pages": 1, "observed": true, "note": "cross-site league table, 14 columns, capped at 10,000 domains, 100 rows per page, with per-channel tabs"},
-        {"name": "Monitor & Protect", "pages": 1, "observed": true, "examples": ["Keyword Monitoring: Overview, Competitors, Keywords, Ads", "Trademark Protection: Trademarks, Infringement Detail"], "note": "needs a campaign; a read-only demo entry exists"},
-        {"name": "Dashboards", "pages": 1, "observed": true, "note": "10 templates; picking one creates a dashboard, which is a write action"},
-        {"name": "Segments", "pages": 1, "observed": true, "note": "renders only the navigation shell across 3 reloads; judged an empty state awaiting a created segment, not a broken page"},
-        {"name": "Recommendations", "pages": 1, "observed": true, "note": "BETA; requires picking a topic and running a 3-5 minute generation job, which is a write action"},
-        {"name": "Site Audit", "pages": 1, "observed": true, "note": "feature description page; starting the crawler is a write action"},
-        {"name": "Premium Features", "pages": 1, "observed": false, "note": "the only page that genuinely would not open: body stays at 209 characters across 3 reloads, likely an iframe or a plan-gated component"},
-        {"name": "App Intelligence", "pages": 0, "observed": false, "note": "confirmed as separate Similarweb product via product switcher; not part of Web Intelligence subscription"},
-        {"name": "Sales Intelligence", "pages": 0, "observed": false, "note": "confirmed as separate Similarweb product via product switcher"},
-        {"name": "Retail Intelligence", "pages": 0, "observed": false, "note": "confirmed as separate Similarweb product via product switcher"},
-        {"name": "Inventory Intelligence", "pages": 0, "observed": false, "note": "newly discovered separate Similarweb product via product switcher"},
-        {"name": "Data Studio", "pages": 0, "observed": false, "note": "newly discovered separate product marked NEW in product switcher"}
+        {
+          "name": "Website Analysis",
+          "pages": 15,
+          "observed": true,
+          "examples": [
+            "Website Performance",
+            "Traffic & Engagement",
+            "Traffic Source Channels",
+            "Audience (tabs: Geography, Demographics, Interests, Overlap)",
+            "Search Overview",
+            "Referrals (incoming and outgoing)",
+            "Website Content",
+            "Website Technologies",
+            "Display / Advertiser Overview",
+            "Publisher Overview",
+            "Social",
+            "Monetization: Advertisers",
+            "Monetization: Ad Networks",
+            "Similar Sites"
+          ],
+          "note": "the two Monetization pages are being discontinued on 2025-12-01 in favour of Publisher Overview"
+        },
+        {
+          "name": "Keyword Research",
+          "pages": 15,
+          "observed": true,
+          "examples": [
+            "Keyword Lists",
+            "Keyword Generator",
+            "Keyword Overview",
+            "SERP",
+            "Market Players",
+            "Pages",
+            "Search Ads",
+            "SERP Snapshot",
+            "SEO Overview",
+            "Keyword Clusters",
+            "Website Keywords",
+            "Landing Pages",
+            "Search Competitors",
+            "Ranking Distribution"
+          ]
+        },
+        {
+          "name": "Advertiser Activity",
+          "pages": 16,
+          "observed": true,
+          "examples": [
+            "Display: Overview, Campaigns, Ads, Publishers",
+            "Social: Ads, AI Ads (NEW)",
+            "Search: Keyword Lists, Keyword Landing Pages, SERP, Market Players, Keyword Ads, Website Keyword Clusters, Website Keywords, Website Landing Pages, Website Ads"
+          ],
+          "note": "Social AI Ads carries an unlock badge and is outside this plan"
+        },
+        {
+          "name": "Rank Tracker",
+          "pages": 11,
+          "observed": true,
+          "examples": [
+            "Home",
+            "Overview",
+            "Keywords",
+            "Keyword Trends",
+            "Tags",
+            "Pages",
+            "Competitors",
+            "SERP Features",
+            "Ad Tracker: Home, Advertisers, Search Ads"
+          ],
+          "note": "inner pages need a campaign selected; creating one is a write action"
+        },
+        {
+          "name": "Backlinks",
+          "pages": 3,
+          "observed": true,
+          "examples": [
+            "Overview",
+            "Referring Sites",
+            "Backlinks"
+          ]
+        },
+        {
+          "name": "AI Research",
+          "pages": 3,
+          "observed": true,
+          "examples": [
+            "Search by Brand",
+            "Explore Industry"
+          ],
+          "note": "BETA landing page, needs a brand or industry entered"
+        },
+        {
+          "name": "AI Brand Visibility",
+          "pages": 1,
+          "observed": true,
+          "examples": [
+            "Brand Overview",
+            "Prompt Tracking",
+            "Citation Analysis",
+            "Sentiment Analysis"
+          ]
+        },
+        {
+          "name": "AI Traffic",
+          "pages": 1,
+          "observed": true,
+          "note": "breaks traffic down across 21 named AI platforms; URL table caps at 999 rows, 20 per page"
+        },
+        {
+          "name": "Publisher Analysis",
+          "pages": 3,
+          "observed": true,
+          "note": "NEW; landing page needs a publisher domain"
+        },
+        {
+          "name": "Conversion Analysis",
+          "pages": 1,
+          "observed": true,
+          "note": "CORRECTION: not a navigation stub. A complete module in an empty state - three report slots with month, device, and country filters, returning no matches only because this account has no custom group. Creating one is a write action."
+        },
+        {
+          "name": "Market Research",
+          "pages": 3,
+          "observed": true,
+          "examples": [
+            "Market Analysis",
+            "Demand Analysis",
+            "Conversion Analysis"
+          ],
+          "note": "Demand Analysis reads without setup and shows topic search volume plus growth"
+        },
+        {
+          "name": "Website Ranking",
+          "pages": 1,
+          "observed": true,
+          "note": "cross-site league table, 14 columns, capped at 10,000 domains, 100 rows per page, with per-channel tabs"
+        },
+        {
+          "name": "Monitor & Protect",
+          "pages": 1,
+          "observed": true,
+          "examples": [
+            "Keyword Monitoring: Overview, Competitors, Keywords, Ads",
+            "Trademark Protection: Trademarks, Infringement Detail"
+          ],
+          "note": "needs a campaign; a read-only demo entry exists"
+        },
+        {
+          "name": "Dashboards",
+          "pages": 1,
+          "observed": true,
+          "note": "10 templates; picking one creates a dashboard, which is a write action"
+        },
+        {
+          "name": "Segments",
+          "pages": 1,
+          "observed": true,
+          "note": "renders only the navigation shell across 3 reloads; judged an empty state awaiting a created segment, not a broken page"
+        },
+        {
+          "name": "Recommendations",
+          "pages": 1,
+          "observed": true,
+          "note": "BETA; requires picking a topic and running a 3-5 minute generation job, which is a write action"
+        },
+        {
+          "name": "Site Audit",
+          "pages": 1,
+          "observed": true,
+          "note": "feature description page; starting the crawler is a write action"
+        },
+        {
+          "name": "Premium Features",
+          "pages": 1,
+          "observed": false,
+          "note": "the only page that genuinely would not open: body stays at 209 characters across 3 reloads, likely an iframe or a plan-gated component"
+        },
+        {
+          "name": "App Intelligence",
+          "pages": 0,
+          "observed": false,
+          "note": "confirmed as separate Similarweb product via product switcher; not part of Web Intelligence subscription"
+        },
+        {
+          "name": "Sales Intelligence",
+          "pages": 0,
+          "observed": false,
+          "note": "confirmed as separate Similarweb product via product switcher"
+        },
+        {
+          "name": "Retail Intelligence",
+          "pages": 0,
+          "observed": false,
+          "note": "confirmed as separate Similarweb product via product switcher"
+        },
+        {
+          "name": "Inventory Intelligence",
+          "pages": 0,
+          "observed": false,
+          "note": "newly discovered separate Similarweb product via product switcher"
+        },
+        {
+          "name": "Data Studio",
+          "pages": 0,
+          "observed": false,
+          "note": "newly discovered separate product marked NEW in product switcher"
+        }
       ],
       "interfaces": [
-        {"name": "data API (REST and batch v4)", "access": "blocked-shared-account", "mode": "read", "checkedAt": "2026-08-27", "reason": "requires a Business, Enterprise, or API-only plan; the API key is taken from the account dashboard, which the shared proxy does not expose", "evidence": "developers.similarweb.com/docs/report-endpoints"},
-        {"name": "MCP", "access": "blocked-shared-account", "mode": "read", "checkedAt": "2026-08-27", "reason": "same plan gate as the data API, and it spends the same data credits", "evidence": "developers.similarweb.com/docs/similarweb-mcp"}
+        {
+          "name": "data API (REST and batch v4)",
+          "access": "blocked-shared-account",
+          "mode": "read",
+          "checkedAt": "2026-08-27",
+          "reason": "requires a Business, Enterprise, or API-only plan; the API key is taken from the account dashboard, which the shared proxy does not expose",
+          "evidence": "developers.similarweb.com/docs/report-endpoints"
+        },
+        {
+          "name": "MCP",
+          "access": "blocked-shared-account",
+          "mode": "read",
+          "checkedAt": "2026-08-27",
+          "reason": "same plan gate as the data API, and it spends the same data credits",
+          "evidence": "developers.similarweb.com/docs/similarweb-mcp"
+        }
       ],
       "interfaceVerdict": "A shared-account proxy lends a session, not an account. Every interface that needs an account-level API key or OAuth consent is unreachable here, so browser capture is the correct method rather than a fallback.",
-      "ifSelfSubscribed": ["Call the three free discovery endpoints first: /v3/batch/credits, /v3/batch/user-credits, /v3/batch/tables/describe. They consume no quota and tables/describe enumerates every virtual table, metric, and granularity.", "Batch API exposes daily granularity, which the panel never shows."],
-      "legacyV5": {"status": "bounded-unknown", "note": "The former endpoint inventory is not currently verified; /v3/batch/tables/describe would settle it in one free call if an API key ever becomes available."}
+      "ifSelfSubscribed": [
+        "Call the three free discovery endpoints first: /v3/batch/credits, /v3/batch/user-credits, /v3/batch/tables/describe. They consume no quota and tables/describe enumerates every virtual table, metric, and granularity.",
+        "Batch API exposes daily granularity, which the panel never shows."
+      ],
+      "legacyV5": {
+        "status": "bounded-unknown",
+        "note": "The former endpoint inventory is not currently verified; /v3/batch/tables/describe would settle it in one free call if an API key ever becomes available."
+      }
     }
   }
 }
