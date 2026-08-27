@@ -53,13 +53,11 @@ const scanFunction = `(() => {
     name: /(^|\\b)(name|author|nickname)(\\b|$)/i,
     description: /(comment|reply|message|response)/i
   };
+  const classifyBlocker = (captcha, login, qualifiedForms) => captcha ? 'captcha' : login && qualifiedForms === 0 ? 'login' : null;
   const bodyText = document.body?.innerText || '';
   const captchaNode = document.querySelector('[class*="captcha" i],[id*="captcha" i],[class*="turnstile" i],[id*="turnstile" i],[data-sitekey],iframe[src*="recaptcha" i],iframe[src*="hcaptcha" i],iframe[src*="turnstile" i],iframe[src*="challenges.cloudflare.com" i]');
-  const blocker = captchaNode || /\\b(captcha|recaptcha|hcaptcha|turnstile|security challenge)\\b/i.test(bodyText)
-    ? 'captcha'
-    : /\\b(sign in|log in|login|required to log in|continue with google)\\b/i.test(bodyText)
-      ? 'login'
-      : null;
+  const captchaDetected = Boolean(captchaNode || /\\b(captcha|recaptcha|hcaptcha|turnstile|security challenge)\\b/i.test(bodyText));
+  const loginDetected = /\\b(sign in|log in|login|required to log in|continue with google)\\b/i.test(bodyText);
   const summaries = [...document.forms].map((form, formIndex) => {
     const controls = [...form.querySelectorAll('input,textarea,select')].filter(visible);
     const looksLikeComment = controls.some((field) => field.tagName === 'TEXTAREA' && commentPatterns.description.test(text(field)));
@@ -97,7 +95,8 @@ const scanFunction = `(() => {
     };
   });
   const qualified = summaries.filter((form) => form.qualifies);
-  const selected = !blocker && qualified.length === 1 ? qualified[0] : null;
+  const blocker = classifyBlocker(captchaDetected, loginDetected, qualified.length);
+  const selected = qualified.length === 1 ? qualified[0] : null;
   const fingerprint = selected ? {
     url: location.href,
     formMarker: selected.marker,
@@ -114,7 +113,7 @@ const scanFunction = `(() => {
     blocker,
     formCount: summaries.length,
     qualifiedFormCount: qualified.length,
-    fillable: Boolean(selected),
+    fillable: Boolean(selected && !blocker),
     reason: blocker || (qualified.length > 1 ? 'ambiguous_forms' : qualified.length === 0 ? 'no_safe_submission_form' : null),
     selectedForm: selected,
     forms: summaries,

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import vm from 'node:vm';
+import { makeSubmitGuard, releaseSubmitGuard } from '../scripts/opencli-core.mjs';
 
 test('form scan and fill both reject off-page honeypot fields', async () => {
   for (const file of ['inspect-page.mjs', 'safe-fill.mjs']) {
@@ -19,4 +20,41 @@ test('form scan and fill both reject off-page honeypot fields', async () => {
     assert.equal(visible(element({ width: 100, height: 30, left: 10, right: 110, top: -9999, bottom: -9969 })), false);
     assert.equal(visible(element({ width: 100, height: 30, left: 10, right: 110, top: 9999, bottom: 10029 })), false);
   }
+});
+
+test('page-wide login copy does not block a complete comment form', async () => {
+  const source = await readFile(new URL('../scripts/inspect-page.mjs', import.meta.url), 'utf8');
+  const body = source.match(/const classifyBlocker = \(([^)]*)\) => ([^;]+);/)?.slice(1);
+  assert.ok(body, 'inspect-page must define classifyBlocker()');
+  const classifyBlocker = vm.runInNewContext(`(${body[0]}) => ${body[1]}`);
+  assert.equal(classifyBlocker(false, true, 1), null);
+  assert.equal(classifyBlocker(false, true, 0), 'login');
+  assert.equal(classifyBlocker(true, false, 1), 'captcha');
+});
+
+test('CAPTCHA guard releases only for explicit human handoff', async () => {
+  const source = await readFile(new URL('../scripts/safe-fill.mjs', import.meta.url), 'utf8');
+  assert.match(source, /flags\['allow-captcha'\] === true && scan\.blocker === 'captcha'/);
+  assert.match(source, /makeSubmitGuard\(input\.allowCaptcha\)/);
+
+  const guard = makeSubmitGuard(true);
+  let prevented = 0;
+  guard.blockSubmit({ preventDefault: () => prevented += 1, stopImmediatePropagation: () => prevented += 1 });
+  assert.equal(prevented, 2);
+  assert.equal(guard.handoffOnly, true);
+
+  const removed = [];
+  const context = {
+    __backlinkOpenCliSubmitGuard: guard,
+  };
+  const documentTarget = { removeEventListener: (...args) => removed.push(args) };
+  const result = releaseSubmitGuard(context, documentTarget, false);
+  assert.deepEqual({ ...result }, { released: false, reason: 'captcha_handoff_only', handoffOnly: true });
+  assert.equal(removed.length, 0);
+  assert.equal(context.__backlinkOpenCliSubmitGuard, guard);
+
+  const handedOff = releaseSubmitGuard(context, documentTarget, true);
+  assert.deepEqual(handedOff, { released: true, handoffOnly: true, submitAttempted: false });
+  assert.equal(removed.length, 2);
+  assert.equal(context.__backlinkOpenCliSubmitGuard, undefined);
 });

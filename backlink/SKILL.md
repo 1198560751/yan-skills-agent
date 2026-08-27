@@ -607,8 +607,10 @@ then sampled five for traffic — every filled form was discarded.
 <read><ref file="references/submission-lanes.md"/></read>
 <inspect>
 Inspect every target independently. Never infer a form from a sibling site. A
-page is fillable only when there is one unambiguous qualifying form and no
-detected CAPTCHA/login wall.
+page is directly fillable only when there is one unambiguous qualifying form
+and no detected CAPTCHA/login wall. A CAPTCHA page may be staged only when the
+owner explicitly accepts normal human completion; never bypass or solve it by
+an external CAPTCHA service.
 <cmd><![CDATA[
 node scripts/inspect-page.mjs --session "inspect-$$" --mode comment \
   --url https://example.com/article --out .backlink/scan.json
@@ -638,6 +640,12 @@ rendered page and performs final submission. Only after the user explicitly
 authorizes one exact reviewed submission may the agent run
 `release-submit-guard.mjs` — and releasing the guard still does not click
 Submit.
+When the owner has explicitly accepted normal CAPTCHA completion, add
+`--allow-captcha`; this only permits guarded filling and leaves the CAPTCHA and
+final submission untouched. CAPTCHA routes are always handoff-only. Once the
+filled form is visibly ready for the owner, release only the guard with
+`release-submit-guard.mjs --human-handoff`, then stop. The agent must not solve
+the challenge or click Submit, even when a batch authorization already exists.
 </fill>
 <staged-queue>
 Lane B leaves forms on screen for the owner to finish. **One session name per

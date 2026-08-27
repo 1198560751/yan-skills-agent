@@ -1,20 +1,22 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
-import { firstJson, opencli, parseFlags, printJson, required, validateSession, showHelpIfRequested} from './opencli-core.mjs';
+import { firstJson, makeSubmitGuard, opencli, parseFlags, printJson, required, validateSession, showHelpIfRequested} from './opencli-core.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
 const session = validateSession(required(flags, 'session'));
 const scan = JSON.parse(await readFile(required(flags, 'scan'), 'utf8'));
 const payload = JSON.parse(await readFile(required(flags, 'payload'), 'utf8'));
-if (!scan.fillable || !scan.fingerprint) throw new Error('The scan does not contain one safe fillable form.');
+const allowCaptcha = flags['allow-captcha'] === true && scan.blocker === 'captcha';
+if ((!scan.fillable && !allowCaptcha) || !scan.fingerprint) throw new Error('The scan does not contain one safe fillable form.');
 for (const key of ['url', 'name', 'email', 'description']) {
   if (payload[key] != null && typeof payload[key] !== 'string') throw new Error(`payload.${key} must be a string.`);
 }
 
-const invocation = JSON.stringify({ fingerprint: scan.fingerprint, payload });
+const invocation = JSON.stringify({ fingerprint: scan.fingerprint, payload, allowCaptcha });
 const fillFunction = `(() => {
   const input = ${invocation};
+  const makeSubmitGuard = ${makeSubmitGuard.toString()};
   const label = (element) => {
     const explicit = element.id ? document.querySelector('label[for="' + CSS.escape(element.id) + '"]')?.innerText : '';
     return (explicit || element.closest('label')?.innerText || element.getAttribute('aria-label') || element.getAttribute('placeholder') || element.name || element.id || '').trim();
@@ -40,11 +42,11 @@ const fillFunction = `(() => {
   };
   const pageText = document.body?.innerText || '';
   const captcha = document.querySelector('[class*="captcha" i],[id*="captcha" i],[class*="turnstile" i],[id*="turnstile" i],[data-sitekey],iframe[src*="recaptcha" i],iframe[src*="hcaptcha" i],iframe[src*="turnstile" i],iframe[src*="challenges.cloudflare.com" i]');
-  if (captcha || /\\b(captcha|recaptcha|hcaptcha|turnstile|security challenge)\\b/i.test(pageText)) return { ok: false, reason: 'captcha', filled: [], submitAttempted: false };
-  if (/\\b(sign in|log in|login|required to log in|continue with google)\\b/i.test(pageText)) return { ok: false, reason: 'login', filled: [], submitAttempted: false };
   if (location.href !== input.fingerprint.url) return { ok: false, reason: 'page_changed', filled: [], submitAttempted: false };
   const form = [...document.forms].find((candidate) => candidate.__backlinkOpenCliScan === input.fingerprint.formMarker);
   if (!form) return { ok: false, reason: 'form_changed', filled: [], submitAttempted: false };
+  if (!input.allowCaptcha && (captcha || /\\b(captcha|recaptcha|hcaptcha|turnstile|security challenge)\\b/i.test(pageText))) return { ok: false, reason: 'captcha', filled: [], submitAttempted: false };
+  if (form.matches('form[action*="login" i]') || form.querySelector('input[type="password"]')) return { ok: false, reason: 'login', filled: [], submitAttempted: false };
   const nodes = {};
   for (const [kind, expected] of Object.entries(input.fingerprint.fields)) {
     if (!expected) { nodes[kind] = null; continue; }
@@ -55,16 +57,12 @@ const fillFunction = `(() => {
     nodes[kind] = field;
   }
   if (!globalThis.__backlinkOpenCliSubmitGuard) {
-    const blockSubmit = (event) => { event.preventDefault(); event.stopImmediatePropagation(); };
-    const blockClick = (event) => {
-      if (event.target?.closest?.('button[type="submit"],input[type="submit"]')) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      }
-    };
-    document.addEventListener('submit', blockSubmit, true);
-    document.addEventListener('click', blockClick, true);
-    globalThis.__backlinkOpenCliSubmitGuard = { blockSubmit, blockClick };
+    const guard = makeSubmitGuard(input.allowCaptcha);
+    document.addEventListener('submit', guard.blockSubmit, true);
+    document.addEventListener('click', guard.blockClick, true);
+    globalThis.__backlinkOpenCliSubmitGuard = guard;
+  } else if (input.allowCaptcha) {
+    globalThis.__backlinkOpenCliSubmitGuard.handoffOnly = true;
   }
   const filled = [];
   for (const [kind, field] of Object.entries(nodes)) {
@@ -78,7 +76,7 @@ const fillFunction = `(() => {
     field.dispatchEvent(new Event('change', { bubbles: true }));
     filled.push(kind);
   }
-  return { ok: filled.length > 0, reason: filled.length ? null : 'no_values', filled, submitGuardActive: true, submitAttempted: false };
+  return { ok: filled.length > 0, reason: filled.length ? null : 'no_values', filled, submitGuardActive: true, handoffOnly: Boolean(globalThis.__backlinkOpenCliSubmitGuard?.handoffOnly), submitAttempted: false };
 })()`;
 
 const evaluated = await opencli(['browser', session, 'eval', fillFunction], { timeoutMs: 60_000 });
