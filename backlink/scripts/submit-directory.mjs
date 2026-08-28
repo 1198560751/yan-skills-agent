@@ -30,6 +30,7 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { helpGuard } from './opencli-core.mjs';
+import { classifySubmitOutcome, submitOutcomeProbeSource } from './lib-submit-outcome.mjs';
 helpGuard(import.meta.url);
 
 const args = {};
@@ -190,7 +191,7 @@ try {
     else {
       // The state-changing click. Everything above refuses to reach here when a
       // human must decide: CAPTCHA, account, or a terms checkbox.
-      const before = evalJs('JSON.stringify({url:location.href,len:document.body.innerText.length})');
+      const before = evalJs('JSON.stringify({url:location.href,title:document.title,len:document.body.innerText.length})');
       // Click the real control. requestSubmit()/form.submit() bypass a handler
       // bound to the BUTTON's click, which is how AJAX forms are wired — the
       // network capture then shows no request at all while the page looks
@@ -209,16 +210,39 @@ try {
       if (!plausible) { result.state = 'no-submit-control'; result.refusedControl = sel.label; }
       else if (sel && sel.sel) { try { ocli('click', sel.sel); } catch (e) { result.clickError = String(e.message).slice(0, 200); } }
       execFileSync('sleep', ['4']);
-      const after = evalJs('JSON.stringify({url:location.href,title:document.title,text:document.body.innerText.replace(/\\s+/g," ").slice(0,400)})');
+      // 判据成对，见 lib-submit-outcome.mjs 头部注释和
+      // <law-ref id="readiness-must-bind-to-this-query"/>。旧版在整页文本里扫
+      // thank/success/confirm 就判 `submitted`——一张**静默重画自己、把刚提交的值
+      // 原样回填进 input** 的表单会满足它，而什么都没被接受。现在正向证据只从
+      // 「任何表单之外」的区域里取，并且必须没有否定信号（表单还在、值被回显、
+      // 表单区里有校验错误、URL 和标题都没变）。
+      const probe = evalJs(submitOutcomeProbeSource(targetUrl));
+      const after = typeof probe === 'object' && probe
+        ? { url: probe.afterUrl, title: probe.title, text: probe.confirmationText }
+        : { url: null, title: null, text: '' };
       result.after = after;
-      const txt = `${after.text || ''} ${after.title || ''}`;
+      const challenge = /scode|captcha|security code|verification/i
+        .test(`${(probe && probe.bodyText) || ''} ${after.title || ''}`);
+      const verdict = classifySubmitOutcome({
+        ...(typeof probe === 'object' && probe ? probe : {}),
+        challenge,
+        beforeUrl: before.url,
+        beforeTitle: before.title,
+      });
       // A thank-you page is not proof the listing exists; it is proof the form
       // was accepted. The ledger state that follows is `submitted`, never
-      // `public` — that needs the anchor seen on a live page later.
-      if (/scode|captcha|security code|verification/i.test(txt)) result.state = 'gated-captcha-on-confirm';
-      else if (/thank|success|received|submitted|confirm/i.test(txt)) result.state = 'submitted';
-      else if (after.url !== before.url) result.state = 'submitted-unconfirmed';
-      else result.state = 'outcome-unknown';
+      // `public` — that needs the anchor seen on a live page later. And a
+      // `submitted-inconclusive` must NOT be written to the ledger as submitted:
+      // it means the page gave the acceptance signal *and* a rejection signal.
+      result.state = verdict.state;
+      result.outcomeEvidence = {
+        formStillPresent: typeof probe === 'object' ? probe?.formStillPresent : null,
+        echoedSubmittedValue: typeof probe === 'object' ? probe?.echoedSubmittedValue : null,
+        validationError: typeof probe === 'object' ? probe?.validationError : null,
+        urlInConfirmationRegion: typeof probe === 'object' ? probe?.urlInConfirmationRegion : null,
+        positive: verdict.positive,
+        negative: verdict.negative,
+      };
     }
   }
 } catch (e) {

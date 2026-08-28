@@ -432,22 +432,83 @@ const TRANSIENT = /出错了|我们已经发现了问题|请稍后重试|Somethi
 const QUOTA_BLOCKED = /已达到每日报告限额|Daily report limit reached/i;
 
 /**
+ * 表体区探针。**判据必须绑在「表体区」上，不是整页**——见
+ * <law-ref id="readiness-must-bind-to-this-query"/>：「页面上出现了 X」永远要先问
+ * 「X 有没有可能由别处提供？」。这句限额提示的另外几个供应商是现成的：供应商做
+ * A/B、改文案、把同一句话写进帮助气泡或侧栏，整页扫描就会在一张有数据的报表上
+ * 判「限额」；反过来，供应商换个说法，整页扫描又会在真限额页上判「没限额」。
+ * 两个方向都会错。
+ *
+ * 绑法：`filledCells === 0`（表体区一个非空单元格都没有）**且**这句提示出现在
+ * **表体区自己的文字**里。表头、列名、周边散文都满足不了 `filledCells > 0`。
+ */
+const REGION_PROBE_JS = `(() => {
+  const clean = (s) => String(s == null ? '' : s).replace(/\\s+/g, ' ').trim();
+  const bodies = [
+    ...document.querySelectorAll('tbody, [role="rowgroup"]:not(:first-of-type), [class*="table-body" i], [class*="tableBody"], [class*="grid-body" i]'),
+  ];
+  // 表体区定位不到就老实说不知道，绝不退化成「整页搜一遍」然后当成同等证据。
+  if (!bodies.length) {
+    return JSON.stringify({ region: null, bodyText: clean(document.body && document.body.innerText).slice(0, 4000) });
+  }
+  let filledCells = 0;
+  const texts = [];
+  for (const b of bodies) {
+    for (const c of b.querySelectorAll('td, [role="gridcell"], [role="cell"]')) {
+      if (clean(c.innerText) !== '') filledCells += 1;
+    }
+    texts.push(clean(b.innerText));
+  }
+  return JSON.stringify({
+    region: { filledCells, text: texts.join(' ').slice(0, 4000), containers: bodies.length },
+    bodyText: clean(document.body && document.body.innerText).slice(0, 4000),
+  });
+})()`;
+
+/**
+ * 纯判据，离线可测。
+ *   `quota-blocked`   表体区 0 个非空单元格 **且** 表体区文字里有这句提示
+ *   `quota-suspected` 页面上有这句提示，但表体区根本没定位到 —— 判据没能绑上，
+ *                     不许当成 `quota-blocked` 报，也不许假装没看见
+ *   `not-quota`       其余（包括「整页别处有这句话但表体区有数据」）
+ */
+function classifyQuotaBlock(probe) {
+  const region = probe && probe.region;
+  if (region && typeof region.filledCells === 'number') {
+    return region.filledCells === 0 && QUOTA_BLOCKED.test(String(region.text || ''))
+      ? 'quota-blocked' : 'not-quota';
+  }
+  return QUOTA_BLOCKED.test(String((probe && probe.bodyText) || '')) ? 'quota-suspected' : 'not-quota';
+}
+
+/**
  * `!loaded.capture` 时的诊断，拆成独立函数是为了能在 --self-test 里直接喂一个
  * 「capture 为 null、但页面上其实有限额文案」的场景进去做集成测试——只测
  * QUOTA_BLOCKED 这个正则本身（旧版的 quotaOk）测不出「production 代码根本没执行到
  * 这个正则」这类问题，删掉整段拦截逻辑那个测试照样通过，等于没测。
  *
- * `readBody` 由调用方注入：生产环境传一个真的 `evalPage` 读取，自测传一个返回固定
- * 文本的假函数。函数本身不知道也不需要知道 opencli 怎么读页面。
+ * `readProbe` 由调用方注入：生产环境传一个真的 `evalPage` 读取（跑
+ * `REGION_PROBE_JS`），自测传一个返回固定 `{ region, bodyText }` 的假函数。
+ * 函数本身不知道也不需要知道 opencli 怎么读页面。
  */
-async function diagnoseUnrendered(name, target, db, retries, readBody) {
-  let bodyText = '';
-  try { bodyText = String((await readBody())?.bodyText || ''); } catch { /* 读不到就当空，走通用诊断 */ }
-  if (QUOTA_BLOCKED.test(bodyText)) {
+async function diagnoseUnrendered(name, target, db, retries, readProbe) {
+  let probe = null;
+  try { probe = await readProbe(); } catch { /* 读不到就当空，走通用诊断 */ }
+  const quota = classifyQuotaBlock(probe);
+  if (quota === 'quota-blocked') {
     return new Error(
-      `Semrush ${name} for "${target}" 撞到了共享账号的每日报告限额（页面文案：已达到每日报告限额）。` +
+      `Semrush ${name} for "${target}" 撞到了共享账号的每日报告限额（表体区 0 个非空单元格，` +
+      `且表体区文字就是「已达到每日报告限额」）。` +
       `这不是「该主体没有数据」，也不是「节点挂了」——列头都正常渲染了，只是表体被限额挡住。` +
       `换一个节点重跑：--node N（面板的节点下拉会切到另一个账号；实测撞额度时 node 2 仍是新鲜的）。`,
+    );
+  }
+  if (quota === 'quota-suspected') {
+    return new Error(
+      `Semrush ${name} for "${target}" 没渲染，页面上出现了「已达到每日报告限额」字样，` +
+      `但这一次**没能定位到表体区**，所以无法确认那句话是不是表体给出的——` +
+      `它也可能来自帮助气泡或侧栏。先按限额处理（换 --node N 重跑），` +
+      `若换节点后依然如此，再按「从未渲染」排查。`,
     );
   }
   return new Error(
@@ -781,22 +842,82 @@ function readPageInfo(bodyText) {
   return { current: 1, total: 1 };
 }
 
-/** 点「下一页」，等页码真的变了再返回。页码没变就是到头了。 */
-async function clickNextPage(evalPage, before) {
-  const clicked = await evalPage(`(() => {
-    const el = [...document.querySelectorAll('button,a,[role="button"]')]
-      .find((b) => /^(下一页|Next)$/.test((b.innerText || '').trim()) && !b.disabled && b.getAttribute('aria-disabled') !== 'true');
-    if (!el) return JSON.stringify({ ok: false, why: 'no enabled next control' });
-    el.click();
-    return JSON.stringify({ ok: true });
-  })()`);
-  if (!clicked.ok) return false;
-  for (let i = 0; i < 12; i++) {
-    await sleep(1500);
-    const now = await evalPage('(() => JSON.stringify({ t: document.body?.innerText || "" }))()');
-    if (readPageInfo(now.t).current > before) return true;
+/**
+ * 「下一页」控件探针。**分成 absent / disabled / enabled 三态，不是有/没有两态。**
+ * 见 <law-ref id="readiness-must-bind-to-this-query"/>：否定判定同样需要一个最小
+ * 等待下限。分页控件和表体一样是后渲染的，刚翻完一页的那一瞬间它既不存在、又
+ * 「非常稳定」地不存在——把 absent 当成「没有下一页」，就是「行数不再增长所以到头了」
+ * 那个错误换了件衣服。
+ *   `disabled` 是页面自己产出的「这是最后一页」信号，可以立刻采信；
+ *   `absent`   是「还没渲染出来」和「真的没有分页器」的叠加态，必须熬过最小等待。
+ */
+const NEXT_PAGE_JS = `(() => {
+  const all = [...document.querySelectorAll('button,a,[role="button"]')]
+    .filter((b) => /^(下一页|Next)$/.test((b.innerText || '').trim()));
+  if (!all.length) return JSON.stringify({ control: 'absent' });
+  const live = all.find((b) => !b.disabled && b.getAttribute('aria-disabled') !== 'true');
+  if (!live) return JSON.stringify({ control: 'disabled' });
+  live.click();
+  return JSON.stringify({ control: 'enabled', clicked: true });
+})()`;
+
+/** absent 至少要连续观察这么久才允许据此收工。 */
+const MIN_PAGER_ABSENT_MS = 9000;
+/** 翻页后表体「解析出 0 行」至少要撑过这么久才算数——空表在水合前完美地稳定。 */
+const MIN_PAGE_SETTLE_MS = 6000;
+
+/**
+ * 点「下一页」，等页码真的变了再返回。
+ * 返回 `{ advanced, reason }`——reason 会原样进 `stoppedBecause`，所以它必须能区分
+ * 「页面说这是最后一页」和「等了 N 秒也没等到分页控件」。
+ */
+async function clickNextPage(evalPage, before, options = {}) {
+  const {
+    minAbsentMs = MIN_PAGER_ABSENT_MS,
+    probeIntervalMs = 1500,
+    now = () => Date.now(),
+    sleepFn = sleep,
+    pageWaits = 12,
+  } = options;
+  const startedAt = now();
+  for (;;) {
+    const probe = await evalPage(NEXT_PAGE_JS);
+    if (probe?.control === 'enabled') break;
+    if (probe?.control === 'disabled') {
+      return { advanced: false, reason: '分页控件已渲染且「下一页」为禁用态 —— 这是最后一页' };
+    }
+    const waited = now() - startedAt;
+    if (waited >= minAbsentMs) {
+      return {
+        advanced: false,
+        reason: `等了 ${Math.round(waited / 1000)}s 仍没有「下一页」控件（既没有启用态也没有禁用态）`
+          + ` —— 分页器可能还没渲染，这不等于已经到最后一页`,
+      };
+    }
+    await sleepFn(probeIntervalMs);
   }
-  return false;
+  for (let i = 0; i < pageWaits; i++) {
+    await sleepFn(probeIntervalMs);
+    const current = await evalPage('(() => JSON.stringify({ t: document.body?.innerText || "" }))()');
+    if (readPageInfo(current.t).current > before) return { advanced: true, reason: null };
+  }
+  return { advanced: false, reason: '点了「下一页」但页码始终没有前进' };
+}
+
+/**
+ * 翻页后那一页的 fingerprint。三条否定：还是上一页 → 继续等；parse 抛了 → 继续等；
+ * **解析出 0 行而上一页有行、且还没过最小等待 → 继续等**。第三条是这次修的：
+ * 「行数不再增长」在表体水合完成之前恒成立，把它当终止条件就会把一张慢表当成空表。
+ */
+function makeNextPageFingerprint({ prevPrint, prevRowCount, minSettleMs = MIN_PAGE_SETTLE_MS, now = () => Date.now() }) {
+  const startedAt = now();
+  return (print) => {
+    if (print == null || print === prevPrint) return null;
+    let rows = 0;
+    try { rows = (JSON.parse(print).rows || []).length; } catch { return null; }
+    if (rows === 0 && prevRowCount > 0 && now() - startedAt < minSettleMs) return null;
+    return print;
+  };
 }
 
 function parsePositions(lines) {
@@ -1132,12 +1253,73 @@ if (flags['self-test']) {
   // QUOTA_BLOCKED 这个正则本身，删掉整段生产代码那个测试照样通过——这正是 review
   // 抓到的「测试测不出 bug」。这里改成真正驱动 diagnoseUnrendered，断言从诊断路径
   // 出来的错误消息是对的，而不是断言正则单独能不能匹配。
+  // 表体区 0 个非空单元格 + 提示就在表体区里 = 真限额。
   const quotaDiag = await diagnoseUnrendered('referring-domains', 'example.com', 'us', 3,
-    async () => ({ bodyText: 'AS\nRoot Domain / Category\n已达到每日报告限额\n' }));
+    async () => ({
+      region: { filledCells: 0, text: '已达到每日报告限额', containers: 1 },
+      bodyText: 'AS Root Domain / Category 已达到每日报告限额',
+    }));
   const genericDiag = await diagnoseUnrendered('referring-domains', 'example.com', 'us', 3,
-    async () => ({ bodyText: '' }));   // 真的白页：既没有限额文案，也没有别的数据
+    async () => ({ region: { filledCells: 0, text: '', containers: 1 }, bodyText: '' }));
+  // ⚠️ 方向反了的老判据（整页扫描）会在这一条上误判：帮助气泡里写着这句话，
+  // 表体区却有 850 个填好的单元格。必须是 not-quota。
+  const quotaElsewhere = await diagnoseUnrendered('referring-domains', 'example.com', 'us', 3,
+    async () => ({
+      region: { filledCells: 850, text: 'coacht.com 知识 75,501', containers: 1 },
+      bodyText: '帮助：账号已达到每日报告限额时会看到提示 coacht.com 知识 75,501',
+    }));
+  // 表体区没定位到 + 页面上有这句话 = 明确的第三态，既不能说 blocked 也不能装没看见。
+  const quotaRegionUnknown = await diagnoseUnrendered('referring-domains', 'example.com', 'us', 3,
+    async () => ({ region: null, bodyText: '已达到每日报告限额' }));
   const quotaOk = /每日报告限额/.test(quotaDiag.message) && !/依次排查/.test(quotaDiag.message)
-    && /依次排查/.test(genericDiag.message) && !/每日报告限额/.test(genericDiag.message);
+    && /依次排查/.test(genericDiag.message) && !/每日报告限额/.test(genericDiag.message)
+    && /依次排查/.test(quotaElsewhere.message) && !/撞到了共享账号/.test(quotaElsewhere.message)
+    && /没能定位到表体区/.test(quotaRegionUnknown.message)
+    && classifyQuotaBlock({ region: { filledCells: 0, text: '已达到每日报告限额' } }) === 'quota-blocked'
+    && classifyQuotaBlock({ region: { filledCells: 850, text: 'x' }, bodyText: '已达到每日报告限额' }) === 'not-quota'
+    && classifyQuotaBlock({ region: null, bodyText: '已达到每日报告限额' }) === 'quota-suspected'
+    && classifyQuotaBlock({ region: null, bodyText: '什么都没有' }) === 'not-quota';
+
+  // ---- 翻页终止条件：「找不到下一页控件」不是「到最后一页了」 ----
+  // 假 evalPage：前 3 次探针返回 absent（分页器还没渲染），第 4 次才 enabled。
+  let pagerProbes = 0;
+  let fakeClock = 0;
+  const fakeSleep = async (ms) => { fakeClock += ms; };
+  const lateEval = async (js) => {
+    if (js === NEXT_PAGE_JS) {
+      pagerProbes += 1;
+      return pagerProbes >= 4 ? { control: 'enabled', clicked: true } : { control: 'absent' };
+    }
+    return { t: '页码：2\n/\n5' };
+  };
+  const late = await clickNextPage(lateEval, 1,
+    { now: () => fakeClock, sleepFn: fakeSleep, probeIntervalMs: 1500 });
+  // 没有下限的旧实现在第 1 次探针就 return false 了。
+  const lastPage = await clickNextPage(async () => ({ control: 'disabled' }), 1,
+    { now: () => fakeClock, sleepFn: fakeSleep });
+  let absentClock = 0;
+  const neverRenders = await clickNextPage(async () => ({ control: 'absent' }), 1,
+    { now: () => absentClock, sleepFn: async (ms) => { absentClock += ms; }, probeIntervalMs: 1500 });
+  const nextControlOk = late.advanced === true && pagerProbes === 4
+    && lastPage.advanced === false && /最后一页/.test(lastPage.reason)
+    && neverRenders.advanced === false && /还没渲染/.test(neverRenders.reason)
+    && absentClock >= MIN_PAGER_ABSENT_MS;
+
+  // ---- 翻页水合：第 2 页表格尚未水合、解析出 0 行，不许当成「这一页就是空的」 ----
+  let hydClock = 0;
+  const hydrate = makeNextPageFingerprint({
+    prevPrint: JSON.stringify({ rows: [{ referringDomain: 'a.com' }] }),
+    prevRowCount: 1,
+    now: () => hydClock,
+  });
+  const emptyPrint = JSON.stringify({ rows: [] });
+  const filledPrint = JSON.stringify({ rows: [{ referringDomain: 'b.com' }] });
+  const emptyRejectedEarly = hydrate(emptyPrint) === null;   // 还没到最小等待 → 继续等
+  hydClock = MIN_PAGE_SETTLE_MS + 1;
+  const hydrationOk = emptyRejectedEarly
+    && hydrate(JSON.stringify({ rows: [{ referringDomain: 'a.com' }] })) === null   // 还是上一页
+    && hydrate(filledPrint) === filledPrint                                          // 水合完了
+    && hydrate(emptyPrint) === emptyPrint;                                           // 过了下限，空就是空
 
   // 2026-08-28 live 核验：这一格不是「域名 + 分类」，是「域名 + 分类？+ 状态徽章 +
   // 徽章的整句 tooltip」拼在一起。下面三行是核验时给出的原文，逐字照抄，不是按摘要
@@ -1186,7 +1368,8 @@ if (flags['self-test']) {
       || parsed.rows[1].fields.join('|') !== '5|-1|20|3|0|1|beta|C'
       || !coverage.parserAligned || coverage.virtualScrollTruncated || coverage.pageSelfReportedTotal !== 2
       || positions.rows.length !== 3 || positions.rows[1].serpFeatures !== null || positions.rows[2].kd !== null
-      || !magicOk || !renamedOk || !refOk || !refCoverageOk || !quotaOk || !badgeOk || !refHeadlineOk) {
+      || !magicOk || !renamedOk || !refOk || !refCoverageOk || !quotaOk || !badgeOk || !refHeadlineOk
+      || !nextControlOk || !hydrationOk) {
     throw new Error(`semrush-report self-test failed: ${JSON.stringify({ parsed, coverage, positions, magic, renamed, ref, refRollup, refCoverage, badge, refHeadlineCoverage, pagerZh, pagerEn })}`);
   }
   console.log('semrush-report self-test: PASS');
@@ -1211,7 +1394,7 @@ try {
     // 这里必须现场再读一次 body 去分辨「真的没渲染」和「渲染了但 ready 正确拒绝了
     // 限额页」，不能指望 loaded.capture 里已经有证据。
     throw await diagnoseUnrendered(name, target, db, flags.retries || 3,
-      () => evalPage(`(() => JSON.stringify({ bodyText: document.body?.innerText || '' }))()`));
+      () => evalPage(REGION_PROBE_JS));
   }
   if (!loaded.stable) {
     // **读到了但一直在变，只能算没测成。** 写下一个还在水合的值，它不会被任何人发现是错的。
@@ -1236,8 +1419,12 @@ try {
       let prevPrint = JSON.stringify(parsed);
       while (pagesRead < pageInfo.total) {
         if (pagesRead >= maxPages) { stoppedBecause = `max-pages=${maxPages}`; break; }
-        if (!(await clickNextPage(evalPage, pagesRead))) { stoppedBecause = 'no enabled 下一页 control'; break; }
+        const advance = await clickNextPage(evalPage, pagesRead);
+        if (!advance.advanced) { stoppedBecause = advance.reason; break; }
         pagesRead += 1;
+        const pageFingerprint = makeNextPageFingerprint({
+          prevPrint, prevRowCount: (parsed.rows || []).length,
+        });
         // **页码变了不等于表体换完了。** clickNextPage 只等到分页指示器前进，
         // 此时表格可能还在渲染上一页的行——直接读会把同一页读两遍，
         // 而 rowKey 去重会把它悄悄吞掉，表现为「翻了 5 页只多出 12 行」。
@@ -1247,7 +1434,8 @@ try {
           fingerprint: (c) => {
             let print = null;
             try { print = JSON.stringify(spec.parse(String(c?.bodyText || '').split(/\n+/).map((l) => l.trim()).filter(Boolean), c?.cells)); } catch { return null; }
-            return print === prevPrint ? null : print;   // 还是上一页的内容，继续等
+            // 还是上一页的内容 → 继续等；解析出 0 行且还没过最小等待 → 也继续等。
+            return pageFingerprint(print);
           },
           timeoutMs: Number(flags['page-timeout'] || 30) * 1000,
           intervalMs: 1500,
@@ -1258,16 +1446,16 @@ try {
           // 不同时才非 null，captureStable 才会把 capture 记进 last。撞限额撞在
           // 第 N 页和「这一页迟迟没渲染」在 nextPage.capture 上长得一模一样，
           // 现场再读一次 body 来分辨——这个读取很便宜，值得做。
-          let freshBody = '';
-          try {
-            freshBody = String((await evalPage(
-              `(() => JSON.stringify({ bodyText: document.body?.innerText || '' }))()`,
-            ))?.bodyText || '');
-          } catch { /* 读不到就按普通超时处理，走下面的通用文案 */ }
+          let freshProbe = null;
+          try { freshProbe = await evalPage(REGION_PROBE_JS); } catch { /* 读不到就按普通超时处理 */ }
           pagesRead -= 1;
-          stoppedBecause = QUOTA_BLOCKED.test(freshBody)
-            ? `每日报告限额在第 ${pagesRead + 1} 页触发——换 --node 重跑，不是网络超时`
-            : `page ${pagesRead + 1} never settled`;
+          // 整页搜「限额」在这里同样不合法（见 classifyQuotaBlock）——绑表体区。
+          const quota = classifyQuotaBlock(freshProbe);
+          stoppedBecause = quota === 'quota-blocked'
+            ? `每日报告限额在第 ${pagesRead + 1} 页触发（表体区 0 个非空单元格且提示在表体区内）——换 --node 重跑，不是网络超时`
+            : quota === 'quota-suspected'
+              ? `第 ${pagesRead + 1} 页没渲染完，页面上有限额字样但表体区没定位到——先按限额处理（换 --node）`
+              : `page ${pagesRead + 1} never settled`;
           break;
         }
         rawPages.push(nextPage.capture.bodyText);

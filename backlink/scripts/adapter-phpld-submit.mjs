@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { helpGuard } from './opencli-core.mjs';
+import { classifySubmitOutcome, submitOutcomeProbeSource } from './lib-submit-outcome.mjs';
 helpGuard(import.meta.url);
 
 const a = {};
@@ -41,7 +42,7 @@ for (const r of rows) {
       const b=f.querySelector('input[type=submit],button[type=submit]');
       if(b) b.setAttribute('data-bl-go','1');
       return JSON.stringify({challenge,sel:b?'[data-bl-go="1"]':null,label:b?(b.value||b.innerText||'').trim():null,
-        filled:{TITLE:f.elements.TITLE.value,URL:f.elements.URL.value},before:location.href});})()`);
+        filled:{TITLE:f.elements.TITLE.value,URL:f.elements.URL.value},before:location.href,beforeTitle:document.title});})()`);
     if (!pre || pre.gone) { res.state = 'form-gone'; out.push(res); continue; }
     if (pre.challenge) { res.state = 'challenge-appeared'; out.push(res); continue; }
     if (!pre.sel) { res.state = 'no-submit-control'; out.push(res); continue; }
@@ -49,15 +50,33 @@ for (const r of rows) {
     res.label = pre.label;
     ocli(r.session, 'click', pre.sel);
     execFileSync('sleep', ['3']);
-    const after = ev(r.session, `JSON.stringify({url:location.href,title:document.title,
-      text:document.body.innerText.replace(/\\s+/g," ").slice(0,400),
-      challenge:/recaptcha|hcaptcha|turnstile/i.test(document.documentElement.innerHTML)||!!document.querySelector('[name*=captcha i],[name=IMAGEHASH],[name=scode]')})`);
-    res.after = after;
-    const t = after?.text || '';
-    if (after?.challenge) res.state = 'challenge-on-next-step';
-    else if (/thank you|success|received|has been submitted|pending (approval|review)|awaiting (approval|review)/i.test(t)) res.state = 'submitted';
-    else if (after?.url !== pre.before) res.state = 'advanced-unconfirmed';
-    else res.state = 'outcome-unknown';
+    // 判据成对，见 lib-submit-outcome.mjs 头部注释。旧版在这里扫全页文本找
+    // thank/success，PHPLD 的 add.php 校验失败时**原样重画同一张表单**并把值回填
+    // 进 input——那种页面上「我们的 URL 在页面上」和「thank you」都可能成立，而什么
+    // 都没被接受。所以这里读的是「表单之外的区域」和「表单还在不在」两半。
+    const challengeProbe = ev(r.session, `JSON.stringify({challenge:/recaptcha|hcaptcha|turnstile/i.test(document.documentElement.innerHTML)||!!document.querySelector('[name*=captcha i],[name=IMAGEHASH],[name=scode]')})`);
+    const probe = ev(r.session, submitOutcomeProbeSource(pre.filled.URL));
+    const verdict = classifySubmitOutcome({
+      ...(probe || {}),
+      challenge: Boolean(challengeProbe?.challenge),
+      beforeUrl: pre.before,
+      beforeTitle: pre.beforeTitle,
+    });
+    res.after = probe ? { url: probe.afterUrl, title: probe.title, text: probe.confirmationText } : null;
+    res.evidence = probe
+      ? {
+        formStillPresent: probe.formStillPresent,
+        echoedSubmittedValue: probe.echoedSubmittedValue,
+        validationError: probe.validationError,
+        urlInConfirmationRegion: probe.urlInConfirmationRegion,
+        positive: verdict.positive,
+        negative: verdict.negative,
+      }
+      : { probe: 'unreadable' };
+    // 名字沿用这个 adapter 原有的两个 state，其余直接用判据的 state。
+    if (verdict.state === 'gated-captcha-on-confirm') res.state = 'challenge-on-next-step';
+    else if (verdict.state === 'submitted-unconfirmed') res.state = 'advanced-unconfirmed';
+    else res.state = verdict.state;
   } catch (e) { res.state = 'error'; res.error = String(e.message).slice(0, 160); }
   out.push(res);
   process.stderr.write(`${res.state.padEnd(24)} ${res.url}\n`);

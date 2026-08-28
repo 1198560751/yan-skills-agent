@@ -86,6 +86,13 @@ backlink/
 │   ├── apply-traffic-screen.mjs    write verdicts back into submission-targets.json
 │   ├── inspect-page.mjs            dump one target's form / login / CAPTCHA state
 │   ├── safe-fill.mjs               fill a reviewed payload, never submit
+│   ├── lib-submit-outcome.mjs      ★ the ONE "did this submission get accepted" criterion.
+│   │                               Paired on purpose: acceptance evidence must sit OUTSIDE
+│   │                               every form, and no rejection marker may be present — a
+│   │                               form that silently redraws itself with our own URL echoed
+│   │                               back into its input satisfies "our URL is on the page"
+│   │                               while nothing was accepted.
+│   │                               See <law-ref id="readiness-must-bind-to-this-query"/>
 │   ├── release-submit-guard.mjs    only after explicit per-submission approval
 │   ├── submit-directory.mjs        the single-target driver; one session per staged site
 │   ├── adapter-phpld.mjs           ★ reference implementation of one-session-per-site
@@ -489,15 +496,21 @@ owner's desktop. Nothing in the CLI reaches that.
 **So the strategy is not "make it visible", it is "only believe the reads taken
 while it was visible".** The protocol that has been measured to work:
 
-- at most **3 navigation rounds** per route, each polling up to **150 seconds**
-  (**raised from 100** — see the correction below);
-- a verdict is admissible only when `filled > 0`, **or** when three consecutive
-  reads under `vis === 'visible'` all came back empty **and at least 100 seconds
-  have elapsed in that round**. **The time floor is not optional.** Without it
-  the three reads can all land inside the first 18 seconds, before the table has
-  begun rendering at all, and a slow table gets filed as an absent one — measured
-  2026-08-28, protocol now `v5-visible-gated-min100s`. See
-  <law-ref id="readiness-must-bind-to-this-query"/>, instance 5;
+- **3 navigation rounds** per route, **200 seconds each, run to completion with
+  no early stop**, **600 seconds** maximum per route — "patient mode", raised
+  from 150s/round after the 100-second floor was falsified;
+- a verdict of **`data`** is admissible when `filled > 0`. A verdict of
+  **`empty`** is admissible only when three consecutive reads under
+  `vis === 'visible'` came back empty **and** the page has emitted a positive
+  **end-of-render signal** (paginator, row-count readout, loading indicator
+  gone). **A duration is not that signal.** The 100-second floor that an earlier
+  version of this law called mandatory was itself falsified on 2026-08-28 —
+  five routes it had filed as empty produced data, two only on a second
+  re-measure. The floor remains as a backstop on the round, not as grounds for a
+  verdict. See <law-ref id="readiness-must-bind-to-this-query"/>, instances 5
+  and 6;
+- with no end-of-render signal, the verdict is **`inconclusive`** — **never**
+  "empty";
 - if `visible` never arrived in the whole budget, the verdict is
   **`inconclusive-hidden`** — **never** "empty";
 - record `visibilityState` on **every** read, not just the last one.
@@ -510,10 +523,19 @@ better than nothing; **it is not admissible as the basis of a verdict.**)
 
 **And two kinds of empty coexist — do not merge them.** A visibility-induced
 fake empty (proven only on `/analytics/traffic/top-pages/`) is cured by a
-`visible` read. A **Class A** route has no table at all: zero table elements
-under three consecutive `visible` reads, charts only. This law's remedy applies
-to the first and is wasted on the second. The table that separates them is in
-`&lt;why&gt;`.
+`visible` read. A **Class A** route appears to have no table at all: zero table
+elements under three consecutive `visible` reads, charts only. This law's remedy
+applies to the first and is wasted on the second. The table that separates them
+is in `&lt;why&gt;`.
+
+⚠️ **Class A is itself under re-measure and is NOT a confirmed category.** Every
+Class A verdict on record was taken under the same early-stopping criterion that
+instances 5 and 6 of <law-ref id="readiness-must-bind-to-this-query"/> demolished.
+Its shape is admittedly different — *no table element at all*, rather than a
+table with zero rows — but as the operator put it: **"they behave differently,
+but that is not a reason to exempt them from the test."** All ten are being
+re-run under patient mode. Until that comes back, treat "this route serves
+charts, not tables" as **provisional**, and do not build on it.
 </statement>
 <why>
 This is the most dangerous failure shape in this Skill, because it does not look
@@ -616,12 +638,16 @@ distinct phenomena with different judgements:
 | **visibility-induced fake empty** | same route reads 0 while `hidden` and full while `visible` | only on the **table-heavy** page `/analytics/traffic/top-pages/`: **0 cells hidden / 850 cells visible**, cross-checked three times |
 | **Class A — there was never a table** | three consecutive reads under `visible` still find **zero table elements** | `referral` / `organic-search` / `paid-search` / `organic-social`: 50–57 `svg` nodes, **0 table elements**, `innerText` 1094–1310 chars — **identical** to what the same routes gave while `hidden` |
 
-**Class A is not a hydration cross-section.** There was a hypothesis on record —
-"the charts render first and the table hydrates after, so a hidden tab is frozen
-mid-way and just happens to look like Class A". **That hypothesis is now
-falsified:** under `visible`, three consecutive reads returned the same
-chart-only shape. Keep the hypothesis on the page rather than deleting it; it
-was a reasonable road and the next reader should know it was walked.
+**Class A was believed not to be a hydration cross-section — that belief is back
+under test.** There was a hypothesis on record: "the charts render first and the
+table hydrates after, so a hidden tab is frozen mid-way and just happens to look
+like Class A". It was marked falsified because three consecutive `visible` reads
+returned the same chart-only shape. **That refutation used the early-stopping
+criterion**, so it is worth exactly what the eight `empty-silent` verdicts turned
+out to be worth. The ten Class A routes are being re-measured under patient mode
+(`referral` / `organic-search` / `paid-search` / `organic-social` /
+`socioeconomics` first). **Read everything below about Class A as provisional
+until that returns.**
 
 These four routes simply **serve charts, not tables**, and the charts carry real
 canva.com magnitudes (organic-search axis to 150M, referral 60M, organic-social
@@ -673,12 +699,14 @@ the visibility-induced fake empty is proven: 0 non-empty cells while `hidden`,
 850 while `visible`, three crossing measurements. Treat an empty read there as
 `inconclusive-hidden` until a `visible` read confirms it.
 
-**Confirmed NOT affected — the four Class A routes.** `referral`,
-`organic-search`, `paid-search`, `organic-social` return **zero table elements
-under `visible`, three reads running**, byte-for-byte the same shape they return
-while `hidden`. Their emptiness is not a visibility artefact and no amount of
-foreground buys a table; they publish charts only, and the numbers are in the
-chart. Do not file them under this law's remedy.
+**Provisionally NOT affected — the Class A routes, re-measure pending.**
+`referral`, `organic-search`, `paid-search`, `organic-social` returned **zero
+table elements under `visible`, three reads running**, byte-for-byte the same
+shape they return while `hidden` — but those reads were taken under the
+early-stopping criterion, so the finding is **not confirmed**. All ten Class A
+routes are being re-run under patient mode. The working reading stays "they
+publish charts only, and the numbers are in the chart", and it is not yet a fact
+to file conclusions against.
 
 **Confirmed NOT affected:** reads of an *already hydrated* .Trends page — the
 same top-pages report handed back 850 non-empty cells with
@@ -759,9 +787,34 @@ item.
 **The same question applies to a negative verdict, and there it is harder to
 see.** "I read empty N times in a row, so it is empty" is the same mistake
 wearing repetition as a disguise: a region that has not begun rendering yet is
-*perfectly* stable. **Stable is not finished.** A stability criterion is only
-sound with a **minimum elapsed-time floor** underneath it, or bound to an
-independent "the page is done" signal.
+*perfectly* stable. **Stable is not finished.**
+
+**And the first repair for that was itself wrong, in exactly the same shape.**
+Bolting a minimum elapsed-time floor under the stability check — 100 seconds,
+written into this law on 2026-08-28 — was falsified the same day: five routes
+that the floor had filed as empty all produced data once the wait grew, and two
+of them only on a **second** re-measure. The floor is not the fix, because **a
+floor is not a criterion, it is a bet on a threshold**, and the threshold moves
+with the page, the target and the machine load. Every rule of the shape *waited
+long enough and still empty, therefore empty* is that same bet at a different
+number. 600 seconds is today's number; it is an operating value, not a
+guarantee, and the next slow table will retire it too.
+
+So the rule is not a bigger number. It is:
+
+- **"Empty" is provisional by default**, and elapsed time never promotes it.
+- An empty verdict is admissible only when it is bound to a **positive "this
+  page has finished rendering" signal** — a paginator, a row-count readout, a
+  loading indicator that has *gone away*, any control that exists only once the
+  data has landed. Such a signal is a product of this query in the same way a
+  filled cell is; a duration is not.
+- **With no such signal available, the verdict is `inconclusive`, never
+  `empty`.** Those two words mean entirely different things to everything
+  downstream, and this repo's standing rule is to fail explicitly rather than
+  quietly.
+- **Time floors stay — as a backstop, not as a criterion.** They bound how long
+  a round is allowed to run and stop an early read from being believed. They
+  never license a verdict on their own.
 
 And write down the raw evidence the verdict rests on — the filled-cell count,
 the elapsed time and read count behind an empty verdict, the
@@ -769,10 +822,20 @@ the elapsed time and read count behind an empty verdict, the
 reader can tell a verdict from a coincidence.
 </statement>
 <why>
-This is not hypothetical. **The same shape appeared five times in a single day
-(2026-08-28)**, and each time it came within one step of turning a failed read
-into a business conclusion. All five are worth reading in full, because in
-isolation every one of these criteria looks reasonable.
+This is not hypothetical. **The same shape appeared six times in a single day
+(2026-08-28)** — the sixth being the *repair* written for the fifth — and each
+time it came within one step of turning a failed read into a business
+conclusion. All six are worth reading in full, because in isolation every one of
+these criteria looks reasonable.
+
+**The measured mechanism behind the last two, stated once:** these Semrush
+流量与市场 (Traffic & Market) routes render in a fixed order — **summary block,
+then charts, then the table, and the table is always last**. A populated summary
+sitting above a zero-row table is a **normal intermediate state, not an empty
+report**. And this is precisely the state that a `captureStable`-style
+"read it twice, take it if the two agree" rule cannot see through: **a
+not-yet-started table is perfectly stable at zero rows**, so agreement arrives
+instantly and means nothing.
 
 **Instance 1 — "ready = digits appear anywhere on the page".** The check
 scanned the whole document for numbers. It matched **another tool's widget
@@ -818,9 +881,44 @@ cells** and `geographical-regions` produced **198** (sample row: `北美 | 20.69
 while the table read 0 rows. The page was working. The criterion simply did not
 wait for it, and filed a slow table as an absent one.
 
-The repair: an empty verdict now requires **both** three `visible` reads **and**
-at least 100 seconds elapsed in that round, rounds capped at 150 seconds, at
-most 3 of them — protocol id `v5-visible-gated-min100s`.
+The repair written at the time: an empty verdict requires **both** three
+`visible` reads **and** at least 100 seconds elapsed in that round, rounds capped
+at 150 seconds, at most 3 of them — protocol id `v5-visible-gated-min100s`.
+**That repair is instance 6.**
+
+**Instance 6 — "ready to call it empty = three `visible` reads AND 100 seconds
+elapsed".** The floor did not hold either. Re-run under patient mode, **all
+eight** routes previously filed `empty-silent` produced data. Not five of eight,
+not seven — **eight of eight**:
+
+| route | filled cells | first cells |
+|---|---|---|
+| `page-groups` | 20 | `美国 / 18.73%·1.5亿 / 81.88% / 18.12% / 巴西` |
+| `demographics` | 20 | `美国 / 18.73%·1.5亿 / 81.88% / 18.12% / 巴西` |
+| `business-regions` | 36 | `APAC / 34.96% / 2.8亿 / 6769.9万 / 85.84%` |
+| `geographical-regions` | 198 | `北美 / 20.69% / 1.6亿 / 4752.6万 / 82.63%` |
+| `audience-overlap` | 204 | `chatgpt.com / 无类别 / 8.5亿 / 6.4亿 / 12.25%·1亿` |
+| `sources-destinations` | 272 | `canva.com / 直接 / 79.32% / 6.3亿 / ↑4.4%` |
+| `usa` | 459 | `加利福尼亚 / 13.92% / 1811.9万 / 531.5万 / 82.66%` |
+| `subfolders-subdomains` | 900 | `/design/ / 35.74% / 6.1亿 / 1.4亿 / 2.8亿` |
+
+**The `empty-silent` category emptied out completely: its count on this node is
+now zero.** And the sharpest detail: `geographical-regions` and
+`business-regions` only produced their rows on a **second** re-measure — 100
+seconds did not catch them, and the same page did not behave the same way twice.
+Hydration time on these heavy table pages has a wide and unstable spread. The
+operator's own summary of the batch is worth keeping verbatim:
+**"every single one I called empty turned out to be me not waiting long enough.
+Zero exceptions."**
+
+The operating protocol moved to **patient mode**: 200 seconds per round, three
+rounds run to completion with no early stop, 600 seconds maximum per route. But
+**the number is not the lesson.** Instance 5 was "stability is not completion";
+instance 6 is **"neither is duration"**. Both criteria had the same shape — wait,
+observe nothing, conclude absence — and a criterion of that shape can only ever
+be tuned, never made sound. The sound version binds the verdict to a positive
+end-of-render signal and otherwise reports `inconclusive`; the floor survives
+only as a backstop. That is what the statement above now says.
 
 **This Skill had already written this warning down and then walked past it.**
 `scripts/lib-tools-share.mjs` `captureStable` carries a comment saying in so
@@ -838,9 +936,9 @@ plus two recorded facts: `listPickerVisible`, and **the account initial in the
 page header** (node 5 renders `H`, node 8 renders `B`) — the cheapest available
 proof of *which account you are actually looking at*.
 
-What the five share: the criterion asked whether **something exists on the
-page** (or, in instance 5, whether something *keeps not* existing), and a page
-has many suppliers — the vendor's copywriter, the stylesheet, a neighbouring
+What the six share: the criterion asked whether **something exists on the
+page** — or, in instances 5 and 6, whether something *keeps not* existing for
+long enough — and a page has many suppliers — the vendor's copywriter, the stylesheet, a neighbouring
 widget, the account's own history, and the render pipeline that has not reached
 your region yet. Only one of those suppliers is this query.
 </why>
@@ -852,13 +950,15 @@ and the verification step after a submission alike.
 It composes with <law-ref id="hidden-tabs-do-not-hydrate"/> rather than
 replacing it: that law says an empty read may not be a fact about the domain;
 this one says a read that *looks* non-empty may not be a fact about your query,
-and that a *repeatedly* empty read may not be a fact about anything. The
-failure modes are opposite and all of them are live. Instance 5 amended that
-law's own admissibility rule — the 100-second floor now written into it.
+and that a *repeatedly* empty read — however long you waited — may not be a fact
+about anything. The failure modes are opposite and all of them are live.
+Instances 5 and 6 both amended that law's own admissibility rule: 5 added the
+time floor, 6 demoted the floor to a backstop and made `inconclusive` the
+default output when no end-of-render signal is available.
 
 The rankup Skill's provider-capabilities reference and its JSON sibling hold the
 per-route measurements. **They point here; they must not restate this law.**
-The four instances live in this one place.
+All six instances live in this one place.
 
 **Unmeasured:** whether a filled-cell count can itself be satisfied by a
 foreign table — no panel page has yet been seen rendering a second tool's
@@ -892,18 +992,36 @@ const scope = (() => {
 // -> { hasTarget:true, listPickerVisible:true,  ok:false } landed on the empty state
 // -> { hasTarget:true, listPickerVisible:false, accountInitial:"B", ok:true }
 
-// an EMPTY verdict needs a time floor as well as a repeat count: these pages
-// render summary -> charts -> table, and a table that has not started is stable.
-const emptyIsAdmissible = visibleReads >= 3 && elapsedMsThisRound >= 100_000;
-// rounds capped at 150s, at most 3 -> protocol id "v5-visible-gated-min100s"
+// an EMPTY verdict binds to a POSITIVE end-of-render signal. These pages render
+// summary -> charts -> table (table last), so a zero-row table under a populated
+// summary is a mid-render state, and "stable at zero rows" proves nothing.
+const done = (() => {
+  const root = document.querySelector('main') || document.body;
+  return {
+    paginator: !!root.querySelector('[class*="pagination" i], nav[aria-label*="page" i]'),
+    rowCount: !!root.querySelector('[data-testid*="row-count" i], [class*="total-rows" i]'),
+    spinnerGone: !root.querySelector('[class*="skeleton" i], [class*="spinner" i], [aria-busy="true"]'),
+  };
+})();
+const renderFinished = (done.paginator || done.rowCount) && done.spinnerGone;
+
+// the floor is a BACKSTOP on the round, never the reason for the verdict.
+const verdict = filledCells > 0 ? 'data'
+  : (renderFinished && visibleReads >= 3) ? 'empty'
+  : 'inconclusive';          // <- the default when the page never said it was done
+// rounds: 200s each, 3 of them, run to completion, 600s cap per route.
+// Those numbers bound the wait; they do not license the verdict.
 
 // and record the evidence NEXT TO the verdict, not just the verdict
 { "route": "/analytics/traffic/top-pages/", "verdict": "data",
   "filledCells": 850, "listPickerVisible": false, "accountInitial": "B",
   "visibilityStateAtVerdict": "visible" }
-{ "route": "/analytics/traffic/page-groups/", "verdict": "empty",
+// page-groups was recorded exactly like this, at 104300ms, and it was WRONG —
+// a later patient run read 20 filled cells. Without an end-of-render signal the
+// only honest verdict is the third one.
+{ "route": "/analytics/traffic/page-groups/", "verdict": "inconclusive",
   "filledCells": 0, "visibleReads": 3, "elapsedMsThisRound": 104300,
-  "protocolId": "v5-visible-gated-min100s" }
+  "renderFinishedSignal": null, "protocolId": "v6-patient-signal-gated" }
 ]]></correct>
 <wrong><![CDATA[
 // 1. digits anywhere -> matched a NEIGHBOURING TOOL'S widget (axa.fr / 42 / 758 / 15%)
@@ -926,6 +1044,13 @@ const onTarget = document.body.innerText.includes('canva.com');
 if (visibleReads >= 3 && filledCells === 0) return 'empty-silent';
 // FALSE — page-groups (20 cells) and geographical-regions (198 cells) were
 // filed as empty this way, while their summary blocks were already full.
+
+// 6. the REPAIR for 5: same shape, bigger number. Still false.
+if (visibleReads >= 3 && elapsedMsThisRound >= 100_000 && filledCells === 0) return 'empty-silent';
+// FALSE — ALL EIGHT routes filed empty by this rule produced data once the wait
+// grew (20 / 20 / 36 / 198 / 204 / 272 / 459 / 900 cells); geographical-regions
+// and business-regions only on the SECOND re-measure. A floor is a threshold bet.
+// "Waited long enough and still empty" is not a criterion at any number.
 ]]></wrong>
 </law>
 
@@ -1028,9 +1153,15 @@ Semrush 报表返回「已达到每日报告限额」，换到 `节点2`（一�
 报表立刻跑通。**这张被限额的页面照样渲染完整的表头**——所有列名都在，只有表体被换成了那句
 限额提示——所以任何只认表头就判定"页面就绪"的检查都会通过，然后把一张空表当成真实数据。
 
-**目前只有 `semrush-report.mjs` 试图自动识别这句提示**（`QUOTA_BLOCKED` 正则），且据另一位
-维护者复核，这条检测**当前是死代码，还没能在真实限额页面上生效**——不要假设跑这个脚本会
-自动帮你挡住限额。`similarweb-query.mjs`、`semrush-overview.mjs`、`semrush-batch.mjs`、
+**目前只有 `semrush-report.mjs` 会自动识别这句提示**。⚠️ 一条更早的复核说这里「当前是死代码」，
+2026-08-28 重新核对源码后**撤回**：那条判断说的是更早的一个版本（`if (loaded.capture?.bodyText
+&& QUOTA_BLOCKED.test(...))`，而限额页上 `capture` 恒为 null，所以那个分支确实到不了）；
+现在的代码在 `!loaded.capture` 时走 `diagnoseUnrendered`，**当场重读一次页面**，翻页路径上
+也有同一条检查，两条都可达，`--self-test` 也真的驱动了它们。真正的缺陷是另一个：判据方向反了
+——它原来在**整页**里搜这句话，而限额页会照常渲染完整列头，供应商改文案 / A/B / 帮助气泡
+里出现同一句话都会两个方向都误判。现已改成绑**表体区**：`filledCells === 0` **且**这句提示
+出现在表体区自己的文字里；表体区定位不到时报 `quota-suspected`，不冒充确诊。
+即便如此也不要假设脚本会替你挡住限额。`similarweb-query.mjs`、`semrush-overview.mjs`、`semrush-batch.mjs`、
 `semrush-keyword.mjs` 等其余脚本完全没有这项检测。**在这条被自动化补上之前，读表前必须自己
 在表体文字里找一遍「已达到每日报告限额」**，出现了就是节点问题，换节点重跑，不是这个域名
 没数据——不要假设脚本会替你发现。
