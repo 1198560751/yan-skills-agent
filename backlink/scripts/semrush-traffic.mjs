@@ -17,7 +17,9 @@
  *   node semrush-traffic.mjs --self-test
  *
  * 参数：--domain（必填）/ --session / --node / --out / --json / --help
- *       --settle --timeout --input-timeout --window 调节等待，正常不用给。
+ *       --settle --timeout --input-timeout 调节等待，正常不用给。
+ *       --window 默认 **foreground**（全仓唯一例外，见下面 DEFAULT_WINDOW 的注释：
+ *       这张报表在后台标签页里不水合），可显式覆盖成 background / isolated。
  *
  * ──────────────────────────────────────────────────────────────────────
  * 已实测确认的 DOM 契约（2026-08-28 canva.com，**照抄，不要凭直觉改**）
@@ -73,22 +75,41 @@ import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } f
 import { parseNumber } from './lib-similarweb.mjs';
 import { writeFile } from 'node:fs/promises';
 
-const flags = parseFlags(process.argv.slice(2));
-showHelpIfRequested(flags, import.meta.url);
-const session = flags.session ? validateSession(flags.session) : defaultSession('semrush-traffic');
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 const TRAFFIC_PATH = '/analytics/traffic/traffic-overview/';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function normalizeDomain(value) {
+/**
+ * **这张报表必须在前台标签页里跑。** 全仓的默认是后台
+ * （`lib-tools-share.mjs` 的 `launchTool` 默认 `windowMode = 'background'`），
+ * 这里是全仓唯一一处实测确认的例外，具体见
+ * SKILL.md 的 <law id="hidden-tabs-do-not-hydrate">。
+ *
+ * 2026-08-28 控制变量实测：同一个标签页、同一个节点、**不重新提交**，
+ * 只翻转 `document.visibilityState`：
+ *   hidden  → `document.body.innerText` 长 549，摘要区只有标签、**零个值**
+ *   visible → 长 1957，**所有值齐全**
+ * 解析层是好的（把前台抓到的 innerText 喂给 parseTrafficSummary，15 个字段
+ * 零容差全对）——坏的只是驱动层。
+ *
+ * 为什么是“默认前台”而不是“后台跑、发现没水合再自动转前台重试”：
+ * 自动重试无法把两个真实原因分开——“后台不水合”和“这个域名在 .Trends
+ * 里真的没数据”在页面上长得一模一样（都是“有标签无值”），于是每一次真空数据
+ * 都要白白多花一轮 40–120 秒的重试，而且前台抢焦点这件事照样会发生，
+ * 只是发生得更晚、更难预测。一次就前台，行为确定，错误信息也才能诚实。
+ *
+ * 仍然可以显式覆盖：`--window background` / `--window isolated`。
+ * **不要因为这个去改 `lib-tools-share.mjs` 的公共默认**——semrush-report.mjs 和
+ * similarweb-query.mjs 长期在后台模式下正常取数，改公共默认会让它们都去抢前台。
+ */
+export const DEFAULT_WINDOW = 'foreground';
+
+export function normalizeDomain(value) {
   if (!value) return '';
   const c = value.includes('://') ? new URL(value).hostname : value.split('/')[0];
   return c.trim().toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
-}
-
-const domain = normalizeDomain(String(flags.domain || '').trim());
-if (!flags['self-test'] && !domain) {
-  console.error('semrush-traffic.mjs requires --domain (例如 --domain canva.com)');
-  process.exit(2);
 }
 
 // ---------- 摘要区的切分与解析 ----------
@@ -336,7 +357,7 @@ async function loadSummary(evalPage, { timeout, intervalMs }) {
 
 // ---------- 离线自测 ----------
 
-if (flags['self-test']) {
+export function runSelfTest() {
   const checks = [];
   const check = (name, ok, detail) => {
     checks.push(name);
@@ -445,116 +466,135 @@ if (flags['self-test']) {
   check('errors-are-redacted', !redacted.includes('SECRET123') && redacted.includes('__gmitm=<redacted>'));
 
   console.log(`semrush-traffic self-test: PASS (${checks.length} checks: ${checks.join(', ')})`);
-  process.exit(0);
 }
 
 // ---------- 主流程 ----------
 
-let output;
-let launched;
-try {
-  launched = await launchTool({
-    session,
-    tool: 'semrush',
-    node: flags.node,
-    window: flags.window,
-    wait: Number(flags.wait || 7),
-    timeout: Number(flags.launchTimeout || 60),
-  });
-  const { evalPage } = launched;
-  // `landed` 是 `{ url, title, bodyText }` 对象，不是字符串——直接 new URL(landed) 会抛。
-  const origin = new URL(launched.landed?.url || launched.tool.origin.replace(/^/, 'https://')).origin;
+async function main() {
+  const flags = parseFlags(process.argv.slice(2));
+  showHelpIfRequested(flags, import.meta.url);
+  if (flags['self-test']) { runSelfTest(); return; }
 
-  // 导航一律走 gotoInTool（在已登录的工具页内部跳转）。**不能用 `opencli open` 打深链**——
-  // 那会开一个没有登录态的新标签页。
-  await gotoInTool(evalPage, `${origin}${TRAFFIC_PATH}`, Number(flags.settle || 8));
+  const session = flags.session ? validateSession(flags.session) : defaultSession('semrush-traffic');
+  const domain = normalizeDomain(String(flags.domain || '').trim());
+  if (!domain) {
+    console.error('semrush-traffic.mjs requires --domain (例如 --domain canva.com)');
+    process.exit(2);
+  }
 
-  const inputTimeout = Number(flags['input-timeout'] || 40);
-  if (!(await waitForInput(evalPage, inputTimeout))) {
-    throw new Error(
-      `流量分析总览页在 ${inputTimeout}s 内没有出现主体输入框（${INPUT_SELECTOR}）。` +
-      `依次排查：(1) 节点挂了——换 --node 重跑（症状是白页、长时间不渲染）；` +
-      `(2) 路由被改了——本脚本用的是 ${TRAFFIC_PATH}，不是 /analytics/traffic/overview/；` +
-      `(3) 这个输入框实测水合要 10–14 秒，网络慢时调大 --input-timeout。`,
+  let output;
+  let launched;
+  try {
+    launched = await launchTool({
+      session,
+      tool: 'semrush',
+      node: flags.node,
+      // 见本文件顶部 DEFAULT_WINDOW 的注释：这张报表在后台标签页里不水合。
+      window: flags.window || DEFAULT_WINDOW,
+      wait: Number(flags.wait || 7),
+      timeout: Number(flags.launchTimeout || 60),
+    });
+    const { evalPage } = launched;
+    // `landed` 是 `{ url, title, bodyText }` 对象，不是字符串——直接 new URL(landed) 会抛。
+    const origin = new URL(launched.landed?.url || launched.tool.origin.replace(/^/, 'https://')).origin;
+
+    // 导航一律走 gotoInTool（在已登录的工具页内部跳转）。**不能用 `opencli open` 打深链**——
+    // 那会开一个没有登录态的新标签页。
+    await gotoInTool(evalPage, `${origin}${TRAFFIC_PATH}`, Number(flags.settle || 8));
+
+    const inputTimeout = Number(flags['input-timeout'] || 40);
+    if (!(await waitForInput(evalPage, inputTimeout))) {
+      throw new Error(
+        `流量分析总览页在 ${inputTimeout}s 内没有出现主体输入框（${INPUT_SELECTOR}）。` +
+        `依次排查：(1) 节点挂了——换 --node 重跑（症状是白页、长时间不渲染）；` +
+        `(2) 路由被改了——本脚本用的是 ${TRAFFIC_PATH}，不是 /analytics/traffic/overview/；` +
+        `(3) 这个输入框实测水合要 10–14 秒，网络慢时调大 --input-timeout。`,
+      );
+    }
+    const submitted = await submitTarget(evalPage, domain);
+    if (!submitted?.ok) throw new Error(`提交主体失败：${submitted?.why || 'unknown'}`);
+
+    const loaded = await loadSummary(evalPage, {
+      timeout: Number(flags.timeout || 120),
+      intervalMs: Number(flags['stable-interval'] || 3) * 1000,
+    });
+
+    if (!loaded.stable || !loaded.capture) {
+      // **空结果不是事实。** 这里绝不输出一堆 0/null 假装成功。
+      throw new Error(
+        loaded.aborted
+          ? `页面停在瞬时错误页（出错了/请稍后重试）。重载重试仍未恢复，稍后再跑。`
+          : `"${domain}" 的摘要区在 ${loaded.reads} 次读取里始终没出现稳定数值。` +
+            `依次排查：(1) 提交没生效，页面还停在空态落地页；` +
+            `(2) 该域名在 .Trends 里流量太小、没有数据；` +
+            `(3) 还在水合——调大 --timeout / --stable-interval。` +
+            `注意：这**不等于**「这个站没有流量」。`,
+      );
+    }
+
+    const cap = loaded.capture;
+    const parsed = JSON.parse(loaded.fingerprint);
+    const header = parseHeader(cap.bodyText, domain);
+    // 页头主体和请求主体对不上 = 读的是别人的数据，必须说出来而不是照单写下。
+    if (header.headerTarget && header.headerTarget.toLowerCase() !== domain) {
+      console.error(`[target-mismatch] 请求的是 ${domain}，页头显示的是 ${header.headerTarget}——提交可能没生效。`);
+    }
+
+    output = {
+      version: 1,
+      source: 'Semrush Traffic & Market (.Trends) via authenticated Tools Share browser session',
+      // 口径必须写清楚：这是**总访问量**，和 semrush-report.mjs 的自然搜索流量不是一回事。
+      note: '这是 Semrush .Trends 的总访问量口径（与 Similarweb 同口径，2026-08-28 实测相差 2.4%），'
+          + '不是 semrush-report.mjs / semrush-overview.mjs 的自然搜索流量，两者不要混用或相加。',
+      retrievedAt: new Date().toISOString(),
+      report: 'traffic-overview',
+      target: domain,
+      session,
+      sessionReused: Boolean(launched.reused),
+      title: cap.title,
+      url: cap.url,
+      header,
+      subscription: launched.reused ? null : {
+        expiry: launched.state?.expiry, daysLeft: launched.state?.daysLeft,
+        quotas: launched.state?.quotas, warning: expiryWarning(launched.state || {}),
+      },
+      reads: loaded.reads,
+      parsed,
+      rawSummary: sliceSummary(cap.bodyText),
+      rawText: cap.bodyText.slice(0, 20000),
+    };
+  } catch (error) {
+    output = {
+      version: 1,
+      source: 'Semrush Traffic & Market (.Trends) via authenticated Tools Share browser session',
+      retrievedAt: new Date().toISOString(),
+      report: 'traffic-overview',
+      target: domain,
+      session,
+      // **错误消息必须过 redactSecrets。** opencli 失败会把带 __gmitm 令牌的会话 URL
+      // 打进 stderr，那段文本会一路进 output、进 --out 文件、进日志。
+      status: 'unavailable',
+      error: { code: 'traffic_overview_unavailable', message: redactSecrets(error.message) },
+    };
+  } finally {
+    await launched?.releaseBrowserLocks?.();
+  }
+
+  if (typeof flags.out === 'string') await writeFile(flags.out, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
+  // --json 只影响 stderr 上那行人读摘要；stdout 永远是 JSON，管道下游不会因为这个 flag 变形。
+  if (!flags.json && output.status !== 'unavailable') {
+    const p = output.parsed;
+    console.error(
+      `[${output.target}] visits=${p.visits} (${p.visitsChangePercent}%) unique=${p.uniqueVisitors} ` +
+      `pages/visit=${p.pagesPerVisit} duration=${p.avgVisitDuration} bounce=${p.bounceRatePercent}%`,
     );
   }
-  const submitted = await submitTarget(evalPage, domain);
-  if (!submitted?.ok) throw new Error(`提交主体失败：${submitted?.why || 'unknown'}`);
-
-  const loaded = await loadSummary(evalPage, {
-    timeout: Number(flags.timeout || 120),
-    intervalMs: Number(flags['stable-interval'] || 3) * 1000,
-  });
-
-  if (!loaded.stable || !loaded.capture) {
-    // **空结果不是事实。** 这里绝不输出一堆 0/null 假装成功。
-    throw new Error(
-      loaded.aborted
-        ? `页面停在瞬时错误页（出错了/请稍后重试）。重载重试仍未恢复，稍后再跑。`
-        : `"${domain}" 的摘要区在 ${loaded.reads} 次读取里始终没出现稳定数值。` +
-          `依次排查：(1) 提交没生效，页面还停在空态落地页；` +
-          `(2) 该域名在 .Trends 里流量太小、没有数据；` +
-          `(3) 还在水合——调大 --timeout / --stable-interval。` +
-          `注意：这**不等于**「这个站没有流量」。`,
-    );
-  }
-
-  const cap = loaded.capture;
-  const parsed = JSON.parse(loaded.fingerprint);
-  const header = parseHeader(cap.bodyText, domain);
-  // 页头主体和请求主体对不上 = 读的是别人的数据，必须说出来而不是照单写下。
-  if (header.headerTarget && header.headerTarget.toLowerCase() !== domain) {
-    console.error(`[target-mismatch] 请求的是 ${domain}，页头显示的是 ${header.headerTarget}——提交可能没生效。`);
-  }
-
-  output = {
-    version: 1,
-    source: 'Semrush Traffic & Market (.Trends) via authenticated Tools Share browser session',
-    // 口径必须写清楚：这是**总访问量**，和 semrush-report.mjs 的自然搜索流量不是一回事。
-    note: '这是 Semrush .Trends 的总访问量口径（与 Similarweb 同口径，2026-08-28 实测相差 2.4%），'
-        + '不是 semrush-report.mjs / semrush-overview.mjs 的自然搜索流量，两者不要混用或相加。',
-    retrievedAt: new Date().toISOString(),
-    report: 'traffic-overview',
-    target: domain,
-    session,
-    sessionReused: Boolean(launched.reused),
-    title: cap.title,
-    url: cap.url,
-    header,
-    subscription: launched.reused ? null : {
-      expiry: launched.state?.expiry, daysLeft: launched.state?.daysLeft,
-      quotas: launched.state?.quotas, warning: expiryWarning(launched.state || {}),
-    },
-    reads: loaded.reads,
-    parsed,
-    rawSummary: sliceSummary(cap.bodyText),
-    rawText: cap.bodyText.slice(0, 20000),
-  };
-} catch (error) {
-  output = {
-    version: 1,
-    source: 'Semrush Traffic & Market (.Trends) via authenticated Tools Share browser session',
-    retrievedAt: new Date().toISOString(),
-    report: 'traffic-overview',
-    target: domain,
-    session,
-    // **错误消息必须过 redactSecrets。** opencli 失败会把带 __gmitm 令牌的会话 URL
-    // 打进 stderr，那段文本会一路进 output、进 --out 文件、进日志。
-    status: 'unavailable',
-    error: { code: 'traffic_overview_unavailable', message: redactSecrets(error.message) },
-  };
-} finally {
-  await launched?.releaseBrowserLocks?.();
+  printJson(output);
+  if (output.status === 'unavailable') process.exitCode = 1;
 }
 
-if (typeof flags.out === 'string') await writeFile(flags.out, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
-// --json 只影响 stderr 上那行人读摘要；stdout 永远是 JSON，管道下游不会因为这个 flag 变形。
-if (!flags.json && output.status !== 'unavailable') {
-  const p = output.parsed;
-  console.error(
-    `[${output.target}] visits=${p.visits} (${p.visitsChangePercent}%) unique=${p.uniqueVisitors} ` +
-    `pages/visit=${p.pagesPerVisit} duration=${p.avgVisitDuration} bounce=${p.bounceRatePercent}%`,
-  );
-}
-printJson(output);
-if (output.status === 'unavailable') process.exitCode = 1;
+// **导入这个模块不许启动 CLI。** 解析函数是可单测的纯函数，验证方要能
+// `import { parseTrafficSummary }` 而不意外开一个浏览器会话——2026-08-28 就真的
+// 因为没有这道守卫开了一个。写法照抄同目录的 tools-share-evidence.mjs。
+const invokedAsScript = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (invokedAsScript) main().catch((error) => { console.error(redactSecrets(error?.message || String(error))); process.exitCode = 1; });

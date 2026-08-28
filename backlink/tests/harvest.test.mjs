@@ -328,17 +328,91 @@ test("SKILL.md frontmatter 的 name 等于目录名", async () => {
   );
 });
 
-test("脚本入口都存在且被 SKILL.md 引用", async () => {
+// 每个 scripts/ 下的入口都必须在 SKILL.md 里被提到。
+//
+// **为什么是扫目录而不是写死清单。** 这条检查原本枚举三个文件名，于是
+// semrush-traffic.mjs 加进仓库后一直没被 SKILL.md 收录，CI 也一直是绿的——
+// 写死的清单只能证明「清单里的东西还在」，永远证明不了「没有漏」。
+// 本仓库反复栽在这个形态上，所以这里改成扫目录 + 显式豁免。
+//
+// 豁免要写理由，并且被下面的测试校验「豁免的文件确实还存在」，
+// 免得删了文件之后豁免条目变成永久的死规则。
+const SKILL_MAP_EXEMPT = new Map([
+  // 目前没有豁免。加条目前先想清楚：读者要用这个脚本时，怎么知道它存在？
+]);
+
+async function skillMapCoverage(skillText) {
+  const entries = await readdir(path.join(skillRoot, "scripts"), { withFileTypes: true });
+  const names = entries
+    .filter((e) => e.isFile() && /\.(mjs|js|sh)$/.test(e.name))
+    .map((e) => e.name)
+    .sort();
+  return {
+    names,
+    missing: names.filter(
+      (name) => !SKILL_MAP_EXEMPT.has(name) && !skillText.includes(name),
+    ),
+  };
+}
+
+test("每个 scripts/ 入口都被 SKILL.md 提到（扫目录，不是写死清单）", async () => {
   const text = await readFile(path.join(skillRoot, "SKILL.md"), "utf8");
-  for (const script of [
-    "harvest.browser.js",
-    "harvest-collect.sh",
-    "harvest-merge.mjs",
-  ]) {
-    await readFile(path.join(skillRoot, "scripts", script), "utf8");
-    assert.ok(
-      text.includes(`scripts/${script}`),
-      `SKILL.md 必须链接 scripts/${script}`,
-    );
+  const { names, missing } = await skillMapCoverage(text);
+  // 扫描本身坏掉时（改了后缀、挪了目录）会一个文件都扫不到，那样这条检查
+  // 会「全绿地什么也没测」。先给扫描结果本身设一个下界。
+  assert.ok(names.length >= 20, `scripts/ 扫描只找到 ${names.length} 个入口，扫描逻辑可能坏了`);
+  assert.deepEqual(missing, [], `这些脚本没有出现在 SKILL.md 里:\n${missing.join("\n")}`);
+
+  for (const [name, reason] of SKILL_MAP_EXEMPT) {
+    assert.ok(names.includes(name), `豁免清单里的 ${name} 已经不存在了，删掉这条豁免（理由曾是：${reason}）`);
   }
+});
+
+// 变异测试：把某个脚本的提及从 SKILL.md 文本里删掉，上面那条检查必须变红。
+// 没有这一条，覆盖检查可能因为某个恒真的写法而永远通过。
+test("SKILL.md 覆盖检查会因为漏掉一个脚本而变红", async () => {
+  const text = await readFile(path.join(skillRoot, "SKILL.md"), "utf8");
+  const { missing: baseline } = await skillMapCoverage(text);
+  assert.deepEqual(baseline, [], "变异测试的基线必须是干净的");
+
+  for (const victim of ["semrush-traffic.mjs", "harvest.browser.js"]) {
+    const mutated = text.split(victim).join("REMOVED-BY-MUTATION-TEST");
+    assert.ok(!mutated.includes(victim), `变异没生效：SKILL.md 里本来就没有 ${victim}`);
+    const { missing } = await skillMapCoverage(mutated);
+    assert.deepEqual(missing, [victim], `删掉 ${victim} 的提及之后，覆盖检查还是绿的`);
+  }
+});
+
+test("semrush-traffic.mjs 默认走前台标签页", async () => {
+  // 这张报表在后台标签页里不水合（2026-08-28 控制变量实测），
+  // 见 SKILL.md 的 <law id="hidden-tabs-do-not-hydrate">。
+  // 谁把默认改回后台，这条会红——这正是它存在的理由。
+  const mod = await import(new URL("../scripts/semrush-traffic.mjs", import.meta.url));
+  assert.equal(mod.DEFAULT_WINDOW, "foreground");
+
+  const source = await readFile(path.join(skillRoot, "scripts", "semrush-traffic.mjs"), "utf8");
+  // 显式 --window 必须仍然能覆盖默认值。
+  assert.match(source, /window:\s*flags\.window\s*\|\|\s*DEFAULT_WINDOW/);
+  // 公共默认不许被改成前台：那会让所有脚本都去抢用户的活动标签页。
+  const shared = await readFile(path.join(skillRoot, "scripts", "lib-tools-share.mjs"), "utf8");
+  assert.match(shared, /windowMode\s*=\s*'background'/);
+});
+
+test("import semrush-traffic.mjs 不会启动 CLI", async () => {
+  // 2026-08-28：没有 import 守卫时，只想单测解析函数的人意外开了一个浏览器会话。
+  const mod = await import(new URL("../scripts/semrush-traffic.mjs", import.meta.url));
+  assert.equal(typeof mod.parseTrafficSummary, "function");
+  const parsed = mod.parseTrafficSummary(
+    ["摘要", "摘要", "导出", "访问量", "访问量", "7.9亿", "↑4.53%", "84.26%", "15.74%", "流量趋势"].join("\n"),
+  );
+  assert.equal(parsed.visits, 790000000);
+  assert.equal(parsed.mobileSharePercent, 15.74);
+
+  const source = await readFile(path.join(skillRoot, "scripts", "semrush-traffic.mjs"), "utf8");
+  assert.match(source, /invokedAsScript/, "CLI 必须被 import 守卫包住");
+  // 顶层不许有裸的 launchTool 调用（那正是 import 会开浏览器的写法）。
+  assert.ok(
+    !/^\s*(?:await\s+)?launchTool\(/m.test(source.replace(/^ {2,}.*$/gm, "")),
+    "launchTool 只能出现在 main() 里面",
+  );
 });

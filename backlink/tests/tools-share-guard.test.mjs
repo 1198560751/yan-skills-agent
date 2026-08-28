@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -27,11 +27,22 @@ test('recognizes redirect, expired session, and cooldown pages', () => {
 });
 
 test('every launch caller explicitly releases and semrush-report has no pre-launch eval', async () => {
-  const scripts = ['tools-share-evidence.mjs', 'tools-share-open.mjs', 'semrush-overview.mjs', 'semrush-batch.mjs', 'semrush-keyword.mjs', 'similarweb-query.mjs', 'similarweb-batch.mjs', 'semrush-report.mjs'];
-  for (const name of scripts) {
-    const source = await readFile(new URL('../scripts/' + name, import.meta.url), 'utf8');
-    assert.match(source, /launchTool\(/, name + ' must launch through the shared wrapper');
+  // Scanned, not enumerated: a hard-coded list only proves the listed files are
+  // still fine, never that nothing was missed. semrush-traffic.mjs sat outside the
+  // old list for exactly that reason.
+  const dir = new URL('../scripts/', import.meta.url);
+  const names = (await readdir(dir)).filter((n) => n.endsWith('.mjs')).sort();
+  const scripts = [];
+  for (const name of names) {
+    const source = await readFile(new URL(name, dir), 'utf8');
+    if (!/launchTool\(/.test(source)) continue;   // not a panel driver
+    if (name === 'lib-tools-share.mjs') continue;  // defines it, does not call it
+    scripts.push(name);
     assert.match(source, /releaseBrowserLocks/, name + ' must release the shared browser lock');
+  }
+  assert.ok(scripts.length >= 8, `expected the scan to find the panel drivers, found ${scripts.length}: ${scripts.join(', ')}`);
+  for (const expected of ['semrush-report.mjs', 'similarweb-query.mjs', 'semrush-traffic.mjs']) {
+    assert.ok(scripts.includes(expected), `${expected} dropped out of the launchTool scan`);
   }
   const report = await readFile(new URL('../scripts/semrush-report.mjs', import.meta.url), 'utf8');
   const ensureTool = report.slice(report.indexOf('async function ensureTool()'), report.indexOf('/** 面板/工具页'));

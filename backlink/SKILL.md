@@ -70,6 +70,15 @@ backlink/
 │   ├── semrush-report.mjs          the OTHER five no-export reports (incl. referring-domains,
 │   │                               --rollup aggregates the rows THIS run fetched); reuses one
 │   │                               session; table reports paginate — pass --all-pages or it warns
+│   ├── semrush-traffic.mjs         Traffic & Market (.Trends) TOTAL visits — the only
+│   │                               Semrush number comparable with Similarweb. Runs
+│   │                               **foreground by default**, alone in this Skill:
+│   │                               the summary does not hydrate in a hidden tab.
+│   │                               See <law-ref id="hidden-tabs-do-not-hydrate"/>
+│   ├── traffic-crosscheck.mjs      offline: eats one semrush-traffic.mjs JSON and one
+│   │                               similarweb-query.mjs JSON and reports whether the two
+│   │                               platforms agree; never touches a page itself
+│   ├── tools-share-evidence.mjs    rendered, redacted evidence bundle for one report
 │   ├── page-read.mjs               render a public page → text, prices, paywall shape
 │   ├── apply-traffic-screen.mjs    write verdicts back into submission-targets.json
 │   ├── inspect-page.mjs            dump one target's form / login / CAPTCHA state
@@ -423,9 +432,83 @@ and do not treat the trailing form as an error when you meet it in someone
 else's script.
 </misplaced-flag>
 <exception>
-Request foreground only when the user explicitly wants to watch. If a site
-cannot be operated without stealing focus, stop and report that constraint.
+Request foreground only when the user explicitly wants to watch, or when the
+report itself does not hydrate in a hidden tab — one such report is measured and
+named in <law-ref id="hidden-tabs-do-not-hydrate"/>. If a site cannot be
+operated without stealing focus, stop and report that constraint.
 </exception>
+</law>
+
+<law id="hidden-tabs-do-not-hydrate" weight="load-bearing">
+<statement>
+Some reports render their labels and column headers in a background tab but
+**never fill in the values**. Before you believe an empty report, read
+`document.visibilityState`. If it is `hidden`, re-read the same page under
+`--window foreground` and put the two captures side by side before you write
+down a single number — and never report the background result as "this domain
+has no data".
+</statement>
+<why>
+This is the most dangerous failure shape in this Skill, because it does not look
+like a failure. The page "loaded". The structure is all there. Any readiness
+check that looks for headings, labels, or "does the table exist" passes on it,
+and the parser then honestly reports nulls for a page that simply had not
+hydrated.
+
+Measured 2026-08-28, controlled to one variable — same tab, same lid, same node,
+**no resubmission**, only `opencli browser &lt;session&gt; tab select` flipping the
+tab's `visibilityState`:
+
+| tab state | `document.body.innerText` length | summary block |
+|---|---|---|
+| `hidden` (background) | 549 | labels only, **zero values** |
+| `visible` (foreground) | 1957 | **every value present** |
+
+The parsing layer was never at fault: feeding the foreground `innerText` into
+`semrush-traffic.mjs`'s own `parseTrafficSummary` produced all 15 fields with
+zero tolerance (visits 790000000, desktop 84.26 + mobile 15.74 = 100.00, `↓`
+correctly negative, `11:02` → 662s). Only the driver layer was broken, and it
+was broken by a **default** — `launchTool` defaults to background, the script
+passed `window: flags.window`, and with no `--window` that resolved to
+`undefined` → background. So the script's default invocation could never read
+its own report.
+</why>
+<scope>
+**Confirmed affected:** the Semrush Traffic &amp; Market (.Trends) traffic-overview
+summary block. `scripts/semrush-traffic.mjs` therefore defaults to
+`--window foreground`; that is a per-report property, not a global one.
+
+**Confirmed NOT affected:** `scripts/semrush-report.mjs` and
+`scripts/similarweb-query.mjs` have been pulling real numbers in background mode
+for as long as they have existed. So do **not** change the shared default in
+`scripts/lib-tools-share.mjs` — that would send every script racing for the
+foreground window and steal the owner's active tab, which is exactly what
+<law-ref id="background-by-default"/> exists to prevent.
+
+Whether any *other* report shares the .Trends behaviour is **unmeasured**. Treat
+a new empty-but-structured report as a candidate, measure it, and record the
+result here rather than assuming either way.
+</scope>
+<correct><![CDATA[
+# 1. the value-bearing region is empty — do not conclude "no data" yet
+opencli browser "$S" eval '(() => JSON.stringify({
+  visibility: document.visibilityState,
+  len: (document.body.innerText || "").length,
+}))()'
+# -> {"visibility":"hidden","len":549}
+
+# 2. hidden -> re-read the SAME page in the foreground and compare
+node scripts/semrush-traffic.mjs --domain canva.com --window foreground
+# -> len 1957, all 15 fields populated  => it was hydration, not missing data
+]]></correct>
+<wrong><![CDATA[
+# readiness judged by structure only: passes on a page with no values in it
+const ready = /摘要|Summary/.test(bodyText) && document.querySelector('table');
+
+# and then the empty read gets written down as a fact about the domain
+{ "visits": null, "status": "unavailable",
+  "note": "canva.com has no .Trends data" }   # FALSE — the tab was hidden
+]]></wrong>
 </law>
 
 <other-drivers>
