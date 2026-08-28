@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defaultSession, firstJson, opencli, parseFlags, printJson, showHelpIfRequested, validateSession } from './opencli-core.mjs';
+import { firstJson, opencli, parseFlags, printJson, resolveSession, showHelpIfRequested } from './opencli-core.mjs';
 import { captureStable, gotoInTool, launchTool, redactSecrets, scrub } from './lib-tools-share.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -248,11 +248,13 @@ async function main() {
   const acceptBounded = Boolean(flags['accept-bounded']);
   if (flags.resume && await validReceipt(outDir, request, acceptBounded)) return printJson({ status: acceptBounded ? 'resumed-with-accept-bounded' : 'resumed', outDir, request, acceptBounded });
   await mkdir(outDir, { recursive: true });
-  const session = flags.session ? validateSession(flags.session) : defaultSession('evidence-' + tool);
+  // 配额站：会话名归站点。取证脚本在启动之后还会直接对 session 发 state/network/screenshot，
+  // 所以这里必须算出和 launchTool 内部一致的那个名字，不能只靠 launchTool 兜底。
+  const session = resolveSession(flags, 'evidence-' + tool, tool);
   let launched;
   let receipt;
   try {
-    launched = await launchTool({ session, tool, node: flags.node, window: 'background', wait: Number(flags.wait || 7), timeout: Number(flags['launch-timeout'] || 60), evalTimeoutMs: Number(flags['eval-timeout'] || 180) * 1000 });
+    launched = await launchTool({ session, tool, node: flags.node, window: 'background', wait: Number(flags.wait || 7), timeout: Number(flags['launch-timeout'] || 60), evalTimeoutMs: Number(flags['eval-timeout'] || 180) * 1000, allowParallelSession: Boolean(flags['allow-parallel-session']) });
     await gotoInTool(launched.evalPage, url, Number(flags.settle || 10));
     const options = { reloads: Math.max(0, Number(flags.reloads || 2)), timeoutMs: Number(flags.timeout || 120) * 1000, intervalMs: Number(flags['stable-interval'] || 3) * 1000 };
     const settled = await stablePage(launched.evalPage, spec, target, origin, options);

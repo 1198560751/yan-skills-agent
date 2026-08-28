@@ -14,7 +14,9 @@
  * 已验证 2026-08-26：同一 session 已在目标工具页时必须原地复用；重复打开 dashboard
  * 可能被面板计作新的客户端登录。
  */
-import { firstJson, opencli } from './opencli-core.mjs';
+import {
+  defaultSession, firstJson, guardSessionName, opencli, quotaSession, sessionForUrl,
+} from './opencli-core.mjs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -412,11 +414,55 @@ async function launchToolInner({
   return { tool, state, landed, evalPage, env, index };
 }
 
+/**
+ * 一次工具启动该用哪个会话名——**由工具决定，不由调用方决定**。
+ *
+ * TOOLS 里这两个工具的 origin 都在 opencli-core 的 QUOTA_SITES 上：同时加载会撞
+ * 上游的并发上限。而会话名就是并发度——`defaultSession()` 给每个 agent 一个后缀，
+ * 于是 19 个 agent 就是 19 个标签页同时压同一张 Semrush 报表（2026-08-28 实测）。
+ * 收敛成一个固定名之后，daemon 会把同名会话的写排成一队。
+ *
+ * 固定名走 `quotaSession(origin)`，也就是从 QUOTA_SITES 查出来的，不是在这里拼的：
+ * 谁把一个站从那份清单里去掉，这里必须立刻跟着退回 defaultSession，
+ * 否则「配额站清单」就成了没人读的注释。
+ *
+ * 显式 `--session` 的处置是**覆盖 + 出声**，与 opencli daemon 对 Similarweb 的
+ * 既有行为一致：静默照用等于第一个忘记传 `--session semrush-nav` 的人就把回归带回来，
+ * 而直接拒绝会把「我就是要两个独立会话做 A/B」这种正当需求逼进复制粘贴的分叉。
+ * 正当需求走 `allowParallelSession`，代价是显式的、看得见的。
+ */
+export function toolSession(toolKey, { session, allowParallelSession = false, base } = {}) {
+  const key = String(toolKey || '').toLowerCase();
+  const tool = TOOLS[key];
+  if (!tool) throw new Error(`tool must be one of: ${Object.keys(TOOLS).join(', ')}`);
+  const url = `https://${tool.origin}/`;
+  const fallbackBase = base || `tools-share-${key}`;
+  const explicit = session ? guardSessionName(String(session)) : null;
+
+  if (allowParallelSession) return explicit || defaultSession(fallbackBase);
+  // 没传 --session：这一行就是整条法则的落点。非配额站在 sessionForUrl 里
+  // 自动退回 defaultSession，所以将来往 TOOLS 里加一个不限额的工具也不用改这里。
+  if (!explicit) return sessionForUrl(url, fallbackBase);
+
+  const fixed = quotaSession(url);
+  if (!fixed || explicit === fixed) return explicit;
+  console.error(
+    `[opencli] ${key} 是配额站：忽略 --session ${explicit}，改用固定会话 ${fixed}。\n` +
+    '          同时加载会触发上限；固定会话名让 daemon 把并发排成一队。\n' +
+    '          真要并行传 allowParallelSession（脚本上是 --allow-parallel-session）。',
+  );
+  return fixed;
+}
+
 export async function launchTool(options) {
-  const locks = await acquireToolsShareBrowserLocks(options.session, String(options.tool || '').toLowerCase());
+  const toolKey = String(options.tool || '').toLowerCase();
+  // 收敛放在这里而不是每个脚本里：这是 11 个调用方唯一都要经过的地方，
+  // 逐个脚本改的话，第一个忘记的人就把 19 个标签页带回来了。
+  const session = toolSession(toolKey, options);
+  const locks = await acquireToolsShareBrowserLocks(session, toolKey);
   try {
-    const launched = await launchToolInner(options);
-    return { ...launched, releaseBrowserLocks: locks.release };
+    const launched = await launchToolInner({ ...options, session });
+    return { ...launched, session, releaseBrowserLocks: locks.release };
   } catch (error) {
     await locks.release();
     throw error;

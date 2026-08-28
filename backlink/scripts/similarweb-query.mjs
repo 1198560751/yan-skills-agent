@@ -106,6 +106,7 @@ try {
     window: windowMode,
     wait: Number(flags.wait || 7),
     timeout: Number(flags.launchTimeout || 60),
+    allowParallelSession: Boolean(flags['allow-parallel-session']),
   });
   evaluate = launched.evalPage;
   subscription = {

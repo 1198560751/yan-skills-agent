@@ -255,7 +255,9 @@ async function cmdSimilarweb(args) {
   const domain = gw ? gw.own[0] : key;
   if (!domain) die(`similarweb 需要网关名（${Object.keys(GATEWAYS).join(' / ')}）或一个域名`);
   const tab = args.direction === 'outgoing' ? 'outgoingTraffic' : 'incomingTraffic';
-  const session = args['sw-session'] || 'demand-payment-sw';
+  // 只在调用方显式给了名字时才传：Similarweb 是配额站，launchTool 会把缺省收敛到
+  // similarweb-nav。原来这里写死 'demand-payment-sw'，等于每次都在跟那条收敛较劲。
+  const session = args['sw-session'];
   const settle = Number(args.settle || 20);
 
   // 跨 Skill 引用：启动器只有 backlink 那一份是对的（四个必须踩对的细节都在里面）。

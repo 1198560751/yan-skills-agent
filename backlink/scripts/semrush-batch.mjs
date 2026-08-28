@@ -96,6 +96,7 @@ const launched = await launchTool({
   session, tool: 'semrush', node: flags.node,
   window: flags.window === 'foreground' ? 'foreground' : 'background',
   wait: Number(flags.wait || 7), timeout: Number(flags.launchTimeout || 60),
+  allowParallelSession: Boolean(flags['allow-parallel-session']),
 });
 try {
 const evaluate = launched.evalPage;

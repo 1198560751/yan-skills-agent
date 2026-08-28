@@ -398,6 +398,7 @@ async function ensureTool() {
     window: flags.window,
     wait: Number(flags.wait || 7),
     timeout: Number(flags.launchTimeout || 60),
+    allowParallelSession: Boolean(flags['allow-parallel-session']),
   });
   evalPage = launched.evalPage;
   return { ...launched, reused: Boolean(launched.reused) };

@@ -115,7 +115,7 @@ const session = resolveSession(flags, 'similarweb-keywords', 'similarweb');
 const results = [];
 let launched;
 try {
-  launched = await launchTool({ tool: 'similarweb', session, flags });
+  launched = await launchTool({ tool: 'similarweb', session, flags, allowParallelSession: Boolean(flags['allow-parallel-session']) });
   const evaluate = launched.evalPage;
 
   for (const seed of seeds) {

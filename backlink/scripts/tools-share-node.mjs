@@ -235,7 +235,14 @@ async function probeOneNode({ toolKey, node, session, windowMode, wait, timeout 
   const nodeSession = validateSession(`${session}-n${node}`);
   let launched = null;
   try {
-    launched = await launchTool({ session: nodeSession, tool: toolKey, node, window: windowMode, wait, timeout });
+    // 唯一一个正当地**不**收敛到配额站固定会话的调用点：本脚本的全部意义就是
+    // 「一个节点一个会话，探完就关」，收敛成 similarweb-nav 会让第二个节点直接复用
+    // 第一个节点已经停在工具域名上的标签页——探测结果全部错误归属。
+    // 代价可控：candidates 是**串行**跑的，任一时刻仍然只有一个标签页在导航。
+    launched = await launchTool({
+      session: nodeSession, tool: toolKey, node, window: windowMode, wait, timeout,
+      allowParallelSession: true,
+    });
     const classified = classifyLaunch(launched);
     if (classified.bypassed) {
       return {

@@ -248,6 +248,19 @@ export function sessionForUrl(url, base) {
 }
 
 /**
+ * 同一条法则的 key 版入口，给「只知道自己在打哪个工具、手里没有 URL」的调用方用
+ * （`resolveSession(flags, base, 'semrush')`）。
+ *
+ * 认的是 QUOTA_SITES 里真实存在的 key —— 不是把任何字符串都接上 `-nav`。
+ * 传一个不在清单里的 key 返回 null，调用方据此退回 defaultSession：
+ * 「不在配额站清单里」和「不受配额约束」必须是同一件事。
+ */
+export function quotaSessionForKey(key) {
+  const k = String(key || '').toLowerCase();
+  return QUOTA_SITES.some((site) => site.key === k) ? `${k}-nav` : null;
+}
+
+/**
  * 会话名长得像 `$$` 展开的结果就拒绝。
  *
  * Claude Code 的 Bash tool 每次调用都是新进程，`$$` 每次都变，于是
@@ -407,10 +420,13 @@ export async function reconcileSessions(before, options = {}) {
  */
 export function resolveSession(flags, base, siteKey = null) {
   const explicit = flags.session ? guardSessionName(String(flags.session)) : null;
-  if (!siteKey || flags['allow-parallel-session']) {
+  // 固定名从 QUOTA_SITES 派生，不在这里拼字符串。拼字符串的版本有个隐蔽后果：
+  // 把 semrush 从 QUOTA_SITES 里删掉，这里照样返回 semrush-nav，
+  // 于是「配额站清单」变成一份没人读的注释，测试也照样绿。
+  const fixed = quotaSessionForKey(siteKey);
+  if (!fixed || flags['allow-parallel-session']) {
     return explicit || defaultSession(base);
   }
-  const fixed = `${siteKey}-nav`;
   if (explicit && explicit !== fixed) {
     console.error(
       `[opencli] ${siteKey} 是配额站：忽略 --session ${explicit}，改用固定会话 ${fixed}。\n` +

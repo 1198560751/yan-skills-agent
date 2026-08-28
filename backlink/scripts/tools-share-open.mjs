@@ -11,12 +11,14 @@
  * --goto 默认校验落地路由 == 请求路由，不一致就抛错。探路时加 --allow-redirect
  * 可以放行并回报实际落到了哪里。
  */
-import { defaultSession, parseFlags, printJson, validateSession, showHelpIfRequested} from './opencli-core.mjs';
+import { parseFlags, printJson, resolveSession, showHelpIfRequested} from './opencli-core.mjs';
 import { expiryWarning, gotoInTool, launchTool, scrub } from './lib-tools-share.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
-const session = flags.session ? validateSession(flags.session) : defaultSession('backlink-panel');
+// 两个工具都是配额站，会话名归站点。--tool 拼错时 quotaSessionForKey 认不出来，
+// 会退回 defaultSession，而 launchTool 紧接着就为同一个原因报错——不用在这里重复校验。
+const session = resolveSession(flags, 'backlink-panel', String(flags.tool || '').toLowerCase());
 
 const launched = await launchTool({
   session,
@@ -25,6 +27,7 @@ const launched = await launchTool({
   window: flags.window,
   wait: Number(flags.wait || 7),
   timeout: Number(flags.timeout || 40),
+  allowParallelSession: Boolean(flags['allow-parallel-session']),
 });
 try {
 const { tool, state, landed, evalPage } = launched;

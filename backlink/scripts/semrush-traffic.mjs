@@ -70,7 +70,7 @@
  *    不输出一堆 0/null 假装成功。
  *  - 会话名不写死字面常量（同名会话 = 共用标签页，两个任务会互相读到对方的页面）。
  */
-import { defaultSession, parseFlags, printJson, showHelpIfRequested, validateSession } from './opencli-core.mjs';
+import { parseFlags, printJson, resolveSession, showHelpIfRequested } from './opencli-core.mjs';
 import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
 import { parseNumber } from './lib-similarweb.mjs';
 import { writeFile } from 'node:fs/promises';
@@ -475,7 +475,9 @@ async function main() {
   showHelpIfRequested(flags, import.meta.url);
   if (flags['self-test']) { runSelfTest(); return; }
 
-  const session = flags.session ? validateSession(flags.session) : defaultSession('semrush-traffic');
+  // Semrush 是配额站：会话名归站点，不归 agent。defaultSession() 的 per-agent 后缀
+  // 在这里就是并发度，2026-08-28 实测把 19 个标签页同时压在同一张报表上。
+  const session = resolveSession(flags, 'semrush-traffic', 'semrush');
   const domain = normalizeDomain(String(flags.domain || '').trim());
   if (!domain) {
     console.error('semrush-traffic.mjs requires --domain (例如 --domain canva.com)');
@@ -493,6 +495,7 @@ async function main() {
       window: flags.window || DEFAULT_WINDOW,
       wait: Number(flags.wait || 7),
       timeout: Number(flags.launchTimeout || 60),
+      allowParallelSession: Boolean(flags['allow-parallel-session']),
     });
     const { evalPage } = launched;
     // `landed` 是 `{ url, title, bodyText }` 对象，不是字符串——直接 new URL(landed) 会抛。
