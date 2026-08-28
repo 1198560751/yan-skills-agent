@@ -77,7 +77,12 @@
           "Organic Positions and Keyword Magic pagination, both captured after the reload-and-retry rule; each needed 2-3 reloads before the table body appeared."
         ],
         "keywordMagicLimitation": "CORRECTION 2026-08-28: an earlier note called the metrics quota-gated. They are not. The 不可用 / 要更新指标数据 state is progressive hydration - waiting for the parse to stabilise returns every metric. Two live runs (seeds nonogram and tower defense) came back 100/100 rows with volume, KD, and CPC filled in.",
-        "keywordMagicMeasured": "seed nonogram: 20.1K keywords over 201 pages; seed tower defense: 98.5K. 100 rows per page, 15 columns, read via DOM cells because the innerText row shape is variable-length."
+        "keywordMagicMeasured": "seed nonogram: 20.1K keywords over 201 pages; seed tower defense: 98.5K. 100 rows per page, 15 columns, read via DOM cells because the innerText row shape is variable-length.",
+        "verificationStrength": {
+          "enumeratedPages": 102,
+          "pagesWithCapturedData": 15,
+          "note": "枚举数不是验证数。引用某项能力前先看该模块的 observed 字段；没有就是只有名字。"
+        }
       },
       "scriptCoverage": {
         "status": "script-verified",
@@ -181,7 +186,9 @@
             "Industry & Bulk Analysis",
             "Trends API",
             "Trending Websites"
-          ]
+          ],
+          "observed": "enumerated-only",
+          "note": "侧栏枚举到 28 个页面名，**一个数都没取过**。当初停在提交按钮前，记录的理由是「Traffic analysis submission creates a project」——提交查询会建项目，按红线属于写操作。该理由从未复查：是不是真的必须建项目、有没有只读入口，都没试过。这是 Semrush 对标 Similarweb 的那条产品线，空着的面积最大。"
         },
         {
           "name": "AI SEO / AI Visibility",
@@ -423,7 +430,12 @@
           "库存 情报 (Inventory Intelligence)"
         ],
         "separateProductsLocation": "CORRECTION: these are in the 选择解决方案 / 浏览其他解决方案 block in the FOOTER of every report page, not in a top-of-page product switcher. Clicking the logo and the top-bar icons opens no switcher menu. Whether the entries are clickable was not tested, because opening one means entering an unsubscribed product and may start an upgrade or purchase flow.",
-        "discontinuation": "The Monetization pages (Advertisers, Ad Networks) carry a banner saying monetization features stop on 2025-12-01, directing users to the consolidated Publisher Overview under Display."
+        "discontinuation": "The Monetization pages (Advertisers, Ad Networks) carry a banner saying monetization features stop on 2025-12-01, directing users to the consolidated Publisher Overview under Display.",
+        "verificationStrength": {
+          "enumeratedRoutes": 73,
+          "pagesWithCapturedData": 30,
+          "note": "同上。"
+        }
       },
       "scriptCoverage": {
         "status": "script-verified",
