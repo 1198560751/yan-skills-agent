@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   quotaSession, quotaSiteOf, sessionForUrl, guardSessionName,
-  sleepStep, buildExtractCommands, QUOTA_SITES, resolveSession, urlFromArgs, logSiteAccess,
+  sleepStep, buildExtractCommands, QUOTA_SITES, resolveSession, urlFromArgs, logSiteAccess, captureSample,
 } from '../scripts/opencli-core.mjs';
 
 test('配额站收敛成固定会话名，普通站不受影响', () => {
@@ -96,6 +96,18 @@ test('OPENCLI_ACCESS_LOG=0 时记账彻底闭嘴', () => {
   try {
     // 不抛异常即可——记账绝不能把调用方搞挂，关掉时更不该有任何副作用
     assert.doesNotThrow(() => logSiteAccess({ ts: 'x', site: 'y' }));
+  } finally {
+    if (prev === undefined) delete process.env.OPENCLI_ACCESS_LOG;
+    else process.env.OPENCLI_ACCESS_LOG = prev;
+  }
+});
+
+test('OPENCLI_ACCESS_LOG=0 时取样也不动手', async () => {
+  const prev = process.env.OPENCLI_ACCESS_LOG;
+  process.env.OPENCLI_ACCESS_LOG = '0';
+  try {
+    // 关掉记账就等于关掉观测的全部——取样也不能偷偷开一次浏览器调用
+    assert.equal(await captureSample('whatever', 'test'), null);
   } finally {
     if (prev === undefined) delete process.env.OPENCLI_ACCESS_LOG;
     else process.env.OPENCLI_ACCESS_LOG = prev;

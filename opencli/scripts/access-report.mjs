@@ -64,14 +64,31 @@ const pct = (arr, p) => {
 
 /**
  * 「可疑」不等于「限流」——本脚本不判限流，只把值得肉眼看一眼的行捞出来。
- * 限流在 Semrush 上是 HTTP 200 + 页面里写着已达上限，自动判据需要样本，
- * 而样本正是要从这里挑。判据：调用失败，或成功但 payload 小得不像有数据。
+ *
+ * 第一版判据是「失败，或 eval 且 bytes < 200」，实测标出 601/1080 行，等于没筛。
+ * 两个错误：正常的小 eval 本来就几十字节（`JSON.stringify({url})` 就是），
+ * 以及测试桩的 `opencli stub` 会刷出成百上千条失败。判据太松等于没有判据——
+ * 没人会去翻一份 55% 都是「可疑」的清单。
+ *
+ * 现在的判据只留三类，每一类都能说出为什么值得看：
+ *   1. 真失败——排除已知噪音（测试桩、Node 的 UNDICI 警告、session_not_found）
+ *   2. 超时——页面没在时限内给出东西，配额站上尤其值得看
+ *   3. 配额站上「成功但几乎没内容」——限流和降级渲染都长这样
+ * 前两类是硬信号，第三类是软信号，所以只在配额站上算数。
  */
-const suspicious = data.filter((r) => !r.ok || (r.bytes !== null && r.bytes < 200 && r.action === 'eval'));
+const NOISE = /opencli stub|UNDICI-EHPA|session_not_found|No active session/i;
+const suspicious = data.filter((r) => {
+  if (!r.ok) {
+    if (NOISE.test(r.error || '')) return false;
+    return true;
+  }
+  return r.quota && r.bytes !== null && r.bytes < 120;
+});
 
 if (flags.suspicious) {
   for (const r of suspicious) {
-    console.log(`${r.ts}  ${r.ok ? 'ok ' : 'ERR'}  ${String(r.bytes ?? '-').padStart(6)}B  ${r.session || '-'}  ${r.site || '-'}${r.route || ''}${r.error ? `\n        ${r.error}` : ''}`);
+    const why = !r.ok ? (/timed out/i.test(r.error || '') ? '超时' : '失败') : '配额站空响应';
+    console.log(`${r.ts}  ${why.padEnd(6)}  ${String(r.bytes ?? '-').padStart(6)}B  ${(r.tag || r.session || '-').padEnd(24)}  ${r.site || '-'}${r.route || ''}${r.error ? `\n        ${String(r.error).split('\n')[0].slice(0, 140)}` : ''}`);
   }
   console.log(`\n共 ${suspicious.length} 行可疑 / 总 ${data.length} 行`);
   process.exit(0);
@@ -111,4 +128,5 @@ console.log('\n按调用方（复盘「这串标签页是谁开的」）');
 for (const [key, n] of [...byWho].sort((a, b) => b[1] - a[1]).slice(0, 15)) {
   console.log(`${String(n).padStart(7)}  ${key}`);
 }
-console.log(`\n可疑行 ${suspicious.length} 条——用 --suspicious 看明细（失败，或成功但 payload 小得不像有数据）`);
+console.log(`\n可疑行 ${suspicious.length} 条——用 --suspicious 看明细（真失败 / 超时 / 配额站上的空响应，已排除测试桩等已知噪音）`);
+console.log(`取样落在 ~/.opencli/logs/samples/，那里才有页面原文——限流和降级渲染都是 HTTP 200，光看 bytes 分不出来`);

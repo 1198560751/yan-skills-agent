@@ -12,7 +12,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { appendFileSync, renameSync, statSync } from 'node:fs';
+import { appendFileSync, mkdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -452,7 +452,11 @@ export async function openAndExtract(session, url, expression, options = {}) {
     const extracted = results.find((r) => r.cmd === 'eval' && r.index === commands.indexOf(evalStep));
     if (extracted?.ok && extracted.result != null) return extracted.result;
   }
-  throw new Error(`openAndExtract 在 ${retries + 1} 次尝试后仍未取到内容：${url}`);
+  // 重试耗尽 = 页面上有东西但不是我们要的东西。这一刻的原文最值钱，
+  // 限流页、设备上限页、降级渲染都在这里现形。
+  const sample = await captureSample(session, `openAndExtract exhausted: ${url}`);
+  throw new Error(`openAndExtract 在 ${retries + 1} 次尝试后仍未取到内容：${url}`
+    + (sample ? `\n取样已存：${sample}` : ''));
 }
 
 /**
@@ -545,6 +549,35 @@ export function resolveSession(flags, base, siteKey = null) {
     );
   }
   return fixed;
+}
+
+/**
+ * 出事的那一刻，把页面上到底写了什么留下来。
+ *
+ * 为什么 bytes 不够：访问日志记了 payload 大小，但限流/设备上限/降级渲染
+ * 全是 **HTTP 200 + DOM 齐全**，只是数据没来。2026-08-28 实测抓到一次
+ * Semrush 的降级形态——标题正常是 "Dashboards"，指标全是 n/a，
+ * 页面上还留着一个没被解析的 i18n key `state.undefined`。光看 bytes
+ * 分不出它和一次正常的小响应，必须留原文。
+ *
+ * 所以判据留给以后（还缺样本），现在只负责**把样本存下来**：
+ * 一次调用一个文件，`~/.opencli/logs/samples/<ts>-<session>.txt`。
+ * 用 run() 而不是 opencli()，避免记账递归。失败全吞——取样不能把调用方搞挂。
+ */
+export async function captureSample(session, reason = 'unspecified') {
+  if (process.env.OPENCLI_ACCESS_LOG === '0') return null;
+  try {
+    const dir = join(homedir(), '.opencli', 'logs', 'samples');
+    mkdirSync(dir, { recursive: true });
+    const js = '(() => JSON.stringify({ url: location.href, title: document.title, '
+      + 'text: (document.body?.innerText || "").slice(0, 4000) }))()';
+    const out = await run('opencli', ['browser', session, 'eval', js],
+      { allowFailure: true, timeoutMs: 30_000 });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const file = join(dir, `${stamp}-${session}.txt`);
+    writeFileSync(file, `reason: ${reason}\n\n${out.stdout || out.stderr || '(取样时页面也读不到)'}\n`);
+    return file;
+  } catch { return null; }
 }
 
 /** 用完必须还回去；崩溃时不会自动清理，所以 close 要在 finally 里。 */

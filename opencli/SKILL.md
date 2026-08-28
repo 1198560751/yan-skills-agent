@@ -461,8 +461,19 @@ node <opencli-skill-dir>/scripts/access-report.mjs --since 2h
 node <opencli-skill-dir>/scripts/access-report.mjs --suspicious   # 挑限流样本
 ```
 
-**限流的自动判据还没有，因为缺样本**——而样本就从 `--suspicious` 里挑：
-它列出失败的、以及成功但 payload 小得不像有数据的那些行。
+**限流的自动判据还没有，因为缺样本**——所以出事那一刻会自动把页面原文
+存进 `~/.opencli/logs/samples/`（`openAndExtract` 重试耗尽时触发，
+也可以自己调 `captureSample(session, reason)`）。
+
+**为什么 `bytes` 不够、必须留原文**：限流、设备上限、降级渲染全是
+**HTTP 200 + DOM 齐全**，只是数据没来。2026-08-28 实测抓到一次 Semrush 的
+降级形态——标题正常是 `Dashboards`，指标全是 `n/a`，页面上还留着一个
+没被解析的 i18n key `state.undefined`。光看 `bytes` 分不出它和一次正常的小响应。
+
+`--suspicious` 的判据只留三类，每类都说得出为什么值得看：真失败（排除测试桩
+和 Node 警告这类已知噪音）、超时、以及配额站上「成功但几乎没内容」。
+第一版判据是「失败或 eval 且 bytes < 200」，实测标出 601/1080 行——
+**判据太松等于没有判据**，没人会去翻一份 55% 都是可疑的清单。收紧后是 2 行。
 
 | 症状 | 先看哪里 |
 |---|---|
