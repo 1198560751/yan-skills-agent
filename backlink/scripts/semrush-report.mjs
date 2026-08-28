@@ -58,7 +58,11 @@ const escapeRe = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * 骨架阶段就通过，拿到一个空壳——similarweb-query.mjs 已经为这个坑付过一次学费。
  */
 /**
- * 关键词魔法工具的单元格提取器。
+ * 通用 ARIA grid 单元格提取器——`[role=columnheader]` 给表头，`[role=row]` 给数据行，
+ * 按「格子数等于表头数」过滤掉不完整的行。关键词魔法工具和引荐域名报告用的是同一种
+ * DOM 结构，2026-08-28 之前这份提取器叫 `KEYWORD_MAGIC_CELLS`，名字绑死在第一个用它
+ * 的报告上，其实和关键词魔法工具本身没有任何耦合——沿用旧名字只会误导下一个读者以为
+ * 这是专属提取器。改名 `ARIA_GRID_CELLS`，旧名字留一个别名，省得漏改某处引用。
  *
  * 这张表**不能按 innerText 行数切**。意图列可以是 0 个、1 个或多个字母，趋势列是
  * sparkline 完全不进 innerText，指标可以整格是「不可用」——实测同一页里第 1 行有 8 个
@@ -68,7 +72,7 @@ const escapeRe = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  *
  * 顺带一个好处：DOM 给的是 `27,100`，innerText 给的是 `27.1K`。
  */
-const KEYWORD_MAGIC_CELLS = `(() => {
+const ARIA_GRID_CELLS = `(() => {
   const headers = [...document.querySelectorAll('[role=columnheader]')].map((e) => (e.innerText || '').trim());
   if (!headers.length) return null;
   const rows = [...document.querySelectorAll('[role=row]')]
@@ -76,6 +80,8 @@ const KEYWORD_MAGIC_CELLS = `(() => {
     .filter((cells) => cells.length === headers.length);
   return { headers, rows };
 })()`;
+/** 旧名字，保持向后兼容——不要删，可能还有外部脚本/笔记引用它。 */
+const KEYWORD_MAGIC_CELLS = ARIA_GRID_CELLS;
 
 const REPORTS = {
   'organic-overview': {
@@ -123,6 +129,42 @@ const REPORTS = {
     parse: parseBacklinksList,
   },
   /**
+   * 引荐域名报告。反链 SOP 第三步（导出引荐域名列表、按命中次数排序）要的原料
+   * 就是这张表——backlinks-overview 只给一个总数，backlinks-list 是明细但没有
+   * 按域名去重聚合。这张表本身已经是按引荐域名分组的，一行一个域名。
+   *
+   * 与 keyword-magic 同一种 ARIA grid 结构（`[role=columnheader]` / `[role=row]`），
+   * 直接复用它的单元格提取器，不重写一遍。
+   */
+  'referring-domains': {
+    needs: 'domain',
+    path: (t) => `/analytics/refdomains/report/?q=${encodeURIComponent(t)}&searchType=domain`,
+    // ⚠️ ready 必须认数据行，不能认标签或筛选器 chip——本文件已经在这个坑跌倒三次
+    // （organic-overview / organic-positions / backlinks-list 各一次，见各自注释）。
+    // 这里认的是「AS 列的整数 → 域名/分类格（带点号，可能带斜杠分类）→ 带千位分隔符的
+    // Backlinks 数」连续三行——这是数据行独有的形状，骨架阶段的标签/占位符凑不出它。
+    ready: (t) => /\n\d+\n[^\n]*\.[a-z]{2,}\/?[^\n]*\n[\d,]+\n/i.test(t) || /未找到|No results|没有数据/.test(t),
+    cells: ARIA_GRID_CELLS,
+    parse: parseReferringDomains,
+    paginated: true,
+    // 域名格本身长得像默认 URL 启发式想抓的东西（域名单独一行，比如 `coacht.com`），
+    // 基本能直接用，但两个坑：
+    //   1. 「正在查询的这个域名自己」会在面包屑/筛选 chip 里反复出现，排除掉。
+    //   2. Country / IP 列的 IPv4（如 `172.67.68.23`）在字符类上和域名一模一样——
+    //      点分、每段字母数字——同样会被默认启发式当成一行记录。2026-08-27 live 实测：
+    //      raw record lines=200、parsed rows=100，正好 2 倍，就是这一条造成的假警报。
+    //      全数字分段的必须排除。
+    recordLine: (line) => {
+      if (line === target) return false;
+      const host = line.split('/')[0];
+      if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(host)) return false;
+      return !/^\d+(\.\d+){3}$/.test(host);
+    },
+    // 表头合计「引荐域名 1 - 100 (~20,032)」是跨 201 页的总量（这里~20,001 是硬上限，
+    // 不是这个域名的真实引荐域名总数），不是本页量——交给 pagination 报。
+    crossPageTotal: true,
+  },
+  /**
    * 关键词概览。**这是本脚本唯一一张以「词」为主体的报告**，其余全是域名维度。
    * 加它的原因：KD 类免费工具只给难度分，不给搜索量；而「这个词到底有没有人搜」
    * 是选题阶段唯一要紧的问题，只有这里答得了。
@@ -148,7 +190,7 @@ const REPORTS = {
     path: (t, db) => `/analytics/keywordmagic/?q=${encodeURIComponent(t)}${db ? `&db=${db}` : ''}&type=all&mode=0`,
     // 就绪判据认**表体**：列名在骨架阶段就挂出来了，认它等于在空表上解析。
     ready: (t) => /(?:Page|页码)\s*[:：]/.test(t) || /未找到|No results|没有数据/.test(t),
-    cells: KEYWORD_MAGIC_CELLS,
+    cells: ARIA_GRID_CELLS,
     parse: parseKeywordMagic,
     paginated: true,
     // 每行都有一个带零宽空格的重复关键词单元格，正好一行一条。
@@ -219,6 +261,53 @@ const NUM = /^[\d.,]+\s*(?:[KMB]|万)?$/i;
 
 /** 0 是合法值，不是「没数据」。别用 `Number(x) || null`。 */
 const toNum = (v) => (v === null || v === undefined || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
+
+/**
+ * 「不可用」「n/a」「—」「-」都表示这一格没有值。这个正则本来在 `magicValue` 和
+ * `parseReferringDomains` 里各写了一份一模一样的（第三份是 lib-similarweb.mjs 的
+ * `NO_VALUE`，那边是另一个模块，这里不跨文件复用，但至少本文件内部不再抄两遍）。
+ * 一个判据，两处共用。
+ */
+const NO_VALUE = /^(?:不可用|n\/a|—|-|N\/A)$/i;
+
+/**
+ * 按列名（ARIA grid 的表头文字）建立「名字 -> 下标」的索引。**这是唯一允许的取值
+ * 方式**——谁也不许按下标硬取。列被改名或删掉时下标是 -1，调用方据此把值填 null
+ * 并记进 missingColumns，而不是让后面的列顶替上来。
+ *
+ * keyword-magic 和 referring-domains 两张报表各自手写过一份一模一样的
+ * `at()` + `Object.fromEntries` + missingColumns 逻辑（第三份等价实现是
+ * lib-similarweb.mjs 私有的 buildColumnIndex，那边未导出，这里就地收敛一次）。
+ */
+function buildColumnIndex(headers, wanted) {
+  const at = (name) => (headers || []).indexOf(name);
+  const index = Object.fromEntries(Object.entries(wanted).map(([key, label]) => [key, at(label)]));
+  const missingColumns = Object.entries(index).filter(([, i]) => i < 0).map(([key]) => wanted[key]);
+  return { index, missingColumns };
+}
+
+/**
+ * 「列名对上了、但这一列的值全解析成 null」——这比 missingColumns 更隐蔽：
+ * missingColumns 说的是「压根没找到这一列」，suspectColumns 说的是「列找到了，
+ * 原始格子里明明有非占位符的真实文本，解析函数却把它们全喂成了 null」，
+ * 多半是这一列的取值/换算逻辑写错了，而不是页面没渲染。
+ */
+function findSuspectColumns(index, wanted, rawRows, parsedRows) {
+  const suspects = [];
+  if (!rawRows.length || !parsedRows.length) return suspects;
+  for (const [key, label] of Object.entries(wanted)) {
+    const i = index[key];
+    if (i == null || i < 0) continue; // 列名都没找到，已经在 missingColumns 里了
+    const hasRealRaw = rawRows.some((row) => {
+      const v = String(row[i] ?? '').trim();
+      return v && !NO_VALUE.test(v);
+    });
+    if (!hasRealRaw) continue;
+    const allParsedNull = parsedRows.every((row) => row[key] === null || row[key] === undefined);
+    if (allParsedNull) suspects.push(label);
+  }
+  return suspects;
+}
 
 /**
  * 页面上出现的所有指标标签。`pick` 用它当**扫描边界**。
@@ -294,6 +383,57 @@ async function ensureTool() {
 
 /** 面板/工具页偶发的整页错误文案。站主口述：这是瞬时的，重载即恢复。 */
 const TRANSIENT = /出错了|我们已经发现了问题|请稍后重试|Something went wrong/;
+
+/**
+ * 共享账号撞到 Semrush 的每日报告限额。**这不是「没数据」也不是「节点挂了」**——
+ * 2026-08-27 live 实测：撞额度时整页照常渲染，六个列头（AS / Root Domain / Category /
+ * Backlinks / Country / IP / First Seen / Last Seen）全部正常挂出来，只有表体被替换成
+ * 这句话。⚠️ 这正是本文件反复强调「ready 必须认数据体，不能认表头」的活证据——
+ * 认表头的 ready 会在这种页面上直接判定「就绪」，然后在一张空表上稳定解析出 0 行，
+ * 不报错，读起来像这个域名真的没有引荐域名。
+ * 英文文案未经实测验证，按大概率翻译写，如与实际不符以实测为准。
+ *
+ * ⚠️ 2026-08-28 独立 review 抓到的坑，写在这里免得再犯：**`loadReport` 返回的
+ * `capture` 在这种页面上恒为 null，不能直接拿它测 QUOTA_BLOCKED。** 看
+ * `captureStable`（lib-tools-share.mjs）就知道：`last`（也就是最终返回的 capture）
+ * 只在 `fingerprint()` 返回非 null 时才会被赋值，而 `fingerprint()` 只在
+ * `isReady(bodyText)` 通过之后才会去跑 `parse()`。referring-domains 的 ready 认的
+ * 正是数据体，撞限额时数据体被替换成这句话，ready 因此正确地拒绝了它——但拒绝的
+ * 代价就是 `capture` 从头到尾都是 null，撞限额的证据从来没被 `loadReport` 记下来过。
+ * 旧版在这里写 `if (loaded.capture?.bodyText && QUOTA_BLOCKED.test(...))` 恰好是
+ * 反的：这个分支只在 ready 认表头/标签（比如 backlinks-overview）的报告上才可能
+ * 触发，对写这条检查真正针对的 referring-domains 反而是死代码。修法见下面
+ * `diagnoseUnrendered`——`!loaded.capture` 时必须现场再读一次 body，不能指望
+ * `loaded.capture` 里已经有它。
+ */
+const QUOTA_BLOCKED = /已达到每日报告限额|Daily report limit reached/i;
+
+/**
+ * `!loaded.capture` 时的诊断，拆成独立函数是为了能在 --self-test 里直接喂一个
+ * 「capture 为 null、但页面上其实有限额文案」的场景进去做集成测试——只测
+ * QUOTA_BLOCKED 这个正则本身（旧版的 quotaOk）测不出「production 代码根本没执行到
+ * 这个正则」这类问题，删掉整段拦截逻辑那个测试照样通过，等于没测。
+ *
+ * `readBody` 由调用方注入：生产环境传一个真的 `evalPage` 读取，自测传一个返回固定
+ * 文本的假函数。函数本身不知道也不需要知道 opencli 怎么读页面。
+ */
+async function diagnoseUnrendered(name, target, db, retries, readBody) {
+  let bodyText = '';
+  try { bodyText = String((await readBody())?.bodyText || ''); } catch { /* 读不到就当空，走通用诊断 */ }
+  if (QUOTA_BLOCKED.test(bodyText)) {
+    return new Error(
+      `Semrush ${name} for "${target}" 撞到了共享账号的每日报告限额（页面文案：已达到每日报告限额）。` +
+      `这不是「该主体没有数据」，也不是「节点挂了」——列头都正常渲染了，只是表体被限额挡住。` +
+      `换一个节点重跑：--node N（面板的节点下拉会切到另一个账号；实测撞额度时 node 2 仍是新鲜的）。`,
+    );
+  }
+  return new Error(
+    `Semrush ${name} for "${target}" never rendered. 依次排查：` +
+    `(1) 该主体在 db=${db || 'global'} 里可能真的没有数据；` +
+    `(2) 节点挂了——换 --node 重跑（症状是白页、长时间不渲染）；` +
+    `(3) 若页面显示「出错了…请稍后重试」，本脚本已自动重载重试 ${retries} 次仍失败。`,
+  );
+}
 
 /**
  * 解析结果是不是「一屏还什么都没有」。空结果要多要一次确认——
@@ -378,7 +518,7 @@ async function loadReport(url, spec, { settle = 10, timeout = 120, retries = 3, 
  */
 function magicValue(raw, { compact = false } = {}) {
   const value = String(raw ?? '').trim();
-  if (!value || /^(?:不可用|n\/a|—|-|N\/A)$/i.test(value)) return null;
+  if (!value || NO_VALUE.test(value)) return null;
   return compact ? parseCompact(value) : toNum(value.replace(/[,%]/g, ''));
 }
 
@@ -388,14 +528,12 @@ function parseKeywordMagic(lines, cells) {
   const total = totalLine ? lines[lines.indexOf(totalLine) + 1] : null;
   if (!cells?.headers?.length) return { rows: [], seedTotal: total, metricsPending: null, missingColumns: ['<no DOM cells>'] };
 
-  const at = (name) => cells.headers.indexOf(name);
   const wanted = {
     keyword: '关键词', intent: '意图', relevance: 'Relevance', volume: '搜索量',
     kd: 'KD', cpc: 'CPC (USD)', competition: '竞争程度', serpFeatures: 'SF',
     results: '结果', updated: '已更新',
   };
-  const index = Object.fromEntries(Object.entries(wanted).map(([key, label]) => [key, at(label)]));
-  const missingColumns = Object.entries(index).filter(([, i]) => i < 0).map(([key]) => wanted[key]);
+  const { index, missingColumns } = buildColumnIndex(cells.headers, wanted);
   const cell = (row, key) => (index[key] >= 0 ? row[index[key]] : null);
 
   const rows = cells.rows.map((row) => ({
@@ -415,6 +553,122 @@ function parseKeywordMagic(lines, cells) {
   // 指标待刷新的行要能被下游认出来，否则 null 会被当成「这个词没量」。
   const metricsPending = rows.filter((row) => row.volume === null).length;
   return { rows, seedTotal: total, metricsPending, missingColumns };
+}
+
+/**
+ * 引荐域名报告。ARIA grid 与 keyword-magic 同构，单元格已经由 ARIA_GRID_CELLS
+ * 按列名切好，这里只管按列名取值——列顺序变了得到 null 并记进 missingColumns，
+ * 不许静默错位（本文件反复写过这条规则，这里不再重复论证一遍）。
+ *
+ * 「Root Domain / Category」是一个格子里塞了两样东西。⚠️ 2026-08-27 首版按发现探针
+ * 抓到的样本（`coacht.com/知识`）以为是斜杠分隔，写死按第一个 `/` 切；live 核验发现
+ * 那是探针把 innerText 拼成一行时的假象——**真实单元格是两个 <div>，innerText 里是
+ * 换行分隔的 `coacht.com\n知识`**。只认斜杠时 referringDomain 会带着 `\n知识` 一起，
+ * category 恒为 null，还会连带打穿 buildRollup 的分组（同域名不同分类永远聚不到一起）。
+ * 现在换行和斜杠都认，谁先出现按谁切，别只测那个探针留下的斜杠假象。
+ * 原始整格文本原样保留在 rootDomainRaw，切错了还能从这里回填，不必重新抓页面。
+ */
+function parseReferringDomains(lines, cells) {
+  if (!cells?.headers?.length) return { rows: [], missingColumns: ['<no DOM cells>'], suspectColumns: [] };
+
+  const wanted = {
+    authorityScore: 'AS', rootDomain: 'Root Domain / Category', backlinks: 'Backlinks',
+    ipCountry: 'Country / IP', firstSeen: 'First Seen', lastSeen: 'Last Seen',
+  };
+  const { index, missingColumns } = buildColumnIndex(cells.headers, wanted);
+  const cell = (row, key) => (index[key] >= 0 ? row[index[key]] : null);
+
+  // 「不可用」「n/a」「—」「-」都表示这一格没有值，绝不能落成 0 或空字符串当真值。
+  const placeholder = (v) => {
+    const s = String(v ?? '').trim();
+    return !s || NO_VALUE.test(s) ? null : s;
+  };
+
+  // ⚠️ 2026-08-28 live 核验：这一格不是「域名 + 分类」两段，是「域名 + 分类？+ 状态徽章 +
+  // 徽章的整句 tooltip」四段全部拼在一起，域名之后剩下的文本可能长这样（原文照抄，不是
+  // 简化版——之前三个缺陷都栽在「用摘要打字出来的 fixture」上，这是第四次，不能再来一次）：
+  //   'ifaxian.net\nNofollow\n此域名没有 Follow 链接，但可能包含具有 Nofollow、Sponsored 和 UGC 属性的链接。'
+  //   'portaportal.com\n知识\nNofollow\n此域名没有 Follow 链接，但可能包含具有 Nofollow、Sponsored 和 UGC 属性的链接。'
+  //   'oregongrassfed.com\n丢失\n如果一个引荐域名不再有指向所分析域名的链接，则被视为丢失。…'
+  // 只切一刀（旧版）会把徽章和整句 tooltip 一起塞进 category。做法：域名之后按行切开，
+  // 找第一个匹配「已知徽章词」的行，扔掉它和它之后的所有行；徽章前面剩下的（可能是空）
+  // 才是 category。找不到徽章前面没有东西就是 null，不能把徽章文字当 category。
+  //
+  // 已观测到的徽章词——这份列表是「观测到的」，不是穷举。以后见到新徽章之前，
+  // 宁可整段保留在 category 里（哪怕带着徽章）也不能瞎猜切哪一刀，把真分类文字切没了。
+  const BADGE_TOKENS = ['Nofollow', 'Follow', 'Sponsored', 'UGC', '丢失'];
+
+  const splitRoot = (row) => {
+    const rawRoot = placeholder(cell(row, 'rootDomain'));
+    // 换行是真实分隔符，斜杠是探针假象留下的兜底——两个都认，谁先出现切谁。
+    const sepIdx = rawRoot === null ? -1 : rawRoot.search(/[\n/]/);
+    const restLines = (rawRoot !== null && sepIdx >= 0)
+      ? rawRoot.slice(sepIdx + 1).split('\n').map((l) => l.trim()).filter(Boolean)
+      : [];
+    const badgeIdx = restLines.findIndex((l) => BADGE_TOKENS.includes(l));
+    // 认识徽章：徽章前面的行才是 category，没有就是 null。
+    // 不认识徽章（badgeIdx < 0 但确实有剩余文本）：不猜测切哪一刀，整段原样保留。
+    const category = restLines.length === 0 ? null
+      : (badgeIdx >= 0 ? (restLines.slice(0, badgeIdx).join('\n') || null) : restLines.join('\n'));
+    const referringDomain = rawRoot === null ? null : (sepIdx >= 0 ? rawRoot.slice(0, sepIdx).trim() : rawRoot.trim());
+    return { rawRoot, referringDomain, category };
+  };
+
+  const allRows = cells.rows.map((row) => {
+    const { rawRoot, referringDomain, category } = splitRoot(row);
+    return {
+      // toNum 对 "-" / "不可用" 求值会得到 NaN 从而落成 null，不需要再套一层 placeholder。
+      authorityScore: toNum(cell(row, 'authorityScore')),
+      referringDomain,
+      category,
+      rootDomainRaw: rawRoot,
+      // 计数列必须走 parseCompact——页面上是 `75,501`，不是 `75501`。
+      backlinks: parseCompact(placeholder(cell(row, 'backlinks'))),
+      ipCountry: placeholder(cell(row, 'ipCountry')),
+      firstSeen: placeholder(cell(row, 'firstSeen')),
+      lastSeen: placeholder(cell(row, 'lastSeen')),
+    };
+  });
+
+  // suspectColumns 要在丢弃「没有域名的行」**之前**算——那些行往往正是列错位的受害者，
+  // filter 掉之后 rawRows 和 parsedRows 数量对不上，findSuspectColumns 直接判不出来。
+  // rootDomain 这一列的输出字段名是 referringDomain（不是 wanted 里写的那个 key
+  // 本身），额外补一份别名字段只给这次检查用，不进最终输出。
+  const suspectCheckRows = allRows.map((r) => ({ ...r, rootDomain: r.referringDomain }));
+  const suspectColumns = findSuspectColumns(index, wanted, cells.rows, suspectCheckRows);
+
+  const rows = allRows.filter((row) => row.referringDomain);
+
+  return { rows, missingColumns, suspectColumns };
+}
+
+/**
+ * 反链 SOP 第三步——「导出引荐域名列表，按命中次数排序」——就是这个函数。
+ * 加它是为了不让每个调用方都重新实现一遍这段聚合。
+ *
+ * ⚠️ 2026-08-28 review：旧签名是 `buildRollup(rows, target)`，只吃**一次运行**的行。
+ * 单次查询里 hitCount 几乎总是 1（这张报表本身已经按域名分组），fromDomains 也永远只有
+ * 一个元素——字段名承诺的「同一个引荐域名有没有同时指向组合里的好几个站」，单次调用
+ * 根本回答不了，名字在撒谎。真要回答这个问题得跨多次 `--report referring-domains`
+ * 调用合并。所以改成吃「多次运行」的数组：`[{ target, rows }, ...]`。CLI 主流程
+ * 目前只喂一次运行进去，效果和以前一样；真要跨域聚合时，调用方把几份 JSON 输出的
+ * `{ target, rows }` 塞进同一个数组传进来就行，不用重新实现这段聚合逻辑。
+ */
+function buildRollup(runs) {
+  const map = new Map();
+  for (const run of runs || []) {
+    for (const row of run?.rows || []) {
+      const key = row?.referringDomain;
+      if (!key) continue;
+      if (!map.has(key)) map.set(key, { referringDomain: key, hitCount: 0, fromDomains: new Set() });
+      const entry = map.get(key);
+      entry.hitCount += 1;
+      entry.fromDomains.add(run.target);
+    }
+  }
+  return [...map.values()]
+    .map((e) => ({ ...e, fromDomains: [...e.fromDomains] }))
+    .sort((a, b) => b.hitCount - a.hitCount);
 }
 
 function parseOrganicOverview(lines) {
@@ -616,17 +870,27 @@ function reportCoverage(report, bodyTexts, parsedRows, spec = {}) {
   const rawRecordCount = bodyTexts.reduce((sum, text) => sum + String(text).split(/\n+/)
     .map((line) => line.trim()).filter(isRecordLine).length, 0);
   const first = String(bodyTexts[0] || '');
-  // 跨页总量由 pagination 负责报，别让它冒充「本页被虚拟滚动截断了」。
-  const headline = spec.crossPageTotal ? null : (report === 'organic-positions'
+  // headline 始终尝试解析——即使是 crossPageTotal 报告也要把页面自报的数字亮出来，
+  // 不然「零静默截断」的保证少了一个可比对的锚点。crossPageTotal 只管下面
+  // virtualScrollTruncated 那句话是否成立，不管 pageSelfReportedTotal 要不要填。
+  //
+  // 引荐域名的表头是「引荐域名\n1 - 100 (~20,034)」——`~` 说明这是近似值（实测约等于
+  // 20,001 这个硬上限），不是这个域名真实的引荐域名总数。原样报出去，不做「修正」。
+  const headline = report === 'organic-positions'
     ? first.match(/自然搜索排名：\s*\n?\s*([\d,]+)|Organic Search Positions:?\s*\n?\s*([\d,]+)/i)
-    : first.match(/所有页面\s*\n\s*([\d,]+)|All Pages\s*\n\s*([\d,]+)/i));
+    : report === 'referring-domains'
+      ? first.match(/引荐域名\s*\n?\s*[\d,]+\s*-\s*[\d,]+\s*\(~\s*([\d,]+)\)/)
+      : first.match(/所有页面\s*\n\s*([\d,]+)|All Pages\s*\n\s*([\d,]+)/i);
   const headlineTotal = headline ? Number((headline[1] || headline[2]).replace(/,/g, '')) : null;
   return {
     pageSelfReportedTotal: headlineTotal,
     rawRecordCount,
     parsedRows,
     parserAligned: rawRecordCount === parsedRows,
-    virtualScrollTruncated: headlineTotal !== null && headlineTotal > rawRecordCount,
+    // 跨页总量（keyword-magic 的「所有关键词」、referring-domains 的 ~20,034）由
+    // pagination 字段负责报「翻了几页」，不能让它在单页 rawRecordCount 面前冒充
+    // 「这一页被虚拟滚动截断了」——那是两回事，前者是全量，后者是本页渲染不全。
+    virtualScrollTruncated: !spec.crossPageTotal && headlineTotal !== null && headlineTotal > rawRecordCount,
   };
 }
 
@@ -717,6 +981,134 @@ if (flags['self-test']) {
   const coverageOk = magicCoverage.rawRecordCount === 2 && magicCoverage.parserAligned
     && magicCoverage.pageSelfReportedTotal === null && !magicCoverage.virtualScrollTruncated;
 
+  // 引荐域名报告：真实抓到的样本行——**换行分隔**（`coacht.com\n知识`），这是 live 实测
+  // 的真实 DOM 形状；发现探针曾经把它拼成 `coacht.com/知识` 的斜杠形式，那是探针的假象，
+  // 不能只测那一种，所以下面第 3、4 行分别用换行和斜杠各测一次，且指向同一个域名，
+  // 用来同时验证「换行也能切」和「两种写法必须聚成同一个 hitCount」。
+  const refHeaders = ['AS', 'Root Domain / Category', 'Backlinks', 'Country / IP', 'First Seen', 'Last Seen'];
+  const refRows = [
+    ['35', 'coacht.com\n知识', '75,501', '172.67.68.23', '2023年7月23日', '10 小时前'],
+    ['-', 'placeholder.com', '-', '不可用', '-', '-'],
+    ['12', 'dup.com\n游戏', '1,204', '1.2.3.4', '2022年1月1日', '2 天前'],
+    ['9', 'dup.com/新闻', '300', '5.6.7.8', '2021年5月5日', '5 天前'],
+  ];
+  const ref = parseReferringDomains([], { headers: refHeaders, rows: refRows });
+  // 同样的数据，把 Backlinks 和 Country / IP 两列对调，按名取值必须一字不差。
+  const refShuffled = parseReferringDomains([], {
+    headers: swap(refHeaders, 2, 3), rows: refRows.map((r) => swap(r, 2, 3)),
+  });
+  // 列名改了要报出来，而不是悄悄给一列 null。
+  const refRenamed = parseReferringDomains([], {
+    headers: refHeaders.map((h) => (h === 'Backlinks' ? 'Links' : h)), rows: refRows,
+  });
+  const refRollup = buildRollup([{ target: 'example.com', rows: ref.rows }]);
+  // buildRollup 现在吃「多次运行」的数组——用两个不同 target、有一个共享域名的场景
+  // 证明 hitCount/fromDomains 真的能跨运行聚合，不是摆设。
+  const rollupMulti = buildRollup([
+    { target: 'a.com', rows: [{ referringDomain: 'shared.com' }, { referringDomain: 'onlyA.com' }] },
+    { target: 'b.com', rows: [{ referringDomain: 'shared.com' }] },
+  ]);
+  const rollupMultiOk = rollupMulti.length === 2
+    && rollupMulti[0].referringDomain === 'shared.com' && rollupMulti[0].hitCount === 2
+    && rollupMulti[0].fromDomains.sort().join(',') === 'a.com,b.com'
+    && rollupMulti[1].referringDomain === 'onlyA.com' && rollupMulti[1].hitCount === 1
+    && rollupMulti[1].fromDomains.join(',') === 'a.com';
+
+  // suspectColumns：列名对上了，但这一列的原始文本不是占位符、解析函数却把它全喂成
+  // null——这里用一个 parseCompact 认不出来的假格式（"??"）制造这种情况。
+  const suspectRows = [
+    ['10', 'example1.com', '??', '1.1.1.1', '2020年1月1日', '1 天前'],
+    ['20', 'example2.com', '??', '2.2.2.2', '2020年2月2日', '2 天前'],
+  ];
+  const suspect = parseReferringDomains([], { headers: refHeaders, rows: suspectRows });
+  const suspectOk = suspect.suspectColumns.includes('Backlinks') && suspect.missingColumns.length === 0;
+
+  const refOk = ref.rows.length === 4
+    && ref.rows[0].authorityScore === 35 && ref.rows[0].referringDomain === 'coacht.com'
+    && ref.rows[0].category === '知识' && ref.rows[0].rootDomainRaw === 'coacht.com\n知识'
+    && ref.rows[0].backlinks === 75501 && ref.rows[0].ipCountry === '172.67.68.23'
+    && ref.rows[0].firstSeen === '2023年7月23日' && ref.rows[0].lastSeen === '10 小时前'
+    // 「-」「不可用」必须落成 null，不能落成 0 或空字符串。
+    && ref.rows[1].authorityScore === null && ref.rows[1].backlinks === null
+    && ref.rows[1].ipCountry === null && ref.rows[1].firstSeen === null && ref.rows[1].lastSeen === null
+    && ref.rows[1].referringDomain === 'placeholder.com' && ref.rows[1].category === null
+    // 第 3、4 行分别用换行和斜杠指向同一个域名，两种写法都要正确切出 dup.com。
+    && ref.rows[2].referringDomain === 'dup.com' && ref.rows[2].category === '游戏'
+    && ref.rows[3].referringDomain === 'dup.com' && ref.rows[3].category === '新闻'
+    && ref.missingColumns.length === 0 && ref.suspectColumns.length === 0
+    && JSON.stringify(refShuffled.rows) === JSON.stringify(ref.rows)
+    && refRenamed.missingColumns.includes('Backlinks') && refRenamed.rows[0].backlinks === null
+    // 换行形式和斜杠形式必须聚成同一个 hitCount=2——曾经的 bug 是只认斜杠，
+    // 换行形式的 category 恒为 null 导致 referringDomain 带着 `\n知识` 一起，
+    // 两条 dup.com 因为字符串不同而永远分不到同一组。
+    && refRollup.length === 3 && refRollup[0].referringDomain === 'dup.com' && refRollup[0].hitCount === 2
+    && refRollup[0].fromDomains.join(',') === 'example.com'
+    && refRollup[1].hitCount === 1 && refRollup[2].hitCount === 1
+    && rollupMultiOk && suspectOk;
+
+  // recordLine 曾经把 Country / IP 列的 IPv4（点分、字母数字，字符类和域名一样）
+  // 也数成一条记录，导致 raw=200、parsed=100 的假警报（2026-08-27 live 实测，正好 2 倍）。
+  // 这里用「AS / 域名 / 分类 / Backlinks / IP / 日期」各自一行模拟真实渲染，
+  // 断言 IP 行不会被重复计数，也断言 recordLine 对具体行的判断是对的。
+  const refRecordLine = REPORTS['referring-domains'].recordLine;
+  const refBodyText = [
+    '35', 'coacht.com', '知识', '75,501', '172.67.68.23', '2023年7月23日', '10 小时前',
+    '20', 'yahoo.com', '大众媒体', '1,204', '1.2.3.4', '2022年1月1日', '2 天前',
+  ].join('\n');
+  const refCoverage = reportCoverage('referring-domains', [refBodyText], 2,
+    { recordLine: refRecordLine, crossPageTotal: true });
+  const refCoverageOk = refCoverage.rawRecordCount === 2 && refCoverage.parserAligned
+    && refRecordLine('coacht.com') === true && refRecordLine('172.67.68.23') === false
+    && refRecordLine('知识') === false;
+
+  // 集成测试，不是正则测试：喂一个「loadReport 判定 capture 为 null（ready 拒绝了
+  // 限额页），但页面上其实有限额文案」的场景走完整条诊断路径。旧版的 quotaOk 只测
+  // QUOTA_BLOCKED 这个正则本身，删掉整段生产代码那个测试照样通过——这正是 review
+  // 抓到的「测试测不出 bug」。这里改成真正驱动 diagnoseUnrendered，断言从诊断路径
+  // 出来的错误消息是对的，而不是断言正则单独能不能匹配。
+  const quotaDiag = await diagnoseUnrendered('referring-domains', 'example.com', 'us', 3,
+    async () => ({ bodyText: 'AS\nRoot Domain / Category\n已达到每日报告限额\n' }));
+  const genericDiag = await diagnoseUnrendered('referring-domains', 'example.com', 'us', 3,
+    async () => ({ bodyText: '' }));   // 真的白页：既没有限额文案，也没有别的数据
+  const quotaOk = /每日报告限额/.test(quotaDiag.message) && !/依次排查/.test(quotaDiag.message)
+    && /依次排查/.test(genericDiag.message) && !/每日报告限额/.test(genericDiag.message);
+
+  // 2026-08-28 live 核验：这一格不是「域名 + 分类」，是「域名 + 分类？+ 状态徽章 +
+  // 徽章的整句 tooltip」拼在一起。下面三行是核验时给出的原文，逐字照抄，不是按摘要
+  // 手打的简化版——前三个缺陷都栽在「fixture 是打字打出来的，不是从 DOM 抄的」上，
+  // 这是第四次同类问题，必须原样验证。
+  const badgeHeaders = refHeaders;
+  const badgeRows = [
+    ['20', 'ifaxian.net\nNofollow\n此域名没有 Follow 链接，但可能包含具有 Nofollow、Sponsored 和 UGC 属性的链接。', '5', '1.1.1.1', '2020年1月1日', '1 天前'],
+    ['15', 'portaportal.com\n知识\nNofollow\n此域名没有 Follow 链接，但可能包含具有 Nofollow、Sponsored 和 UGC 属性的链接。', '10', '2.2.2.2', '2020年2月2日', '2 天前'],
+    ['5', 'oregongrassfed.com\n丢失\n如果一个引荐域名不再有指向所分析域名的链接，则被视为丢失。…', '1', '3.3.3.3', '2020年3月3日', '3 天前'],
+    // 没见过的徽章词：不能瞎猜切哪一刀，degrade 成把整段原样留在 category 里。
+    ['1', 'unknownbadge.com\n某某\nMysteryBadge\n未见过的徽章后面跟着说明文字。', '2', '4.4.4.4', '2020年4月4日', '4 天前'],
+  ];
+  const badge = parseReferringDomains([], { headers: badgeHeaders, rows: badgeRows });
+  const badgeOk = badge.rows.length === 4
+    // 没有分类，徽章紧跟在域名后面——徽章文字本身绝不能变成 category。
+    && badge.rows[0].referringDomain === 'ifaxian.net' && badge.rows[0].category === null
+    // 有分类，徽章和 tooltip 都要被切掉，只留「知识」。
+    && badge.rows[1].referringDomain === 'portaportal.com' && badge.rows[1].category === '知识'
+    // 「丢失」本身也是一种徽章词，不是分类——同样要落成 null。
+    && badge.rows[2].referringDomain === 'oregongrassfed.com' && badge.rows[2].category === null
+    // 未知徽章：整段保留，不猜测切哪一刀。
+    && badge.rows[3].referringDomain === 'unknownbadge.com'
+    && badge.rows[3].category === '某某\nMysteryBadge\n未见过的徽章后面跟着说明文字。';
+
+  // 表头「引荐域名\n1 - 100 (~20,034)」是跨 201 页的近似总量（`~` 就是近似的意思，
+  // 实测约等于 20,001 那个硬上限），reportCoverage 以前只认 organic-positions /
+  // organic-pages 两种表头措辞，这种表头会落空成 null，削弱了「零静默截断」的比对锚点。
+  // 这里验证：数字要原样报出去（不做「修正」），但 crossPageTotal 报告不能被这个数字
+  // 误判成「本页被虚拟滚动截断了」——那是 pagination 字段的职责。
+  const refHeadlineBody = `引荐域名\n1 - 100 (~20,034)\n${refBodyText}`;
+  const refHeadlineCoverage = reportCoverage('referring-domains', [refHeadlineBody], 2,
+    { recordLine: refRecordLine, crossPageTotal: true });
+  const refHeadlineOk = refHeadlineCoverage.pageSelfReportedTotal === 20034
+    && refHeadlineCoverage.rawRecordCount === 2 && refHeadlineCoverage.parserAligned
+    && refHeadlineCoverage.virtualScrollTruncated === false;
+
   const pagerZh = readPageInfo('行\n上一页\n下一页\n页码：\n/\n1,848\n页码： 3');
   const pagerEn = readPageInfo('rows\nPrev\nNext\nPage:\nof\n201\nPage: 1');
   const pagerNone = readPageInfo('just a table with no pager');
@@ -728,8 +1120,8 @@ if (flags['self-test']) {
       || parsed.rows[1].fields.join('|') !== '5|-1|20|3|0|1|beta|C'
       || !coverage.parserAligned || coverage.virtualScrollTruncated || coverage.pageSelfReportedTotal !== 2
       || positions.rows.length !== 3 || positions.rows[1].serpFeatures !== null || positions.rows[2].kd !== null
-      || !magicOk || !renamedOk) {
-    throw new Error(`semrush-report self-test failed: ${JSON.stringify({ parsed, coverage, positions, magic, renamed, pagerZh, pagerEn })}`);
+      || !magicOk || !renamedOk || !refOk || !refCoverageOk || !quotaOk || !badgeOk || !refHeadlineOk) {
+    throw new Error(`semrush-report self-test failed: ${JSON.stringify({ parsed, coverage, positions, magic, renamed, ref, refRollup, refCoverage, badge, refHeadlineCoverage, pagerZh, pagerEn })}`);
   }
   console.log('semrush-report self-test: PASS');
   process.exit(0);
@@ -749,12 +1141,11 @@ try {
     intervalMs: Number(flags['stable-interval'] || 3) * 1000,
   });
   if (!loaded.capture) {
-    throw new Error(
-      `Semrush ${name} for "${target}" never rendered. 依次排查：` +
-      `(1) 该主体在 db=${db || 'global'} 里可能真的没有数据；` +
-      `(2) 节点挂了——换 --node 重跑（症状是白页、长时间不渲染）；` +
-      `(3) 若页面显示「出错了…请稍后重试」，本脚本已自动重载重试 ${flags.retries || 3} 次仍失败。`,
-    );
+    // `!loaded.capture` 恰恰是限额页最常见的落点（见 diagnoseUnrendered 上方注释）——
+    // 这里必须现场再读一次 body 去分辨「真的没渲染」和「渲染了但 ready 正确拒绝了
+    // 限额页」，不能指望 loaded.capture 里已经有证据。
+    throw await diagnoseUnrendered(name, target, db, flags.retries || 3,
+      () => evalPage(`(() => JSON.stringify({ bodyText: document.body?.innerText || '' }))()`));
   }
   if (!loaded.stable) {
     // **读到了但一直在变，只能算没测成。** 写下一个还在水合的值，它不会被任何人发现是错的。
@@ -795,7 +1186,24 @@ try {
           timeoutMs: Number(flags['page-timeout'] || 30) * 1000,
           intervalMs: 1500,
         });
-        if (!nextPage.stable) { pagesRead -= 1; stoppedBecause = `page ${pagesRead + 1} never settled`; break; }
+        if (!nextPage.stable) {
+          // 同一个坑，翻页版本：nextPage.capture 在这里几乎总是 null——原因和
+          // diagnoseUnrendered 上面写的一样，fingerprint 只在 parse 成功且与上一页
+          // 不同时才非 null，captureStable 才会把 capture 记进 last。撞限额撞在
+          // 第 N 页和「这一页迟迟没渲染」在 nextPage.capture 上长得一模一样，
+          // 现场再读一次 body 来分辨——这个读取很便宜，值得做。
+          let freshBody = '';
+          try {
+            freshBody = String((await evalPage(
+              `(() => JSON.stringify({ bodyText: document.body?.innerText || '' }))()`,
+            ))?.bodyText || '');
+          } catch { /* 读不到就按普通超时处理，走下面的通用文案 */ }
+          pagesRead -= 1;
+          stoppedBecause = QUOTA_BLOCKED.test(freshBody)
+            ? `每日报告限额在第 ${pagesRead + 1} 页触发——换 --node 重跑，不是网络超时`
+            : `page ${pagesRead + 1} never settled`;
+          break;
+        }
         rawPages.push(nextPage.capture.bodyText);
         prevPrint = nextPage.fingerprint;
         for (const r of JSON.parse(nextPage.fingerprint).rows || []) {
@@ -818,6 +1226,13 @@ try {
       );
     }
   }
+
+  // --rollup 目前只喂本次运行这一组 { target, rows } 进去；见 buildRollup 注释——
+  // 要跨域聚合，调用方把多份 JSON 输出的 { target, rows } 拼进同一个数组再调用它。
+  // 对没有 referringDomain 字段的报告（比如 keyword-magic）这里安全地什么都不做，
+  // 聚合结果是空数组。
+  const rollup = flags.rollup && Array.isArray(parsed.rows) && parsed.rows.length
+    ? buildRollup([{ target, rows: parsed.rows }]) : null;
 
   const coverage = spec.paginated ? reportCoverage(name, rawPages, (parsed.rows || []).length, spec) : null;
   if (coverage && !coverage.parserAligned) {
@@ -847,6 +1262,7 @@ try {
       ? { pages: pageInfo.total, pagesRead, complete: pagesRead >= pageInfo.total, stoppedBecause }
       : null,
     coverage,
+    rollup,
     reads: loaded.reads,
     parsed,
     rawText: cap.bodyText.slice(0, 20000),

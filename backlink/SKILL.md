@@ -55,7 +55,11 @@ backlink/
 │   ├── opencli-core.mjs            ★ defaultSession(), batchBrowser(), openAndEval(), run(), closeSession()
 │   ├── lib-tools-share.mjs         ★ the ONE panel launcher
 │   ├── tools-share-open.mjs        launch a tool by name; --goto for a deep link
-│   ├── similarweb-query.mjs        performance | channels | similar-sites
+│   ├── tools-share-node.mjs        `list` a tool's nodes (read-only) or `probe` them one by
+│   │                               one — each node is a DIFFERENT shared account, so a node
+│   │                               capped on its daily report quota is fixed by switching node,
+│   │                               not by retrying
+│   ├── similarweb-query.mjs        performance | channels | similar-sites | audience-geo | site-keywords
 │   ├── similarweb-keywords.mjs     seed keyword → thousands of related keywords.
 │   │                               The keyword-research entry point the pipeline was missing.
 │   │                               Column-major DOM table; parsing lives in lib-similarweb.mjs
@@ -63,8 +67,9 @@ backlink/
 │   ├── semrush-batch.mjs           same, on the other card's quota (organic traffic)
 │   ├── semrush-overview.mjs        AS / organic traffic / ref-domains / keywords
 │   ├── semrush-keyword.mjs         global keyword detail plus one-session multi-country bulk plans
-│   ├── semrush-report.mjs          the OTHER four no-export reports; reuses one session
-│   │                               table reports paginate — pass --all-pages or it warns
+│   ├── semrush-report.mjs          the OTHER five no-export reports (incl. referring-domains,
+│   │                               --rollup aggregates the rows THIS run fetched); reuses one
+│   │                               session; table reports paginate — pass --all-pages or it warns
 │   ├── page-read.mjs               render a public page → text, prices, paywall shape
 │   ├── apply-traffic-screen.mjs    write verdicts back into submission-targets.json
 │   ├── inspect-page.mjs            dump one target's form / login / CAPTCHA state
@@ -479,6 +484,28 @@ run up front.
 costs 20–40s and each report ~15s, so five domains or a dozen keywords in one
 call runs for minutes and a two-minute default kills it mid-flight. The scripts
 write incrementally so nothing is lost, but the run still has to be restarted.
+
+**每个节点是一个不同的共享账号，会分别用完每日报告限额。** 2026-08-27 实测：默认节点跑
+Semrush 报表返回「已达到每日报告限额」，换到 `节点2`（一个当天还没被用满的账号）之后同一份
+报表立刻跑通。**这张被限额的页面照样渲染完整的表头**——所有列名都在，只有表体被换成了那句
+限额提示——所以任何只认表头就判定"页面就绪"的检查都会通过，然后把一张空表当成真实数据。
+
+**目前只有 `semrush-report.mjs` 试图自动识别这句提示**（`QUOTA_BLOCKED` 正则），且据另一位
+维护者复核，这条检测**当前是死代码，还没能在真实限额页面上生效**——不要假设跑这个脚本会
+自动帮你挡住限额。`similarweb-query.mjs`、`semrush-overview.mjs`、`semrush-batch.mjs`、
+`semrush-keyword.mjs` 等其余脚本完全没有这项检测。**在这条被自动化补上之前，读表前必须自己
+在表体文字里找一遍「已达到每日报告限额」**，出现了就是节点问题，换节点重跑，不是这个域名
+没数据——不要假设脚本会替你发现。
+
+<cmd><![CDATA[
+node scripts/tools-share-node.mjs list --tool semrush                    # 只读，不点「打开」，不耗配额
+node scripts/tools-share-node.mjs probe --tool semrush --nodes 1,2,3     # 逐个真的启动，看哪个能用
+]]></cmd>
+
+`probe` 只回答"这个节点现在能不能进去"，**不回答"这个节点会不会被限额"**——面板卡片上的
+「API 今日配额 N%」与单份报表的「每日报告限额」是不是同一个配额口径没有验证过,同一次
+`probe --nodes 1,2` 实测两个节点读到的配额百分比完全相同，说明那读数很可能是账号维度、
+不是节点维度的,不要拿它当预测。真正会不会被限额，只有实际跑报表看有没有弹出那句提示才知道。
 
 Everything else about cards, quota, and the traps is in
 <ref file="references/authorized-data-sources.md"/>.
