@@ -17,12 +17,20 @@ JSON 是给脚本用的数据。改了一边必须改另一边**——`provider-
 
 | | 枚举到的页面 | 真正取到过数据 | 比例 |
 |---|---|---|---|
-| Semrush | 102 | **16** | 16% |
+| Semrush 工具箱 | 102 | **16** | 16% |
+| Semrush 应用中心 | 16 | — | 不适用 |
+| Semrush 合计 | 118 | **16** | |
 | Similarweb | 73 条路由 | **30** | 41% |
 
-Semrush 剩下的 86 页里：11 页摸到边界但没数据、4 页权限拦、**49 页属于「做」这一层，
-按红线直接没执行**。所以 15% 这个数字不代表工作没做完，但它确实代表
-**「102 个页面的能力图」的准确说法是「102 个页面的名字 + 15 个页面的事实」**。
+**应用中心那 16 页单独列，是因为把它们并进分母会让这张表更不准，不是更准。**
+它们是 `/apps/` 首页加 15 个分类**列表页**——列表页本来就没有「报表数据」可取，
+永远不可能进「取到过数据」那一列。混进去只会稀释比例（16% 会被摊成 14%），
+制造一种「覆盖率下降了」的假象，而实际上是我们多枚举了一批本质不同的页面。
+这 16 页是 `enumerated`：只读到卡片上的名字、描述、价格和 Active 标记，一个 App 都没打开过。
+
+**工具箱那 102 页**里，除去已取数的 16 页：11 页摸到边界但没数据、4 页权限拦、
+**49 页属于「做」这一层，按红线直接没执行**。所以 16% 不代表工作没做完，但它确实代表
+**「102 个页面的能力图」的准确说法是「102 个页面的名字 + 16 个页面的事实」**。
 
 引用本文任何一条能力时，先去 JSON 里看那一项有没有 `observed` —— 没有的就是名字。
 
@@ -172,7 +180,7 @@ node backlink/scripts/tools-share-node.mjs probe --tool semrush --nodes 1,2,3 # 
 
 ---
 
-## 二、Semrush：10 个工具箱、102 个页面
+## 二、Semrush：10 个工具箱、118 个页面
 
 账号档位 **GURU，2027-02-21 到期**。
 
@@ -208,7 +216,7 @@ node backlink/scripts/tools-share-node.mjs probe --tool semrush --nodes 1,2,3 # 
 | **本地工具箱** | 6 | 实体店专用：谷歌商家资料、地图排名 | **不适用**（我们不做实体店） |
 | **AI 公关工具箱** | 8 | 记者媒体数据库、发新闻稿、监控被谁提到 | **「做」层，不用** |
 | **我的报告** | 8 | 拖拽拼 PDF、定时发给客户 | **「做」层，不用** |
-| **Apps（应用中心）** | ? | 第三方应用（AdClarity、Brand24 等） | 本轮未枚举 |
+| **Apps（应用中心）** | 16 | 第三方应用商店：15 个分类、去重 48 个 App | **本账号只有 2 个 Active**，见第二·五节 |
 
 ### AI 可见度：想白嫖读数，走域名概览，别走 AI 工具箱
 
@@ -291,6 +299,56 @@ node backlink/scripts/tools-share-node.mjs probe --tool semrush --nodes 1,2,3 # 
 **教训写在这里，别再犯**：路径 404 **不等于**功能不存在。产品会改路径、改名、合并进别的分区。
 判"缺失"之前必须做三件事——① 在界面上按中文/英文名搜一遍；② 试旧路径看是不是 302 跳转；
 ③ 看官方更新日志。三条都做完还找不到，才能写 `knownMissing`。
+
+### 二·五、应用中心（App Center）：48 个 App，本账号只有 2 个能用
+
+2026-08-28 枚举。入口 `/apps/`，分类路由 `/apps/collection/<slug>/`，共 **15 个分类**，
+去重后 **48 个 App**。**这是 `enumerated` 不是 `captured`**——只读了列表卡片上的名字、描述、
+价格和 Active 标记，**一个 App 都没安装、没试用、没订阅**。别把下面任何一条当成「我们有这个能力」。
+
+各分类条目数：seo 17 / social-media 12 / content-creation 12 / advertising 6 / ai-apps 13 /
+competitor-analysis 21 / smb 13 / mobile-aso-apps 5 / Workflows 10 / for-ecommerce 8 /
+video-marketing 8 / Brand 6 / LeadGen 10 / **Toolkits 0** / most-popular 10。
+
+> **Toolkits 的 0 是观测结果，不是结论**：那一页的标题和其它分类完全一致，
+> 只是页面上没有匹配到任何 App 卡片链接。**是空分类，还是换了卡片结构导致没抓到，未单独证实。**
+> 不要把它写成「这个分类不存在」。
+
+#### 两个已 Active 且不额外收费的——直接就能用
+
+| App | slug | 干什么 | 能替我们省掉什么 |
+|---|---|---|---|
+| **SERP Gap Analyzer** | `serp-gap-analyzer` | 找 SERP 机会位、看品牌在 AI Search 里的站位、揪出正在衰退的页面 | 三件手工活合一：现在的「对着自然排名表逐行找机会词」「靠域名概览侧面推 AI 读数」「翻历史对比找流量下滑页」 |
+| **AdClarity - Advertising Intelligence** | `adclarity-advertising-intelligence` | 拆竞品的数字广告投放、广告花费和展示量 | 竞品广告调研不用再靠广告研究表逐词拼，花费口径是它直接给的 |
+
+这两个是这 48 个里**唯二**标着 Active 的。其余 46 个全是付费或试用。
+
+#### 单独点一条：$289/月卖的就是我们已经能直接进的模块
+
+App Center 里有 `semrush-traffic-and-market`（Semrush Traffic & Market），标价 **$289/mo**，
+卖点写的是「Track competitor traffic, analyze market dynamics」——**这就是我们已经在面板侧栏里
+直接访问到的「流量与市场」(.Trends) 工具箱**。
+
+这给本文件里那桩未解之谜提供了一个**候选解释**：同一个 `canva.com`、同一个
+`/analytics/traffic/top-pages/`、同一个 2026 年 7 月，**node 5 返回 0 行且不报错，node 8 返回
+850 个非空单元格**。如果 Trends 是按节点单独订阅的附加产品，两个节点行为不同就说得通。
+
+> **这是候选解释，未验证。** 已经另有 agent 在实测两个节点的订阅状态，结论出来之前别当依据用。
+
+#### 外链方向：和我们现有手工流程高度重叠
+
+`ai-backlink-builder`（AI Backlink Builder，Free trial $169/mo）卖的就是「自动化链接建设、
+找联系人、AI 个性化外联」——**基本对标我们 outreach 那条线**。同方向还有
+`brand-monitoring`（$79/mo）、`mentioned-outreach-wizard`（$49/mo）、
+`media-monitoring`（$39/mo，就是上表里替代已下架 Brand Monitoring 的那个 Brand24）。
+点到为止：**都是付费，都没试过，目前只是知道市面上有人把这套卖成产品。**
+
+关键词与 AI 搜索方向点名的：`llm-gap-analyzer`（$49/mo）、
+`otterly-ai-search-monitoring`（$27/mo）、`ecommerce-keywords-analytics`（$19.99/mo）、
+`ai-keyword-inspector-for-aso`（$19/mo）、`keyword-analytics-for-youtube`（$10/mo）。
+流量与竞品监控方向：上面的 `semrush-traffic-and-market`（$289/mo）、
+`ai-strategic-market-insights`（$99/mo）、`exploding-topics`（$99/mo）、
+`ppc-lead-intelligence`（$97/mo）。**完整 48 条清单在 JSON 里，不在这儿铺开。**
 
 ---
 
@@ -435,7 +493,7 @@ SEO Strategist Agent、Trend Analyzer Agent。后四条像是 Similarweb 新推�
 | 没摸到 | 原因 | 能不能补 |
 |---|---|---|
 | Similarweb 高级版功能页 | 刷新 3 次正文恒 209 字符。可能是 iframe 或被套餐整体挡掉 | 未知 |
-| Semrush App Center 条目清单、广告研究 17 列里的 2 列 | 前者本轮未枚举，后者需展开列管理器 | 能 |
+| 广告研究 17 列里的 2 列 | 需展开列管理器 | 能 |
 | 排名跟踪器 7 个子页、受众人口特征/受众重叠两个标签 | 前者需选定 campaign（现存的是别人的只读资产），后者本轮只逐标签验证了「受众兴趣」 | 能 |
 | Semrush AI 工具箱 7 个内页 | 无活动时只显示营销落地页，启动活动是写操作 | **绕开**：AI 读数去域名概览拿 |
 | 5 个独立产品的内部 | 要另外花钱，点进去可能触发购买流程 | **不能**，除非自购 |

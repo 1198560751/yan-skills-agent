@@ -24,7 +24,8 @@
           "paid, account, and export actions were not executed",
           "the gmitm proxy anonymises some third-party domains, so competitor widgets can return placeholder domains such as silver-switchboard.net that are not real data",
           "several report tables failed to render across repeated reloads and are recorded as not-reached rather than missing",
-          "2026-08-28 更正：旧边界「Traffic analysis submission creates a project」已证伪，见 Traffic & Market 模块的 note。"
+          "2026-08-28 更正：旧边界「Traffic analysis submission creates a project」已证伪，见 Traffic & Market 模块的 note。",
+          "App Center: no paid app has been installed, trialled, or subscribed to. The 2026-08-28 pass read listing cards only - names, descriptions, prices, and Active badges. Only SERP Gap Analyzer and AdClarity read as Active on this account; the other 46 apps are name-level knowledge, not usable capability."
         ],
         "knownMissing": [
           "Brand Monitoring: confirmed 404 on two reloads; replaced by the third-party Brand24 Media Monitoring app in App Center at $39/mo",
@@ -63,10 +64,6 @@
             "why": "with no campaign the route renders a marketing landing page, and starting one is a write action; read-only AI metrics are on Domain Overview instead"
           },
           {
-            "what": "App Center entries",
-            "why": "not enumerated"
-          },
-          {
             "what": "2 of the 17 columns in Advertising Research",
             "why": "the column manager reads 15/17 and was not opened"
           }
@@ -79,9 +76,12 @@
         "keywordMagicLimitation": "CORRECTION 2026-08-28: an earlier note called the metrics quota-gated. They are not. The 不可用 / 要更新指标数据 state is progressive hydration - waiting for the parse to stabilise returns every metric. Two live runs (seeds nonogram and tower defense) came back 100/100 rows with volume, KD, and CPC filled in.",
         "keywordMagicMeasured": "seed nonogram: 20.1K keywords over 201 pages; seed tower defense: 98.5K. 100 rows per page, 15 columns, read via DOM cells because the innerText row shape is variable-length.",
         "verificationStrength": {
-          "enumeratedPages": 102,
+          "enumeratedPages": 118,
+          "enumeratedPagesBreakdown": "102 toolkit pages from the 2026-08-27 shadow-DOM sidebar sweep + 16 App Center pages (the /apps/ index and 15 collection listings) enumerated 2026-08-28.",
           "pagesWithCapturedData": 16,
-          "note": "枚举数不是验证数。引用某项能力前先看该模块的 observed 字段；没有就是只有名字。"
+          "note": "枚举数不是验证数。引用某项能力前先看该模块的 observed 字段；没有就是只有名字。 **比例只按工具箱的 102 页算（16/102 = 16%）。** 应用中心那 16 页是列表页，本来就没有报表数据可取，并进分母只会把比例稀释成 14%，制造「覆盖率下降」的假象——实际是多枚举了一批本质不同的页面，不是少取了数。",
+          "toolkitPages": 102,
+          "appCenterListingPages": 16
         }
       },
       "scriptCoverage": {
@@ -92,6 +92,8 @@
           "organic-pages",
           "backlinks-overview",
           "backlinks-list",
+          "referring-domains",
+          "keyword-magic",
           "keyword-overview"
         ],
         "targets": [
@@ -99,8 +101,6 @@
           "keyword"
         ],
         "gapsRanked": [
-          "Keyword Magic Tool bulk export and clustering",
-          "Referring Domains list with hit-count rollup",
           "Keyword Gap and Backlink Gap",
           "multi-country-database sum wrapper"
         ],
@@ -111,7 +111,11 @@
           "My Reports (3 pages, export and account actions)",
           "Content Toolkit (7 pages, generation)"
         ],
-        "gapNote": "Page count does not rank priority. The Traffic and Market Toolkit is the largest block at 25 pages but ranks ninth, because it duplicates Similarweb-style estimates that are already known to disagree with each other."
+        "gapNote": "Page count does not rank priority. **2026-08-28 更正**：Traffic & Market 之前被排到第九位，写的理由是「它复刻的是 Similarweb 那类估算，而两家已知互相对不上」——**那个「已知对不上」从来没有测过，是个假设**。实测 canva.com：两家的总访问量相差 2.4%、设备占比相差 1.7pp。真正不能并列的只有平均访问时长（相差 86%）。所以这个模块的价值被一个未经验证的前提压低了：它不是重复 Similarweb，它是**唯一一个能和 Similarweb 互相校验的口径**。教训与本仓库其它几起一样——把没验证过的假设当成已知事实写进优先级排序，代价是整条产品线被跳过。",
+        "gapsClosed": [
+          "Keyword Magic Tool bulk export and clustering → semrush-report.mjs --report keyword-magic",
+          "Referring Domains list with hit-count rollup → semrush-report.mjs --report referring-domains（含 --rollup）"
+        ]
       },
       "modules": [
         {
@@ -440,9 +444,141 @@
         },
         {
           "name": "Apps (App Center)",
-          "pages": 0,
-          "observed": false,
-          "note": "not enumerated this round"
+          "pages": 16,
+          "observed": "enumerated",
+          "enumeratedAt": "2026-08-28",
+          "entry": "/apps/",
+          "collectionRoute": "/apps/collection/<slug>/",
+          "note": "pages = the /apps/ index plus the 15 collection listing pages. observed is 'enumerated', not 'captured': only the listing cards were read - no app was installed, opened, or used, so nothing here is a verified data source.",
+          "appCount": 48,
+          "appCountNote": "48 is the de-duplicated count across the 15 collections; most apps appear in several collections at once.",
+          "collections": {
+            "seo": 17,
+            "social-media": 12,
+            "content-creation": 12,
+            "advertising": 6,
+            "ai-apps": 13,
+            "competitor-analysis": 21,
+            "smb": 13,
+            "mobile-aso-apps": 5,
+            "Workflows": 10,
+            "for-ecommerce": 8,
+            "video-marketing": 8,
+            "Brand": 6,
+            "LeadGen": 10,
+            "Toolkits": 0,
+            "most-popular": 10
+          },
+          "collectionsNote": "Toolkits returned 0 as an observation, not as an absence: the page title matched the other collections, there were simply no matching app-card links on it. Whether the collection is genuinely empty or uses a different card structure was not separately verified. Do not record this as 'the collection does not exist'.",
+          "activeOnThisAccount": [
+            {
+              "name": "SERP Gap Analyzer",
+              "slug": "serp-gap-analyzer",
+              "does": "Find SERP opportunities. See where your brand stands in AI Search. Fix decaying pages.",
+              "collections": [
+                "seo",
+                "competitor-analysis",
+                "smb",
+                "most-popular"
+              ]
+            },
+            {
+              "name": "AdClarity - Advertising Intelligence",
+              "slug": "adclarity-advertising-intelligence",
+              "does": "Unwrap competitors' digital ads, ad spend and impressions",
+              "collections": [
+                "advertising",
+                "competitor-analysis",
+                "video-marketing",
+                "most-popular"
+              ]
+            }
+          ],
+          "activeNote": "Only these 2 of the 48 read as Active on this account. The other 46 are paid or free-trial; none of them has been installed, trialled, or subscribed to.",
+          "relevantToThisProject": {
+            "backlinks": [
+              {
+                "name": "AI Backlink Builder",
+                "slug": "ai-backlink-builder",
+                "price": "Free trial $169/mo"
+              },
+              {
+                "name": "Brand Monitoring",
+                "slug": "brand-monitoring",
+                "price": "Free trial $79/mo"
+              },
+              {
+                "name": "Mentioned - Outreach Wizard",
+                "slug": "mentioned-outreach-wizard",
+                "price": "Free trial $49/mo"
+              },
+              {
+                "name": "Media Monitoring",
+                "slug": "media-monitoring",
+                "price": "Free trial $39/mo"
+              }
+            ],
+            "keywordsAndAiSearch": [
+              {
+                "name": "SERP Gap Analyzer",
+                "slug": "serp-gap-analyzer",
+                "price": "Active"
+              },
+              {
+                "name": "LLM Gap Analyzer",
+                "slug": "llm-gap-analyzer",
+                "price": "Free trial $49/mo"
+              },
+              {
+                "name": "Otterly - AI Search Monitoring",
+                "slug": "otterly-ai-search-monitoring",
+                "price": "Free trial $27/mo"
+              },
+              {
+                "name": "Ecommerce Keyword Analytics",
+                "slug": "ecommerce-keywords-analytics",
+                "price": "Free trial $19.99/mo"
+              },
+              {
+                "name": "AI Keyword Inspector for ASO",
+                "slug": "ai-keyword-inspector-for-aso",
+                "price": "Free trial $19/mo"
+              },
+              {
+                "name": "Keyword Analytics for YouTube",
+                "slug": "keyword-analytics-for-youtube",
+                "price": "Free trial $10/mo"
+              }
+            ],
+            "trafficAndCompetitorMonitoring": [
+              {
+                "name": "Semrush Traffic & Market",
+                "slug": "semrush-traffic-and-market",
+                "price": "$289/mo"
+              },
+              {
+                "name": "AdClarity - Advertising Intelligence",
+                "slug": "adclarity-advertising-intelligence",
+                "price": "Active"
+              },
+              {
+                "name": "AI Strategic Market Insights",
+                "slug": "ai-strategic-market-insights",
+                "price": "Free trial $99/mo"
+              },
+              {
+                "name": "Exploding Topics",
+                "slug": "exploding-topics",
+                "price": "Free trial $99/mo"
+              },
+              {
+                "name": "PPC Lead Intelligence",
+                "slug": "ppc-lead-intelligence",
+                "price": "Free trial $97/mo"
+              }
+            ]
+          },
+          "openQuestion": "The App Center sells `semrush-traffic-and-market` (Semrush Traffic & Market, $289/mo) - the same 流量与市场 (.Trends) module this account already reaches directly from the panel sidebar. That is a CANDIDATE, UNVERIFIED explanation for the unresolved node split recorded elsewhere in this file (same canva.com, same /analytics/traffic/top-pages/, same 2026-07: node 5 returned 0 rows without erroring while node 8 returned 850 non-empty cells). Per-node subscription state is being measured separately; do not treat this as the answer."
         }
       ],
       "interfaces": [

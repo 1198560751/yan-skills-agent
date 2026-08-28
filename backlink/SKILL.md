@@ -228,6 +228,43 @@ opencli browser recon-sem-rival open "https://..."
 ]]></correct>
 </law>
 
+<law id="tools-share-is-a-global-mutex" weight="load-bearing">
+<statement>
+Unique session names buy you concurrent **tabs**, not concurrent **Tools Share
+work**. Every script that goes through `lib-tools-share.mjs` first takes
+`yan-tools-share-&lt;tool&gt;.lock` — a **machine-wide mutex, one per tool, shared
+across every Claude session on the box**. So at any moment exactly one process
+on this machine can drive Semrush, and exactly one can drive Similarweb.
+**Dispatching N agents at the same tool does not parallelise it. It builds a
+queue with a 600-second timeout at the end.**
+</statement>
+<why>
+Measured 2026-08-28. Three Semrush agents were dispatched in parallel on the
+assumption that distinct session names made them independent. They did not run
+concurrently: one of them sat waiting **56 minutes** and produced nothing, while
+a second machine-local Claude session — working in a different repo entirely —
+competed for the same lock. The lock itself is correct and should stay: Tools
+Share meters concurrency per account, and a real Chrome is not a real human's
+pacing. What was missing is that its **scheduling consequence** lived only in a
+code comment, where a planner never reads it.
+</why>
+<correct><![CDATA[
+Serialise deliberately, and give the tool-bound work to ONE agent at a time:
+  agent A -> Semrush routes      (holds the semrush lock, start to finish)
+  agent B -> Similarweb features (different lock, may still queue behind others)
+  agent C -> offline work        (parsers, fixtures, docs — no lock at all)
+
+Before dispatching, check who holds it:
+  cat "$TMPDIR"/yan-tools-share-semrush.lock/owner.json   # {"pid":...,"startedAt":...}
+  ps -p <pid> -o etime=,command=                          # dead pid = stale lock
+]]></correct>
+<wrong><![CDATA[
+Three agents each told "use session name sweep-1 / sweep-2 / sweep-3, go".
+The names are fine. The lock is not: two of them burn their budget waiting,
+and a retry loop that re-attempts every 30s makes the contention worse.
+]]></wrong>
+</law>
+
 <law id="no-multi-tab-api" weight="load-bearing">
 <statement>
 Do not use `tab new`, `tab select`, or `open --tab` to hold several pages under
