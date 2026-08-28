@@ -34,7 +34,7 @@
  * 同一 session 内自动 geo-hop 一次，不回 dashboard、不递归查询。
  */
 import { defaultSession, parseFlags, printJson, validateSession, showHelpIfRequested} from './opencli-core.mjs';
-import { assertToolsShareAvailable, expiryWarning, gotoInTool, launchTool } from './lib-tools-share.mjs';
+import { assertToolsShareAvailable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { randomInt } from 'node:crypto';
 import assert from 'node:assert/strict';
@@ -331,7 +331,13 @@ for (const kw of keywords) {
     if (flags.debug) row.bodyText = cap.bodyText.slice(0, 3000);
   } catch (error) {
     if (error?.code === 'TOOLS_SHARE_BLOCKED') throw error;
-    row = { keyword: kw, db, status: 'error', error: error.message };
+    // **必须过 redactSecrets。** opencli 失败时会把带 __gmitm 令牌的会话 URL
+    // 打进 stderr，opencli-core 又把那整段 stderr 当成 Error.message 抛上来；
+    // 这一行直接进 --out 的 JSONL、进 stdout、进日志。2026-08-28 实测确认这里
+    // 拿到的就是 opencli 的 stderr 原文。同仓库的 semrush-report.mjs 早就把这条
+    // 写在注释里了，但注释拦不住第二个脚本重犯——所以另配了一条会红的检查
+    // （backlink/tests/redaction-guard.test.mjs）。
+    row = { keyword: kw, db, status: 'error', error: redactSecrets(error.message) };
   }
   if (row.status === 'ok') {
     const decision = geoHopDecision(row, db);
@@ -342,7 +348,7 @@ for (const kw of keywords) {
         row.geoHop = { ...decision, result: followed };
       } catch (error) {
         if (error?.code === 'TOOLS_SHARE_BLOCKED') throw error;
-        row.geoHop = { ...decision, status: 'error', error: error.message };
+        row.geoHop = { ...decision, status: 'error', error: redactSecrets(error.message) };
       }
     } else if (decision.triggered) {
       row.geoHop = { ...decision, triggered: false, reason: 'disabled by --no-follow-top-country' };
