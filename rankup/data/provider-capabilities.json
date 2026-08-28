@@ -637,8 +637,66 @@
         ],
         "spaNavigation": "Launch through the panel with launchTool(), then navigate INSIDE the booted SPA by assigning location.href to the origin plus hash route, then wait 20-22s. Never run `opencli browser <session> open` against a hash deep link: that full-document-loads the route and yields the blank shell. This is exactly what gotoInTool() in backlink/scripts/lib-tools-share.mjs already does, so the working scripts were never blocked - only ad-hoc open calls were.",
         "stuckPageGuidance": "Retry the CLICK, not the page. Reload storms transiently destroy the left navigation, which made 11 pages falsely report 'nav item not found'; a 6x click-retry with 6s waits recovered all 11. Also, short innerText is not a stuck signal on this SPA - several pages render complete correct data in under 600 characters because the charts are SVG.",
+        "probingHazard": {
+          "id": "silent-redirect-on-unknown-route",
+          "observedAt": "2026-08-28",
+          "behavior": "Similarweb 面板对未知路由不返回 404，而是静默重定向到 #/digitalsuite/ai-brand-visibility/home。",
+          "consequence": "看到内容 ≠ 功能存在。打开一个猜测的路由后读到了内容，读到的可能是 AI 品牌可见性页，不是你请求的那个功能。",
+          "requiredCheck": "每次探测后核对 location.hash 是否仍等于请求的那条路由。落地 hash 变了就判定该路由不存在，无论内容区多丰满。",
+          "evidence": [
+            "#/digitalsuite/agents/home 落到 #/digitalsuite/ai-brand-visibility/home",
+            "#/digitalsuite/ai-studio/home 落到 #/digitalsuite/ai-brand-visibility/home"
+          ],
+          "asymmetry": "这个陷阱只制造假阳性（功能看起来存在）。反方向的结论——路由打开后内容区是空的——不受影响，因为重定向的落点是有内容的。",
+          "affectsPriorEvidence": "2026-08-27 那一轮的 73 条路由 / 30 页取数没有记录落地 hash。逐条审计见 evidenceAudit。"
+        },
+        "entryFacts": [
+          "面板真实首页是 #/activation/home。",
+          "#/home/dashboard 与 #/digitalsuite/home 都渲染成空壳（body innerText 长度 0），刷新多轮也不出内容。"
+        ],
+        "sidebarRoutes": {
+          "recordedAt": "2026-08-28",
+          "method": "逐项点击侧栏，点击后读 location.hash",
+          "observed": "enumerated",
+          "note": "侧栏共 19 项功能，其中 18 项取到了路由；转化分析那次点击没生效，路由停在上一页，未取得。这 6 个目标功能名一个都没出现在侧栏。",
+          "routes": [
+            { "label": "首页", "route": "#/activation/home", "observed": "enumerated" },
+            { "label": "网站分析", "route": "#/digitalsuite/websiteanalysis/home", "observed": "enumerated" },
+            { "label": "站点排名", "route": "#/digitalsuite/markets/webmarketanalysis/home", "observed": "enumerated" },
+            { "label": "网站区段", "route": "#/digitalsuite/segments/home?tab=0", "observed": "enumerated" },
+            { "label": "搜索跟踪", "route": "#/digitalsuite/rank-tracker/home", "observed": "enumerated" },
+            { "label": "关键词研究", "route": "#/organicsearch/websiteanalysis/home", "observed": "enumerated" },
+            { "label": "反向链接分析", "route": "#/digitalsuite/acquisition/backlinks/overview/999/?duration=365d", "observed": "enumerated" },
+            { "label": "网站审核", "route": "#/digitalsuite/acquisition/site-audit", "observed": "enumerated" },
+            { "label": "AI 品牌可见性", "route": "#/digitalsuite/ai-brand-visibility/home", "observed": "enumerated" },
+            { "label": "AI 研究 (BETA)", "route": "#/digitalsuite/ai-research/home", "observed": "enumerated" },
+            { "label": "AI 流量", "route": "#/digitalsuite/ai-traffic/overview/*/999/6m?webSource=Total", "observed": "enumerated" },
+            { "label": "推荐 (BETA)", "route": "#/digitalsuite/recommendations/report/?campaignId=...&model=chatgpt", "observed": "enumerated" },
+            { "label": "广告主活动", "route": "#/advertiseractivity/home", "observed": "enumerated" },
+            { "label": "发布方分析", "route": "#/publisheranalysis/home", "observed": "enumerated" },
+            { "label": "监测和保护", "route": "#/monitorandprotect/home?duration=28d&device=All", "observed": "enumerated" },
+            { "label": "市场分析", "route": "#/digitalsuite/webmarketResearch/home", "observed": "enumerated" },
+            { "label": "需求分析", "route": "#/digitalsuite/marketresearch/keywordmarketresearch/home", "observed": "enumerated" },
+            { "label": "高级版功能", "route": "#/premium-features/home", "observed": "route-exists-content-empty" },
+            { "label": "转化分析", "route": null, "observed": "route-not-recorded" }
+          ]
+        },
+        "premiumFeaturesObservation": {
+          "route": "#/premium-features/home",
+          "observed": "route-exists-content-empty",
+          "notAConclusion": "不要记成「功能不存在」。路由存在、document.title 正确返回「高级版功能」，只是内容区读不到东西。",
+          "entriesTried": [
+            "点侧栏「高级版功能」→ 路由跳到 #/premium-features/home，内容区空",
+            "直接 gotoInTool 深链 + 20s settle → 空",
+            "关掉「用户指南」浮层（.Sidebar-close）再读 → 空",
+            "location.reload() 后重读 → 空"
+          ],
+          "attempts": "2 个独立会话、合计 10+ 次轮询，.sw-layout-section-content 的 innerText 长度 mainLen 全为 0（更早一轮记的是恒定 209 字符的导航壳）。",
+          "notAScriptFailure": "同一会话、同一读法，在另外 18 条路由上都读到了内容。"
+        },
         "knownMissing": [],
         "resolvedQuestions": [
+          "The six unclassified official labels (Strategy, Video, AI Leaderboard, AI Search Optimization, SEO Strategist Agent, Trend Analyzer Agent) are all similarweb.com marketing-site navigation entries, not panel features. Per-name verdicts and evidence URLs are in resolvedFeatureNames.",
           "Audience Interests is the third tab on the Audience page, not a separate navigation item. Confirmed by clicking it. selectedTab= in the URL does not switch tabs on an already-mounted page, and switching to it forces the window to a 3-month range.",
           "Conversion Analysis is NOT a navigation stub. It is a complete module in an empty state: it carries three report slots (highest conversion rate, most improved year over year, stickiness index) each with month, device, and country filters. They return no matches only because this account has no custom group defined, and creating one is a write action."
         ],
@@ -697,19 +755,107 @@
               "confidence": "medium"
             }
           ],
-          "stillUnknown": [
-            "Strategy",
-            "Video",
-            "AI Leaderboard",
-            "AI Search Optimization",
-            "SEO Strategist Agent",
-            "Trend Analyzer Agent"
-          ],
+          "stillUnknown": [],
+          "stillUnknownNote": "2026-08-28 清零。原来的 6 条已逐条结案，见 liveAudit.resolvedFeatureNames。",
           "lesson": "A cross-product feature list must not be treated as a gap list for one product. Two thirds of these labels describe products this subscription never included."
         },
+        "resolvedFeatureNames": {
+          "resolvedAt": "2026-08-28",
+          "observed": "enumerated",
+          "rootCause": "这 6 个名字全部来自 similarweb.com 的营销站导航，不是面板功能表。证据：www.similarweb.com/corp/ai/agents/ 与 aisearch.similarweb.com/ai-leaderboard/ 两个页面的导航里同时列出全部 6 项（中文站文案）。",
+          "whyItTookSoLong": "面板的 ⌘K 只搜域名 / 关键词 / 报表，搜不了功能名，所以在面板内部怎么找都找不到这几个名字。",
+          "names": [
+            {
+              "name": "Strategy",
+              "verdict": "belongs-to-another-line",
+              "marketingLabel": "市场策略",
+              "evidence": ["https://www.similarweb.com/corp/web/strategy/"],
+              "panelLanding": "面板里最接近的落点是「市场研究」组（市场分析 #/digitalsuite/webmarketResearch/home）。这是本轮的对应判断，不是官方映射。"
+            },
+            {
+              "name": "Video",
+              "verdict": "belongs-to-another-line",
+              "marketingLabel": "视频广告（Ad Intelligence 产品线下的视频广告情报）",
+              "evidence": ["https://www.similarweb.com/corp/web/video/"],
+              "panelLanding": "本账号面板里没有：#/advertiseractivity/home 的渠道选择器只有 所有渠道 / 显示广告 / 社交 / 搜索，没有视频（实测 hasVideo=false）。知识库有 Using Video Ad Campaign Insights 一文，说明这是需要单独订阅的模块。",
+              "doNotConfuse": "知识库里还有一条同名但完全无关的 Video Box / Video Pack，那是 SERP 特性（视频缩略图组），归在 Product Support > Glossary 下。"
+            },
+            {
+              "name": "AI Leaderboard",
+              "verdict": "separate-free-public-product",
+              "marketingLabel": "AI 知名度排行榜",
+              "evidence": ["https://aisearch.similarweb.com/ai-leaderboard/"],
+              "panelLanding": "免费公开站，不需要登录，不在 PRO 面板里。按行业分类排品牌在 AI 答案里的可见度（AI 声量份额、被引域名、被引页面、热门提示词）。知识库里搜 AI Leaderboard 零篇对应文章，进一步佐证它不是面板功能。"
+            },
+            {
+              "name": "AI Search Optimization",
+              "verdict": "umbrella-name-for-existing-panel-group",
+              "marketingLabel": "AI 搜索情报（AEO/GEO 套件）",
+              "evidence": ["https://www.similarweb.com/corp/search/gen-ai-intelligence/", "https://aisearch.similarweb.com"],
+              "panelLanding": "面板里的落点就是「AI 搜索情报」这一组：AI 品牌可见性 + AI 研究 + AI 流量，再加「推荐」。不是缺失的功能，是已有一组功能的伞名。页面标题即 \"AI Search Intelligence: Tools for AI Search Optimization\"。"
+            },
+            {
+              "name": "SEO Strategist Agent",
+              "verdict": "separate-product-not-in-this-account",
+              "marketingLabel": "AI SEO 策略助理（Similarweb AI Agents 套件，2025-05-28 发布）；知识库正式名 AI SEO Strategy Agent",
+              "evidence": [
+                "https://www.similarweb.com/corp/ai/agents/seo-strategist/",
+                "https://support.similarweb.com/.../27188343539741-Using-AI-SEO-Strategy-Agent"
+              ],
+              "panelLanding": "本账号面板里没有：试过 #/digitalsuite/agents/home、#/digitalsuite/ai-studio/home，两个都被静默重定向到 #/digitalsuite/ai-brand-visibility/home（按 probingHazard 的判据即路由不存在）；侧栏里也没有。"
+            },
+            {
+              "name": "Trend Analyzer Agent",
+              "verdict": "separate-product-not-in-this-account",
+              "marketingLabel": "AI 趋势分析工具（同一套 Similarweb AI Agents）；知识库正式名 AI Trend Analyzer",
+              "evidence": [
+                "https://www.similarweb.com/corp/ai/agents/trend-analyzer/",
+                "https://support.similarweb.com/.../27158140965021-AI-Trend-Analyzer"
+              ],
+              "panelLanding": "面板里同样没有落点。侧栏的「需求分析」(#/digitalsuite/marketresearch/keywordmarketresearch/home) 是它的数据底座（Demand Analysis / Demand Trends），但不是这个 Agent 本身。"
+            }
+          ]
+        },
+        "evidenceAudit": {
+          "auditedAt": "2026-08-28",
+          "trigger": "probingHazard.silent-redirect-on-unknown-route",
+          "question": "既有的 Similarweb 结论里，有哪些是靠「打开某个路由、看到了内容」推出来的？那类结论可能被静默重定向污染。",
+          "criterion": "只有「路由打开后有内容 ⇒ 该功能存在」这一种形状会被污染。反方向（打开后是空的 / 空态 / 只有导航壳）不受影响，因为重定向的落点本身是有内容的页面。",
+          "reviewedCount": 60,
+          "reviewedScope": "JSON 侧 40 条（23 个 module、2 条 resolvedQuestions、2 条 openQuestions、3 条 boundaries、spaNavigation、stuckPageGuidance、observedRoutes/capturedPagesWithData/verificationStrength、officialLabelCrosswalk 的 4 条 renamedOrNested + 21 条归属判定按 1 条计、separateProducts 5 条、separateProductsLocation、discontinuation）与 MD 侧 20 条（第三节模块表 14 行、转化分析更正、独立产品段、到期公告、SPA 空白页段、三条判据坑、第四节已结掉 9 行与还没摸到 6 行按段计）。",
+          "affected": [
+            {
+              "where": "liveAudit.spaNavigation / observedRoutes:73 / capturedPagesWithData:30 / verificationStrength",
+              "why": "该轮的导航方式是把 location.href 赋成 origin + hash 路由，而当时没有记录落地 hash。凡是靠深链到达、又只用「读到了内容」来确认的页面，都无法区分「路由存在」与「被静默重定向到 AI 品牌可见性」。",
+              "status": "此结论的证据方式受静默重定向影响，需重新核对落地 hash",
+              "doNotDelete": "不要删这些数字。侧栏 19 项已由 2026-08-28 的点击 + 记 hash 独立确认；未确认的是各模块的深链内页。"
+            },
+            {
+              "where": "modules[] 中 observed=true 的 18 个模块的 examples 内页清单（网站分析 15、关键词研究 15、广告主活动 16、排名跟踪器 11 等）",
+              "why": "模块本身（侧栏那一层）已被 sidebarRoutes 独立确认；受影响的是内页——它们中有多少是点击到达、有多少是深链到达，档案里没有分开记。",
+              "status": "此结论的证据方式受静默重定向影响，需重新核对落地 hash",
+              "mitigating": "stuckPageGuidance 记载当轮大量页面是靠重试点击到达的（11 个页面靠 6 次点击重试恢复），点击到达不受本陷阱影响；且各内页记录的列名、筛选器、分页上限彼此不同，与 AI 品牌可见性页的内容不符，说明多数不是重定向产物。"
+            },
+            {
+              "where": "resolvedQuestions 的 Conversion Analysis 一条",
+              "why": "结论形状是「打开后看到了完整模块」。2026-08-28 这一轮点击「转化分析」没生效、路由停在上一页，说明这一项的到达方式本身就不稳。",
+              "status": "此结论的证据方式受静默重定向影响，需重新核对落地 hash",
+              "mitigating": "所记内容（自定义组、三张成品报表位、月份/设备/国家筛选器）与 AI 品牌可见性页完全不同，不像是重定向落点。"
+            }
+          ],
+          "unaffected": [
+            "Premium Features / Segments 一类「打开后是空的」的结论：重定向只会给出有内容的页面，所以空内容不可能是重定向造成的。",
+            "officialLabelCrosswalk 的全部归属判定：依据是功能名的语义与产品线，不涉及路由探测。",
+            "separateProducts 与 separateProductsLocation：依据是报表页页脚的「选择解决方案」区块，不涉及路由探测。",
+            "discontinuation：依据是页面顶部横幅。",
+            "Audience Interests 一条：明确记着 Confirmed by clicking it。",
+            "interfaces（data API / MCP）与 ifSelfSubscribed：依据是官方文档与套餐门槛，不涉及面板路由。"
+          ],
+          "verdict": "共审 60 条，找到 3 处证据方式受影响（全部已就地标注，未删除），其余为主动确认过的不受影响。"
+        },
         "openQuestions": [
-          "6 official labels remain unclassified: Strategy, Video, AI Leaderboard, AI Search Optimization, SEO Strategist Agent, Trend Analyzer Agent. The last four look like a newer Similarweb AI product line and are probably sold separately, but there is no evidence either way.",
-          "Premium Features renders only a 209-character navigation shell across 3 reloads and never opened."
+          "#/premium-features/home is route-exists-content-empty, not a missing feature: the route resolves and the title is correct, but the content area read 0 characters across 2 sessions and 10+ polls through four different entries. What renders there (iframe? plan-gated component?) is still unknown.",
+          "The 2026-08-27 route evidence never recorded the landing hash, so any inner page reached by hash deep link needs one re-check against location.hash before it can be called confirmed. See evidenceAudit."
         ],
         "separateProducts": [
           "Data Studio (NEW) - listed under 选择解决方案 alongside 网络情报, the tier this subscription sits in",
@@ -926,7 +1072,8 @@
           "name": "Premium Features",
           "pages": 1,
           "observed": false,
-          "note": "the only page that genuinely would not open: body stays at 209 characters across 3 reloads, likely an iframe or a plan-gated component"
+          "observedDetail": "route-exists-content-empty",
+          "note": "route-exists-content-empty, NOT a missing feature: #/premium-features/home resolves and document.title returns 高级版功能, but the content area read 0 characters across 2 independent sessions and 10+ polls through four entries (sidebar click, deep link + 20s settle, closing the user-guide overlay, reload). The same read returned content on the other 18 routes, so this is an observation, not a script failure. observed stays false only in the sense of 'no data captured'. Full record in liveAudit.premiumFeaturesObservation."
         },
         {
           "name": "App Intelligence",

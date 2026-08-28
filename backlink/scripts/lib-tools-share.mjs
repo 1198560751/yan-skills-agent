@@ -423,12 +423,80 @@ export async function launchTool(options) {
   }
 }
 
-/** 在已登录的工具页内部深链跳转。**只有在 launchTool 跑完之后才有效。** */
-export async function gotoInTool(evalPage, target, settleSeconds = 15) {
+/**
+ * 把一个 URL 归一成「路由」——只保留决定「这是哪一张报表」的那一段。
+ *
+ * 两种模式，因为两个工具的路由形状不同：
+ *   - `hash`：Similarweb 是 hash 路由的 SPA，报表身份写在 `#` 后面的路径里。
+ *   - `path`：Semrush 是普通路由，报表身份写在 pathname 里。
+ *
+ * **query 一律丢掉**：应用会自己改写 query（补默认 `webSource`、把日期窗口回填成
+ * 具体区间、删掉空参数），拿整串比会满屏误报。尾斜杠也归一，
+ * `.../28d/?key=` 和 `.../28d?key=` 是同一张页面。
+ */
+function routeOf(url) {
+  const s = String(url ?? '');
+  const hashAt = s.indexOf('#');
+  if (hashAt >= 0) return { mode: 'hash', path: normalizeRoutePath(s.slice(hashAt + 1).split('?')[0]) };
+  const noQuery = s.split('?')[0];
+  const m = noQuery.match(/^[a-z][a-z0-9+.-]*:\/\/[^/]*(\/.*)?$/i);
+  return { mode: 'path', path: normalizeRoutePath(m ? m[1] || '/' : noQuery) };
+}
+
+function normalizeRoutePath(p) {
+  let out = String(p ?? '');
+  if (!out.startsWith('/')) out = `/${out}`;
+  out = out.replace(/\/+$/, '');
+  return out || '/';
+}
+
+/**
+ * 比对「请求的路由」和「落地的路由」，一致返回 null，不一致返回两边的路由。
+ * 导出只为可测。
+ */
+export function routeMismatch(requestedUrl, landedUrl) {
+  const want = routeOf(requestedUrl);
+  const got = routeOf(landedUrl);
+  if (want.mode === got.mode && want.path === got.path) return null;
+  return { requested: want.path, landed: got.path };
+}
+
+/**
+ * 在已登录的工具页内部深链跳转。**只有在 launchTool 跑完之后才有效。**
+ *
+ * **导航之后必须校验落地页就是请求的那一页。** 2026-08-28 实测：Similarweb 面板
+ * 对未知路由**不报 404**，而是静默重定向到 `#/digitalsuite/ai-brand-visibility/home`。
+ * 旧版这里只把落地的 `location.href` 原样返回，没有任何地方拿它跟请求的比过，
+ * 于是链条是：请求报表 A → 被静默换成另一张页面 → 就绪判据碰巧被满足 →
+ * **解析出来的数字被标成「报表 A 的结果」写进输出**。
+ * 一个看起来对的错数字比一次显式失败坏得多，所以这里宁可抛错。
+ *
+ * `{ allowRedirect: true }` 是给**已知会合法重定向**的调用方留的出口。
+ * 默认必须是严格的——默认宽松等于没修。
+ */
+export async function gotoInTool(evalPage, target, settleSeconds = 15, { allowRedirect = false } = {}) {
   const url = target.startsWith('http') ? target : target.replace(/^\/?/, '/');
   await evalPage(`(() => { location.href = ${JSON.stringify(url)}; return JSON.stringify({ navigating: true }); })()`);
   await sleep(settleSeconds * 1000);
-  return assertToolsShareAvailable(await evalPage('(() => JSON.stringify({ url: location.href, title: document.title, bodyText: (document.body?.innerText||"").slice(0, 1000) }))()'));
+  const landed = assertToolsShareAvailable(await evalPage('(() => JSON.stringify({ url: location.href, title: document.title, bodyText: (document.body?.innerText||"").slice(0, 1000) }))()'));
+  if (!allowRedirect) {
+    const drift = routeMismatch(url, landed.url);
+    if (drift) {
+      throw new Error(redactSecrets(
+        `Navigation landed on a different page than requested — this is a redirect, not a timeout, ` +
+          `and waiting longer will not fix it.\n` +
+          `  requested route: ${drift.requested}\n` +
+          `  landed route:    ${drift.landed}\n` +
+          `  requested url:   ${url}\n` +
+          `  landed url:      ${landed.url}\n` +
+          `Whatever renders on the landed page belongs to that page, so parsing it would file ` +
+          `someone else's numbers under the requested report. Fix the route. If this redirect is ` +
+          `known-legitimate, pass { allowRedirect: true } at the call site and say in a comment ` +
+          `where it redirects to and why that is fine.`,
+      ));
+    }
+  }
+  return landed;
 }
 
 /** 订阅快到期时的提醒文案，几个脚本都要用。 */
