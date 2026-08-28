@@ -87,26 +87,12 @@ const ALLOWED_ONE_SIDED = [
 
 // 已知分叉隔离区。两侧的归一化哈希都钉死：任何一侧再改就红，修好（两侧一致）也红。
 // 这里的每一条都是欠账，不是设计。
+//
+// **2026-08-28 清空**：本表上线时有两条。openAndEval 是真 bug——规范副本用了
+// 已知失效的 `{ cmd: 'wait' }`，而同一个文件里 sleepStep 的注释就写着那条是空操作，
+// 等于页面没渲染就被 eval 读了；已改成 sleepStep。sleepStep 自身那条只是形参名不同，
+// 也已统一。两条都是**修掉**而不是登记豁免——隔离区空着才是它该有的样子。
 const KNOWN_DRIFT = [
-  {
-    name: 'openAndEval',
-    canonicalHash: '073cd61673f54c65',
-    vendoredHash: 'acba09e716ccc53e',
-    reason:
-      '危险分叉，未修：vendored 侧用 sleepStep(wait)，规范侧仍用 { cmd: "wait", seconds } —— ' +
-      '而规范副本自己的 sleepStep 注释就写着 opencli 1.8.7 的 `wait time` 是空操作。' +
-      '也就是说规范副本的 openAndEval 根本没有等待。修法是把规范侧改成 sleepStep(wait)；' +
-      '本轮不动源码（有别的任务在跑实盘），先钉在这里。',
-  },
-  {
-    name: 'sleepStep',
-    canonicalHash: '84d3714b3999e4fb',
-    vendoredHash: 'd6e91fb591ed535a',
-    reason:
-      '无害分叉：两侧实现等价，只有 Promise 回调的形参名不同（规范侧 r，vendored 侧 resolve）。' +
-      '本判据不做 alpha 重命名归一化（那会让判据变得聪明而脆弱），所以记在这里。' +
-      '顺手统一形参名即可消除，届时删掉本条。',
-  },
 ];
 
 function extractExports(src, label) {

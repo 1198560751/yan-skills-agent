@@ -311,7 +311,7 @@ export async function closeSession(session) {
  */
 export function sleepStep(seconds) {
   const ms = Math.max(0, Math.round(Number(seconds) * 1000));
-  return { cmd: 'eval', args: { js: `(async () => { await new Promise((r) => setTimeout(r, ${ms})); return true; })()` } };
+  return { cmd: 'eval', args: { js: `(async () => { await new Promise((resolve) => setTimeout(resolve, ${ms})); return true; })()` } };
 }
 
 /**
