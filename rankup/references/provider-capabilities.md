@@ -130,13 +130,18 @@ Similarweb 不同口径，不要并列」。那句话**对的是自然搜索口�
 | **可见性伪空** | 同一路由 `hidden` 读到 0、`visible` 读到满 | 只发生在**重表格页** `/analytics/traffic/top-pages/`：hidden 0 格 / visible 850 格，三次交叉验证 |
 | **A 类：本来就没表** | `visible` 下连读 3 次仍然 **0 个表格元素** | `referral` / `organic-search` / `paid-search` / `organic-social` 四条：svg 50–57 个、**0 个表格元素**、`innerText` 1094–1310 字符，与 `hidden` 下读到的**完全一致** |
 
+> **再更正（当天全量 sweep 之后）：两类不够，是四类。** 22 条路由跑完之后，
+> A 类实际是 **10 条**不是 4 条，而且另外还冒出两种既不是「空」也不是「图表型」的情况。
+> 完整分布见下面「22 条路由的实测分布」一节——**那一节是这条线上最该先读的一节**。
+
 **A 类不是水合截面——这条从「待复测」升级为已确认。** 曾经有过一个推测：
 「图先渲染、表后水合，hidden 的标签页卡在中间，正好长得像 A 类」。
 **这个推测已被证伪**：`visible` 下连读 3 次，结果与 hidden 下逐项一致。
 推测保留在这里存档，别删——这条路有人走过，结论是走不通。
 
-这四条路由**本来就只提供图表、不提供表格**，而图表里是 canva.com 的真实量级：
+这几条路由**本来就只提供图表、不提供表格**，而图表里是 canva.com 的真实量级：
 自然搜索轴到 **1.5 亿**、引荐 **6000 万**、自然社交 **3000 万**、付费搜索 **150 万**。
+（全量 sweep 之后这一类总共 **10 条**，见下面的分布表。）
 **数据存在，取数形态是图不是表。** 所以 A 类要写图表读取器，
 既不能报「没数据」，也不该套可见性重试循环——它的问题根本不是可见性。
 
@@ -179,6 +184,71 @@ id 为 `hidden-tabs-do-not-hydrate` 的那条 law。
   是**两种不同的失败**，不要混为一谈。
 - URL 上的 `lid=` 是**按账号隔离的列表 ID**。拿一个节点的 lid 去另一个节点，
   页面会静默落回空态落地页——而页头此时不显示目标域名，这是唯一的区分线索。
+
+
+### 流量与市场 22 条路由的实测分布（node 5，canva.com，2026-08-28）
+
+**先说能拿走的那一句：想要表格数据，这条线上只有 3 条路由能给。**
+另外 19 条要么只有图、要么静默空表、要么根本不是报表路由。
+写取数脚本之前先对着这张表选路由，别一条条撞过去。
+
+判定协议 **v4-visible-gated**：每条路由最多 3 轮导航、每轮轮询 100 秒；
+只有 `filled > 0`、或**连续 3 次在 `document.visibilityState === 'visible'` 下读到空**
+才允许下判定。逐条的非空单元格数、svg 数、`innerText` 长度、判定时的 `visibilityState`
+都落在 `rankup/data/provider-capabilities.json` 的 `perRouteFindings.routes` 里。
+
+| 类别 | 条数 | 一句话含义 | 代表路由 |
+|---|---|---|---|
+| `data` | **2** | 有表且有行，**只有这一类能直接喂给取数脚本** | `ai-traffic`（120 格）、`trending-websites`（140 格） |
+| `chart-only` | **10** | 页面本身不提供表格，只有 svg。**重读无效**，要写图表读取器 | `referral`、`organic-search`、`paid-search`、`organic-social`、`paid-social`、`email`、`display-ads`、`socioeconomics`、`behavior`、`daily-trends` |
+| `empty-silent` | **8** | 列头齐全、0 行、无 upsell、无限额、无「未找到匹配内容」。**可能是可见性伪空，值得复测** | `sources-destinations`、`subfolders-subdomains`、`page-groups`、`usa`、`business-regions`、`geographical-regions`、`demographics`、`audience-overlap` |
+| `requires-input` | **1** | 路由正常，但要人先贴输入才产出。不是「空」 | `industry-and-bulk-analysis` |
+| `not-a-report-route` | **1** | 压根不返回报表——是营销/定价页 | `trends-api` |
+
+> 「3 条能给表格数据」= 上表的 2 条，**加上不在这次 sweep 里的 `top-pages`（850 格）**。
+> `top-pages` 是另一次实测的结论，见上面「节点差异是观测假象」一节。
+
+⚠️ **`chart-only` 和 `empty-silent` 必须当成两个不同的东西**，它们的补救方式正好相反：
+前者重读多少次都没用（页面就是没表），后者重读/换节点**可能**读满。合并成一句「空」，
+就等于把两条相反的处置写成同一条。
+
+⚠️ **8 条静默空表现在还不能下「这个订阅拿不到」的结论**——node 8 的复测还在跑，
+JSON 里这 8 条都标着 `pendingCrossNodeCheck: true`。
+
+#### 三条容易被记错的判定
+
+1. **`industry-and-bulk-analysis` 不是「没数据」，是「需要输入才产出」。**
+   主体区原文：`批量分析 | 商家类别 | 竞争对手 | 0/100 | of 100 lines | 将文件拖放到此处或浏览 | CSV 或 TXT 小于 5MB | 文件每行必须包含一个 URL | 分析`。
+   它**不吃 URL 上的目标**，要人贴最多 100 行域名（或传 <5MB 的 CSV/TXT）。
+   sweep 把它记成 `inconclusive-target-lost`，只是因为页头没有 `canva.com`——**页头本来就不会有**。
+
+2. **`trends-api` 是纯营销页，不是数据路由，而且它的定价要单独记。**
+   页面原文：`基础版 | 访问流量摘要 | 每月 10,000 个 API 单位 | API 文档和设置指南 | $1000 | /月`，
+   `高级版 | 自定义套餐和定价 | 联系销售团队`（含 16 种额外数据类型、每日和每周流量数据、购买转化洞察见解），
+   另有「通过 MCP 将 Trends API 连接到 Claude、Cursor 或 VS Code」的宣传。
+   **`Trends API $1000/月` 独立于 App Center 里那条 `semrush-traffic-and-market` $289/月**——
+   两条不同产品线的价格，别混着报。
+
+3. **`trending-websites` 出数，但它不吃目标域名。**
+   它是全球榜单（样本原文 `google.com | 105.85B | 30.22%/31.99B | 69.78%/73.86B | ↑7.8%`），
+   所以它 `targetVisible=false` 是**正常的，不是「目标丢了」，更不是一次失败的读**。
+   以后看到这条记录别再把它当成需要重跑的失败。
+
+#### 一个渲染 bug（如实记录，成因未查）
+
+`/analytics/traffic/usa/` 的主体区漏出未解析的 i18n key，原文：
+`state.undefined | state.undefined | 流量比例 | n/a | 访问量 | n/a`——汇总值是 `n/a`，
+表格 0 行。**这是观测，不是结论。**
+
+#### 顺带修正两个口述数字
+
+写这一节时的口头摘要说「出数 3 条：`ai-traffic` / `top-pages` / `trending-websites`，
+图表型 9 条」。**以落盘的 sweep 文件为准，两处都不对**：
+
+- `top-pages` **根本不在这次 node 5 的 22 条里**（它只在文件末尾以 node 8 的复测行出现，
+  当时读到 `no-table`、0 格，那一轮还在跑）。所以本次 sweep 里出数的是 **2** 条。
+  `top-pages` 的 850 格是**另一次**实测，那条结论不受影响。
+- 图表型是 **10** 条，不是 9——上表已列全。
 
 ---
 
