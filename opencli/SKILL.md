@@ -137,6 +137,17 @@ semrush-nav        similarweb-nav
 十个 agent 拿到同一个名字，daemon 就把它们排成一队，Semrush 那边永远只看到
 一个标签页在一页页地翻。
 
+**动手前先跑 `pressure.mjs`：**
+
+```bash
+node <opencli-skill-dir>/scripts/pressure.mjs --tool semrush
+```
+
+它一句话回答「现在动手会不会把事情搞砸」——配额站已经几个标签页、到没到线、
+tools-share 锁被谁拿着、那个 pid 还活着吗，然后给 `go` / `wait` / `stale-lock`。
+退出码可以直接串起来：`node pressure.mjs --tool semrush && node my-crawler.mjs`。
+**它报 `unknown` 时不要当成「没人在用」**——那是「会话列表拿不到」，不是「0 个标签页」。
+
 | 规则 | 为什么 |
 |---|---|
 | **配额站用固定会话名**，`sessionForUrl(url, base)` 自动判 | 会话名就是并发度。名字固定 = 并发度 1 |
@@ -474,7 +485,9 @@ opencli browser "$S" batch --commands '[
 |---|---|
 | `scripts/opencli-core.mjs` | 给 JS 调用方的最小封装：`defaultSession()` / `sessionForUrl()` 生成安全的会话名、`openAndExtract()` 把一次访问打包成原子 batch、`sequentialCrawl()` 顺序采集带间隔、`reconcileSessions()` 差集回收、`sleepStep()` 真睡眠、`batchBrowser()` / `openAndEval()` 包住 batch |
 | `scripts/session.sh` | Bash tool 侧的同一套：`oc_session <base>`、`oc_session_for <url>`（配额站自动收敛）、`oc_guard_session` 拒绝 `$$` 形状的名字 |
+| `scripts/pressure.mjs` | **开工前的自查：现在能不能动手。** 配额站各有几个标签页（分「我的 / 共享 / 别人的」）、到没到线、tools-share 锁被哪个 pid 拿着多久、那个进程还活着吗，裁决 `go` / `wait` / `stale-lock` / `unknown` 并给出具体动作。`--tool <key>` 只看一个工具，`--json` 机读，退出码 0/2/3/4 可以直接当闸门。**陈旧锁只报告不删**——删别人的锁比等更危险 |
 | `tests/quota-sites.test.mjs` | 上面那些护栏的纯函数测试，不碰浏览器：`node --test opencli/tests/quota-sites.test.mjs` |
+| `tests/pressure.test.mjs` | `pressure.mjs` 的纯函数测试，会话列表和锁状态全部注入，不碰浏览器 |
 | `scripts/receiver.mjs` | 本地接收端：页面把数据 POST 进项目目录，绕开下载目录。端口按项目根派生、占用即崩、`/ping` 回报 root、`/script` 按白名单喂提取器源码 |
 
 ```bash

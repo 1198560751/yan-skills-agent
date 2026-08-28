@@ -73,7 +73,7 @@ backlink/
 │   ├── semrush-traffic.mjs         Traffic & Market (.Trends) TOTAL visits — the only
 │   │                               Semrush number comparable with Similarweb. Runs
 │   │                               **foreground by default**, alone in this Skill:
-│   │                               the summary does not hydrate in a hidden tab.
+│   │                               the summary never hydrates if it *loads* hidden.
 │   │                               See <law-ref id="hidden-tabs-do-not-hydrate"/>
 │   ├── traffic-crosscheck.mjs      offline: eats one semrush-traffic.mjs JSON and one
 │   │                               similarweb-query.mjs JSON and reports whether the two
@@ -453,20 +453,23 @@ else's script.
 </misplaced-flag>
 <exception>
 Request foreground only when the user explicitly wants to watch, or when the
-report itself does not hydrate in a hidden tab — one such report is measured and
-named in <law-ref id="hidden-tabs-do-not-hydrate"/>. If a site cannot be
+report itself never hydrates when it loads in a hidden tab — one such report is
+measured and named in <law-ref id="hidden-tabs-do-not-hydrate"/>. If a site cannot be
 operated without stealing focus, stop and report that constraint.
 </exception>
 </law>
 
 <law id="hidden-tabs-do-not-hydrate" weight="load-bearing">
 <statement>
-Some reports render their labels and column headers in a background tab but
-**never fill in the values**. Before you believe an empty report, read
-`document.visibilityState`. If it is `hidden`, re-read the same page under
-`--window foreground` and put the two captures side by side before you write
-down a single number — and never report the background result as "this domain
-has no data".
+Visibility gates a report's **first hydration**, not later reads of it. Some
+reports render their labels and column headers while hidden but **never fill in
+the values** — so a page that was hidden at the moment it loaded stays
+structurally complete and value-empty. Once it has hydrated, it keeps its values
+in the background: a hidden tab is not by itself a reason to distrust a read.
+So: make the tab visible for the load, then verify by reading
+`document.visibilityState` **inside the page at the moment you read the data**.
+Never trust the `--window` / `windowMode` you passed — it is intent, not fact.
+And never report an empty first read as "this domain has no data".
 </statement>
 <why>
 This is the most dangerous failure shape in this Skill, because it does not look
@@ -475,14 +478,38 @@ check that looks for headings, labels, or "does the table exist" passes on it,
 and the parser then honestly reports nulls for a page that simply had not
 hydrated.
 
-Measured 2026-08-28, controlled to one variable — same tab, same lid, same node,
-**no resubmission**, only `opencli browser &lt;session&gt; tab select` flipping the
-tab's `visibilityState`:
+Two independent experiments, both 2026-08-28, are what pins the law to *first
+hydration* rather than to reading:
+
+**Experiment A — flip visibility on a tab that has not hydrated yet.** Controlled
+to one variable: same tab, same lid, same node, **no resubmission**, only
+`opencli browser &lt;session&gt; tab select` flipping the tab's `visibilityState`:
 
 | tab state | `document.body.innerText` length | summary block |
 |---|---|---|
-| `hidden` (background) | 549 | labels only, **zero values** |
-| `visible` (foreground) | 1957 | **every value present** |
+| `hidden` | 549 | labels only, **zero values** |
+| `visible` | 1957 | **every value present** |
+
+**Experiment B — go to the background *after* hydration.** Same report line
+(.Trends top-pages, canva.com, 2026-07), read once it had already filled in:
+with `document.visibilityState === "hidden"` the page **still** yielded 850
+non-empty cells. Hiding a hydrated page does not empty it.
+
+Put together: the gate is on the initial fill, not on the read. Which is also
+why an early observation of "0 rows on node 5, 850 cells on node 8" was
+**retracted** — a later run read the same 850 cells on node 5. There was no node
+difference; there was a page read before it hydrated (and, likely compounding
+it, several processes contending for the same Semrush session — that run waited
+~9 minutes on the global lock). The empty read really happened; it was just
+never a fact about the domain.
+
+**And do not trust the mode name you passed.** The `windowMode` a script hands
+to opencli and the tab's actual `visibilityState` **disagree in practice**: in
+these runs the invocation labelled `background` read `visible`, and the one
+labelled `foreground` read `hidden`. The mode is an intent; the only admissible
+record is `document.visibilityState` sampled inside the page at read time. Any
+conclusion filed under "this was a background run" is unsound until re-measured
+that way.
 
 The parsing layer was never at fault: feeding the foreground `innerText` into
 `semrush-traffic.mjs`'s own `parseTrafficSummary` produced all 15 fields with
@@ -490,34 +517,51 @@ zero tolerance (visits 790000000, desktop 84.26 + mobile 15.74 = 100.00, `↓`
 correctly negative, `11:02` → 662s). Only the driver layer was broken, and it
 was broken by a **default** — `launchTool` defaults to background, the script
 passed `window: flags.window`, and with no `--window` that resolved to
-`undefined` → background. So the script's default invocation could never read
-its own report.
+`undefined` → background. So the script's default invocation asked for the
+report to load out of sight, which is exactly the moment that matters.
+
+`DEFAULT_WINDOW = 'foreground'` in `scripts/semrush-traffic.mjs` **remains the
+right fix** and should not be reverted. Read it for what it now is: it buys
+visibility *at the instant of first hydration*, not for the lifetime of the
+read. It is also a request, not a guarantee — see the `windowMode` caveat above —
+which is why the check below samples `visibilityState` from inside the page
+instead of trusting the flag.
 </why>
 <scope>
-**Confirmed affected:** the Semrush Traffic &amp; Market (.Trends) traffic-overview
-summary block. `scripts/semrush-traffic.mjs` therefore defaults to
-`--window foreground`; that is a per-report property, not a global one.
+**Confirmed affected — first hydration only:** the Semrush Traffic &amp; Market
+(.Trends) traffic-overview summary block, when it *loads* while hidden.
+`scripts/semrush-traffic.mjs` therefore defaults to `--window foreground`; that
+is a per-report property, not a global one, and it protects the load, not the
+read.
 
-**Confirmed NOT affected:** `scripts/semrush-report.mjs` and
+**Confirmed NOT affected:** reads of an *already hydrated* .Trends page — the
+same top-pages report handed back 850 non-empty cells with
+`visibilityState === "hidden"`. And `scripts/semrush-report.mjs` and
 `scripts/similarweb-query.mjs` have been pulling real numbers in background mode
 for as long as they have existed. So do **not** change the shared default in
 `scripts/lib-tools-share.mjs` — that would send every script racing for the
 foreground window and steal the owner's active tab, which is exactly what
 <law-ref id="background-by-default"/> exists to prevent.
 
-Whether any *other* report shares the .Trends behaviour is **unmeasured**. Treat
-a new empty-but-structured report as a candidate, measure it, and record the
-result here rather than assuming either way.
+**Unmeasured:** whether any *other* report shares the .Trends behaviour; and how
+often `windowMode` diverges from the real `visibilityState`, since both
+directions of that mismatch have now been seen but the mechanism has not been
+traced. Also unmeasured: how much of a stale empty read is hydration versus
+contention when several processes hold the same Semrush session (one such run
+waited ~9 minutes on the global lock). Treat a new empty-but-structured report
+as a candidate, measure it, record the sampled `visibilityState` alongside the
+result, and write the finding here rather than assuming either way.
 </scope>
 <correct><![CDATA[
-# 1. the value-bearing region is empty — do not conclude "no data" yet
+# 1. the value-bearing region is empty — do not conclude "no data" yet.
+#    sample visibility FROM THE PAGE; the --window you passed is not evidence.
 opencli browser "$S" eval '(() => JSON.stringify({
   visibility: document.visibilityState,
   len: (document.body.innerText || "").length,
 }))()'
 # -> {"visibility":"hidden","len":549}
 
-# 2. hidden -> re-read the SAME page in the foreground and compare
+# 2. hidden AND empty -> reload the SAME page so it hydrates visible, then compare
 node scripts/semrush-traffic.mjs --domain canva.com --window foreground
 # -> len 1957, all 15 fields populated  => it was hydration, not missing data
 ]]></correct>

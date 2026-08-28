@@ -339,13 +339,14 @@
           },
           "perRouteFindings": {
             "traffic-overview": "✅ 满数据（node 5，canva.com，2026年7月）。见 capturedSample。",
-            "top-pages": "⚠️ **同一域名同一路由，node 5 得 0 行、node 8 得 850 个非空单元格**。node 5 侧无任何错误、无升级提示、无限额提示——纯静默空表。原因未定。",
+            "top-pages": "✅ 满数据。**更正 2026-08-28**：本条此前记的是「同一域名同一路由，node 5 得 0 行、node 8 得 850 个非空单元格」。后续实测在 **node 5 上同一条路由拿到了同样的 850 个非空单元格**（前 6 格原文：主页 / 39.47% / 按「Tab」启用图形图表访问模块。/ 4.1亿 / 1.1亿 / 3.1亿，页头确认 canva.com），与 node 8 一致。**所以不存在 node5/node8 差异。** 原先那次 0 行是真实发生过的观测，但是观测假象，成因假设为下列之一或两者叠加：(a) 读取时标签页尚未水合；(b) 当时机器上有多个进程同时打 Semrush（这次为拿全局锁排队约 9 分钟）。不要把 0 行那次抹掉——它是「空表不等于没数据」现在最强的例证。",
             "countries": "❌ node 5 与 node 8 都是空（流量比例 n/a、访问量 n/a、表格 0 行）。原因未定，与 top-pages 是两种不同的失败。",
             "market-overview": "❌ 列头齐全但「域名 (0/0)」，疑似需要先定义市场/加竞品，未验证。",
             "referral / ai-traffic": "路由可达，未取到数据（只做了可达性扫描）。"
           },
           "savedListCheck": "展开「再显示 20 个结果」后清点 25 条保存的列表，canva.com 不在其中；提交前后前 5 条逐字节相同。 URL 上的 lid（node 5 是 1231490、node 8 是 1231560）**按账号隔离**，拿一个账号的 lid 去另一个账号会落回空态落地页。 结论：分析不创建保存的列表。限度：列表底部仍有「再显示 20 个」未展开，查的是前 25 条。",
-          "rule": "**在这条工具线里，空表不等于没数据。** 同一个 canva.com / 主要页面 / 2026年7月，node 5 返回 0 行且不报任何错，node 8 返回满表。任何针对本模块的取数脚本必须把「0 行」和「无数据」分开报，并且在报空之前换一个节点重试——把 0 行当成业务结论，就是本仓库反复出事的那类错误。"
+          "rule": "**在这条工具线里，空表不等于没数据。** 例证更新 2026-08-28：**同一个节点（node 5）、同一个 canva.com / 主要页面 / 2026年7月**，一次读到 0 行且不报任何错，另一次读到 850 个非空单元格。变量不是节点——是读取时刻的页面状态（水合完成与否、以及是否有别的进程在抢同一个浏览器）。任何针对本模块的取数脚本必须把「读到 0 行」和「这个域名没有数据」分开报；报空之前重读一次，并同时记下读取瞬间的 document.visibilityState。把 0 行当成业务结论，就是本仓库反复出事的那类错误。（旧例证 node5 vs node8 已作废，见 perRouteFindings.top-pages。）",
+          "methodologyNote": "**windowMode ≠ visibilityState。** 脚本传给 opencli 的 --window / windowMode 只是意图，不是标签页的实际状态：2026-08-28 实测中，标记为 background 的那次读到 document.visibilityState=visible，标记为 foreground 的那次读到 hidden。**唯一可信的记录是读取瞬间在页面里读到的 document.visibilityState**，任何按模式名归因的结论都要重做。"
         },
         {
           "name": "AI SEO / AI Visibility",
@@ -578,7 +579,7 @@
               }
             ]
           },
-          "openQuestion": "The App Center sells `semrush-traffic-and-market` (Semrush Traffic & Market, $289/mo) - the same 流量与市场 (.Trends) module this account already reaches directly from the panel sidebar. That is a CANDIDATE, UNVERIFIED explanation for the unresolved node split recorded elsewhere in this file (same canva.com, same /analytics/traffic/top-pages/, same 2026-07: node 5 returned 0 rows without erroring while node 8 returned 850 non-empty cells). Per-node subscription state is being measured separately; do not treat this as the answer."
+          "openQuestion": "The App Center sells `semrush-traffic-and-market` (Semrush Traffic & Market, $289/mo) - the same 流量与市场 (.Trends) module this account already reaches directly from the panel sidebar. That observation still stands on its own. WITHDRAWN 2026-08-28: this entry used to offer that App as a candidate explanation for a node split (same canva.com, same /analytics/traffic/top-pages/, same 2026-07: node 5 returning 0 rows while node 8 returned 850 non-empty cells). It was not disproved as a hypothesis - **the phenomenon it was invented to explain does not exist**. A later run read the same 850 non-empty cells on node 5 itself, so there is no node split left to explain, and per-node subscription state is no longer the question. Keep the distinction: nothing here says the App is or is not per-node; the split simply was not real. See perRouteFindings.top-pages for the observation that was corrected and why it was probably seen."
         }
       ],
       "interfaces": [
