@@ -287,26 +287,48 @@ function buildColumnIndex(headers, wanted) {
 }
 
 /**
- * 「列名对上了、但这一列的值全解析成 null」——这比 missingColumns 更隐蔽：
- * missingColumns 说的是「压根没找到这一列」，suspectColumns 说的是「列找到了，
- * 原始格子里明明有非占位符的真实文本，解析函数却把它们全喂成了 null」，
- * 多半是这一列的取值/换算逻辑写错了，而不是页面没渲染。
+ * 逐列统计「原文有内容 → 解析成 null」的行数，分两档报。
+ *
+ * `missingColumns` 说的是「压根没找到这一列」；这里说的是「列找到了，原始格子
+ * 里明明有非占位符的真实文本，解析函数却把它喂成了 null」——多半是取值/换算
+ * 逻辑写错了，而不是页面没渲染。
+ *
+ * **旧版要求整列全 null 才报（`allParsedNull`），那不是检测器。** 丢 120/121 行
+ * 它也沉默，因为剩的那 1 行不是 null。真实事故正是部分丢失：121 个国家里 9 个的
+ * 份额格式解析不了，行数对得上、列名找得到、这个检测器空——三个信号一致地
+ * 说「干净」。占位符已经不进分母了，所以分母里剩下的每一个 null 都是我们看见
+ * 却扔掉的数据，**没有良性的 null，也就不该有阈值**。
+ *
+ *   - `partialLossColumns`：任何非零丢失，丢 1 行就报，并带上原文样本。
+ *   - `suspectColumns`：丢失过半，整列基本报废。
  */
-function findSuspectColumns(index, wanted, rawRows, parsedRows) {
-  const suspects = [];
-  if (!rawRows.length || !parsedRows.length) return suspects;
+function auditColumns(index, wanted, rawRows, parsedRows) {
+  const suspectColumns = [];
+  const partialLossColumns = [];
+  if (!rawRows.length || !parsedRows.length) return { suspectColumns, partialLossColumns };
   for (const [key, label] of Object.entries(wanted)) {
     const i = index[key];
     if (i == null || i < 0) continue; // 列名都没找到，已经在 missingColumns 里了
-    const hasRealRaw = rawRows.some((row) => {
+    let realCount = 0;
+    const lost = [];
+    rawRows.forEach((row, ri) => {
       const v = String(row[i] ?? '').trim();
-      return v && !NO_VALUE.test(v);
+      if (!v || NO_VALUE.test(v)) return; // 占位符不进分母
+      realCount += 1;
+      const parsed = parsedRows[ri]?.[key];
+      // 空数组也算丢失：`intent` 这类多值列解析失败时给的是 []，不是 null，
+      // 只查 null 会漏掉它。
+      const empty = parsed === null || parsed === undefined
+        || (Array.isArray(parsed) && parsed.length === 0);
+      if (empty) lost.push(v);
     });
-    if (!hasRealRaw) continue;
-    const allParsedNull = parsedRows.every((row) => row[key] === null || row[key] === undefined);
-    if (allParsedNull) suspects.push(label);
+    if (realCount === 0 || lost.length === 0) continue;
+    if (lost.length / realCount > 0.5) suspectColumns.push(label);
+    else partialLossColumns.push({
+      column: label, lost: lost.length, of: realCount, samples: [...new Set(lost)].slice(0, 3),
+    });
   }
-  return suspects;
+  return { suspectColumns, partialLossColumns };
 }
 
 /**
@@ -526,7 +548,7 @@ function parseKeywordMagic(lines, cells) {
   // 侧栏聚簇的总量，用来核对「翻完了没有」。
   const totalLine = lines.find((l, i) => l === 'All' && /^[\d.,]+[KMB]?$/.test(lines[i + 1] || ''));
   const total = totalLine ? lines[lines.indexOf(totalLine) + 1] : null;
-  if (!cells?.headers?.length) return { rows: [], seedTotal: total, metricsPending: null, missingColumns: ['<no DOM cells>'] };
+  if (!cells?.headers?.length) return { rows: [], seedTotal: total, metricsPending: null, missingColumns: ['<no DOM cells>'], suspectColumns: [], partialLossColumns: [] };
 
   const wanted = {
     keyword: '关键词', intent: '意图', relevance: 'Relevance', volume: '搜索量',
@@ -552,7 +574,23 @@ function parseKeywordMagic(lines, cells) {
 
   // 指标待刷新的行要能被下游认出来，否则 null 会被当成「这个词没量」。
   const metricsPending = rows.filter((row) => row.volume === null).length;
-  return { rows, seedTotal: total, metricsPending, missingColumns };
+  // 这个解析器以前只有 missingColumns，没有任何「列名对得上但值解析崩了」的
+  // 检测——而 `27.1K → null` 那次事故正好发生在这条路径上的同类换算里。
+  // 注意分母用 `cells.rows`、parsedRows 用未经 keyword 过滤的行，两边必须等长。
+  const audited = cells.rows.map((row) => ({
+    keyword: String(cell(row, 'keyword') ?? '').replace(/\u200b/g, '').trim(),
+    intent: String(cell(row, 'intent') ?? '').split(/\s+/).filter(Boolean),
+    relevance: magicValue(cell(row, 'relevance')),
+    volume: magicValue(cell(row, 'volume'), { compact: true }),
+    kd: magicValue(cell(row, 'kd')),
+    cpc: magicValue(cell(row, 'cpc')),
+    competition: magicValue(cell(row, 'competition')),
+    serpFeatures: magicValue(cell(row, 'serpFeatures')),
+    results: magicValue(cell(row, 'results'), { compact: true }),
+    updated: String(cell(row, 'updated') ?? '').trim() || null,
+  }));
+  const audit = auditColumns(index, wanted, cells.rows, audited);
+  return { rows, seedTotal: total, metricsPending, missingColumns, ...audit };
 }
 
 /**
@@ -569,7 +607,7 @@ function parseKeywordMagic(lines, cells) {
  * 原始整格文本原样保留在 rootDomainRaw，切错了还能从这里回填，不必重新抓页面。
  */
 function parseReferringDomains(lines, cells) {
-  if (!cells?.headers?.length) return { rows: [], missingColumns: ['<no DOM cells>'], suspectColumns: [] };
+  if (!cells?.headers?.length) return { rows: [], missingColumns: ['<no DOM cells>'], suspectColumns: [], partialLossColumns: [] };
 
   const wanted = {
     authorityScore: 'AS', rootDomain: 'Root Domain / Category', backlinks: 'Backlinks',
@@ -631,15 +669,15 @@ function parseReferringDomains(lines, cells) {
   });
 
   // suspectColumns 要在丢弃「没有域名的行」**之前**算——那些行往往正是列错位的受害者，
-  // filter 掉之后 rawRows 和 parsedRows 数量对不上，findSuspectColumns 直接判不出来。
+  // filter 掉之后 rawRows 和 parsedRows 数量对不上，auditColumns 直接判不出来。
   // rootDomain 这一列的输出字段名是 referringDomain（不是 wanted 里写的那个 key
   // 本身），额外补一份别名字段只给这次检查用，不进最终输出。
   const suspectCheckRows = allRows.map((r) => ({ ...r, rootDomain: r.referringDomain }));
-  const suspectColumns = findSuspectColumns(index, wanted, cells.rows, suspectCheckRows);
+  const audit = auditColumns(index, wanted, cells.rows, suspectCheckRows);
 
   const rows = allRows.filter((row) => row.referringDomain);
 
-  return { rows, missingColumns, suspectColumns };
+  return { rows, missingColumns, ...audit };
 }
 
 /**
@@ -1023,6 +1061,33 @@ if (flags['self-test']) {
   const suspect = parseReferringDomains([], { headers: refHeaders, rows: suspectRows });
   const suspectOk = suspect.suspectColumns.includes('Backlinks') && suspect.missingColumns.length === 0;
 
+  // 部分丢失（回归：把 `27.1K → null` 那类事故重新注入）。10 行里坏 2 行 = 20%，
+  // 低于过半阈值——**旧的检测器在这份数据上必须保持沉默**，否则这个用例证明不了
+  // 任何新增能力。这正是真实事故的形态：不是整列崩，是一小撮行被静默扔掉。
+  const partialRows = Array.from({ length: 10 }, (_, i) => [
+    '10', `d${i}.com`, i < 2 ? '一千二百' : '1,204', '1.1.1.1', '2020年1月1日', '1 天前',
+  ]);
+  const partial = parseReferringDomains([], { headers: refHeaders, rows: partialRows });
+  const partialOk = partial.suspectColumns.length === 0            // 旧档：沉默
+    && partial.missingColumns.length === 0                          // 列名找得到
+    && partial.rows.length === 10                                   // 行数也对得上
+    && partial.partialLossColumns.length === 1                      // 新档：报出来
+    && partial.partialLossColumns[0].column === 'Backlinks'
+    && partial.partialLossColumns[0].lost === 2
+    && partial.partialLossColumns[0].of === 10
+    && partial.partialLossColumns[0].samples.includes('一千二百');
+  // 反面：干净数据必须两档都闭嘴，否则告警会因为噪音被无视。
+  const cleanRows = Array.from({ length: 10 }, (_, i) => [
+    '10', `d${i}.com`, '1,204', '1.1.1.1', '2020年1月1日', '1 天前',
+  ]);
+  const cleanParsed = parseReferringDomains([], { headers: refHeaders, rows: cleanRows });
+  const cleanOk = cleanParsed.partialLossColumns.length === 0 && cleanParsed.suspectColumns.length === 0;
+  // 占位符不进分母：整列「-」不是丢失，是页面明写的「没有这一项」。
+  const phRows = Array.from({ length: 4 }, (_, i) => [
+    '10', `d${i}.com`, '-', '1.1.1.1', '2020年1月1日', '1 天前',
+  ]);
+  const phOk = parseReferringDomains([], { headers: refHeaders, rows: phRows }).partialLossColumns.length === 0;
+
   const refOk = ref.rows.length === 4
     && ref.rows[0].authorityScore === 35 && ref.rows[0].referringDomain === 'coacht.com'
     && ref.rows[0].category === '知识' && ref.rows[0].rootDomainRaw === 'coacht.com\n知识'
@@ -1044,7 +1109,7 @@ if (flags['self-test']) {
     && refRollup.length === 3 && refRollup[0].referringDomain === 'dup.com' && refRollup[0].hitCount === 2
     && refRollup[0].fromDomains.join(',') === 'example.com'
     && refRollup[1].hitCount === 1 && refRollup[2].hitCount === 1
-    && rollupMultiOk && suspectOk;
+    && rollupMultiOk && suspectOk && partialOk && cleanOk && phOk;
 
   // recordLine 曾经把 Country / IP 列的 IPv4（点分、字母数字，字符类和域名一样）
   // 也数成一条记录，导致 raw=200、parsed=100 的假警报（2026-08-27 live 实测，正好 2 倍）。
@@ -1240,6 +1305,22 @@ try {
   }
   if (coverage?.virtualScrollTruncated) {
     console.error(`[truncated] ${name}: page reports ${coverage.pageSelfReportedTotal} records, raw captures contain ${coverage.rawRecordCount}.`);
+  }
+
+  // 解析质量必须**说出来**，不能只放进 JSON 等人去翻。missingColumns 是「列没了」，
+  // partialLossColumns 是「列在、值被静默丢了」——后者才是真实事故的形态，
+  // 而它以前在这个文件里连一条 console 都没有。
+  for (const col of parsed.missingColumns || []) {
+    console.error(`[missing-column] ${name}: 表里找不到「${col}」列，该字段本次全为 null。`);
+  }
+  for (const col of parsed.suspectColumns || []) {
+    console.error(`[suspect-column] ${name}: 「${col}」列过半的行解析成 null，这一列基本报废。`);
+  }
+  for (const loss of parsed.partialLossColumns || []) {
+    console.error(
+      `[partial-loss] ${name}: 「${loss.column}」列有 ${loss.lost}/${loss.of} 行解析成 null，` +
+      `原文样本：${loss.samples.map((v) => JSON.stringify(v)).join(', ')}。`,
+    );
   }
 
   output = {

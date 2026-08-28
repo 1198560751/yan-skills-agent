@@ -294,6 +294,55 @@ try {
       );
     }
   }
+  // ---- 自洽校验（不需要第二个数据源的交叉验证）----------------------------
+  // 这一段查的都是「页面自己说的话有没有互相打架」。真实事故的教训：missingColumns
+  // 空、rowsRead 对得上、suspectColumns 空——三个信号一致地说「干净」，而 121 个
+  // 国家里有 9 个的流量份额被静默丢掉了。单一信号查不出部分失败，得让几条互不
+  // 依赖的路径同时说话。
+  for (const [label, result] of [['audience-geo', geoResult], ['site-keywords', keywordsResult]]) {
+    for (const loss of result?.partialLossColumns ?? []) {
+      // **没有阈值**：占位符已经不进分母了，剩下的每一个 null 都是页面上确实
+      // 印着内容、却被我们扔掉的格子。带上原文样本，否则没法排查缺的是哪种格式。
+      console.error(
+        `[partial-loss] ${label} ${domain}: 「${loss.column}」列有 ${loss.lost}/${loss.of} 行解析成 null，` +
+        `原文样本：${loss.samples.map((v) => JSON.stringify(v)).join(', ')}。`,
+      );
+    }
+  }
+  if (geoResult?.trafficShareSum) {
+    const { sum, contributing, ofRows } = geoResult.trafficShareSum;
+    // 只有在「这张表确认读全了」的前提下，和才应该 ≈100——读了半张表当然不足
+    // 100，那是截断问题，上面已经单独报过了，不该在这里重复报一次假警报。
+    const complete = geoResult.totalRowsOnPage !== null
+      && geoResult.rowsRead === geoResult.totalRowsOnPage
+      && !geoResult.columnDepthMismatch;
+    // 容差 2 个百分点：每行份额是四舍五入到 2 位显示的，121 行累积起来本身
+    // 就有约 0.6 的漂移；`< 0.01%` 这类下限值又按上限取，会略微高估。
+    if (complete && Math.abs(sum - 100) > 2) {
+      console.error(
+        `[sum-check] audience-geo ${domain}: 各国流量份额之和 ${sum}%（${contributing}/${ofRows} 行有数值），` +
+        `偏离 100% 超过容差——要么有行的份额被丢掉了，要么这一列的单位解析错了。`,
+      );
+    }
+  }
+  if (keywordsResult?.totalPages && keywordsResult.pageReportedKeywordTotal) {
+    // 同源异视图的等值检查：表头声明的全站关键词总数 ÷ 每页行数，应该约等于
+    // 分页器声明的总页数。这两个数字来自页面上两个**完全不同**的地方，由两个
+    // 互相不知道对方存在的解析器读出来，同时对得上就是互相印证。
+    //
+    // 这条检查以前是写在注释里的，理由是「怕误报把好数据拦下来」——但警告不是
+    // 拦截，怕误报就不做检查，等于把唯一一条真等值验证路径关掉了。
+    const ROWS_PER_PAGE = 100;
+    const impliedPages = Math.ceil(keywordsResult.pageReportedKeywordTotal / ROWS_PER_PAGE);
+    // 容差 1 页：末页不满、以及总数本身可能是估算值。
+    if (Math.abs(impliedPages - keywordsResult.totalPages) > 1) {
+      console.error(
+        `[cross-check] site-keywords ${domain}: 表头总数 ${keywordsResult.pageReportedKeywordTotal} ` +
+        `推出约 ${impliedPages} 页，分页器却说 ${keywordsResult.totalPages} 页——两个解析器里至少有一个不对。`,
+      );
+    }
+  }
+
   output = {
     version: 1,
     source: 'Similarweb via authenticated Tools Share browser session',
@@ -449,6 +498,38 @@ function runSelfTest() {
   const geoRows5 = deriveGeoRows({ headers: geoHeaders, rows: geoBadFormatRows });
   assert('geo bad-format column not in missingColumns (name matched)', !geoRows5.missingColumns.includes('流量份额'));
   assert('geo bad-format column surfaces in suspectColumns', geoRows5.suspectColumns.includes('流量份额'));
+
+  // ---------- 部分丢失检测（回归：把已修的事故重新注入）----------
+  // 2026-08-27 事故复刻：121 个国家里 9 个的份额格式解析不了。
+  // 关键点是**旧检测器必须在同一份数据上保持沉默**——如果它也报了，
+  // 这个用例就没有证明任何新增能力，只是重复覆盖。
+  const injectedHeaders = ['国家/地区 (121)', '流量份额', '变动', '受众群体份额', '国家/地区排名', '访问持续时间', '页面数/访问'];
+  const injectedRows = Array.from({ length: 121 }, (_, i) => [
+    `C${i}`, i >= 112 ? 'under 0.01%' : '0.82%', '-', '1%', `#${i + 1}`, '00:01:00', '2',
+  ]);
+  const injected = deriveGeoRows({ headers: injectedHeaders, rows: injectedRows });
+  assertEqual('injected loss: 旧的过半阈值检测器保持沉默（这正是事故当时的状态）', injected.suspectColumns, []);
+  assertEqual('injected loss: missingColumns 也是空的（列名找得到）', injected.missingColumns, []);
+  assertEqual('injected loss: 行数完全对得上（截断检测同样无感）', injected.rowsRead, injected.totalRowsOnPage);
+  assertEqual('injected loss: 新检测器报出丢失行数', injected.partialLossColumns[0]?.lost, 9);
+  assert('injected loss: 报告带上原文样本，否则没法排查缺哪种格式',
+    injected.partialLossColumns[0]?.samples.includes('under 0.01%'));
+  // 第二条独立路径：求和。它和列检测互不依赖，两条同时响才算交叉验证。
+  assert('injected loss: 份额之和明显偏离 100%', Math.abs(injected.trafficShareSum.sum - 100) > 2);
+
+  // 反面用例：数据干净时两条路径都必须闭嘴，否则这个检测器会因为噪音被无视。
+  const cleanRows = Array.from({ length: 100 }, (_, i) => [
+    `C${i}`, '1%', '-', '1%', `#${i + 1}`, '00:01:00', '2',
+  ]);
+  const clean = deriveGeoRows({ headers: ['国家/地区 (100)', '流量份额', '变动', '受众群体份额', '国家/地区排名', '访问持续时间', '页面数/访问'], rows: cleanRows });
+  assertEqual('clean geo: 无部分丢失', clean.partialLossColumns, []);
+  assertEqual('clean geo: 份额之和正好 100', clean.trafficShareSum.sum, 100);
+  // 整列占位符不算丢失——它们不进分母，这是 NO_VALUE 那条统一定义在守的事。
+  const allPlaceholder = deriveGeoRows({
+    headers: ['国家/地区 (2)', '流量份额', '变动', '受众群体份额', '国家/地区排名', '访问持续时间', '页面数/访问'],
+    rows: [['A', '50%', '-', '不可用', '#1', '00:01:00', '2'], ['B', '50%', '-', 'N/A', '#2', '00:01:00', '2']],
+  });
+  assertEqual('placeholder 列不算部分丢失', allPlaceholder.partialLossColumns, []);
 
   // ---------- site-keywords ----------
   // 真实表头：「关键词 (38,977,695)」——空格 + 千分位逗号，这正是原版 fixture 漏掉、

@@ -41,7 +41,7 @@ export function parseNumber(value) {
   // 「< 0.01%」是页面在说「有值，但小于这个下限」，**不是没有值**。
   // 实测 audience-geo 的 121 个国家里有 9 个是这个形态；旧版正则匹配不到
   // 前导的 `<`，于是整整 9 行的流量份额被判成 null——而 9/121 只有 7.4%，
-  // 低于 findSuspectColumns 的 50% 阈值，连告警都不会有。**静默丢真实数据，
+  // 低于 auditColumns 的 50% 阈值，连告警都不会有。**静默丢真实数据，
   // 而且没有任何信号**，正是本库最不能接受的失败形态。
   // 取下限值本身（0.01），宁可略微高估也不要丢掉「这个国家确实有流量」这个事实。
   const belowBound = String(value ?? '').trim().match(/^[<＜]\s*([\d.,]+)\s*%?$/);
@@ -72,11 +72,11 @@ export function parseRank(value) {
  * **这个文件曾经有两份不一致的占位符定义**：这里的 `NO_VALUE` 认 `- — – --
  * N/A`，但不认「不可用」；`swCell` 自己另写了一条认「不可用」却不认 `–`/`--`
  * 的正则。两份对不上带来两个真实后果：(a) 一个全是「不可用」的列，会被
- * `findSuspectColumns` 用 `NO_VALUE` 判断「这是不是占位符」时误判成「有真数据
+ * `auditColumns` 用 `NO_VALUE` 判断「这是不是占位符」时误判成「有真数据
  * 但解析失败」，假阳性打在这个信号最该被信任的地方；(b) `swText('不可用')`
  * 会把字符串 `不可用` 原样当成真实值放出去，`country: "不可用"`、
  * `topUrl: "不可用"` 就这么混进结果里。现在全文件只有这一条定义，
- * `swCell`/`swText`/`parseSignedPercent`/`parseDuration`/`findSuspectColumns`
+ * `swCell`/`swText`/`parseSignedPercent`/`parseDuration`/`auditColumns`
  * 全部认它，不许各写各的。
  */
 const NO_VALUE = /^(?:[-—–]|N\/A|n\/a|--|不可用)$/i;
@@ -369,25 +369,54 @@ function nonEmptyRows(rows) {
  * 也能抓住「一半以上失败」这种局部损坏，同时不会因为个别行本来就该是 null
  * （占位符不算在分母里）而误报。
  */
-function findSuspectColumns(index, wanted, rawRows, parsedRows) {
-  const suspects = [];
-  if (!rawRows.length || !parsedRows.length) return suspects;
+/**
+ * 逐列统计「看得见的原文 → 解析成 null」的比例。
+ *
+ * **分母里的每一个 null 都是丢数据。** 占位符（`-`、`N/A`、`不可用`）已经被
+ * 排除在 realCount 之外，所以留在分母里的都是页面上确实印着内容的格子；它解析
+ * 不出来，就是我们看见了却扔掉了。这里不存在良性的 null。
+ *
+ * 因此有两档，而不是一个阈值：
+ *   - `partialLossColumns`：**任何** 非零丢失。这一档没有阈值，丢 1 行就报。
+ *   - `suspectColumns`：丢失过半，整列基本报废。保留原语义供既有调用方使用。
+ *
+ * 为什么必须有第一档：`< 0.01%` 那次事故里，121 个国家丢了 9 个 = 7.4%，
+ * 远低于 50%，于是 suspectColumns 是空的、missingColumns 是空的、行数对得上，
+ * **所有信号一致地说「干净」**。静默丢真实数据且毫无告警，是本库最不能接受的
+ * 失败形态；用一个「过半才报」的检测器去防它，等于没防。
+ */
+function auditColumns(index, wanted, rawRows, parsedRows) {
+  const suspectColumns = [];
+  const partialLossColumns = [];
+  if (!rawRows.length || !parsedRows.length) return { suspectColumns, partialLossColumns };
   for (const [key, label] of Object.entries(wanted)) {
     const i = index[key];
     if (i == null || i < 0) continue; // 列名都没找到，已经在 missingColumns 里了
     let realCount = 0;
-    let nullAmongReal = 0;
+    const lost = [];
     rawRows.forEach((row, ri) => {
       const v = String(row[i] ?? '').trim();
       if (!v || isPlaceholder(v)) return; // 占位符不进分母——它解析成 null 是正常结果
       realCount += 1;
       const parsedValue = parsedRows[ri]?.[key];
-      if (parsedValue === null || parsedValue === undefined) nullAmongReal += 1;
+      if (parsedValue === null || parsedValue === undefined) lost.push(v);
     });
-    if (realCount > 0 && nullAmongReal / realCount > 0.5) suspects.push(label);
+    if (realCount === 0) continue;
+    if (lost.length / realCount > 0.5) suspectColumns.push(label);
+    else if (lost.length > 0) {
+      // 带上原文样本。只报「这列丢了 9 行」没法排查；带上 `< 0.01%` 的原文，
+      // 一眼就能看出解析函数缺的是哪种格式。
+      partialLossColumns.push({
+        column: label,
+        lost: lost.length,
+        of: realCount,
+        samples: [...new Set(lost)].slice(0, 3),
+      });
+    }
   }
-  return suspects;
+  return { suspectColumns, partialLossColumns };
 }
+
 
 /**
  * 受众地理位置：按国家列出流量份额、受众份额、国家排名、访问时长、页面数/访问。
@@ -403,10 +432,25 @@ function findSuspectColumns(index, wanted, rawRows, parsedRows) {
  * 会再看它。行号本来就等于这一行在表里的顺序，所以直接用行下标 +1，不当成
  * 「找不到的列」处理。
  */
+/**
+ * 一列百分比的求和，外加「有多少行真的贡献了数字」。
+ *
+ * 只给事实，不下判断——「和是不是该等于 100」取决于这张表读全了没有，
+ * 那是调用方才知道的事。这里**不做**「差不多就算了」的容忍处理：把 sum
+ * 原样交出去，让判定逻辑集中在一个地方。
+ */
+function sumShare(rows, key) {
+  const values = rows.map((r) => r[key]).filter((v) => typeof v === 'number' && Number.isFinite(v));
+  if (!values.length) return null;
+  // 浮点累加会让 100 变成 100.00000000000001，四舍五入到 2 位再报。
+  const sum = Math.round(values.reduce((a, b) => a + b, 0) * 100) / 100;
+  return { sum, contributing: values.length, ofRows: rows.length };
+}
+
 export function deriveGeoRows(cells) {
   if (!cells?.headers?.length || !Array.isArray(cells.rows)) {
     return {
-      rows: [], missingColumns: ['<no DOM columns>'], suspectColumns: [],
+      rows: [], missingColumns: ['<no DOM columns>'], suspectColumns: [], partialLossColumns: [],
       totalRowsOnPage: null, rowsRead: 0, columnDepthMismatch: null,
     };
   }
@@ -441,7 +485,12 @@ export function deriveGeoRows(cells) {
   return {
     rows,
     missingColumns,
-    suspectColumns: findSuspectColumns(index, wanted, rawRows, rows),
+    ...auditColumns(index, wanted, rawRows, rows),
+    // 自洽校验：各国流量份额加起来应该 ≈ 100%。这是**不需要第二个数据源**就能
+    // 做的交叉验证——页面自己声明了一个总量，各行是它的拆分。丢行、丢值、
+    // 单位解析错，都会让这个和偏离。`< 0.01%` 那次事故里 121 国丢了 9 个，
+    // 列检测因为只丢 7.4% 而沉默，但这个和会掉下来。
+    trafficShareSum: sumShare(rows, 'trafficSharePercent'),
     totalRowsOnPage: headerTotal(cells.headers, '国家/地区'),
     rowsRead: rows.length,
     // 提取器发现列长度不一致时置 true——说明最短的那一列把所有列都从底部
@@ -521,7 +570,7 @@ function deriveTop5SharePercent(rows) {
 export function deriveSiteKeywordRows(cells) {
   if (!cells?.headers?.length || !Array.isArray(cells.rows)) {
     return {
-      rows: [], missingColumns: ['<no DOM rows>'], suspectColumns: [], top5SharePercent: null,
+      rows: [], missingColumns: ['<no DOM rows>'], suspectColumns: [], partialLossColumns: [], top5SharePercent: null,
       pageReportedKeywordTotal: null, rowsRead: 0, morePagesAvailable: null, currentPage: null, totalPages: null,
     };
   }
@@ -585,41 +634,42 @@ export function deriveSiteKeywordRows(cells) {
     };
   });
 
-  const suspectColumns = findSuspectColumns(index, wanted, rawRows, rows);
+  const { suspectColumns, partialLossColumns } = auditColumns(index, wanted, rawRows, rows);
   // 找到了「变动」列，但左边既不是「点击量」也不是「#URL」——消歧失败，没法
   // 安全地分给任何一个字段，报出来让人去看，而不是猜一个安上去。
   if (unresolvedChangeIndices.length) suspectColumns.push('变动(左邻列无法识别)');
 
   // `点击量`、点击量涨跌、#URL 涨跌都不在 `wanted` 里（它们要么是特判解析、
-  // 要么按左邻列消歧），findSuspectColumns 覆盖不到，这里单独查一遍——
+  // 要么按左邻列消歧），auditColumns 覆盖不到，这里单独查一遍——
   // 2026-08-27 那次真实事故就是「点击量」按名字找到了、却整列解析成 null，
-  // 这正是这个信号该抓住的案例。用比例而不是「全部」，理由见 findSuspectColumns
+  // 这正是这个信号该抓住的案例。用比例而不是「全部」，理由见 auditColumns
   // 顶部注释：同样的道理在这两列特判逻辑上也成立。
-  const ratioSuspect = (colIdx, isRowNull) => {
-    if (colIdx < 0 || !rawRows.length) return false;
+  // 和 auditColumns 同样的两档，只是这几列走特判解析、不在 `wanted` 里，
+  // 所以得单独统计一遍。**同一个「非占位符却解析成 null 就是丢数据」的判断**，
+  // 不要因为这里是特判路径就退回到只看过半。
+  const auditSpecial = (label, colIdx, isRowNull) => {
+    if (colIdx < 0 || !rawRows.length) return;
     let realCount = 0;
-    let nullCount = 0;
+    const lost = [];
     rawRows.forEach((row, ri) => {
       const v = String(cellAt(row, colIdx) ?? '').trim();
       if (!v || isPlaceholder(v)) return;
       realCount += 1;
-      if (isRowNull(ri)) nullCount += 1;
+      if (isRowNull(ri)) lost.push(v);
     });
-    return realCount > 0 && nullCount / realCount > 0.5;
+    if (realCount === 0 || lost.length === 0) return;
+    if (lost.length / realCount > 0.5) suspectColumns.push(label);
+    else partialLossColumns.push({
+      column: label, lost: lost.length, of: realCount, samples: [...new Set(lost)].slice(0, 3),
+    });
   };
-  if (ratioSuspect(clicksIdx, (ri) => rows[ri].clicks === null && rows[ri].clicksSharePercent === null)) {
-    suspectColumns.push('点击量');
-  }
-  if (ratioSuspect(clicksChangeIdx, (ri) => rows[ri].clicksChangePercent === null)) {
-    suspectColumns.push('点击量变动');
-  }
+  auditSpecial('点击量', clicksIdx, (ri) => rows[ri].clicks === null && rows[ri].clicksSharePercent === null);
+  auditSpecial('点击量变动', clicksChangeIdx, (ri) => rows[ri].clicksChangePercent === null);
   // 独立检查报告确认过：这个目标站点的 #URL 涨跌列 100% 是占位符，这是真实
   // 数据（这个站点这段时间排位确实没变），不是解析漏了——ratioSuspect 的分母
   // 只数「有真实内容、不是占位符」的格子，全是占位符时 realCount 是 0，
   // 自然不会被当成可疑，不需要专门为这种情况开后门。
-  if (ratioSuspect(rankChangeIdx, (ri) => rows[ri].rankChangePercent === null)) {
-    suspectColumns.push('排位变动');
-  }
+  auditSpecial('排位变动', rankChangeIdx, (ri) => rows[ri].rankChangePercent === null);
 
   // Antd simple 分页器的 title 是「1/389777」（当前页/总页数），不是
   // `.ant-pagination-total-text`——那个 class 只有用了 Antd 的 showTotal 才会
