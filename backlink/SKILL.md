@@ -466,18 +466,45 @@ reports render their labels and column headers while hidden but **never fill in
 the values** — so a page that was hidden at the moment it loaded stays
 structurally complete and value-empty. Once it has hydrated, it keeps its values
 in the background: a hidden tab is not by itself a reason to distrust a read.
-So: make the tab visible for the load, then verify by reading
-`document.visibilityState` **inside the page at the moment you read the data**.
+So: ask for a visible load, but **verify** it by reading
+`document.visibilityState` **inside the page at the moment you read the data** —
+asking is not getting (see the correction below).
 Never trust the `--window` / `windowMode` you passed — it is intent, not fact.
 And never report an empty first read as "this domain has no data".
 
-**What makes a tab visible is the click on the panel card, nothing else.** So
-the only recipe that reliably buys a visible first hydration is: (1)
-`opencli browser &lt;session&gt; close`, (2) a **brand-new** `launchTool({ ...,
-window: 'foreground' })` that actually walks the panel — never the reuse fast
-path, (3) navigate inside the page with `location.href` from there, which keeps
-the visibility you bought. Nothing flips an already-hidden tab back to visible:
-not the env, not `open --window foreground`, and least of all `tab select`.
+**CORRECTION 2026-08-28: visibility is not a quantity this side controls.** An
+earlier version of this law gave a three-step "reproducible recipe" whose third
+step — navigate with `location.href` and *keep* the visibility you bought — is
+**false**. What was actually measured: a brand-new `launchTool({ ...,
+window: 'foreground' })` does read `visible` at the instant it lands; **one
+in-page navigation later the same tab reads `hidden`**; and ten minutes after
+that it had flipped back to `visible` on its own, with nothing done to it.
+Best guess at the mechanism: Chrome reports `hidden` for a window that is
+**occluded by another window**, so the value tracks whatever is in front on the
+owner's desktop. Nothing in the CLI reaches that.
+
+**So the strategy is not "make it visible", it is "only believe the reads taken
+while it was visible".** The protocol that has been measured to work:
+
+- at most **3 navigation rounds** per route, each polling up to **100 seconds**;
+- a verdict is admissible only when `filled > 0`, **or** when three consecutive
+  reads under `vis === 'visible'` all came back empty;
+- if `visible` never arrived in the whole budget, the verdict is
+  **`inconclusive-hidden`** — **never** "empty";
+- record `visibilityState` on **every** read, not just the last one.
+
+Three things still do not flip an already-hidden tab back: not the env, not
+`open --window foreground`, and least of all `tab select` (details below).
+(There is also a read-only trick — redefine `document.visibilityState` to
+`visible` inside the page and dispatch `visibilitychange`. Measured as barely
+better than nothing; **it is not admissible as the basis of a verdict.**)
+
+**And two kinds of empty coexist — do not merge them.** A visibility-induced
+fake empty (proven only on `/analytics/traffic/top-pages/`) is cured by a
+`visible` read. A **Class A** route has no table at all: zero table elements
+under three consecutive `visible` reads, charts only. This law's remedy applies
+to the first and is wasted on the second. The table that separates them is in
+`&lt;why&gt;`.
 </statement>
 <why>
 This is the most dangerous failure shape in this Skill, because it does not look
@@ -525,6 +552,24 @@ session, same lid, same target domain, same month; the single variable is
 This is a harder control than Experiments A and B: one route, one session, one
 variable.
 
+**Experiment D — visibility flips by itself, in both directions (2026-08-28,
+same agent, after Experiment C).** This is the observation that killed the old
+recipe. Same session, nothing done to the tab between the reads:
+
+| moment | `visibilityState` |
+|---|---|
+| the instant a fresh `window: 'foreground'` launch lands | `visible` |
+| **after one in-page `location.href` navigation** | `hidden` |
+| ~10 minutes later, untouched | `visible` again |
+
+So `visible` is not a state you acquire and hold; it is a property of the
+owner's desktop at that instant — most plausibly Chrome reporting `hidden` for
+an **occluded** window. It follows that no sequence of CLI commands can
+guarantee it, and any protocol that assumes it can is wrong. What *is* available
+is the read's own `visibilityState`, sampled in the same eval as the data —
+which is why the admissible-verdict rules in the statement are written around
+waiting for a `visible` read rather than around producing one.
+
 **The mechanism, finally named.** Clicking a panel card is what raises Chrome to
 the foreground. `scripts/lib-tools-share.mjs` `launchTool` has a fast path that
 **reuses a session already parked on the tool origin** — and that path does not
@@ -547,6 +592,34 @@ in the same eval it was already doing, and when a `foreground` caller finds a
 - `opencli browser &lt;s&gt; tab select` is not merely useless here; it is the
   **prime suspect for turning a visible tab hidden**. See opencli SKILL.md law 2,
   "`tab select` silently fails".
+
+These three are the durable half of the old recipe: they have not flipped back
+under any re-measurement, and they are the reason "just ask for foreground
+again" is not a repair. Re-running any of them is wasted time.
+
+**Two different kinds of empty coexist here. Do not merge them.** An earlier
+version of this law (and of the rankup Skill's provider-capabilities reference)
+implied every empty or missing table might be a hydration artefact. Measurement 2026-08-28 says there are two
+distinct phenomena with different judgements:
+
+| phenomenon | test that separates them | what was measured |
+|---|---|---|
+| **visibility-induced fake empty** | same route reads 0 while `hidden` and full while `visible` | only on the **table-heavy** page `/analytics/traffic/top-pages/`: **0 cells hidden / 850 cells visible**, cross-checked three times |
+| **Class A — there was never a table** | three consecutive reads under `visible` still find **zero table elements** | `referral` / `organic-search` / `paid-search` / `organic-social`: 50–57 `svg` nodes, **0 table elements**, `innerText` 1094–1310 chars — **identical** to what the same routes gave while `hidden` |
+
+**Class A is not a hydration cross-section.** There was a hypothesis on record —
+"the charts render first and the table hydrates after, so a hidden tab is frozen
+mid-way and just happens to look like Class A". **That hypothesis is now
+falsified:** under `visible`, three consecutive reads returned the same
+chart-only shape. Keep the hypothesis on the page rather than deleting it; it
+was a reasonable road and the next reader should know it was walked.
+
+These four routes simply **serve charts, not tables**, and the charts carry real
+canva.com magnitudes (organic-search axis to 150M, referral 60M, organic-social
+30M, paid-search 1.5M). **The data exists; the extraction shape is a chart, not
+a table.** So a Class A route needs a chart reader — never a "no data" verdict,
+and never a visibility retry loop either, because visibility is not what is
+wrong with it.
 
 **And do not trust the mode name you passed.** The `windowMode` a script hands
 to opencli and the tab's actual `visibilityState` **disagree in practice**: in
@@ -586,6 +659,18 @@ inside the existing reuse eval and declining the reuse; the decline costs at
 most one extra `close` + launch, happens at most once per `launchTool` call, and
 does not recurse.
 
+**Confirmed affected — `/analytics/traffic/top-pages/`.** The one route where
+the visibility-induced fake empty is proven: 0 non-empty cells while `hidden`,
+850 while `visible`, three crossing measurements. Treat an empty read there as
+`inconclusive-hidden` until a `visible` read confirms it.
+
+**Confirmed NOT affected — the four Class A routes.** `referral`,
+`organic-search`, `paid-search`, `organic-social` return **zero table elements
+under `visible`, three reads running**, byte-for-byte the same shape they return
+while `hidden`. Their emptiness is not a visibility artefact and no amount of
+foreground buys a table; they publish charts only, and the numbers are in the
+chart. Do not file them under this law's remedy.
+
 **Confirmed NOT affected:** reads of an *already hydrated* .Trends page — the
 same top-pages report handed back 850 non-empty cells with
 `visibilityState === "hidden"`. And `scripts/semrush-report.mjs` and
@@ -595,7 +680,9 @@ for as long as they have existed. So do **not** change the shared default in
 foreground window and steal the owner's active tab, which is exactly what
 <law-ref id="background-by-default"/> exists to prevent.
 
-**Unmeasured:** whether any *other* report shares the .Trends behaviour; and how
+**Unmeasured:** whether visibility can be *made* deterministic at all from this
+side — the flip-flop of Experiment D was observed, not explained, and the
+occlusion mechanism is a guess. Also unmeasured: whether any *other* report shares the .Trends behaviour; and how
 often `windowMode` diverges from the real `visibilityState`, since both
 directions of that mismatch have now been seen but the mechanism has not been
 traced. Also unmeasured: how much of a stale empty read is hydration versus
@@ -613,9 +700,17 @@ opencli browser "$S" eval '(() => JSON.stringify({
 }))()'
 # -> {"visibility":"hidden","len":549}
 
-# 2. hidden AND empty -> reload the SAME page so it hydrates visible, then compare
+# 2. hidden AND empty -> you have NO verdict yet. Keep re-reading (<=3 nav
+#    rounds x 100s of polling) until either filled>0, or three consecutive
+#    reads under visibility==="visible" agree it is empty. You cannot force
+#    "visible" - you can only wait for it and record which reads had it.
 node scripts/semrush-traffic.mjs --domain canva.com --window foreground
-# -> len 1957, all 15 fields populated  => it was hydration, not missing data
+# -> a read that came back visible with len 1957 and all 15 fields => real data
+# -> never saw "visible" in the budget => status "inconclusive-hidden"
+
+# 3. empty under THREE consecutive visible reads, with 0 table elements and
+#    only svg? That is Class A: the route serves charts, not tables. Read the
+#    chart. Do not retry for visibility, and do not write "no data".
 ]]></correct>
 <wrong><![CDATA[
 # readiness judged by structure only: passes on a page with no values in it
@@ -624,6 +719,10 @@ const ready = /摘要|Summary/.test(bodyText) && document.querySelector('table')
 # and then the empty read gets written down as a fact about the domain
 { "visits": null, "status": "unavailable",
   "note": "canva.com has no .Trends data" }   # FALSE — the tab was hidden
+
+# treating a chart-only route as a hydration problem and retrying forever
+for (let i = 0; i < 20; i++) await relaunchForeground('/analytics/traffic/referral/');
+# FALSE — three visible reads already agreed: 0 table elements. It has no table.
 ]]></wrong>
 </law>
 
