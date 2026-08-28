@@ -75,7 +75,9 @@ function readMetrics(bodyText) {
   return {
     // `Number(x) || null` 会把 AS=0 吞成 null —— 而 0 是真实值（新站常见），
     // 与「没数据」含义相反。2026-08-21 在 semrush-report.mjs 上发现，同步修这里。
-    // 注意：这里的 0 只有在**连续两次读到同一个 0** 之后才可信，见下面的 captureStable。
+    // ⚠️ 这里的 0 **不能**靠「连续两次读到同一个 0」来采信——见下面
+    // `makeAuthorityScoreRenderSignal`：水合前的占位 0 本来就是完美稳定的。
+    // 采信 0 的唯一依据是 AS 组件自己给出的「已渲染完成」信号。
     authorityScore: (() => { const v = pick(lines, 'Authority Score', /^\d+$/); return v === null ? null : Number(v); })(),
     organicTraffic: parseCompact(pick(lines, '自然流量', /^[\d.,]+\s*[KMB]?$/i)),
     paidTraffic: parseCompact(pick(lines, '付费流量', /^[\d.,]+\s*[KMB]?$/i)),
@@ -86,6 +88,98 @@ function readMetrics(bodyText) {
     organicTrafficChange: pick(lines, '自然流量', /^[+\-−][\d.]+%$/),
     organicKeywordsChange: pick(lines, '自然搜索关键词', /^[+\-−][\d.]+%$/),
   };
+}
+
+/**
+ * Authority Score 组件的**完成信号探针**（页面产出的事实，不是我们这边的计数）。
+ *
+ * 判据必须绑在 AS 这一个组件上，不是整页——见
+ * <law-ref id="readiness-must-bind-to-this-query"/>：「页面上出现了 X」永远要先问
+ * 「X 有没有可能由别处提供？」。整页扫 svg / 链接 / 骨架都会被别的卡片满足，
+ * 于是又变成一个和 AS 无关的赌。所以从「Authority Score」这个纯文本标签往上爬，
+ * **一碰到别的指标标签就停**，只在这个盒子里取证。
+ *
+ * 采集三件事，全都只在 AS 这个数据点绑定之后才可能为真：
+ *   - `busy`   组件里还有骨架 / aria-busy / progressbar —— 明确「还没渲染完」；
+ *   - `trend`  数值旁边的变化量（`+2` / `−1` / `+356%`）—— 只有真值到位才渲染；
+ *   - `noData` 组件里渲染了明确的「无数据」（不可用 / n/a / 暂无数据）。
+ *
+ * ⚠️ **不采集「值是不是 0」**。「非 0」不是完成信号，而是把结论绑回了要判定的那个
+ * 数本身：真值就是 0 的新站会因此永远等到超时，而这正是本脚本 2026-08-21 那条注释
+ * 要保住的合法取值。
+ */
+const AS_WIDGET_PROBE_JS = `(() => {
+  const clean = (s) => String(s == null ? '' : s).replace(/\\s+/g, ' ').trim();
+  const LABEL = /^(Authority Score|权威分数|权重分)$/;
+  const OTHER = /自然流量|付费流量|引荐域名|自然搜索关键词|反向链接|Organic Traffic|Referring Domains|Backlinks/;
+  const label = Array.from(document.querySelectorAll('div,span,p,h1,h2,h3,h4,h5,h6,td,th,a,li'))
+    .find((el) => el.children.length === 0 && LABEL.test(clean(el.textContent)));
+  // 标签都还没挂上 —— 连「AS 组件在哪」都不知道，就不要假装知道它渲染完了。
+  if (!label) return null;
+  let widget = label;
+  for (let i = 0; i < 4 && widget.parentElement; i++) {
+    const parent = widget.parentElement;
+    // 爬到把别的指标也圈进来了就停：再往上取到的证据是别人的，不是 AS 的。
+    if (OTHER.test(clean(parent.innerText))) break;
+    widget = parent;
+  }
+  const text = clean(widget.innerText);
+  // 标签本身不含数字和正负号，但还是先摘掉，免得组件名里的字符混进变化量判定。
+  const value = text.replace(/Authority Score|权威分数|权重分/g, ' ');
+  return {
+    found: true,
+    busy: Boolean(widget.querySelector('[aria-busy="true"],[role="progressbar"],[class*="skeleton" i],[class*="loading" i],[class*="shimmer" i],[class*="placeholder" i]')),
+    trend: /[+\\-−]\\s?\\d/.test(value),
+    noData: /不可用|暂无数据|暂无|n\\/a/i.test(text),
+    text: text.slice(0, 200),
+  };
+})()`;
+
+/**
+ * 纯判据，离线可测。**有状态**：`busy` 见过一次就记下来，之后它消失就是
+ * 「加载指示消失了」——法条点名认可的三种完成信号之一（分页器出现 / 行数计数出现 /
+ * 加载指示消失）。所以用工厂函数返回闭包，一次 captureStable 用一个。
+ *
+ * 三条路径任一成立即为「已渲染完成」；一条都不成立就是**没有信号**，
+ * captureStable 会一直等到 deadline 然后交 `inconclusive` —— 不是 0，也不是「稳定值」。
+ */
+function makeAuthorityScoreRenderSignal() {
+  let sawBusy = false;
+  return (capture) => {
+    const w = capture && capture.asWidget;
+    if (!w || !w.found) return false;
+    if (w.busy) { sawBusy = true; return false; }        // 还在转，不是信号
+    return Boolean(w.noData || w.trend || sawBusy);
+  };
+}
+
+/**
+ * 概览页的轮询，单独拆出来是为了**判据和它的绑定一起被测**：
+ * 把下面的 `renderSignal:` 一行删掉，事故复现测试就会变红（离线测试直接调它）。
+ */
+function pollOverview({ read, timeoutMs, intervalMs, needed }) {
+  return captureStable({
+    read,
+    fingerprint: (cap) => (cap?.ready ? JSON.stringify(readMetrics(cap.bodyText)) : null),
+    // 数值稳定只是必要条件；能不能当结论，看 AS 组件自己的完成信号。
+    renderSignal: makeAuthorityScoreRenderSignal(),
+    timeoutMs,
+    intervalMs,
+    needed,
+  });
+}
+
+/**
+ * 四种结局，下游含义完全不同，绝不许合并：
+ *   never-rendered  连标签都没出现 —— 节点/无数据，照旧报错
+ *   confirmed       数值稳定 **且** 拿到了完成信号 —— 唯一可以把数字（包括 0）当事实的一种
+ *   inconclusive    数值稳定但完成信号始终没出现 —— 屏幕上的 0 可能是占位符，不下结论
+ *   churning        数值一直在变 —— 和上面一种是两种失败，别混
+ */
+function settleVerdict(settled) {
+  if (!settled?.capture?.ready) return 'never-rendered';
+  if (settled.stable) return 'confirmed';
+  return settled.inconclusive ? 'inconclusive' : 'churning';
 }
 
 let output;
@@ -113,29 +207,36 @@ try {
   // 真实数字要再晚几秒才水合进去。2026-08-23 实测：一次跑 8 个域名，6 个被读成
   // authorityScore: 0，真值是 15~29（mmradar.gg 22、na.whatismymmr.com 29、
   // saveeditonline.com 38…）。而且**它不报错**——输出结构完整，只是数字是错的，
-  // 一路进报告都没人看得出来。所以就绪之后还要连读到**数值两次完全一致**才收下；
-  // 读不稳就显式失败，宁可重跑，也不写下一个可能是占位值的数字。
+  // 一路进报告都没人看得出来。
+  //
+  // 【2026-08-29 修正】旧版的补法是「连读到数值两次完全一致才收下」——**那条判据对
+  // 这个失败形态无效**，所以这个 bug 到今天仍然站着：水合前的占位 `0` 本身就是完美
+  // 稳定的，两次读立刻就一致，重复多少次都一样。见
+  // <law-ref id="readiness-must-bind-to-this-query"/>：重复次数和时长都不是页面产出的
+  // 东西。改成把结论绑到 AS 组件自己的完成信号上（见 AS_WIDGET_PROBE_JS），
+  // 拿不到信号就交 inconclusive，绝不把一个可能是占位符的 0 当事实写出去。
   const readOverview = () => launched.evalPage(`(() => JSON.stringify({
     url: location.href,
     title: document.title,
     ready: /Authority Score|权威分数/.test(document.body?.innerText || ''),
     bodyText: (document.body?.innerText || '').slice(0, 30000),
+    asWidget: ${AS_WIDGET_PROBE_JS},
   }))()`);
-  const settled = await captureStable({
+  const settled = await pollOverview({
     read: readOverview,
-    fingerprint: (cap) => (cap?.ready ? JSON.stringify(readMetrics(cap.bodyText)) : null),
     timeoutMs: Number(flags.timeout || 120) * 1000,
     intervalMs: Number(flags['stable-interval'] || 3) * 1000,
     needed: Number(flags['stable-reads'] || 2),
   });
   const captured = settled.capture;
-  if (!captured?.ready) {
+  const verdict = settleVerdict(settled);
+  if (verdict === 'never-rendered') {
     throw new Error(
       `Semrush overview for ${domain} never rendered its metrics. Most likely the node is down — ` +
         `rerun with a different --node. Second possibility: the domain has no data in db=${db || "(Semrush's default — not a global total)"}.`,
     );
   }
-  if (!settled.stable) {
+  if (verdict === 'churning') {
     throw new Error(
       `Semrush overview for ${domain} showed its labels but the numbers never settled ` +
         `(${settled.reads} reads over ${flags.timeout || 120}s). The values on screen are still ` +
@@ -167,7 +268,23 @@ try {
       quotas: launched.state.quotas,
       warning: expiryWarning(launched.state),
     },
-    metrics: Object.fromEntries(Object.entries(metrics).filter(([, v]) => v !== null && v !== undefined)),
+    // 拿到完成信号才配叫 metrics。没拿到就换个字段名放出去 —— 下游读 `metrics`
+    // 的代码会读到 undefined 然后炸掉，这正是想要的：显式失败，而不是收下一份
+    // 可能整块都是占位值的数（典型症状就是 authorityScore: 0）。
+    ...(verdict === 'confirmed'
+      ? { metrics: Object.fromEntries(Object.entries(metrics).filter(([, v]) => v !== null && v !== undefined)) }
+      : {
+        status: 'inconclusive',
+        unconfirmedMetrics: Object.fromEntries(Object.entries(metrics).filter(([, v]) => v !== null && v !== undefined)),
+        inconclusive: {
+          code: 'render_signal_missing',
+          message: `Semrush overview for ${domain}: 数值在 ${settled.reads} 次读数里一直稳定，但 Authority Score 组件` +
+            `始终没有给出「已渲染完成」的信号（变化量 / 明确无数据 / 加载指示消失，一个都没等到）。` +
+            `稳定的占位值和稳定的真值在这一刻长得一模一样，所以这里不下结论 —— ` +
+            `**不要**把上面的 unconfirmedMetrics 当事实，尤其是 authorityScore。` +
+            `重跑，或加大 --timeout；若某个域名反复如此，说明 AS 组件的完成信号探针需要按实际 DOM 复核。`,
+        },
+      }),
   };
 } catch (error) {
   output = {
@@ -189,4 +306,6 @@ if (typeof flags.out === 'string') {
   await writeFile(flags.out, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
 }
 printJson(output);
-if (output.status === 'unavailable') process.exitCode = 1;
+// inconclusive 也是失败：批量脚本靠退出码决定要不要重跑，
+// 一份「数字可能是占位符」的输出不许以 0 退出，否则它会被当成一次成功的读数归档。
+if (output.status === 'unavailable' || output.status === 'inconclusive') process.exitCode = 1;

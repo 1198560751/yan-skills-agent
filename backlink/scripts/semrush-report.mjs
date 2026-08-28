@@ -534,6 +534,49 @@ function looksEmpty(parsed) {
 }
 
 /**
+ * 页面自己渲染出来的「这里没有内容」。**这是页面产出的事实**，和「解析出 0 行」
+ * 不是一回事：后者也可能只是还没水合。各报告的 `spec.ready` 里已经在认这几句话
+ * （见上面的 REPORTS），这里复用同一组词，用途不同——那边是入场券，这边是
+ * 「空结果可以下结论」的依据。
+ */
+const EMPTY_STATE_RENDERED = /未找到结果|未找到匹配|未找到|没有找到|没有数据|暂无数据|No results|No backlinks|No data|Nothing found/i;
+
+/**
+ * `loadReport` 的指纹。**空结果不靠「多读一次」确认，靠结构。**
+ *
+ * 【2026-08-29 修正】上一版是 `needed: (print) => looksEmpty(parsed) ? 3 : 2` ——
+ * 「看起来空就多读一次」。那还是重复计数，而
+ * <law-ref id="readiness-must-bind-to-this-query"/> 的整条要点就是重复不是完成：
+ * 一个还没水合的表在任意次读数里都稳定地空着。发现者点出的具体走法更难看：当
+ * `isReady` 因为目标字符串出现在**面包屑**而不是表格主体里而通过时，一份未水合的
+ * 0 行解析会被稳稳确认 3 次，然后作为「空报表」归档，全程不报错。
+ *
+ * 换成和 `makeNextPageFingerprint` 同一条已验证过的结构判据：
+ *
+ *   | 形态                  | 结构特征                        | 能否下结论 |
+ *   |-----------------------|---------------------------------|-----------|
+ *   | 页面渲染了「无结果」  | 空态文案出现                    | 能         |
+ *   | 整页根本没有表        | `tableCount === 0`              | 能         |
+ *   | 表在、列头在、就是没行 | `tableCount > 0`                | **不能**，继续等 |
+ *   | 读不到 tableCount      | 判据没能绑上                    | **不能**，继续等 |
+ *
+ * 「继续等」等到 captureStable 的 deadline，然后 `stable === false`，调用方走
+ * `diagnoseUnrendered` 显式报错 —— 宁可让人重跑，也不把一张慢表归档成空报表。
+ */
+function makeReportFingerprint({ isReady, parseText, target }) {
+  return (cap) => {
+    if (!cap?.bodyText || !isReady(cap.bodyText, target)) return null;
+    const parsed = parseText(cap.bodyText, cap.cells);
+    if (parsed === null) return null;
+    const print = JSON.stringify(parsed);
+    if (!looksEmpty(parsed)) return print;
+    if (EMPTY_STATE_RENDERED.test(cap.bodyText)) return print;
+    if (typeof cap.tableCount !== 'number') return null;
+    return cap.tableCount > 0 ? null : print;
+  };
+}
+
+/**
  * 导航 + 轮询到**解析结果稳定**。撞上瞬时错误页就重载重试，**不要去换节点或改选择器**——
  * 节点挂掉的样子是白页/长时间不渲染，这个是有明确错误文案的错误页，两回事。
  *
@@ -559,21 +602,20 @@ async function loadReport(url, spec, { settle = 10, timeout = 120, retries = 3, 
     await evalPage(`(() => { location.href = ${JSON.stringify(url)}; return JSON.stringify({ nav: 1 }); })()`);
     await sleep(settle * 1000);
     const settled = await captureStable({
+      // tableCount 是结构判据的原料：**表在但无行** 和 **整页无表** 是两件不同的事，
+      // 而「读了几次」区分不了它们。见 makeReportFingerprint。
       read: () => evalPage(`(() => { const t = document.body?.innerText || ''; return JSON.stringify({
         url: location.href.split('?')[0], title: document.title,
         transient: ${TRANSIENT.toString()}.test(t),
         bodyText: t.slice(0, 60000),
+        tableCount: document.querySelectorAll('table,[role="grid"]').length,
         cells: ${spec.cells || 'null'},
       }); })()`),
       // 瞬时错误页要的是重载，不是更长的超时——立刻出让，别把 timeout 白烧完。
       abortIf: (cap) => Boolean(cap?.transient),
-      fingerprint: (cap) => {
-        if (!cap?.bodyText || !isReady(cap.bodyText, target)) return null;
-        const parsed = parseText(cap.bodyText, cap.cells);
-        return parsed === null ? null : JSON.stringify(parsed);
-      },
-      // 空结果多要一次确认：它出现在水合中途的概率，比一组具体数字高得多。
-      needed: (print) => (looksEmpty(JSON.parse(print)) ? 3 : 2),
+      fingerprint: makeReportFingerprint({ isReady, parseText, target }),
+      // 空结果不再靠「多读一次」确认——那由 makeReportFingerprint 的结构判据管。
+      needed: 2,
       timeoutMs: timeout * 1000,
       intervalMs,
     });

@@ -173,3 +173,76 @@ test('the pagination loop consumes the structured verdict, not a bare boolean', 
   assert.match(source, /const quota = classifyQuotaBlock\(freshProbe\);/);
   assert.doesNotMatch(source, /QUOTA_BLOCKED\.test\(freshBody\)/);
 });
+
+// ---------------------------------------------------------------------------
+// loadReport 的空结果判据。旧版是 `needed: (print) => looksEmpty ? 3 : 2` ——
+// 「看起来空就多读一次」，还是重复计数。发现者点出的具体走法：当 isReady 因为目标
+// 字符串出现在**面包屑**而不是表格主体里而通过时，一份未水合的 0 行解析会被稳稳
+// 确认 3 次，然后作为「空报表」归档，全程不报错。
+// 换成 clickNextPage 那条已验证过的结构判据：表在但无行 → 继续等；整页无表 → 可下结论。
+// ---------------------------------------------------------------------------
+async function loadReportFingerprint() {
+  const context = vm.createContext({ JSON, Object, Array, String, Boolean });
+  vm.runInContext(
+    `${extract(/const EMPTY_STATE_RENDERED = [^\n]+/, 'EMPTY_STATE_RENDERED')}\n`
+    + `${extract(/function looksEmpty\(parsed\) \{[\s\S]*?\n\}/, 'looksEmpty()')}\n`
+    + `${extract(/function makeReportFingerprint\(\{[^}]*\}\) \{[\s\S]*?\n\}/, 'makeReportFingerprint()')}\n`
+    + 'globalThis.make = makeReportFingerprint;',
+    context,
+  );
+  return context.make;
+}
+
+test('an unhydrated empty report is never confirmed by reading it again', async () => {
+  const makeFingerprint = await loadReportFingerprint();
+  // 面包屑里就有 "example.com/"，所以 ready 通过了 —— 但表格主体一行都没有。
+  const bodyText = '首页 / 域名概览 / example.com/\nAS\tRoot Domain\tBacklinks';
+  const fingerprint = makeFingerprint({
+    isReady: (t, target) => t.includes(`${target}/`),
+    parseText: () => ({ rows: [] }),
+    target: 'example.com',
+  });
+
+  // 表元素在（列头齐全），只是没有行 —— 还没水合的样子，读几次都不许收下。
+  assert.equal(fingerprint({ bodyText, tableCount: 1 }), null, 'table present, zero rows → keep waiting');
+  assert.equal(fingerprint({ bodyText, tableCount: 1 }), null, 'and reading it a second time changes nothing');
+  assert.equal(fingerprint({ bodyText, tableCount: 1 }), null, 'nor a third — repetition is not completion');
+  // 判据根本绑不上（读不到 tableCount）同样不许下结论。
+  assert.equal(fingerprint({ bodyText }), null, 'no structural fact available → no verdict');
+});
+
+test('a report that really is empty still resolves, on a page-produced fact', async () => {
+  const makeFingerprint = await loadReportFingerprint();
+  const fingerprint = makeFingerprint({
+    isReady: () => true,
+    parseText: () => ({ rows: [] }),
+    target: 'example.com',
+  });
+  const empty = JSON.stringify({ rows: [] });
+
+  // 整页连 table / [role=grid] 都没有 —— 结构事实。
+  assert.equal(fingerprint({ bodyText: 'example.com/', tableCount: 0 }), empty);
+  // 页面自己渲染了「未找到结果」—— 页面产出的空态，也是结论。
+  assert.equal(fingerprint({ bodyText: '未找到结果', tableCount: 1 }), empty);
+  assert.equal(fingerprint({ bodyText: 'No results found', tableCount: 3 }), empty);
+});
+
+test('a hydrated report is accepted regardless of the structural probe', async () => {
+  const makeFingerprint = await loadReportFingerprint();
+  const parsed = { rows: [{ referringDomain: 'a.com' }] };
+  const fingerprint = makeFingerprint({ isReady: () => true, parseText: () => parsed, target: 'x.com' });
+  assert.equal(fingerprint({ bodyText: 'x', tableCount: 5 }), JSON.stringify(parsed));
+  // ready 没过、或者 parse 抛了，照旧是「这一拍不能读」。
+  const notReady = makeFingerprint({ isReady: () => false, parseText: () => parsed, target: 'x.com' });
+  assert.equal(notReady({ bodyText: 'x', tableCount: 5 }), null);
+  const unparsable = makeFingerprint({ isReady: () => true, parseText: () => null, target: 'x.com' });
+  assert.equal(unparsable({ bodyText: 'x', tableCount: 5 }), null);
+});
+
+test('loadReport actually wires the structural probe, and stopped counting repeats', () => {
+  // 判据在生产代码里真的被 loadReport 用上了，而且原料是页面读回来的。
+  assert.match(source, /fingerprint: makeReportFingerprint\(\{ isReady, parseText, target \}\)/);
+  assert.match(source, /tableCount: document\.querySelectorAll\('table,\[role="grid"\]'\)\.length/);
+  // 「看起来空就多读一次」必须已经不存在。
+  assert.doesNotMatch(source, /needed: \(print\) => \(looksEmpty/);
+});
