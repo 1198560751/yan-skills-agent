@@ -420,7 +420,10 @@ function rankCandidates(candidates, todayRows) {
   const rank = (c) => {
     const action = finishCandidate(c).action;
     if (isQuantified(c) && action === 'develop') return 0;
-    if (c.demandCoverage?.globalChecked && isQuantified(c)) return 1;
+    // A planned deep check stays in the report even when its exact term is zero.
+    // Otherwise the 30-row display cap can hide it, making the decision checklist
+    // ask for evidence that the report has already discarded.
+    if (c.demandCoverage?.globalChecked) return 1;
     if (todayRows.some((v) => sameCandidate(v, c))) return 2;
     if (isQuantified(c) && action === 'research') return 3;
     if (c.carryForward?.recheckDue) return 4;
@@ -1204,6 +1207,8 @@ function selfTest() {
       { names: ['Verified Winner'], urls: ['https://example.com/winner'], action: 'develop', playable: true, demandProof: { intentValidated: true, independentDemand: true }, keywords: [{ semrushVolume: 5000, semrushGlobalVolume: 12000, semrushKd: 20 }] },
     ], [fresh]);
     if (ranked.map((v) => v.names[0]).join('|') !== 'Verified Winner|Fresh Game|Old Watch') throw new Error('候选优先级排序失败');
+    const checkedZero = { names: ['Checked Zero'], urls: ['https://example.com/zero'], action: 'watch', demandCoverage: { globalChecked: true } };
+    if (rankCandidates([{ names: ['Fresh'], urls: ['https://example.com/fresh'] }, checkedZero], [{ names: ['Fresh'], urls: ['https://example.com/fresh'] }])[0] !== checkedZero) throw new Error('零量深查候选被日报截断');
     const partial = discoveryHealth({ compared: 45, baselineCreated: 0, platforms: [{ id: 'bad-a', status: 'failed', error: 'timeout' }] });
     if (partial.usable !== 45 || !partial.partial || !partial.warnings[0].includes('bad-a')) throw new Error('部分 discovery 判定失败');
     if (!staleReason({ urlChecks: [{ url: 'https://example.com/gone', status: 404, ok: false }], playLinks: [] })) throw new Error('明确 404 未排除');
