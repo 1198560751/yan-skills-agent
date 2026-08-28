@@ -285,6 +285,16 @@ user management, removals, or other mutations.
 （自然流量 > 0 却 AS = 0 说明 AS 还没水合）、**settle/间隔/超时调大到 8s/3s/75s**。
 改后同样四个域名 4/4 正确，单域名从 16 秒涨到 25 秒。
 
+**注意这一整段只管一个轴：占位值 vs 真值。** 它默认「表在那儿，只是数还没进来」，
+所以补救永远是「再读一次」。**读到空还有另一个轴，判据和补救都不一样**：
+一是**没水合**（读的那一刻 `document.visibilityState === 'hidden'`，换一次 `visible` 读就有了），
+二是**这条路由本来就没有表**（`visible` 下连读三次仍是 0 个表格元素，只有图表——
+再读多少次都一样，数据存在，但取数形态是图不是表）。
+所以读到空之后第一个动作是**在页面里取 `visibilityState`**，不是再读一次；
+`hidden` 下的读一律记 `inconclusive-hidden`，不许记 `below-floor`、不许记「空」。
+实测、路由清单和可下判定的协议只有一份权威，在本 Skill SKILL.md 里
+id 为 `hidden-tabs-do-not-hydrate` 的那条 law，要改就改在那儿。
+
 **Similarweb 的取值曾经会「扫过头」**：页面上没有数据时写的是 `-`，而旧模式
 `#?\s*[\d,]+` 既不限整行也没有标签边界，于是一路扫到「Last 28 days (As of Aug 21)」，
 把 **28** 抓成了国家排名和行业排名（na.whatismymmr.com，真实是三个 `-`）。

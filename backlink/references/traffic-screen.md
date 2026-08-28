@@ -74,7 +74,14 @@ The rule, for any script that scrapes a rendered number:
 |---|---|
 | Page title / left-nav menu item | Wrong — present in the skeleton |
 | The label (`Authority Score`, `总访问量`) | **Still wrong** — present before the value hydrates |
-| **The value itself, identical across two consecutive reads** | Correct |
+| **The value itself, identical across two consecutive reads** | Correct **for a value that is there** — see the limit below |
+
+**Stability is a check on a value, not a licence to call an absence a result.**
+Two identical reads of *nothing* is the normal picture for a page that loaded
+`hidden` and for a route that never had a table at all; in both cases the check
+passes and the run reports an emptiness that is not a fact about the domain. So
+a stable **empty** parse needs the `visibilityState` triage below before it may
+become a verdict, while a stable non-empty value may be written straight out.
 
 `lib-tools-share.mjs` exports `captureStable({ read, fingerprint, timeoutMs,
 intervalMs, needed, abortIf })` for exactly this. Fingerprint **every field you
@@ -119,9 +126,30 @@ After: 4/4 correct on the same domains, on both cards.
 never settle, the run did not complete; say so and let the resume retry it. The
 empty-state marker needs **three** consecutive reads, not two, because it also
 shows up mid-hydration and `below-floor` is terminal — resume never revisits it.
-An **empty parse** counts as an empty state for this purpose: a report that
-parses to zero rows or all-null fields gets the same third read, because "the
-table is empty" and "the table has not rendered yet" are the same picture.
+An **empty parse** gets the same third read — but only after you have ruled out
+the two failure shapes below, because a third read is the wrong move for both of
+them.
+
+### Read an empty table? Check `visibilityState` before you read again
+
+There are **three** different things behind an empty parse, and re-reading only
+fixes one of them. The first action after an empty read is to sample
+`document.visibilityState` **inside the page, in the same eval as the data** —
+not to read a third time.
+
+| what you actually have | how you tell | what to do |
+|---|---|---|
+| **Not hydrated yet** | the read was taken under `visibilityState === 'hidden'` | a `visible` read is the cure; measured 0 cells hidden / 850 cells visible on the same route |
+| **Class A — there was never a table** | **three consecutive reads under `visible`** still find zero table elements, charts only | re-reading is **wasted time**. The data exists as a chart, not a table; it needs a chart reader, and it is never a "no data" verdict |
+| **Genuinely empty** | stable, `visible`, table present, zero rows | the empty state is the result |
+
+Never emit a verdict from a read taken while `hidden` — that read is
+`inconclusive-hidden`, not `below-floor` and not "empty".
+
+The measurements, the route lists, and the admissible-verdict protocol live in
+one place: the `hidden-tabs-do-not-hydrate` law in this Skill's SKILL.md, which
+is the authority. Read it before writing any readiness check, and extend it
+there rather than growing a second account of the rule somewhere else.
 
 The same beat governs **pagination**: the page-number indicator advances before
 the table body swaps. Reading straight after the click yields the previous page's

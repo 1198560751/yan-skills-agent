@@ -74,6 +74,9 @@ backlink/
 │   │                               Semrush number comparable with Similarweb. Runs
 │   │                               **foreground by default**, alone in this Skill:
 │   │                               the summary never hydrates if it *loads* hidden.
+│   │                               But "empty" has two unrelated causes with opposite
+│   │                               remedies — not hydrated vs never had a table — and
+│   │                               only the first is worth re-reading.
 │   │                               See <law-ref id="hidden-tabs-do-not-hydrate"/>
 │   ├── traffic-crosscheck.mjs      offline: eats one semrush-traffic.mjs JSON and one
 │   │                               similarweb-query.mjs JSON and reports whether the two
