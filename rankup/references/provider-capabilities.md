@@ -200,8 +200,9 @@ id 为 `hidden-tabs-do-not-hydrate` 的那条 law。
   所以可见性门控的是**首次水合**，不是后续读取。
   ⚠️ **但反过来不成立：不是所有的空都是水合问题。** 同一批实测里另有 10 条 `chart-only`
   路由，`visible` 下连读 3 次仍然 **0 个表格元素**，只有 svg——看上去不是水合截面，
-  页面本身就不提供表格，套可见性重试循环是白费。**⚠️ 这 10 条的判定同样来自早停判据，
-  正在重测，先别当成已确认。** 判断一条空属于哪一类之前，
+  页面本身就不提供表格，套可见性重试循环是白费。**这 10 条的原判定来自早停判据，
+  2026-08-29 重测后已拆成四档，只有 4 条通过结构判据可采信，另有 4 条退回 `pending`——
+  见下面「`chart-only` 那 10 条：拆成四档」。** 判断一条空属于哪一类之前，
   先读 backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law：
   「读到空」本身就是一个需要判据的结论，而不是一个观测事实。
 - **`windowMode` 和 `visibilityState` 对不上。** 脚本传给 opencli 的模式名只是意图：
@@ -229,7 +230,8 @@ id 为 `hidden-tabs-do-not-hydrate` 的那条 law。
 
 **先说能拿走的那一句：想要表格数据，这条线上至少有 11 条路由能给，而不是 3 条。**
 早先写的「只有 3 条」是**早停判据的产物**，不是这个平台的性质——见下面「`empty-silent`
-这一类已经归零」。剩下 10 条 `chart-only` 也**还在重测**，所以「能给表格的条数」目前只有下界。
+这一类已经归零」。原来那 10 条 `chart-only` 已在 2026-08-29 拆成四档，只有 4 条通过结构判据
+可以采信，另有 4 条退回 `pending`，所以「能给表格的条数」目前仍只有下界。
 
 判定协议：旧的 **v4-visible-gated**（每条路由最多 3 轮、每轮 100 秒，连续 3 次可见读到空即判空）
 和它的补丁 **v5-visible-gated-min100s**（再加一个 100 秒下限）**都已被推翻**。
@@ -242,12 +244,13 @@ id 为 `hidden-tabs-do-not-hydrate` 的那条 law。
 | 类别 | 旧计数（v4，早停） | 现计数 | 一句话含义 | 代表路由 |
 |---|---|---|---|---|
 | `data` | 2 | **10** | 有表且有行，**只有这一类能直接喂给取数脚本** | `ai-traffic`（120 格）、`trending-websites`（140 格）、外加下面改判的 8 条 |
-| `chart-only` | 10 | **10（待重测）** | 页面本身不提供表格，只有 svg。⚠️ **这 10 条也是早停判据下测的，正在重跑，不是确认值** | `referral`、`organic-search`、`paid-search`、`organic-social`、`paid-social`、`email`、`display-ads`、`socioeconomics`、`behavior`、`daily-trends` |
+| `chart-only` | 10 | **6（分两档，见下）** | 页面本身不提供表格，只有 svg。**这一类不再有一个笼统的数字** | 结构判据已过 4 条：`organic-social`、`paid-social`、`email`、`display-ads`；证据强但协议不同 2 条：`referral`、`organic-search` |
+| `pending` | —— | **4** | 还没拿到可采信判据。**这是待办，不是结论**，不要拿来规划取数 | 弱证据 2 条：`paid-search`、`behavior`；仍在跑 2 条：`daily-trends`、`socioeconomics` |
 | `empty-silent` | 8 | **0** | 列头齐全、0 行。⚠️ **8 条全部改判为 `data`，这一类在 node 5 上已经清零** | —— |
 | `requires-input` | 1 | **1** | 路由正常，但要人先贴输入才产出。不是「空」 | `industry-and-bulk-analysis` |
 | `not-a-report-route` | 1 | **1** | 压根不返回报表——是营销/定价页 | `trends-api` |
 
-> 总数仍是 22。**目前只有 `requires-input` 和 `not-a-report-route` 这 2 条没被判据缺陷牵连。**
+> 总数仍是 22（data 10 / chart-only 6 / pending 4 / requires-input 1 / not-a-report-route 1）。
 > 另外还有不在这次 sweep 里的 `top-pages`（850 格），见上面「节点差异是观测假象」一节。
 
 #### `empty-silent` 这一类已经归零 —— 8 条全部改判为 `data`
@@ -311,20 +314,35 @@ id 为 `hidden-tabs-do-not-hydrate` 的那条 law。
 **这次等于又犯了一遍**——教训当时被记成了「关于 `captureStable` 的事实」，
 而不是「关于判据的事实」，所以没有迁移过来。
 
-#### ⚠️ `chart-only` 那 10 条也没结案
+#### `chart-only` 那 10 条：拆成四档，只有一档可采信（2026-08-29）
 
-它们是**同一个早停判据下测出来的**，同一个 bug。实盘那边正在用耐心模式重跑，
-先跑 `referral` / `organic-search` / `paid-search` / `organic-social` / `socioeconomics` 五条。
+它们原本是**同一个早停判据下测出来的**，同一个 bug。表现确实和「静默空表」不同——
+**连 `table` 元素都不存在**，而不是有表 0 行——但这不构成免测的理由，原话：
+**「虽然它们的表现不同，但我不能凭这个就免测。」** 耐心模式重跑之后结果如下。
 
-它的表现确实和「静默空表」不同——**连 `table` 元素都不存在**，而不是有表 0 行。
-但这不构成免测的理由，原话：**「虽然它们的表现不同，但我不能凭这个就免测。」**
+**判据不在这里。** 区分「这条路由本来就没有表格」和「表格还在路上」，
+用的是一条四条件、连续两次读都要满足的**结构判据**，以及两个刻意分开的判定名
+`no-table-structural`（可采信）/ `no-table`（不可采信）。**判据全文和两个判定名只写在**
+backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 `<correct>` 块里，
+这里不复述，也不要在别处再抄一份。只记住它的含义一句话：
+**「页面别的部分都好了，就是没有表格这个东西」**——光是「没有 table 元素」证明不了任何事，
+因为还没开始渲染的页面同样没有 table 元素。
 
-> **在重测回来之前，不要把「这条路由本来就不提供表格」当成已确认的事实。**
-> 下面几节里关于 A 类 / `chart-only` 的所有结论都按这个限定读。
+| 档 | 条数 | 路由（括号内为 `chartHydrated / exportBtns`） | 能不能用 |
+|---|---|---|---|
+| **structural-confirmed** | 4 | `organic-social`(30/5)、`paid-social`(34/5)、`email`(23/4)、`display-ads`(29/4) | **能**。判定 `no-table-structural`，四条件全满足且连续两次读都满足 |
+| **strong-but-different-protocol** | 2 | `referral`、`organic-search` | **暂时能当规划依据，但没结案**。更早的协议下各在 `visible` 下被读了 **98 / 96 次**仍无 table 元素，证据量够，**缺 `chartHydrated` / `exportBtns` 两个结构字段**，待补测 |
+| **pending（弱证据）** | 2 | `paid-search`(0/6)、`behavior`(0/0) | **不能**。判定只到 `no-table`，已移出 `chart-only` |
+| **pending（仍在跑）** | 2 | `daily-trends`、`socioeconomics` | **不能**。结果还没回来，不要替它们下结论 |
+
+**弱证据那两条正好说明为什么要分开命名。** `paid-search` 的 `chart=0 / exp=6`
+意味着图表数字根本没渲染出来；`behavior` 的 `chart=0 / exp=0`
+意味着**整页章节都没渲染，等于什么都没测到**。把这两条写成「这条路由只提供图表」，
+就是把「我没测到」写成「它没有」——正是这一天被反复证伪的那种形状。
+`no-table` 是 `inconclusive` 换了个好听的名字。
 
 ⚠️ **`chart-only` 和 `empty-silent` 的补救方式相反**（前者重读没用、后者要等），
-这个区分本身仍然成立，但目前**只剩一个分类还有成员**：`empty-silent` 已清零，
-`chart-only` 全体待重测。
+这个区分本身仍然成立；`empty-silent` 已清零，`chart-only` 只有上表第一档算结案。
 
 #### 三条容易被记错的判定
 

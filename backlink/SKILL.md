@@ -519,7 +519,10 @@ Three things still do not flip an already-hidden tab back: not the env, not
 `open --window foreground`, and least of all `tab select` (details below).
 (There is also a read-only trick — redefine `document.visibilityState` to
 `visible` inside the page and dispatch `visibilitychange`. Measured as barely
-better than nothing; **it is not admissible as the basis of a verdict.**)
+better than nothing; **it is not admissible as the basis of a verdict.** It also
+turned out to contaminate a *different* measurement entirely — see the
+instrument-contamination lesson in
+<law-ref id="readiness-must-bind-to-this-query"/>.)
 
 **And two kinds of empty coexist — do not merge them.** A visibility-induced
 fake empty (proven only on `/analytics/traffic/top-pages/`) is cured by a
@@ -528,14 +531,20 @@ elements under three consecutive `visible` reads, charts only. This law's remedy
 applies to the first and is wasted on the second. The table that separates them
 is in `&lt;why&gt;`.
 
-⚠️ **Class A is itself under re-measure and is NOT a confirmed category.** Every
-Class A verdict on record was taken under the same early-stopping criterion that
-instances 5 and 6 of <law-ref id="readiness-must-bind-to-this-query"/> demolished.
-Its shape is admittedly different — *no table element at all*, rather than a
-table with zero rows — but as the operator put it: **"they behave differently,
-but that is not a reason to exempt them from the test."** All ten are being
-re-run under patient mode. Until that comes back, treat "this route serves
-charts, not tables" as **provisional**, and do not build on it.
+⚠️ **Class A was re-measured, and it survives only where a structural criterion
+was actually assembled.** Every original Class A verdict was taken under the
+same early-stopping criterion that instances 5 and 6 of
+<law-ref id="readiness-must-bind-to-this-query"/> demolished. Its shape is
+admittedly different — *no table element at all*, rather than a table with zero
+rows — but as the operator put it: **"they behave differently, but that is not a
+reason to exempt them from the test."** The patient re-run split the ten: four
+now carry `no-table-structural` (the page finished, and there is still no table),
+two hold strong evidence under an older protocol, and two came back with the
+weak `no-table` and stay `pending` — one of them having rendered nothing at all.
+The criterion and the two verdict names are in
+<law-ref id="readiness-must-bind-to-this-query"/>; the per-route split is in the
+rankup provider-capabilities reference. **A Class A claim is only usable when it
+names `no-table-structural`.**
 </statement>
 <why>
 This is the most dangerous failure shape in this Skill, because it does not look
@@ -851,6 +860,33 @@ So the rule is not a bigger number. It is:
   a round is allowed to run and stop an early read from being believed. They
   never license a verdict on their own.
 
+**There is one absence that *can* be proven, and it is proven the same way.**
+"This route has no table at all" is a different claim from "this table is
+empty", and it has a sound criterion — first run in anger on 2026-08-29, written
+out in full in `&lt;correct&gt;`. Its shape: **the rest of the page is demonstrably
+finished, and there is still no table element in it.** Four conditions, all
+four, on two consecutive reads. Condition one on its own — no `table` element
+anywhere — **proves nothing whatsoever**, because a page that has not started
+rendering has no table element either. The load-bearing conditions are the ones
+that supply *independent evidence that the rest of the page finished*: hydrated
+chart text and the section's own export controls. Only with those in hand does
+"no table" stop being a snapshot and become a fact.
+
+**Name the strong verdict and the weak one differently, and never let the weak
+one be read as a result.**
+
+| verdict | what it means | admissible |
+|---|---|---|
+| `no-table-structural` | all four conditions held, twice running | **yes** — this route has no table |
+| `no-table` | the whole patience budget ran out with no table, structural conditions never assembled | **no** — file it `pending`, it is `inconclusive` wearing a better name |
+
+The two routes that landed in the weak tier are the argument for the split:
+`paid-search` finished with `chart=0 / exp=6` (the chart numbers never
+rendered), and `behavior` with `chart=0 / exp=0` — **nothing on that page
+rendered at all**, which is to say nothing was measured. Filing either as
+"this route serves charts, not tables" would have been the old mistake with a
+new label.
+
 And write down the raw evidence the verdict rests on — the filled-cell count,
 the elapsed time and read count behind an empty verdict, the
 `listPickerVisible` flag, the account initial in the page header — so the next
@@ -976,6 +1012,37 @@ page** — or, in instances 5 and 6, whether something *keeps not* existing for
 long enough — and a page has many suppliers — the vendor's copywriter, the stylesheet, a neighbouring
 widget, the account's own history, and the render pipeline that has not reached
 your region yet. Only one of those suppliers is this query.
+
+**And one more supplier, the one nobody lists: you.**
+
+To fight hidden tabs, a small read-only patch was injected into the page —
+redefine `document.visibilityState` to `visible` and dispatch `visibilitychange`.
+It was measured as barely better than nothing and labelled, correctly, *not
+admissible as the basis of a verdict*. Harmless. It also carried one more line:
+`document.hasFocus = () => true`.
+
+Hours later a new problem appeared: a **lying `visible`** — after a foreground
+attach, a tab that reports `visible` forever and never moves. Detecting that
+needs a corroborating signal **independent of `visibilityState`**, and the
+obvious first choice is `document.hasFocus()`.
+
+**Our own disguise had overwritten the one witness that could have exposed it.**
+The patch was never used as a criterion, exactly as promised; it did not have to
+be. It only had to be *present* while something else was measured.
+
+The lesson is not about that one line:
+
+> **Anything injected into the page becomes part of every later observation.**
+> A patch judged harmless — read-only, "better than nothing", explicitly barred
+> from the verdict — can become, hours later, the contamination source for the
+> single piece of evidence that could have falsified your conclusion.
+> Therefore: **keep an explicit inventory of every patch injected, make each one
+> switchable off, and before collecting any signal as corroboration, confirm
+> that your own instrument has not touched it.**
+
+The `hasFocus` override is being removed; the runner now records `hasFocus`
+honestly, alongside `innerWidth/outerWidth` and `innerHeight/outerHeight`, as
+the independent cross-check on a `visible` that may be lying.
 </why>
 <scope>
 Applies to every readiness gate, every target/scope check, and every "did this
@@ -1052,6 +1119,42 @@ const verdict = filledCells > 0 ? 'data'
 // visible window; three reads spread over three separate pulses do not count.
 
 
+// PROVING A ROUTE HAS NO TABLE AT ALL is a different claim, and it has a sound
+// criterion. Run in anger 2026-08-29. All four conditions, on TWO reads running:
+const structural = (() => {
+  const root = document.querySelector('main') || document.body;
+  return {
+    // 1. no table anywhere. ON ITS OWN THIS PROVES NOTHING - an unrendered page
+    //    has no table element either.
+    noTable: root.querySelectorAll('table, [role="grid"]').length === 0,
+    // 2. THE SOUL OF THE CRITERION: the charts have finished hydrating. Text
+    //    nodes inside svg that actually carry digits = axes and data labels drawn.
+    chartHydrated: [...root.querySelectorAll('svg text')]
+      .filter((t) => /\d/.test(t.textContent || '')).length,
+    // 3. ALSO THE SOUL: the section's own export controls are mounted, i.e. the
+    //    rest of the page is done being built.
+    exportBtns: [...root.querySelectorAll('button, a')]
+      .filter((b) => /导出|export/i.test(b.innerText || '')).length,
+    // 4. and it is THIS query's page, being looked at right now
+    onTarget: scope.ok,
+    vis: document.visibilityState,
+  };
+})();
+const noTableStructural =
+  structural.noTable && structural.chartHydrated >= 3 &&
+  structural.exportBtns >= 1 && structural.onTarget && structural.vis === 'visible';
+// meaning, in one sentence: EVERYTHING ELSE ON THIS PAGE IS READY AND THERE IS
+// STILL NO SUCH THING AS A TABLE HERE. That, and only that, rules out "the table
+// is still on its way".
+
+// two verdict names, and only one of them is a result:
+const absence = noTableStructuralTwiceRunning ? 'no-table-structural'  // admissible
+  : budgetExhausted ? 'no-table'                                       // NOT admissible
+  : 'inconclusive';
+// 'no-table' is filed as PENDING, never as a route capability. The two that
+// landed there say why: paid-search chart=0/exp=6 (chart numbers never drew),
+// behavior chart=0/exp=0 (nothing on the page rendered - nothing was measured).
+
 // and record the evidence NEXT TO the verdict, not just the verdict
 { "route": "/analytics/traffic/top-pages/", "verdict": "data",
   "filledCells": 850, "listPickerVisible": false, "accountInitial": "B",
@@ -1091,6 +1194,13 @@ if (visibleReads >= 3 && elapsedMsThisRound >= 100_000 && filledCells === 0) ret
 // grew (20 / 20 / 36 / 198 / 204 / 272 / 459 / 900 cells); geographical-regions
 // and business-regions only on the SECOND re-measure. A floor is a threshold bet.
 // "Waited long enough and still empty" is not a criterion at any number.
+
+// 7. "no table element -> this route has no table". Condition 1 with nothing
+//    behind it. A page that has not started rendering has no table element.
+if (document.querySelectorAll('table').length === 0) return 'chart-only';
+// FALSE - behavior finished the whole budget at chart=0/exp=0: not one chart
+// number, not one export button, i.e. the section never rendered. That is a
+// measurement of nothing, filed as a fact about the route.
 ]]></wrong>
 </law>
 

@@ -342,19 +342,47 @@
             "_protocol": "v4-visible-gated。每条路由最多 3 轮导航、每轮轮询 100 秒；只有 filled > 0、或**连续 3 次在 document.visibilityState === \"visible\" 下读到空**，才允许下判定；全程没等到过 visible 就判 inconclusive-hidden，绝不记成「空」。每条记录都带判定时的 visibilityState 与 visibleReads。 **已被两次推翻，见各条 supersededObservation**：v4 的早停缺陷（最快 18 秒下结论）先被 v5「可见读满 3 次且等满 100 秒」修补，v5 又被同一天的重测推翻（5 条改判为 data，2 条第二次重测才出数）。现行协议 v6-patient-signal-gated（耐心模式：每轮 200 秒、3 轮跑满不早停、单条最长 600 秒；空判定必须绑定正向的「本页已渲染完成」信号，拿不到就输出 inconclusive 而不是 empty）。",
             "_categories": {
               "data": "有表且有行。这条线上**只有这一类能直接喂给取数脚本**。",
-              "chart-only": "页面本身不提供表格：visible 下连读 3 次仍然 0 个表格元素，只有 svg。**重读无效**，要写图表读取器。既不能报「没数据」，也不该套可见性重试循环。 ⚠️ **2026-08-28：这一类正在重测，不是确认分类。** 它的 10 条判定来自同一个有早停缺陷的判据；表现不同（连 table 元素都没有）不构成免测的理由。",
+              "chart-only": "页面本身不提供表格，只有 svg。**重读无效**，要写图表读取器。既不能报「没数据」，也不该套可见性重试循环。 **2026-08-29：这一类不再是一个笼统的计数。** 一条路由只有在满足结构判据、判定为 `no-table-structural` 时才算数（本模块 4 条）；证据强但缺结构字段的记 `strong-but-different-protocol`（2 条）；跑满预算却没凑齐结构判据的只配 `no-table`，**不可采信**，一律移出本分类记 `pending`。逐条看 `chartOnlyTier`。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
               "empty-silent": "列头齐全、0 行、无 upsell、无限额提示、无「未找到匹配内容」。**与 chart-only 的补救方向相反**：这一类可能是可见性伪空，值得重读/换节点复测。 **2026-08-28 起这一类的门槛提高了**：光是「等够久还是空」不再够格——判空必须绑定一个正向的「本页已渲染完成」信号（分页器 / 行数计数 / 加载指示消失）。拿不到那个信号就记 `inconclusive`，不记 `empty`。 **2026-08-28：这一类在 node 5 上已清空（8 条全部改判为 `data`）。** 保留枚举值是因为它命名的现象仍可能出现，但目前没有任何一条路由属于它。",
               "requires-input": "路由存在且渲染正常，但要人先贴输入才产出。不是「空」，也不是「没数据」。",
-              "not-a-report-route": "这条路由根本不返回报表——是营销/定价页。"
+              "not-a-report-route": "这条路由根本不返回报表——是营销/定价页。",
+              "pending": "尚未拿到可采信判据的路由：要么弱证据（`no-table`，跑满预算但结构判据没凑齐），要么重测还没回来。**这一类不是一个结论，是一个待办**——不要拿它规划取数，也不要写成「这条路由没有表格」。"
             },
             "_distributionNode5": {
               "total": 22,
               "data": 10,
-              "chart-only": 10,
+              "chart-only": {
+                "structural-confirmed": 4,
+                "strong-but-different-protocol": 2,
+                "_members": {
+                  "structural-confirmed": [
+                    "organic-social (chart 30/exp 5)",
+                    "paid-social (34/5)",
+                    "email (23/4)",
+                    "display-ads (29/4)"
+                  ],
+                  "strong-but-different-protocol": [
+                    "referral (98 次 visible 读、0 table)",
+                    "organic-search (96 次)"
+                  ]
+                },
+                "_note": "**2026-08-29：原来那个 `chart-only: 10` 不成立，已拆档。** 只有 structural-confirmed 这一档可采信（4 条）。strong-but-different-protocol 的 2 条证据够但缺结构字段，待补测。另外 4 条已移出本分类计入 `pending`：`paid-search`(chart=0/exp=6) 与 `behavior`(chart=0/exp=0) 是弱证据，`daily-trends` / `socioeconomics` 仍在跑。**不要再给这一类一个笼统的数字。**判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。"
+              },
+              "pending": {
+                "total": 4,
+                "weak-evidence": [
+                  "paid-search (chart=0/exp=6)",
+                  "behavior (chart=0/exp=0 — 整页章节都没渲染)"
+                ],
+                "still-running": [
+                  "daily-trends",
+                  "socioeconomics"
+                ]
+              },
               "empty-silent": 0,
               "requires-input": 1,
               "not-a-report-route": 1,
-              "note": "**修正 2026-08-28**：此前口述的分布是「出数 3 条（ai-traffic / top-pages / trending-websites）、图表型 9 条」。**以 sweep-results-v2.jsonl 为准，两处都不对**：(1) `/analytics/traffic/top-pages/` **根本不在这次 node 5 的 22 条里**，它只在文件末尾以 node 8 的复测行出现（当时读到 no-table、0 格，那一轮还在跑）——所以本次 node 5 出数的是 2 条，不是 3 条。top-pages 的 850 格是**另一次**实测，见下面它自己的记录，那条结论不受影响。(2) 图表型是 **10** 条不是 9：referral / organic-search / paid-search / organic-social / paid-social / email / display-ads / socioeconomics / behavior / daily-trends。 **再更正 2026-08-28：`empty-silent` 这 8 条的判定已作废，正在重测。** 原判据「可见读满 3 次即采信为空」最快 18 秒下结论，而表格最后水合；node 8 已反证出 page-groups 20 格、geographical-regions 198 格。新判据 v5-visible-gated-min100s（可见读满 3 次且本轮等满 100 秒）。本分布里的 8 这个数字先当作「待重测的条数」看，不要当作结论。 **改判 2026-08-28（耐心模式重测回来之后）：分类计数变了。** `data` 从 **2 条改为 7 条**、`empty-silent` 从 **8 条改为 3 条**。改判的 5 条是 page-groups（20 格）/ geographical-regions（198 格）/ business-regions（36 格）/ sources-destinations（272 格）/ subfolders-subdomains（900 格）；其中 **geographical-regions 与 business-regions 是第二次重测才出的数**，100 秒的下限没兜住它们。剩下的 3 条（usa / demographics / audience-overlap）**仍在重测**，保持 pending-remeasure-v5，那个 3 依旧是「待重测的条数」而不是结论。总数仍是 22。 **最终改判 2026-08-28：`empty-silent` 这一类在 node 5 上的计数是 0。** 8 条全部出数（非空单元格）：page-groups 20 / demographics 20 / business-regions 36 / geographical-regions 198 / audience-overlap 204 / sources-destinations 272 / usa 459 / subfolders-subdomains 900。其中 geographical-regions 与 business-regions 是**第二次重测**才出的数。实盘那边的原话记在这里：**「我判过的每一条『空』，最后都是我等得不够。零例外。」** ⚠️ **同时：`chart-only` 这 10 条的计数现在也不是确认值**——它们同样是在早停判据下测出来的，正按耐心模式重跑（先跑 referral / organic-search / paid-search / organic-social / socioeconomics）。**这个 10 要当作「待重测的条数」读，不要当作结论。** 现在唯一没被判据缺陷牵连的只有 requires-input 与 not-a-report-route 各 1 条。总数仍是 22。",
+              "note": "**修正 2026-08-28**：此前口述的分布是「出数 3 条（ai-traffic / top-pages / trending-websites）、图表型 9 条」。**以 sweep-results-v2.jsonl 为准，两处都不对**：(1) `/analytics/traffic/top-pages/` **根本不在这次 node 5 的 22 条里**，它只在文件末尾以 node 8 的复测行出现（当时读到 no-table、0 格，那一轮还在跑）——所以本次 node 5 出数的是 2 条，不是 3 条。top-pages 的 850 格是**另一次**实测，见下面它自己的记录，那条结论不受影响。(2) 图表型是 **10** 条不是 9：referral / organic-search / paid-search / organic-social / paid-social / email / display-ads / socioeconomics / behavior / daily-trends。 **再更正 2026-08-28：`empty-silent` 这 8 条的判定已作废，正在重测。** 原判据「可见读满 3 次即采信为空」最快 18 秒下结论，而表格最后水合；node 8 已反证出 page-groups 20 格、geographical-regions 198 格。新判据 v5-visible-gated-min100s（可见读满 3 次且本轮等满 100 秒）。本分布里的 8 这个数字先当作「待重测的条数」看，不要当作结论。 **改判 2026-08-28（耐心模式重测回来之后）：分类计数变了。** `data` 从 **2 条改为 7 条**、`empty-silent` 从 **8 条改为 3 条**。改判的 5 条是 page-groups（20 格）/ geographical-regions（198 格）/ business-regions（36 格）/ sources-destinations（272 格）/ subfolders-subdomains（900 格）；其中 **geographical-regions 与 business-regions 是第二次重测才出的数**，100 秒的下限没兜住它们。剩下的 3 条（usa / demographics / audience-overlap）**仍在重测**，保持 pending-remeasure-v5，那个 3 依旧是「待重测的条数」而不是结论。总数仍是 22。 **最终改判 2026-08-28：`empty-silent` 这一类在 node 5 上的计数是 0。** 8 条全部出数（非空单元格）：page-groups 20 / demographics 20 / business-regions 36 / geographical-regions 198 / audience-overlap 204 / sources-destinations 272 / usa 459 / subfolders-subdomains 900。其中 geographical-regions 与 business-regions 是**第二次重测**才出的数。实盘那边的原话记在这里：**「我判过的每一条『空』，最后都是我等得不够。零例外。」** ⚠️ **同时：`chart-only` 这 10 条的计数现在也不是确认值**——它们同样是在早停判据下测出来的，正按耐心模式重跑（先跑 referral / organic-search / paid-search / organic-social / socioeconomics）。**这个 10 要当作「待重测的条数」读，不要当作结论。** 现在唯一没被判据缺陷牵连的只有 requires-input 与 not-a-report-route 各 1 条。总数仍是 22。 **再更新 2026-08-29：`chart-only: 10` 这个数字作废，拆成四档。** 4 条通过结构判据（organic-social 30/5、paid-social 34/5、email 23/4、display-ads 29/4）标 structural-confirmed，可采信；referral / organic-search 在更早的协议下各被 visible 读了 98 / 96 次仍无 table 元素，证据够但缺结构字段，标 strong-but-different-protocol，待补测；paid-search（chart=0/exp=6）与 behavior（chart=0/exp=0，整页章节都没渲染）只拿到弱判定 `no-table`，**不可采信，移出分类记 pending**；daily-trends / socioeconomics 仍在跑，保持 pending。总数仍是 22（data 10 / chart-only 6 / pending 4 / requires-input 1 / not-a-report-route 1）。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
               "_countHistory": [
                 {
                   "asOf": "2026-08-28",
@@ -377,6 +405,17 @@
                   "empty-silent": 0,
                   "chart-only": 10,
                   "note": "8 条 empty-silent 全部改判为 data，这一类在 node 5 上计数归零。chart-only 的 10 条仍是早停判据下的旧判定，正在重测，不是确认值。"
+                },
+                {
+                  "asOf": "2026-08-29",
+                  "protocol": "v7-structural-absence",
+                  "data": 10,
+                  "empty-silent": 0,
+                  "chart-only": "4 structural-confirmed + 2 strong-but-different-protocol（不再是单一数字）",
+                  "pending": 4,
+                  "requires-input": 1,
+                  "not-a-report-route": 1,
+                  "note": "chart-only 的 10 拆档：4 条通过结构判据可采信，2 条证据强但缺结构字段待补测，4 条移出分类记 pending（2 条弱证据、2 条仍在跑）。"
                 }
               ]
             },
@@ -404,8 +443,9 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类。图表里是 canva.com 的真实量级（流量趋势轴到 6000 万），且「增长最快的页面」区块有逐条读数：剧增 37.1万% canva.com/features/change-background-color-of-image 7413。**数据存在，取数形态是图不是表。**",
-                "remeasureStatus": "pending-remeasure-v5",
-                "remeasureNote": "**2026-08-28：这条 `chart-only` 判定也是在早停判据下测的，同一个 bug，正在重测，不要当成已确认。** 它的表现确实和 `empty-silent` 不同——**连 table 元素都不存在**，而不是有表 0 行——但实盘那边的原话是：**「虽然它们的表现不同，但我不能凭这个就免测。」** 10 条全部按 v6-patient-signal-gated（耐心模式：每轮 200 秒、3 轮跑满不早停、单条最长 600 秒；空判定必须绑定正向的「本页已渲染完成」信号，拿不到就输出 inconclusive 而不是 empty） 重跑，先跑 referral / organic-search / paid-search / organic-social / socioeconomics 五条（**本条在第一批**）。在结果回来之前，「这条路由本来就不提供表格」是**暂定结论**。判据教训见 backlink Skill 里 id 为 readiness-must-bind-to-this-query 的那条 law（实例 5 与实例 6）。"
+                "remeasureStatus": "strong-but-different-protocol",
+                "remeasureNote": "**2026-08-29**：本条在**更早的协议**下被读了 **98 次**、每次都在 `visible` 下、每次都 0 个 table 元素。证据量足够强，**但那一轮没有记录 `chartHydrated` / `exportBtns` 这两个结构字段**，所以它不满足 `no-table-structural` 的四条件形状。标 **strong-but-different-protocol**，待按结构判据补测一次。可以按 chart-only 规划取数（不要套可见性重试循环），但**不要把它当作已结案的结构判定**。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
+                "chartOnlyTier": "strong-but-different-protocol"
               },
               "/analytics/traffic/ai-traffic/": {
                 "label": "AI 流量",
@@ -468,12 +508,13 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类。图表轴到 1.5 亿。",
-                "remeasureStatus": "pending-remeasure-v5",
-                "remeasureNote": "**2026-08-28：这条 `chart-only` 判定也是在早停判据下测的，同一个 bug，正在重测，不要当成已确认。** 它的表现确实和 `empty-silent` 不同——**连 table 元素都不存在**，而不是有表 0 行——但实盘那边的原话是：**「虽然它们的表现不同，但我不能凭这个就免测。」** 10 条全部按 v6-patient-signal-gated（耐心模式：每轮 200 秒、3 轮跑满不早停、单条最长 600 秒；空判定必须绑定正向的「本页已渲染完成」信号，拿不到就输出 inconclusive 而不是 empty） 重跑，先跑 referral / organic-search / paid-search / organic-social / socioeconomics 五条（**本条在第一批**）。在结果回来之前，「这条路由本来就不提供表格」是**暂定结论**。判据教训见 backlink Skill 里 id 为 readiness-must-bind-to-this-query 的那条 law（实例 5 与实例 6）。"
+                "remeasureStatus": "strong-but-different-protocol",
+                "remeasureNote": "**2026-08-29**：本条在**更早的协议**下被读了 **96 次**、每次都在 `visible` 下、每次都 0 个 table 元素。证据量足够强，**但那一轮没有记录 `chartHydrated` / `exportBtns` 这两个结构字段**，所以它不满足 `no-table-structural` 的四条件形状。标 **strong-but-different-protocol**，待按结构判据补测一次。可以按 chart-only 规划取数（不要套可见性重试循环），但**不要把它当作已结案的结构判定**。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
+                "chartOnlyTier": "strong-but-different-protocol"
               },
               "/analytics/traffic/paid-search/": {
                 "label": "付费搜索",
-                "category": "chart-only",
+                "category": "pending",
                 "node": 5,
                 "target": "canva.com",
                 "period": "2026年7月",
@@ -494,8 +535,15 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类。图表轴到 150 万。",
-                "remeasureStatus": "pending-remeasure-v5",
-                "remeasureNote": "**2026-08-28：这条 `chart-only` 判定也是在早停判据下测的，同一个 bug，正在重测，不要当成已确认。** 它的表现确实和 `empty-silent` 不同——**连 table 元素都不存在**，而不是有表 0 行——但实盘那边的原话是：**「虽然它们的表现不同，但我不能凭这个就免测。」** 10 条全部按 v6-patient-signal-gated（耐心模式：每轮 200 秒、3 轮跑满不早停、单条最长 600 秒；空判定必须绑定正向的「本页已渲染完成」信号，拿不到就输出 inconclusive 而不是 empty） 重跑，先跑 referral / organic-search / paid-search / organic-social / socioeconomics 五条（**本条在第一批**）。在结果回来之前，「这条路由本来就不提供表格」是**暂定结论**。判据教训见 backlink Skill 里 id 为 readiness-must-bind-to-this-query 的那条 law（实例 5 与实例 6）。"
+                "remeasureStatus": "pending-remeasure-v7-structural",
+                "remeasureNote": "**2026-08-29：弱证据，不进分类。** 跑满耐心预算仍没等到表，但结构判据没凑齐：`chart=0 / exp=6`——图表数字没渲染出来，页面并没有「其余部分已完成」。这一档的判定名是 **`no-table`**，它是 `inconclusive` 换了个好听的名字，**不可采信**，因此本条 `category` 记为 `pending` 而不是 `chart-only`。重测要求：拿到 chartHydrated>=3 且 exportBtns>=1 才允许下结论。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
+                "chartOnlyTier": "pending-weak-evidence",
+                "weakEvidence": {
+                  "chartHydrated": 0,
+                  "exportBtns": 6,
+                  "verdict": "no-table",
+                  "admissible": false
+                }
               },
               "/analytics/traffic/organic-social/": {
                 "label": "自然社交",
@@ -520,8 +568,20 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类。图表轴到 3000 万。",
-                "remeasureStatus": "pending-remeasure-v5",
-                "remeasureNote": "**2026-08-28：这条 `chart-only` 判定也是在早停判据下测的，同一个 bug，正在重测，不要当成已确认。** 它的表现确实和 `empty-silent` 不同——**连 table 元素都不存在**，而不是有表 0 行——但实盘那边的原话是：**「虽然它们的表现不同，但我不能凭这个就免测。」** 10 条全部按 v6-patient-signal-gated（耐心模式：每轮 200 秒、3 轮跑满不早停、单条最长 600 秒；空判定必须绑定正向的「本页已渲染完成」信号，拿不到就输出 inconclusive 而不是 empty） 重跑，先跑 referral / organic-search / paid-search / organic-social / socioeconomics 五条（**本条在第一批**）。在结果回来之前，「这条路由本来就不提供表格」是**暂定结论**。判据教训见 backlink Skill 里 id 为 readiness-must-bind-to-this-query 的那条 law（实例 5 与实例 6）。"
+                "remeasureStatus": "confirmed-v7-structural",
+                "remeasureNote": "**2026-08-29 结案**：耐心模式重测通过**结构判据**，判定 `no-table-structural`，可采信。此前那条「早停判据下测出、不要当成已确认」的警告对本条**已解除**。证据见 `structuralEvidence`。",
+                "chartOnlyTier": "structural-confirmed",
+                "structuralEvidence": {
+                  "noTable": true,
+                  "chartHydrated": 30,
+                  "exportBtns": 5,
+                  "targetVisible": true,
+                  "visibilityStateAtRead": "visible",
+                  "consecutiveReads": 2,
+                  "verdict": "no-table-structural",
+                  "protocolId": "v7-structural-absence",
+                  "note": "四条件全满足、连续两次读都满足：整页 0 个 table/[role=grid]，svg 内含数字的文本节点 30 个（坐标轴/数据标签已渲染完），章节导出按钮 5 个（页面其余部分已渲染完），目标已生效且读取瞬间 visible。含义是「页面别的部分都好了，就是没有表格这个东西」。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。"
+                }
               },
               "/analytics/traffic/paid-social/": {
                 "label": "付费社交",
@@ -545,8 +605,20 @@
                 "noMatchMessage": false,
                 "error": null,
                 "sweepVerdict": "no-table",
-                "remeasureStatus": "pending-remeasure-v5",
-                "remeasureNote": "**2026-08-28：这条 `chart-only` 判定也是在早停判据下测的，同一个 bug，正在重测，不要当成已确认。** 它的表现确实和 `empty-silent` 不同——**连 table 元素都不存在**，而不是有表 0 行——但实盘那边的原话是：**「虽然它们的表现不同，但我不能凭这个就免测。」** 10 条全部按 v6-patient-signal-gated（耐心模式：每轮 200 秒、3 轮跑满不早停、单条最长 600 秒；空判定必须绑定正向的「本页已渲染完成」信号，拿不到就输出 inconclusive 而不是 empty） 重跑，先跑 referral / organic-search / paid-search / organic-social / socioeconomics 五条。在结果回来之前，「这条路由本来就不提供表格」是**暂定结论**。判据教训见 backlink Skill 里 id 为 readiness-must-bind-to-this-query 的那条 law（实例 5 与实例 6）。"
+                "remeasureStatus": "confirmed-v7-structural",
+                "remeasureNote": "**2026-08-29 结案**：耐心模式重测通过**结构判据**，判定 `no-table-structural`，可采信。此前那条「早停判据下测出、不要当成已确认」的警告对本条**已解除**。证据见 `structuralEvidence`。",
+                "chartOnlyTier": "structural-confirmed",
+                "structuralEvidence": {
+                  "noTable": true,
+                  "chartHydrated": 34,
+                  "exportBtns": 5,
+                  "targetVisible": true,
+                  "visibilityStateAtRead": "visible",
+                  "consecutiveReads": 2,
+                  "verdict": "no-table-structural",
+                  "protocolId": "v7-structural-absence",
+                  "note": "四条件全满足、连续两次读都满足：整页 0 个 table/[role=grid]，svg 内含数字的文本节点 34 个（坐标轴/数据标签已渲染完），章节导出按钮 5 个（页面其余部分已渲染完），目标已生效且读取瞬间 visible。含义是「页面别的部分都好了，就是没有表格这个东西」。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。"
+                }
               },
               "/analytics/traffic/email/": {
                 "label": "电子邮件",
@@ -570,8 +642,20 @@
                 "noMatchMessage": false,
                 "error": null,
                 "sweepVerdict": "no-table",
-                "remeasureStatus": "pending-remeasure-v5",
-                "remeasureNote": "**2026-08-28：这条 `chart-only` 判定也是在早停判据下测的，同一个 bug，正在重测，不要当成已确认。** 它的表现确实和 `empty-silent` 不同——**连 table 元素都不存在**，而不是有表 0 行——但实盘那边的原话是：**「虽然它们的表现不同，但我不能凭这个就免测。」** 10 条全部按 v6-patient-signal-gated（耐心模式：每轮 200 秒、3 轮跑满不早停、单条最长 600 秒；空判定必须绑定正向的「本页已渲染完成」信号，拿不到就输出 inconclusive 而不是 empty） 重跑，先跑 referral / organic-search / paid-search / organic-social / socioeconomics 五条。在结果回来之前，「这条路由本来就不提供表格」是**暂定结论**。判据教训见 backlink Skill 里 id 为 readiness-must-bind-to-this-query 的那条 law（实例 5 与实例 6）。"
+                "remeasureStatus": "confirmed-v7-structural",
+                "remeasureNote": "**2026-08-29 结案**：耐心模式重测通过**结构判据**，判定 `no-table-structural`，可采信。此前那条「早停判据下测出、不要当成已确认」的警告对本条**已解除**。证据见 `structuralEvidence`。",
+                "chartOnlyTier": "structural-confirmed",
+                "structuralEvidence": {
+                  "noTable": true,
+                  "chartHydrated": 23,
+                  "exportBtns": 4,
+                  "targetVisible": true,
+                  "visibilityStateAtRead": "visible",
+                  "consecutiveReads": 2,
+                  "verdict": "no-table-structural",
+                  "protocolId": "v7-structural-absence",
+                  "note": "四条件全满足、连续两次读都满足：整页 0 个 table/[role=grid]，svg 内含数字的文本节点 23 个（坐标轴/数据标签已渲染完），章节导出按钮 4 个（页面其余部分已渲染完），目标已生效且读取瞬间 visible。含义是「页面别的部分都好了，就是没有表格这个东西」。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。"
+                }
               },
               "/analytics/traffic/display-ads/": {
                 "label": "展示广告",
@@ -596,8 +680,20 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类，且是 A 类里最贫的一条：innerText 只有 175 字符，主体区除了区块标题和「导出」按钮之外**读不到任何数值**（`流量趋势 | 导出 | 桌面设备趋势 | 导出 | 移动设备趋势 | 导出 | 增长最快的页面 | 导出`）。svg 26 个。「图里有没有数」本条**没有验证**，不要替它下结论。",
-                "remeasureStatus": "pending-remeasure-v5",
-                "remeasureNote": "**2026-08-28：这条 `chart-only` 判定也是在早停判据下测的，同一个 bug，正在重测，不要当成已确认。** 它的表现确实和 `empty-silent` 不同——**连 table 元素都不存在**，而不是有表 0 行——但实盘那边的原话是：**「虽然它们的表现不同，但我不能凭这个就免测。」** 10 条全部按 v6-patient-signal-gated（耐心模式：每轮 200 秒、3 轮跑满不早停、单条最长 600 秒；空判定必须绑定正向的「本页已渲染完成」信号，拿不到就输出 inconclusive 而不是 empty） 重跑，先跑 referral / organic-search / paid-search / organic-social / socioeconomics 五条。在结果回来之前，「这条路由本来就不提供表格」是**暂定结论**。判据教训见 backlink Skill 里 id 为 readiness-must-bind-to-this-query 的那条 law（实例 5 与实例 6）。"
+                "remeasureStatus": "confirmed-v7-structural",
+                "remeasureNote": "**2026-08-29 结案**：耐心模式重测通过**结构判据**，判定 `no-table-structural`，可采信。此前那条「早停判据下测出、不要当成已确认」的警告对本条**已解除**。证据见 `structuralEvidence`。",
+                "chartOnlyTier": "structural-confirmed",
+                "structuralEvidence": {
+                  "noTable": true,
+                  "chartHydrated": 29,
+                  "exportBtns": 4,
+                  "targetVisible": true,
+                  "visibilityStateAtRead": "visible",
+                  "consecutiveReads": 2,
+                  "verdict": "no-table-structural",
+                  "protocolId": "v7-structural-absence",
+                  "note": "四条件全满足、连续两次读都满足：整页 0 个 table/[role=grid]，svg 内含数字的文本节点 29 个（坐标轴/数据标签已渲染完），章节导出按钮 4 个（页面其余部分已渲染完），目标已生效且读取瞬间 visible。含义是「页面别的部分都好了，就是没有表格这个东西」。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。"
+                }
               },
               "/analytics/traffic/sources-destinations/": {
                 "label": "来源与目标",
@@ -915,7 +1011,7 @@
               },
               "/analytics/traffic/socioeconomics/": {
                 "label": "社会经济",
-                "category": "chart-only",
+                "category": "pending",
                 "node": 5,
                 "target": "canva.com",
                 "period": "2026年7月",
@@ -936,12 +1032,13 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类。主体区只有维度名（家庭规模 / 收入水平 / 就业状况 / 知识 / 义务教育 / 大学 / 研究生 / 未结业），没有数值文本。",
-                "remeasureStatus": "pending-remeasure-v5",
-                "remeasureNote": "**2026-08-28：这条 `chart-only` 判定也是在早停判据下测的，同一个 bug，正在重测，不要当成已确认。** 它的表现确实和 `empty-silent` 不同——**连 table 元素都不存在**，而不是有表 0 行——但实盘那边的原话是：**「虽然它们的表现不同，但我不能凭这个就免测。」** 10 条全部按 v6-patient-signal-gated（耐心模式：每轮 200 秒、3 轮跑满不早停、单条最长 600 秒；空判定必须绑定正向的「本页已渲染完成」信号，拿不到就输出 inconclusive 而不是 empty） 重跑，先跑 referral / organic-search / paid-search / organic-social / socioeconomics 五条（**本条在第一批**）。在结果回来之前，「这条路由本来就不提供表格」是**暂定结论**。判据教训见 backlink Skill 里 id 为 readiness-must-bind-to-this-query 的那条 law（实例 5 与实例 6）。"
+                "remeasureStatus": "pending-remeasure-v7-structural",
+                "remeasureNote": "**2026-08-29：仍在跑，保持 pending。** 结构判据重测尚未回来，在结果回来之前不要替它下任何结论，也不要按 chart-only 规划。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
+                "chartOnlyTier": "pending-still-running"
               },
               "/analytics/traffic/behavior/": {
                 "label": "行为",
-                "category": "chart-only",
+                "category": "pending",
                 "node": 5,
                 "target": "canva.com",
                 "period": "2026年7月",
@@ -962,12 +1059,19 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类。主体区只有维度名（社交媒体 / 兴趣度 / 设备 / 桌面设备 / 移动设备），没有数值文本。",
-                "remeasureStatus": "pending-remeasure-v5",
-                "remeasureNote": "**2026-08-28：这条 `chart-only` 判定也是在早停判据下测的，同一个 bug，正在重测，不要当成已确认。** 它的表现确实和 `empty-silent` 不同——**连 table 元素都不存在**，而不是有表 0 行——但实盘那边的原话是：**「虽然它们的表现不同，但我不能凭这个就免测。」** 10 条全部按 v6-patient-signal-gated（耐心模式：每轮 200 秒、3 轮跑满不早停、单条最长 600 秒；空判定必须绑定正向的「本页已渲染完成」信号，拿不到就输出 inconclusive 而不是 empty） 重跑，先跑 referral / organic-search / paid-search / organic-social / socioeconomics 五条。在结果回来之前，「这条路由本来就不提供表格」是**暂定结论**。判据教训见 backlink Skill 里 id 为 readiness-must-bind-to-this-query 的那条 law（实例 5 与实例 6）。"
+                "remeasureStatus": "pending-remeasure-v7-structural",
+                "remeasureNote": "**2026-08-29：弱证据，不进分类。** 跑满耐心预算仍没等到表，但结构判据没凑齐：`chart=0 / exp=0`——**整页章节都没渲染，等于什么都没测到**。这一档的判定名是 **`no-table`**，它是 `inconclusive` 换了个好听的名字，**不可采信**，因此本条 `category` 记为 `pending` 而不是 `chart-only`。重测要求：拿到 chartHydrated>=3 且 exportBtns>=1 才允许下结论。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
+                "chartOnlyTier": "pending-weak-evidence",
+                "weakEvidence": {
+                  "chartHydrated": 0,
+                  "exportBtns": 0,
+                  "verdict": "no-table",
+                  "admissible": false
+                }
               },
               "/analytics/traffic/daily-trends/": {
                 "label": "每日趋势",
-                "category": "chart-only",
+                "category": "pending",
                 "node": 5,
                 "target": "canva.com",
                 "period": "2026年7月",
@@ -988,8 +1092,9 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类。主体区列的是渠道名（直接 / 引荐 / AI 流量 / 谷歌 AI 模式 / 自然搜索 / 自然社交 / 付费搜索 / 付费社交 / 电子邮件 / 展示广告）各带一个「导出」，没有数值文本。",
-                "remeasureStatus": "pending-remeasure-v5",
-                "remeasureNote": "**2026-08-28：这条 `chart-only` 判定也是在早停判据下测的，同一个 bug，正在重测，不要当成已确认。** 它的表现确实和 `empty-silent` 不同——**连 table 元素都不存在**，而不是有表 0 行——但实盘那边的原话是：**「虽然它们的表现不同，但我不能凭这个就免测。」** 10 条全部按 v6-patient-signal-gated（耐心模式：每轮 200 秒、3 轮跑满不早停、单条最长 600 秒；空判定必须绑定正向的「本页已渲染完成」信号，拿不到就输出 inconclusive 而不是 empty） 重跑，先跑 referral / organic-search / paid-search / organic-social / socioeconomics 五条。在结果回来之前，「这条路由本来就不提供表格」是**暂定结论**。判据教训见 backlink Skill 里 id 为 readiness-must-bind-to-this-query 的那条 law（实例 5 与实例 6）。"
+                "remeasureStatus": "pending-remeasure-v7-structural",
+                "remeasureNote": "**2026-08-29：仍在跑，保持 pending。** 结构判据重测尚未回来，在结果回来之前不要替它下任何结论，也不要按 chart-only 规划。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
+                "chartOnlyTier": "pending-still-running"
               },
               "/analytics/traffic/industry-and-bulk-analysis/": {
                 "label": "行业与批量分析",
