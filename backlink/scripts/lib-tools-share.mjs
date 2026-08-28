@@ -584,26 +584,115 @@ function windowSegDrift(want, got) {
 }
 
 /**
+ * **窗口改写有两条通道，路径段只是其中一条。**
+ *
+ * 2026-08-29 实测（canva.com，`#/digitalsuite/websiteanalysis/backlinks/table/999?duration=365d`）：
+ * 请求 `duration=365d`，settle 之后被面板改成 `duration=28d`。这条路由的**末段是 `999`**，
+ * 不是窗口，所以只看末段的判据返回 null，一张 28 天的反链表被标成 365 天，
+ * 而且一行日志都没有——正是这个机制要防的错标，从另一扇门进来了。
+ * 而且它在 canva.com 这种大站上就会发生，不像 `28d → 6m` 那次是小站特有的。
+ *
+ * 判据 = **参数名白名单 ∩ 值的形状 `\d+[dwmy]`**，两个条件都要满足。为什么是交集：
+ *   - 只看形状：`webSource`、`key`、任何别的参数哪天取到一个形如 `30d` 的值就会被
+ *     报成「窗口改写」。
+ *   - 只看名字：`duration=custom`、`duration=2026-01-01_2026-03-01` 这种非窗口取值
+ *     也会被当成窗口对比。
+ *   - 「query 被改写是容忍的」是既有语义（见 routeOf），**必须保持**。放宽到
+ *     「任何 query 变动都报」等于每次导航都报一次，这个信号一周内就会被人无视。
+ * 白名单只收窗口语义的参数名；`duration` 是实测到的那一个，其余几个是同类同义词，
+ * 有形状判据兜着，多收几个名字并不会把口子放大。
+ */
+const WINDOW_QUERY_PARAMS = new Set([
+  'duration', 'period', 'timeframe', 'timerange', 'range', 'window', 'daterange', 'date_range',
+]);
+
+/**
+ * 取一个 URL 上的 query 参数。hash 路由的 query 挂在 `#` **后面**
+ * （`#/…/table/999?duration=365d`），普通路由挂在前面，两边都要看；
+ * 同名参数以 hash 侧为准，因为报表状态写在 hash 里。
+ */
+function queryParams(url) {
+  const s = String(url ?? '');
+  const hashAt = s.indexOf('#');
+  const parts = hashAt >= 0 ? [s.slice(0, hashAt), s.slice(hashAt + 1)] : [s];
+  const out = new Map();
+  for (const part of parts) {
+    const q = part.indexOf('?');
+    if (q < 0) continue;
+    let pairs;
+    try { pairs = new URLSearchParams(part.slice(q + 1)); } catch { continue; }
+    for (const [k, v] of pairs) out.set(k.toLowerCase(), v);
+  }
+  return out;
+}
+
+/**
+ * query 通道的窗口漂移。返回形状和路径通道**完全一致**，只是多一个 `param`——
+ * 调用方不该关心窗口是从路径还是 query 来的，但排查的人需要知道是哪一扇门。
+ */
+function windowQueryDrift(requestedUrl, landedUrl) {
+  const want = queryParams(requestedUrl);
+  const got = queryParams(landedUrl);
+  let fallback = null;
+  for (const [name, value] of want) {
+    if (!WINDOW_QUERY_PARAMS.has(name)) continue;
+    // 请求值本身不是窗口形状就不认：`duration=custom` 变成别的东西，我们没有
+    // 依据说那是「窗口从 A 变成 B」，宁可什么都不说。
+    if (!WINDOW_SEG.test(value)) continue;
+    const landedValue = got.get(name);
+    const landed = landedValue != null && WINDOW_SEG.test(landedValue) ? landedValue : null;
+    const drift = {
+      requested: value, landed, rewritten: landed !== null && landed !== value,
+      source: 'query', param: name,
+    };
+    if (drift.rewritten) return drift;
+    fallback ??= drift;
+  }
+  return fallback;
+}
+
+/** 路径通道的窗口：只认**末段**，判据同 windowSegDrift。 */
+function windowPathDrift(requestedUrl, landedUrl) {
+  const wantSeg = routeOf(requestedUrl).path.split('/').pop();
+  if (!WINDOW_SEG.test(wantSeg)) return null;
+  const gotSeg = routeOf(landedUrl).path.split('/').pop();
+  const landed = WINDOW_SEG.test(gotSeg) ? gotSeg : null;
+  return {
+    requested: wantSeg, landed, rewritten: landed !== null && landed !== wantSeg, source: 'path',
+  };
+}
+
+/**
  * 请求路由与落地路由的**时间窗口**，不管有没有被改写都回传，供调用方标注输出。
  *
  * 2026-08-28 实测（creem.io）：请求 `.../marketing-channels/999/28d` 落到
  * `.../marketing-channels/999/6m`——顶层报表没变，只有窗口段被面板改写了。
  * 合理解释是小站没有 28 天数据，面板自动把窗口放宽。逐字节相同的这条路由在
  * canva.com 上完全没被改写，所以**拿大站永远测不出来**。
+ * 2026-08-29 实测（canva.com）：`backlinks/table` 的 `?duration=365d` 被改成 `28d`，
+ * 而那条路由的末段是 `999`——**两条通道都要看**，见 WINDOW_QUERY_PARAMS。
  *
  * 光容忍不够：落地是 `6m` 而脚本仍按 `28d` 标注输出，就是把 6 个月的数字标成 28 天,
  * 正是这道校验本来要防的那类错标。所以窗口必须回传到调用方并写进输出。
  *
- * 返回 `{ requested, landed, rewritten }`，或 null（这条路由末段根本不是窗口）。
+ * 返回 `{ requested, landed, rewritten, source }`（`source: 'query'` 时多一个 `param`），
+ * 或 null（这条路由的末段和 query 里都找不到窗口）。两条通道都能认出窗口时，
+ * **被改写的那条优先**——报出改写是这个机制存在的全部理由；都没被改写就以路径为准。
+ *
+ * ⚠️ **已知残留缺口**：7 个 gotoInTool 调用点里只有
+ * `rankup/scripts/demand/payment-referrers.mjs` 把 `routeWindow` 写进了输出，
+ * 其余 6 个（similarweb-query / similarweb-batch / similarweb-keywords /
+ * semrush-* 等）拿到返回值就丢掉。它们目前只在窗口被改写时收到一行 stderr 警告，
+ * **输出文件里没有窗口字段**，下游无从判断那些数字是哪个时间窗口的。
+ * 补的时候照 payment-referrers 的字段抄：`requestedWindow` / `window` /
+ * `windowRewritten` / `windowSource`。
  */
 export function routeWindow(requestedUrl, landedUrl) {
-  const want = routeOf(requestedUrl);
-  const got = routeOf(landedUrl);
-  const wantSeg = want.path.split('/').pop();
-  if (!WINDOW_SEG.test(wantSeg)) return null;
-  const gotSeg = got.path.split('/').pop();
-  const landedSeg = WINDOW_SEG.test(gotSeg) ? gotSeg : null;
-  return { requested: wantSeg, landed: landedSeg, rewritten: landedSeg !== null && landedSeg !== wantSeg };
+  const path = windowPathDrift(requestedUrl, landedUrl);
+  const query = windowQueryDrift(requestedUrl, landedUrl);
+  if (path?.rewritten) return path;
+  if (query?.rewritten) return query;
+  return path ?? query ?? null;
 }
 
 /**
@@ -634,14 +723,16 @@ export function routeMismatch(requestedUrl, landedUrl) {
  * `{ allowRedirect: true }` 是给**已知会合法重定向**的调用方留的出口。
  * 默认必须是严格的——默认宽松等于没修。
  *
- * 返回值在落地状态上多带一个 `routeWindow`：`{ requested, landed, rewritten }`，
- * 路由末段不是时间窗口时为 null。**报表窗口跟报表身份一样是数据的一部分**——
+ * 返回值在落地状态上多带一个 `routeWindow`：`{ requested, landed, rewritten, source }`
+ * （`source: 'query'` 时还有 `param`），路径末段和 query 里都没有窗口时为 null。
+ * `source` 说明窗口是从**路径段**还是**查询串**认出来的——两条通道都会被面板改写，
+ * 排查时必须能分清是哪一扇门。**报表窗口跟报表身份一样是数据的一部分**——
  * 面板会在小站上把 `28d` 悄悄放宽成 `6m`（见 routeWindow 的实测记录），
  * 调用方必须把 `routeWindow.landed` 写进输出，否则就是把 6 个月的数字标成 28 天。
  * 放在这里而不是让每个调用方自己解析落地 URL：7 个调用点一次性受益，
  * 而且「窗口段怎么认」只有这一处判据，不会各写各的。
  */
-export async function gotoInTool(evalPage, target, settleSeconds = 15, { allowRedirect = false } = {}) {
+export async function gotoInTool(evalPage, target, settleSeconds = 15, { allowRedirect = false, windowRecheckMs = 2000 } = {}) {
   const url = target.startsWith('http') ? target : target.replace(/^\/?/, '/');
   await evalPage(`(() => { location.href = ${JSON.stringify(url)}; return JSON.stringify({ navigating: true }); })()`);
   await sleep(settleSeconds * 1000);
@@ -663,13 +754,41 @@ export async function gotoInTool(evalPage, target, settleSeconds = 15, { allowRe
       ));
     }
   }
-  const window = routeWindow(url, landed.url);
+  // 窗口以**最终值**为准，不是导航瞬间的值。
+  //
+  // 2026-08-29 实测（canva.com / backlinks/table）：改写发生在 settle **之后**——
+  // 导航返回时读到的还是 `duration=365d`，再读一次才变成 `28d`。只读一次就等于
+  // 把一个还会变的值当结论，和这个机制要防的错标是同一类错误。
+  //
+  // 为什么补在 gotoInTool 而不是 captureStable：captureStable 只拿到 read/fingerprint，
+  // 它**根本不知道请求的是哪个 URL**，没有对比的另一半；而且 7 个调用点里只有 1 个
+  // 走 captureStable 读窗口，补在那里等于只修 1/7。gotoInTool 是唯一一处所有调用点
+  // 都必经、且同时握着「请求 URL」和「页面」的地方。
+  //
+  // 代价：每次 gotoInTool 多睡 windowRecheckMs（默认 2s）并多一次极轻的 location.href 读。
+  // 相对于 settle 的 12~15s 是 ~15%，可以传 `{ windowRecheckMs: 0 }` 关掉。
+  // **它是下限不是保证**：面板哪天在第 10 秒才改写，这一读同样会漏。真正兜底的做法是
+  // 调用方在自己的轮询收敛时拿 `location.href` 再算一次（payment-referrers.mjs 就是这么做的）。
+  let window = routeWindow(url, landed.url);
+  let windowUrl = landed.url;
+  if (windowRecheckMs > 0) {
+    await sleep(windowRecheckMs);
+    try {
+      const again = await evalPage('(() => JSON.stringify({ url: location.href }))()');
+      const laterWindow = again?.url ? routeWindow(url, again.url) : null;
+      // 只在后一次真的认出窗口时才替换；读失败/读不出窗口都退回前一次的结论。
+      // 注意返回的 `url` 仍是导航落地那一刻的值——路由校验校的是它，不动它的语义。
+      if (laterWindow) { window = laterWindow; windowUrl = again.url; }
+    } catch { /* 补读失败不该让一次成功的导航失败 */ }
+  }
   if (window?.rewritten) {
     // 说出来，不只是塞进返回值：跑批的人看日志，不看每条记录的 routeWindow。
+    const via = window.source === 'query' ? `query param \`${window.param}\`` : 'route path segment';
     console.error(redactSecrets(
-      `[gotoInTool] the app rewrote the report time window: requested ${window.requested}, landed ${window.landed}. ` +
+      `[gotoInTool] the app rewrote the report time window (via ${via}): ` +
+      `requested ${window.requested}, landed ${window.landed}. ` +
       `The numbers on this page are ${window.landed} numbers — label them as such.\n` +
-      `  landed url: ${landed.url}`,
+      `  landed url: ${windowUrl}`,
     ));
   }
   return { ...landed, routeWindow: window };

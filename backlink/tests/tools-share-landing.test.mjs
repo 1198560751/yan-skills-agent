@@ -31,7 +31,10 @@ function fakeEvalPage(landedUrl, { title = 'Similarweb PRO', bodyText = 'ok' } =
 }
 
 // settle 传 0，测试里不要真的睡 15 秒。
-const goto = (evalPage, target, options) => gotoInTool(evalPage, target, 0, options);
+// windowRecheckMs 默认也关掉：补读是「以最终值为准」那条专门的测试要考的东西，
+// 别让其余每条用例都白等 2 秒。
+const goto = (evalPage, target, options) =>
+  gotoInTool(evalPage, target, 0, { windowRecheckMs: 0, ...options });
 
 test('landing on exactly the requested hash route passes', async () => {
   const route = `${SW}/#/digitalsuite/websiteanalysis/overview/website-performance/*/999/28d?webSource=Total&key=example.com`;
@@ -200,14 +203,14 @@ test('gotoInTool tolerates the window rewrite and reports the landed window', as
   assert.equal(landed.url, landedUrl);
   // 回传必须同时带上「请求的窗口」和「实际的窗口」——只有实际窗口的话，
   // 下游看到 6m 也不知道它本来要的是 28d。
-  assert.deepEqual(landed.routeWindow, { requested: '28d', landed: '6m', rewritten: true });
+  assert.deepEqual(landed.routeWindow, { requested: '28d', landed: '6m', rewritten: true, source: 'path' });
 });
 
 test('gotoInTool reports the window even when it was not rewritten', async () => {
   const route = `${CHANNELS}/28d?key=canva.com`;
   const { evalPage } = fakeEvalPage(route);
   const landed = await goto(evalPage, route);
-  assert.deepEqual(landed.routeWindow, { requested: '28d', landed: '28d', rewritten: false });
+  assert.deepEqual(landed.routeWindow, { requested: '28d', landed: '28d', rewritten: false, source: 'path' });
 });
 
 test('routeWindow is null for routes whose last segment is not a window', () => {
@@ -223,5 +226,115 @@ test('the referrals hop also carries its landed window', async () => {
   const landedUrl = `${SW}/#/digitalsuite/websiteanalysis/referrals/*/999/6m?selectedTab=incomingTraffic&key=creem.io`;
   const { evalPage } = fakeEvalPage(landedUrl);
   const landed = await goto(evalPage, requested);
-  assert.deepEqual(landed.routeWindow, { requested: '28d', landed: '6m', rewritten: true });
+  assert.deepEqual(landed.routeWindow, { requested: '28d', landed: '6m', rewritten: true, source: 'path' });
+});
+
+/* ---------------------------------------------------------------------------
+ * 第二条通道：查询串里的窗口参数。
+ *
+ * 2026-08-29 实测（canva.com）：`#/…/backlinks/table/999?duration=365d` 在 settle 之后
+ * 被面板改成 `?duration=28d`。这条路由的**末段是 `999`**，只看末段的判据返回 null，
+ * 于是一张 28 天的反链表被标成 365 天，连一行日志都没有。
+ * 而且它发生在大站上——拿 canva.com 复测「路径段那条」永远测不出这条。
+ * ------------------------------------------------------------------------- */
+
+const BACKLINKS = `${SW}/#/digitalsuite/websiteanalysis/backlinks/table/999`;
+
+test('a rewritten window query param is reported, and says it came from the query', () => {
+  const w = routeWindow(`${BACKLINKS}?duration=365d&key=canva.com`, `${BACKLINKS}?duration=28d&key=canva.com`);
+  assert.deepEqual(w, { requested: '365d', landed: '28d', rewritten: true, source: 'query', param: 'duration' });
+});
+
+test('the missed combination: last path segment is 999 and the query window is rewritten', async () => {
+  // 这就是漏掉的那个组合。末段 `999` 不是窗口 → 路径通道返回 null；
+  // 在补上 query 通道之前，整个 routeWindow 是 null，什么都不会被报出来。
+  const requested = `${BACKLINKS}?duration=365d&webSource=Total&key=canva.com`;
+  const landedUrl = `${BACKLINKS}?duration=28d&webSource=Total&key=canva.com`;
+  const { evalPage } = fakeEvalPage(landedUrl);
+  const landed = await goto(evalPage, requested);
+  assert.equal(landed.routeWindow?.rewritten, true);
+  assert.equal(landed.routeWindow?.landed, '28d');
+  assert.equal(landed.routeWindow?.source, 'query');
+  // 路由校验的语义没变：query 被改写**不是** mismatch，这一跳不许抛。
+  assert.equal(routeMismatch(requested, landedUrl), null);
+});
+
+test('an unrewritten window query param is still reported, with rewritten:false', () => {
+  const url = `${BACKLINKS}?duration=365d&key=canva.com`;
+  assert.deepEqual(routeWindow(url, url), {
+    requested: '365d', landed: '365d', rewritten: false, source: 'query', param: 'duration',
+  });
+});
+
+test('non-window query changes are NOT reported as a window rewrite', () => {
+  // 这条是防误报泛滥的闸门。既有语义是「query 被改写是容忍的」，只有**窗口参数**
+  // 才值得报出来。把判据放宽成「任何 query 变动都算」，这条立刻变红——
+  // 而在实盘上它会变成每次导航都警告一次，一周内就没人再看这个信号了。
+  assert.equal(routeWindow(`${BACKLINKS}?key=canva.com`, `${BACKLINKS}?key=canva.com&webSource=Total`), null);
+  assert.equal(routeWindow(`${BACKLINKS}?webSource=Total`, `${BACKLINKS}?webSource=Desktop`), null);
+  assert.equal(routeWindow(`${BACKLINKS}?selectedTab=incoming`, `${BACKLINKS}?selectedTab=outgoing`), null);
+  // 名字对但值不是窗口形状 → 不认。`duration=custom` 变成一个日期区间，我们没有
+  // 依据说「窗口从 A 变成 B」，宁可闭嘴也不要编一个窗口出来。
+  assert.equal(routeWindow(`${BACKLINKS}?duration=custom`, `${BACKLINKS}?duration=2026-01-01`), null);
+  // 值像窗口但名字不在白名单 → 不认。否则任何参数哪天取到 `30d` 都会被报成窗口改写。
+  assert.equal(routeWindow(`${BACKLINKS}?key=30d`, `${BACKLINKS}?key=90d`), null);
+});
+
+test('the path channel still wins when both channels see a window', async () => {
+  // 两条通道都认出窗口时，**被改写的那条**优先——报出改写是这个机制存在的全部理由。
+  const requested = `${CHANNELS}/28d?duration=365d&key=creem.io`;
+  const landedUrl = `${CHANNELS}/6m?duration=365d&key=creem.io`;
+  const { evalPage } = fakeEvalPage(landedUrl);
+  const landed = await goto(evalPage, requested);
+  assert.deepEqual(landed.routeWindow, { requested: '28d', landed: '6m', rewritten: true, source: 'path' });
+});
+
+/* ---------------------------------------------------------------------------
+ * 改写发生在 settle **之后**：导航返回时读到的还是 365d，再读一次才是 28d。
+ * 只读一次 = 把一个还会变的值当结论。
+ * ------------------------------------------------------------------------- */
+
+/** 每次读回一个不同的落地 URL，用来模拟「settle 之后才改写」。 */
+function fakeEvalPageSequence(urls) {
+  let i = 0;
+  return async (script) => {
+    if (script.includes('location.href =')) return { navigating: true };
+    const url = urls[Math.min(i, urls.length - 1)];
+    i += 1;
+    return { url, title: 'Similarweb PRO', bodyText: 'ok' };
+  };
+}
+
+test('a window rewritten after settle is taken at its final value', async () => {
+  // read #0（导航返回那一刻）还是 365d，read #1 起才变成 28d —— 实测就是这个形状。
+  const requested = `${BACKLINKS}?duration=365d&key=canva.com`;
+  const evalPage = fakeEvalPageSequence([
+    `${BACKLINKS}?duration=365d&key=canva.com`,
+    `${BACKLINKS}?duration=28d&key=canva.com`,
+  ]);
+  const landed = await gotoInTool(evalPage, requested, 0, { windowRecheckMs: 5 });
+  // 拿导航瞬间那次读的结论就是 rewritten:false / landed:'365d' —— 正好是错标。
+  assert.equal(landed.routeWindow?.landed, '28d');
+  assert.equal(landed.routeWindow?.rewritten, true);
+  assert.equal(landed.routeWindow?.source, 'query');
+});
+
+test('the delayed re-read also catches a path-segment window rewritten after settle', async () => {
+  const requested = `${CHANNELS}/28d?key=creem.io`;
+  const evalPage = fakeEvalPageSequence([`${CHANNELS}/28d?key=creem.io`, `${CHANNELS}/6m?key=creem.io`]);
+  const landed = await gotoInTool(evalPage, requested, 0, { windowRecheckMs: 5 });
+  assert.deepEqual(landed.routeWindow, { requested: '28d', landed: '6m', rewritten: true, source: 'path' });
+});
+
+test('a failing re-read falls back to the navigation-time window instead of failing the hop', async () => {
+  // 补读只是想把窗口读准，它挂了不该让一次已经成功的导航失败。
+  let n = 0;
+  const evalPage = async (script) => {
+    if (script.includes('location.href =')) return { navigating: true };
+    n += 1;
+    if (n > 1) throw new Error('page went away');
+    return { url: `${CHANNELS}/6m?key=creem.io`, title: 'Similarweb PRO', bodyText: 'ok' };
+  };
+  const landed = await gotoInTool(evalPage, `${CHANNELS}/28d?key=creem.io`, 0, { windowRecheckMs: 5 });
+  assert.deepEqual(landed.routeWindow, { requested: '28d', landed: '6m', rewritten: true, source: 'path' });
 });

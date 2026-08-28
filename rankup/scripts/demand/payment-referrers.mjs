@@ -42,8 +42,13 @@
  *   1b. **面板会改写时间窗口**：小站没有 28 天数据时，`.../999/28d` 会静默落到
  *      `.../999/6m`（2026-08-28 实测 creem.io；同一条路由在 canva.com 上不改写）。
  *      本脚本的全部用途就是查小站，所以这是常态而非异常。输出里的
- *      `requestedWindow` / `window` / `windowRewritten` 记的就是这件事——
+ *      `requestedWindow` / `window` / `windowRewritten` / `windowSource` 记的就是这件事——
  *      **拿数字之前先看 `window`，那才是这些百分比真正对应的时间跨度。**
+ *      改写有**两条通道**：路由末段（上面这条），以及查询串里的窗口参数
+ *      （2026-08-29 实测 canva.com：`?duration=365d` 被改成 `28d`，那条路由的末段是
+ *      `999`，路径通道完全看不见它）。`windowSource` 说的就是哪一扇门。
+ *      改写还可能发生在 **settle 之后**，所以这里在轮询收敛时用当时的 `location.href`
+ *      重算一次窗口，比导航瞬间那次更接近最终值。
  *   2. **`-site:` 在 Brave / DuckDuckGo 上基本无效**（实测直接返回无结果）。
  *      真要排除自身域名就用 --exclude，在本地过滤，不要指望搜索引擎。
  *   3. 指纹表里的结账域名会变（网关改版就会失效）。跑出来全是文档站时，
@@ -358,8 +363,15 @@ async function cmdSimilarweb(args) {
       requestedWindow: timeWindow?.requested ?? null,
       window: timeWindow?.landed ?? null,
       windowRewritten: Boolean(timeWindow?.rewritten),
+      // 窗口改写有两条通道：路由末段（`.../999/28d` → `.../999/6m`）和查询串
+      // （`?duration=365d` → `?duration=28d`，末段是 `999` 的路由只有这一条）。
+      // 三个字段单看分不出是哪一扇门被改的，排查时得知道，所以把通道也写出来。
+      windowSource: timeWindow?.source ?? null,
+      windowParam: timeWindow?.param ?? null,
       // 中转跳转的窗口也留一份：两跳落到不同窗口是面板行为变化的早期信号。
-      hopWindow: hopWindow ? { requested: hopWindow.requested, landed: hopWindow.landed } : null,
+      hopWindow: hopWindow
+        ? { requested: hopWindow.requested, landed: hopWindow.landed, source: hopWindow.source ?? null }
+        : null,
       paired,
       referrers: domains.map((d, i) => ({ domain: d, share: paired ? shares[i] : null })),
       note: paired ? null
@@ -376,7 +388,8 @@ async function cmdSimilarweb(args) {
   if (args.json) { console.log(JSON.stringify(out, null, 2)); return; }
   if (out.note) console.error(`· ${out.note}`);
   if (out.windowRewritten) {
-    console.error(`⚠ 时间窗口被面板改写：请求 ${out.requestedWindow}，实际 ${out.window}。` +
+    const via = out.windowSource === 'query' ? `查询串参数 ${out.windowParam}` : '路由末段';
+    console.error(`⚠ 时间窗口被面板改写（${via}）：请求 ${out.requestedWindow}，实际 ${out.window}。` +
       `下面这些数字是 ${out.window} 的，别按 ${out.requestedWindow} 解读。`);
   }
   printTable(out.referrers, [{ key: 'domain', label: '引荐域名', max: 40 }, { key: 'share', label: '份额' }]);

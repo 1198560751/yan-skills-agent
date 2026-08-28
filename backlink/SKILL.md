@@ -493,6 +493,29 @@ Best guess at the mechanism: Chrome reports `hidden` for a window that is
 **occluded by another window**, so the value tracks whatever is in front on the
 owner's desktop. Nothing in the CLI reaches that.
 
+**CORRECTION 2026-08-29: a foreground attach POISONS the instrument. After one
+`--window foreground` attach, that tab's `document.visibilityState` is pinned to
+`visible` forever** — losing focus does not change it, and switching to another
+tab in the same window does not change it either. The proof is in `&lt;why&gt;`
+(Experiment E): a single probe saw two tabs in **one** Chrome window both
+reporting `visible` at the same instant, which no real window can do.
+
+The consequence is the opposite of everything above: after any foreground
+attach, **`vis === 'visible'` carries zero information about occlusion**. A tab
+that is genuinely hidden gets recorded as a visible read, and every degradation
+that hidden actually causes becomes **invisible to this protocol**. Note that
+this runs *against* the two effects already on record (foreground cannot flip an
+already-hidden tab back; declared `windowMode` has diverged from actual state in
+both directions) — it is a third, separate failure of the same instrument.
+
+**The cure is measured and is now a hard rule of the protocol: a hidden pass
+must run on a session that has NEVER been foreground-attached. `closeSession`
+and rebuild before every hidden pass, pure background, no exceptions.** After a
+close-and-rebuild, `hidden` reads honestly again. The discoverer of this
+applied the rule to their own work first and **voided three of their own runs**
+— 150 reads labelled `hidden` that were in fact visible reads, reclassified as
+such rather than deleted.
+
 **So the strategy is not "make it visible", it is "only believe the reads taken
 while it was visible".** The protocol that has been measured to work:
 
@@ -513,7 +536,12 @@ while it was visible".** The protocol that has been measured to work:
   "empty";
 - if `visible` never arrived in the whole budget, the verdict is
   **`inconclusive-hidden`** — **never** "empty";
-- record `visibilityState` on **every** read, not just the last one.
+- record `visibilityState` on **every** read, not just the last one;
+- **a hidden pass runs on a virgin session.** Any session that has ever been
+  attached with `--window foreground` reports `visible` permanently and cannot
+  produce an admissible hidden read. `closeSession` first, rebuild pure
+  background, then measure. A hidden/visible comparison run inside one session
+  is not a comparison at all.
 
 Three things still do not flip an already-hidden tab back: not the env, not
 `open --window foreground`, and least of all `tab select` (details below).
@@ -609,6 +637,50 @@ guarantee it, and any protocol that assumes it can is wrong. What *is* available
 is the read's own `visibilityState`, sampled in the same eval as the data —
 which is why the admissible-verdict rules in the statement are written around
 waiting for a `visible` read rather than around producing one.
+
+**Experiment E — one foreground attach pins `visibilityState` to `visible` for
+the life of the tab (2026-08-29).** This is the one that undermines the whole
+protocol above, so read the control first.
+
+The control is not a time series, it is an **impossibility**: a single direct
+probe of Chrome window `379229828` saw **two tabs in that same window both
+reporting `visible` at the same instant** — `sw-vis-parker`
+(`visible`, `focus=true`) and `similarweb-nav` (`visible`, `focus=false`).
+**One window cannot have two active tabs, so at least one of those two
+`visible` values is not a measurement.** The one with `focus=false` is the
+poisoned one, and it had been foreground-attached earlier.
+
+The trace behind it, same tab, nothing done to it except parking another tab in
+front:
+
+| read | vis | `hasFocus()` | what it means |
+|---|---|---|---|
+| #0 | visible | **true** | honest — the tab really was in front |
+| #5–12 | visible | false | focus already lost, `vis` did not move |
+| — | — | — | **parked**: `example.com` opened in front, same window |
+| #13–39 | **visible** | false | 27 reads / ~18s, content frozen at `mainLen=47027` |
+
+`hasFocus()` moved. `visibilityState` did not. It never moves again. So after a
+foreground attach the field is a constant, and **any degradation caused by
+being hidden is structurally invisible to a protocol that gates on it** — the
+degraded read is filed as a `visible` read and inherits its authority.
+
+Note how this sits against the two effects already recorded above: foreground
+**cannot** flip an already-hidden tab back to visible, and the declared
+`windowMode` has disagreed with the real state in **both** directions. This
+third effect points the other way again — foreground does not change the tab, it
+changes the *reporting*. Three separate ways for the same instrument to lie;
+none of them cancels the others.
+
+**Cure, measured:** `closeSession`, then reopen the tab **pure background**,
+never foreground-attached. `hidden` reads honestly again. This is why the
+statement's protocol now requires a virgin session for every hidden pass.
+
+**Consequence for work already filed.** The discoverer voided **three of their
+own runs on this basis — 150 reads labelled `hidden` that were really visible
+reads.** They were **reclassified as visible reads, not deleted**; a voided
+observation with its reason attached is evidence about the instrument, and
+erasing it would hide exactly the failure this entry exists to record.
 
 **The mechanism, finally named.** Clicking a panel card is what raises Chrome to
 the foreground. `scripts/lib-tools-share.mjs` `launchTool` has a fast path that
@@ -737,6 +809,44 @@ evidence, because the hidden-tab excuse is not available there. This supersedes
 in strength — it does not merely repeat — the older negative evidence that the
 Similarweb query script "has been getting numbers in background mode for as long
 as it has existed"; absence of trouble is weaker than a measured control.
+
+**Confirmed NOT affected — Similarweb's HEAVY-TABLE pages, upgraded from
+panel-level on 2026-08-29.** The gap the control above left open — "the control
+page was light; the heavy tables were never paired" — is now closed for **three
+page types**, measured as **5 hidden/visible pairs** across 3 page types × 2
+domains (one large, one small), ~160 honest hidden reads and ~130 visible reads.
+Every pair matched **byte for byte**, save one 34-character relative timestamp
+of the "x minutes ago" kind; identical table counts, column counts and row
+counts throughout:
+
+| page | domain | hidden | visible |
+|---|---|---|---|
+| keyword research `website-keyword-v2` | canva.com | `12546 / 1 table / 19 cols / 100 rows` | **identical** |
+| keyword research | creem.io | `13518 / 1 table / 19 cols / 100 rows` | **identical** |
+| backlinks `backlinks/table/999` | canva.com | `46993 / 2 tables / 8 cols / 100 rows` | `47027` — timestamp only |
+| backlinks | creem.io | `18144 / 2 tables / 8 cols / 100 rows` | `18178` — timestamp only |
+| site ranking `mapping/...` | canva.com | `7170 / 3 tables / 12 cols / 12 rows` | **identical** |
+
+**What makes this stronger than the original control, precisely:** the original
+control had **no paired visible read at all**, so its `mainLen=445` was never
+shown to be a *complete* page — only a *stable* one, and stability is not
+completion (that is the whole of
+<law-ref id="readiness-must-bind-to-this-query"/>). These 5 pairs supply the
+missing half.
+
+⚠️ **Do not widen this to "all Similarweb heavy tables".** It covers **the three
+page types actually measured**. The **10,000-domain / 14-column league table was
+never found**, so it was never tested: `ranking`, `websites`, `topsites` and
+`leaders` all silently redirect to `#/digitalsuite/ai-brand-visibility/home`.
+
+**Pending re-check, NOT a conclusion — the `445` coincidence.** The original
+control recorded `mainLen=445`; the unknown-route fallback page
+`#/digitalsuite/ai-brand-visibility/home` measures `bodyLen=445`. **Different
+metrics, so this is not evidence**, and the observer said so themselves. But
+before `445` is trusted as "the complete website-analysis home page", it is
+worth one look at whether that original measurement was taken on the redirect
+fallback. **This does not touch the upgrade above**, which rests on its own 5
+pairs and does not depend on `445`.
 
 **Confirmed NOT affected:** reads of an *already hydrated* .Trends page — the
 same top-pages report handed back 850 non-empty cells with
@@ -907,6 +1017,23 @@ report**. And this is precisely the state that a `captureStable`-style
 "read it twice, take it if the two agree" rule cannot see through: **a
 not-yet-started table is perfectly stable at zero rows**, so agreement arrives
 instantly and means nothing.
+
+**The intermediate state was then caught in the act, on a different vendor
+(2026-08-29) — this is the positive example the structural criterion was written
+for.** On Similarweb, `kw-canva-hidden`'s **first** read was
+`tables=1, th=0, rows=0`: the table element exists, and it has neither headers
+nor rows. **The very next round read `th=19, rows=100`.** The same transient
+appeared on `bl-canva-hidden4` and on `bl-creem-hidden`. So "a table element is
+present with zero rows" is a real, reproducible, **self-resolving** mid-render
+state, and not a rare one.
+
+Two things follow. First, **under the old "waited long enough, still empty ⇒
+empty" rule every one of these would have been filed as an empty table** — the
+rule's failure is not theoretical, it is one polling round wide. Second, it is
+the reason condition one of the structural criterion (*no `table` element
+anywhere*) proves nothing on its own and the finished-rendering conditions carry
+the whole verdict: the interesting cases are precisely the ones where the table
+element is already there and still holds nothing.
 
 **Instance 1 — "ready = digits appear anywhere on the page".** The check
 scanned the whole document for numbers. It matched **another tool's widget

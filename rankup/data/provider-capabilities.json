@@ -1651,13 +1651,55 @@
         },
         "hiddenTabHydrationControl": {
           "recordedAt": "2026-08-28",
-          "verdict": "Similarweb 面板不受「隐藏标签页不水合」影响 —— 正面对照实验，已确认",
+          "verdict": "Similarweb 面板不受「隐藏标签页不水合」影响 —— 正面对照实验，已确认。**2026-08-29 升格**：从「面板级」升格到「已实测的三种重表格页型也不受影响」，见 heavyTableUpgrade20260829。",
           "control": "#/digitalsuite/websiteanalysis/home",
           "measurement": "vis=hidden 下稳定读到完整内容：mainLen=445 / bodyLen=745，跨 4 次运行、900+ 次读全都如此，没有出现过降级形态。",
           "conclusion": "这个 SPA 的隐藏标签页照常渲染。所以在 Similarweb 上，「读到空」不能用 hidden 解释掉——空读必须靠它自己的证据来判，而不是靠可见性来免责。",
           "strength": "这是这条问题上的第一个正面对照实验，比之前那条负面证据（similarweb-query.mjs 长期后台使用能取到数）强：没出事比不上测过。",
           "scopeOfTheLaw": "由此，backlink Skill 里 id 为 hidden-tabs-do-not-hydrate 的那条 law 的适用范围收窄为：已确认受影响 = Semrush 流量与市场（.Trends）的重表格页；已确认不受影响 = Similarweb 面板；其余仍未测量。范围表只写在那条 law 的 scope 里，这里只做指路和记录本次证据。",
-          "notYetExcluded": "本次对照用的是网站分析首页这类较轻的页面。Similarweb 侧的重表格页（站点排名 1 万行榜单、关键词研究大表、反向链接表）没有单独做过 hidden/visible 对照，所以「Similarweb 不受影响」目前是面板级结论、重表格页未单测。"
+          "notYetExcluded": "**（2026-08-28 原文，保留不改；其中三种页型已于 2026-08-29 被 heavyTableUpgrade20260829 补测，剩下的 1 万行榜单仍未测。）** 本次对照用的是网站分析首页这类较轻的页面。Similarweb 侧的重表格页（站点排名 1 万行榜单、关键词研究大表、反向链接表）没有单独做过 hidden/visible 对照，所以「Similarweb 不受影响」目前是面板级结论、重表格页未单测。",
+          "heavyTableUpgrade20260829": {
+            "recordedAt": "2026-08-29",
+            "verdict": "升格：**已实测的三种重表格页型**在 hidden 下完整水合，与 visible 逐字节一致。",
+            "scopeWarning": "⚠️ **只覆盖实测过的这三种页型，不要写成「所有重表格页」。** 那个 1 万域名 / 14 列的榜单**始终没找到**（`ranking` / `websites` / `topsites` / `leaders` 全部静默重定向到 `#/digitalsuite/ai-brand-visibility/home`），**从未被测过**。",
+            "design": "3 种重表格页型 × 2 个域名（一大一小 canva.com / creem.io）= 5 组 hidden/visible 配对；约 160 次诚实 hidden 读、约 130 次 visible 读。",
+            "pairs": [
+              { "page": "关键词研究 website-keyword-v2", "domain": "canva.com", "hidden": "12546 / 1 表 / 19 列 / 100 行", "visible": "完全相同" },
+              { "page": "关键词研究 website-keyword-v2", "domain": "creem.io", "hidden": "13518 / 1 表 / 19 列 / 100 行", "visible": "完全相同" },
+              { "page": "反向链接 backlinks/table/999", "domain": "canva.com", "hidden": "46993 / 2 表 / 8 列 / 100 行", "visible": "47027，仅差一个「x 分钟前」式相对时间戳（34 字符）" },
+              { "page": "反向链接 backlinks/table/999", "domain": "creem.io", "hidden": "18144 / 2 表 / 8 列 / 100 行", "visible": "18178，同上，仅时间戳差" },
+              { "page": "站点排名 mapping/...", "domain": "canva.com", "hidden": "7170 / 3 表 / 12 列 / 12 行", "visible": "完全相同" }
+            ],
+            "whyStronger": "**证据强在哪要写明**：原始对照组（mainLen=445）**根本没有配对的 visible 读**，所以那个 445 从没被证明是「完整页面」，只被证明是「稳定」——而稳定不等于完成。这 5 组配对补上的正是这个洞。",
+            "honestHiddenReadsCaveat": "「诚实 hidden 读」这个限定词是必须的：一次 foreground attach 会把该标签页的 visibilityState 永久锁死在 visible，所以 hidden 那一轮必须跑在从未 foreground attach 过的会话上。**规则的权威版本只写在 backlink Skill 里 id 为 hidden-tabs-do-not-hydrate 的那条 law 里（协议 + Experiment E），本文件不复述。**",
+            "voidedObservations": "**保留记录**：发现者据此作废了自己的三次运行——150 次标着 hidden、实际读到 visible 的读数。它们被**重新归类为 visible 读，没有被删除**：带着原因的作废观测本身是关于仪器的证据。",
+            "transientEmptyTable": "顺带验证了结构判据的中间态：`kw-canva-hidden` 第 1 次读是 `tables=1, th=0, rows=0`，**下一轮就变成 `th=19, rows=100`**；`bl-canva-hidden4` 和 `bl-creem-hidden` 同样出现该瞬态。在旧的「等够久就判空」规则下这些都会被记成空表。作为正面例证已写进 backlink Skill 里 id 为 readiness-must-bind-to-this-query 的那条 law。"
+          },
+          "pending445Coincidence": {
+            "recordedAt": "2026-08-29",
+            "status": "**待复查的巧合，不是结论**",
+            "observation": "原始对照组记的是 `mainLen=445`；而未知路由的兜底页 `#/digitalsuite/ai-brand-visibility/home` 测出来是 `bodyLen=445`。",
+            "notEvidence": "**指标不同（mainLen vs bodyLen），不构成证据**——发现者也如实这么说了。",
+            "whyWorthChecking": "在把 445 当成「完整的 website-analysis 首页」信任之前值得查一眼：有可能当初测的根本就是重定向兜底页。",
+            "doesNotAffect": "**不因为它撤销 heavyTableUpgrade20260829**——那条有自己独立的 5 组配对证据，不依赖 445。"
+          },
+          "routesRecorded20260829": {
+            "recordedAt": "2026-08-29",
+            "note": "补录此前没有记下路由的三条。",
+            "backlinksTable": {
+              "route": "#/digitalsuite/acquisition/backlinks/table/999/?duration=…&key=<域名>",
+              "shape": "8 列、每页 100 行，可深链"
+            },
+            "siteRankingEntry": {
+              "route": "#/digitalsuite/markets/webmarketanalysis/mapping/<行业>/999/<窗口>",
+              "howToReach": "从 #/digitalsuite/markets/webmarketanalysis/home 选一个行业进入；**home 路由本身只渲染行业选择器，没有表**。"
+            },
+            "notFound": {
+              "what": "那个 1 万域名 / 14 列的榜单本身",
+              "tried": "`ranking` / `websites` / `topsites` / `leaders`，全部静默重定向到 #/digitalsuite/ai-brand-visibility/home",
+              "consequence": "它从未被 hidden/visible 对照测过，不在升格范围内。"
+            }
+          }
         },
         "segmentsObservation": {
           "recordedAt": "2026-08-28",

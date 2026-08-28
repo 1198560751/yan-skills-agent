@@ -724,6 +724,68 @@ id 为 `hidden-tabs-do-not-hydrate` 那条 law 的适用范围：
 （站点排名 1 万行榜单、关键词研究大表、反向链接表）**没有单独做过 hidden / visible 对照**。
 所以「Similarweb 不受影响」目前是**面板级**结论，重表格页未单测——而 Semrush 那边出事的恰恰是重表格页。
 
+> **（2026-08-29 后续）** 上面这段原文保留。其中**三种页型已经补测并升格**，见下一节；
+> 剩下的 1 万行榜单**仍然未测**，因为它压根没找到。
+
+### 2026-08-29 升格：三种重表格页型在 hidden 下也完整水合
+
+**3 种重表格页型 × 2 个域名（一大一小）= 5 组 hidden / visible 配对**，
+约 **160 次诚实 hidden 读**、约 **130 次 visible 读**，**每一组都逐字节一致**——
+只差一个「x 分钟前」式的相对时间戳（34 字符），列数行数完全相同：
+
+| 页面 | 域名 | hidden | visible |
+|---|---|---|---|
+| 关键词研究 `website-keyword-v2` | canva.com | `12546 / 1 表 / 19 列 / 100 行` | **完全相同** |
+| 关键词研究 `website-keyword-v2` | creem.io | `13518 / 1 表 / 19 列 / 100 行` | **完全相同** |
+| 反向链接 `backlinks/table/999` | canva.com | `46993 / 2 表 / 8 列 / 100 行` | `47027`（仅时间戳差） |
+| 反向链接 `backlinks/table/999` | creem.io | `18144 / 2 表 / 8 列 / 100 行` | `18178`（同上） |
+| 站点排名 `mapping/...` | canva.com | `7170 / 3 表 / 12 列 / 12 行` | **完全相同** |
+
+**证据强在哪，要写明**：原始对照组（`mainLen=445`）**根本没有配对的 visible 读**，
+所以那个 445 从没被证明是「**完整**页面」，只被证明是「**稳定**」——而稳定不等于完成。
+这 5 组配对补上的正是这个洞。
+
+**⚠️ 限定范围：只覆盖实测过的这三种页型，不要读成「所有重表格页」。**
+那个**一万域名 / 14 列的榜单始终没找到**——`ranking` / `websites` / `topsites` / `leaders`
+**全部静默重定向**到 `#/digitalsuite/ai-brand-visibility/home`——所以它**从未被测过**，
+不在升格范围内。
+
+#### 前提：这 160 次 hidden 读为什么敢叫「诚实」
+
+因为它们跑在**从未 foreground attach 过的会话**上。**一次 `--window foreground` attach
+会把该标签页的 `document.visibilityState` 永久锁死在 `visible`**，之后 hidden 造成的一切
+降级对协议完全隐形。**规则和铁证（同一窗口两个标签页同时 `visible`）的权威版本只写在
+backlink Skill 里 id 为 `hidden-tabs-do-not-hydrate` 的那条 law 里（协议条目 + Experiment E），
+本文件不复述，只指路。**
+
+**被作废的观测保留在案**：发现者据此**作废了自己的三次运行**——150 次标着 hidden、
+实际读到 visible 的读数。它们被**重新归类为 visible 读，没有被抹掉**。
+
+#### 顺带验证：「表元素在、0 行」这个中间态确实存在且会自行解决
+
+`kw-canva-hidden` 第 1 次读是 `tables=1, th=0, rows=0`，**下一轮就变成 `th=19, rows=100`**；
+`bl-canva-hidden4` 和 `bl-creem-hidden` 也有同样的瞬态。
+**在旧的「等够久就判空」规则下，这些都会被记成空表。**
+已作为正面例证写进 backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law。
+
+#### 待复查的巧合：那个 445（**不是结论**）
+
+原始对照组记的是 `mainLen=445`；而未知路由的**兜底页**
+`#/digitalsuite/ai-brand-visibility/home` 测出来是 `bodyLen=445`。
+
+**指标不同（`mainLen` vs `bodyLen`），不构成证据**，发现者也如实这么说了。
+但在把 445 当成「完整的 website-analysis 首页」信任之前，**值得查一眼**——
+有可能当初测的根本就是重定向兜底页。
+**不要因为它撤销上面的升格**：升格有自己独立的 5 组配对证据，不依赖 445。
+
+#### 路由补录（2026-08-29）
+
+| 目标 | 路由 | 说明 |
+|---|---|---|
+| 反向链接表 | `#/digitalsuite/acquisition/backlinks/table/999/?duration=…&key=<域名>` | 8 列、每页 100 行、可深链 |
+| 站点排名榜单入口 | `#/digitalsuite/markets/webmarketanalysis/mapping/<行业>/999/<窗口>` | 从 `…/webmarketanalysis/home` 选一个行业进入；**home 路由本身只渲染行业选择器，没有表** |
+| 一万域名 / 14 列榜单本身 | **未找到** | `ranking` / `websites` / `topsites` / `leaders` 全部静默重定向到 `#/digitalsuite/ai-brand-visibility/home` |
+
 #### 复测协议的新增一条：轮询间隔降到 600–700ms
 
 全程 **1400+ 次读里只有 6 次 `vis=visible`**——因为另一个 agent 的 `semrush-nav` 标签页
