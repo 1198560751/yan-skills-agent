@@ -51,12 +51,36 @@ async function fetchHtml(url) {
   return { html: await res.text(), finalUrl: res.url, status: res.status };
 }
 
-async function fetchSitemapUrls(sitemapUrl) {
+/**
+ * 取 sitemap 里的全部页面 URL，**自动跟进 sitemap index**。
+ *
+ * 为什么必须跟进：`<sitemapindex>` 里的 `<loc>` 指向的是**子 sitemap 文件**，
+ * 不是页面。不跟进就会把那几个 .xml 当成 HTML 页面去体检，于是每个 XML 都报
+ * NO_TITLE / NO_H1 / NO_VIEWPORT……一个 7 条子 sitemap 的站会报出 28 个 error，
+ * 看起来像全站崩了，实际站点完全正常。
+ *
+ * 这是**静默给出错误答案**的失败形态，比报错更危险：读数看着像真的。
+ * 2026-08-28 实测踩到，遂修。判据是根元素是 `<sitemapindex` 还是 `<urlset`。
+ *
+ * `seen` 防自引用死循环；深度上限 3 层足够覆盖现实中的分片 sitemap。
+ */
+async function fetchSitemapUrls(sitemapUrl, seen = new Set(), depth = 0) {
+  if (seen.has(sitemapUrl) || depth > 3) return [];
+  seen.add(sitemapUrl);
   const { html } = await fetchHtml(sitemapUrl);
   const locs = [];
   const re = /<loc>(.*?)<\/loc>/g;
   let m;
-  while ((m = re.exec(html))) locs.push(m[1]);
+  while ((m = re.exec(html))) locs.push(m[1].trim());
+
+  // 根元素决定这些 loc 是子 sitemap 还是页面
+  if (/<sitemapindex[\s>]/i.test(html)) {
+    const out = [];
+    for (const child of locs) {
+      out.push(...(await fetchSitemapUrls(child, seen, depth + 1)));
+    }
+    return out;
+  }
   return locs;
 }
 
