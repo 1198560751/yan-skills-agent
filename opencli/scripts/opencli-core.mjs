@@ -276,7 +276,12 @@ export async function openAndEval(session, url, expression, options = {}) {
   const wait = options.wait ?? 3;
   const commands = [
     { cmd: 'open', args: { url } },
-    ...(wait > 0 ? [{ cmd: 'wait', args: { seconds: wait } }] : []),
+    // **必须走 sleepStep，不能用 `wait`。** 本文件下面 sleepStep 的注释里记着：
+    // opencli 1.8.7 的 `wait time <秒>` 把秒数原样报回来、却不到一秒就返回。
+    // 这里曾经写成 `{ cmd: 'wait' }`，等于**根本没等**——页面还没渲染就被 eval 读了，
+    // 而 vendored 副本早就改成 sleepStep 了，两份就此分叉。规则写在同一个文件里
+    // 都能被绕过，所以现在有 vendored-core-sync.test.mjs 在守这两份的一致性。
+    ...(wait > 0 ? [sleepStep(wait)] : []),
     { cmd: 'eval', args: { js: expression } },
   ];
   const results = await batchBrowser(session, commands, options);

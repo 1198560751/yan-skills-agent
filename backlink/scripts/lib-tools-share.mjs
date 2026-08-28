@@ -188,6 +188,60 @@ export function redactSecrets(text) {
 }
 
 /**
+ * 复用探针。**注意 `vis`**：它和 url/title/len 在同一次 eval 里取回来，
+ * 所以判可见性不多花一个 round-trip —— 这正是「探测再决定」比「直接禁用复用」划算的原因。
+ */
+export const REUSE_PROBE = '(() => { const bodyText = (document.body?.innerText||"").trim(); return JSON.stringify({ url: location.href, title: document.title, vis: document.visibilityState, len: bodyText.length, bodyText: bodyText.slice(0, 1000) }); })()';
+
+/**
+ * 复用快路径要不要认这张标签页。导出只为可测。
+ *
+ * 2026-08-28 实测（同一条 `/analytics/traffic/top-pages/`、同一 session/lid/域名/月份，
+ * 唯一变量是读取瞬间的 `document.visibilityState`）：
+ *   紧接 foreground 全新 launch → visible → 850 个非空单元格
+ *   复用已有会话、未重新 launch  → hidden  → 0 个非空单元格
+ *   close 会话后 foreground 全新 launch → visible → 850 个非空单元格
+ *
+ * 机制：把窗口抬到前台的是面板上点「打开」那一下，而复用快路径**不点卡片**，
+ * 于是标签页停在 hidden，后续页内导航出来的报表永远卡在半水合。
+ * 所以 `semrush-traffic.mjs` 的 `DEFAULT_WINDOW = 'foreground'` 单靠自己不够：
+ * 它只在走完整启动流程时生效，复用会绕过去。
+ *
+ * 判据只在调用方**要求 foreground** 时才收紧：background 调用方是明确不要抢焦点的
+ * （见 SKILL.md 的 background-by-default），不能因为这条修复把它们全推去抢窗口。
+ */
+export function reuseDecision(capture, { origin, windowMode } = {}) {
+  if (!isReusableToolCapture(capture, origin)) return { reuse: false, relaunch: false, reason: 'not-on-tool-origin' };
+  if (windowMode === 'foreground' && capture?.vis === 'hidden') {
+    return { reuse: false, relaunch: true, reason: 'hidden-tab' };
+  }
+  return { reuse: true, relaunch: false, reason: 'existing-tool-session' };
+}
+
+/**
+ * 跑一次复用探针并按 reuseDecision 处置。**最多 close 一次、绝不自我重入**——
+ * 拒绝复用之后就交回给调用方走完整启动流程，那条路自己会点卡片、把窗口抬起来。
+ * 因此「hidden → close → 又 hidden」不会变成循环：每次 launchToolInner 只探一次。
+ */
+export async function attemptToolSessionReuse({ evalPage, origin, windowMode, closeSession }) {
+  let capture;
+  try {
+    capture = assertToolsShareAvailable(await evalPage(REUSE_PROBE));
+  } catch (error) {
+    if (error?.code === 'TOOLS_SHARE_BLOCKED') throw error;
+    if (!/No active session|No tab with given id|session.+not found/i.test(String(error?.message || ''))) throw error;
+    return { reused: false, closed: false, reason: 'no-session', capture: null };
+  }
+  const decision = reuseDecision(capture, { origin, windowMode });
+  if (decision.reuse) return { reused: true, closed: false, reason: decision.reason, capture };
+  if (decision.relaunch) {
+    await closeSession?.();
+    return { reused: false, closed: true, reason: decision.reason, capture };
+  }
+  return { reused: false, closed: false, reason: decision.reason, capture };
+}
+
+/**
  * 打开面板、（可选）选节点、点「打开」、等落到工具域名。
  * 返回 { evalPage, state, landed, tool }，evalPage 已绑定会话，供调用方继续驱动工具页。
  */
@@ -210,19 +264,20 @@ async function launchToolInner({
 
   // 同一任务会连续查很多域名/关键词。先复用已经停在目标工具 origin 的 session；
   // dashboard 每次打开都可能被平台计作一个新客户端登录，不能拿它当普通导航页反复进。
-  try {
-    const existing = assertToolsShareAvailable(await evalPage('(() => { const bodyText = (document.body?.innerText||"").trim(); return JSON.stringify({ url: location.href, title: document.title, len: bodyText.length, bodyText: bodyText.slice(0, 1000) }); })()'));
-    if (isReusableToolCapture(existing, tool.origin)) {
-      return {
-        tool,
-        state: { loggedIn: true, cards: [], expiry: null, daysLeft: null, quotas: [], via: 'existing-tool-session' },
-        landed: { url: scrub(existing.url), title: existing.title },
-        evalPage, env, index: -1, reused: true,
-      };
-    }
-  } catch (error) {
-    if (error?.code === 'TOOLS_SHARE_BLOCKED') throw error;
-    if (!/No active session|No tab with given id|session.+not found/i.test(String(error?.message || ''))) throw error;
+  const reuse = await attemptToolSessionReuse({
+    evalPage,
+    origin: tool.origin,
+    windowMode,
+    closeSession: () => opencli(['browser', session, 'close'], { env, timeoutMs: 30_000 }).catch(() => {}),
+  });
+  if (reuse.reused) {
+    return {
+      tool,
+      state: { loggedIn: true, cards: [], expiry: null, daysLeft: null, quotas: [], via: 'existing-tool-session' },
+      landed: { url: scrub(reuse.capture.url), title: reuse.capture.title },
+      visibilityState: reuse.capture.vis ?? null,
+      evalPage, env, index: -1, reused: true,
+    };
   }
 
   // ── 直连兜底 ───────────────────────────────────────────────────────────────

@@ -470,6 +470,14 @@ So: make the tab visible for the load, then verify by reading
 `document.visibilityState` **inside the page at the moment you read the data**.
 Never trust the `--window` / `windowMode` you passed — it is intent, not fact.
 And never report an empty first read as "this domain has no data".
+
+**What makes a tab visible is the click on the panel card, nothing else.** So
+the only recipe that reliably buys a visible first hydration is: (1)
+`opencli browser &lt;session&gt; close`, (2) a **brand-new** `launchTool({ ...,
+window: 'foreground' })` that actually walks the panel — never the reuse fast
+path, (3) navigate inside the page with `location.href` from there, which keeps
+the visibility you bought. Nothing flips an already-hidden tab back to visible:
+not the env, not `open --window foreground`, and least of all `tab select`.
 </statement>
 <why>
 This is the most dangerous failure shape in this Skill, because it does not look
@@ -503,6 +511,43 @@ it, several processes contending for the same Semrush session — that run waite
 ~9 minutes on the global lock). The empty read really happened; it was just
 never a fact about the domain.
 
+**Experiment C — same route, controlled on visibility alone (2026-08-28,
+reproduced 10 minutes later).** `/analytics/traffic/top-pages/`, node 5, same
+session, same lid, same target domain, same month; the single variable is
+`document.visibilityState` at the moment of the read:
+
+| condition | `visibilityState` | non-empty cells | `innerText` |
+|---|---|---|---|
+| straight after a foreground **fresh launch** | `visible` | **850** | 6861 |
+| **reused** an existing session, no relaunch | `hidden` | **0** | 328 |
+| `close` the session → foreground **fresh launch** | `visible` | **850** | 6861 |
+
+This is a harder control than Experiments A and B: one route, one session, one
+variable.
+
+**The mechanism, finally named.** Clicking a panel card is what raises Chrome to
+the foreground. `scripts/lib-tools-share.mjs` `launchTool` has a fast path that
+**reuses a session already parked on the tool origin** — and that path does not
+click a card, so it never raises the window. The tab stays `hidden`, and every
+report opened from it afterwards hydrates half-way. Which is why
+`DEFAULT_WINDOW = 'foreground'` in `scripts/semrush-traffic.mjs` is **not enough
+on its own**: it only takes effect when the full launch flow runs, and the reuse
+fast path walks around it. The fast path now samples `document.visibilityState`
+in the same eval it was already doing, and when a `foreground` caller finds a
+`hidden` tab it closes the session and takes the full launch instead
+(`reuseDecision` / `attemptToolSessionReuse`, covered by
+`tests/tools-share-reuse-visibility.test.mjs`).
+
+**Three things that were measured and do NOT work — do not retry them:**
+
+- `OPENCLI_WINDOW=foreground` in the environment **cannot** flip an
+  already-hidden tab back to visible.
+- `opencli browser &lt;s&gt; open &lt;url&gt; --window foreground` **cannot** either: the
+  re-read came back `visibility=hidden`, `len=59` — emptier than before.
+- `opencli browser &lt;s&gt; tab select` is not merely useless here; it is the
+  **prime suspect for turning a visible tab hidden**. See opencli SKILL.md law 2,
+  "`tab select` silently fails".
+
 **And do not trust the mode name you passed.** The `windowMode` a script hands
 to opencli and the tab's actual `visibilityState` **disagree in practice**: in
 these runs the invocation labelled `background` read `visible`, and the one
@@ -533,6 +578,13 @@ instead of trusting the flag.
 `scripts/semrush-traffic.mjs` therefore defaults to `--window foreground`; that
 is a per-report property, not a global one, and it protects the load, not the
 read.
+
+**Confirmed affected — the reuse fast path in `scripts/lib-tools-share.mjs`.**
+It hands back a `hidden` tab to a caller that explicitly asked for
+`foreground`, which is Experiment C's middle row. Fixed by probing visibility
+inside the existing reuse eval and declining the reuse; the decline costs at
+most one extra `close` + launch, happens at most once per `launchTool` call, and
+does not recurse.
 
 **Confirmed NOT affected:** reads of an *already hydrated* .Trends page — the
 same top-pages report handed back 850 non-empty cells with
