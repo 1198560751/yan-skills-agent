@@ -14,3 +14,11 @@ __pycache__/
 
 # skill-creator 的评测工作目录（agent 输出、评分、benchmark），不入库
 *-workspace/
+
+# autopilot 的阶段状态文件,写在仓库根(见 autopilot/SKILL.md「每轮开始时创建 progress.md」)。
+# 任务完成后不会自动清理,且正文里带着项目域名、第三方站的评论 ID 与流量读数——
+# 属于项目侧,不进这个公开仓库。它同时是滞后指标:实测有过顶层 status="starting"
+# 而八个 phase 全是 completed 的,照着它答"接下来做什么"会重做已交付的工作。
+# 只忽略仓库根的这一份,不影响任何 skill 目录内同名的参考文件。
+/progress.md
+/progress-*.md
