@@ -412,12 +412,42 @@ JS 注入的 JSON-LD、把锚点总数报成外链域名数。`curl | grep` 一�
 不必真的下载到磁盘也能拿到确切字节——在页面里劫持 `URL.createObjectURL`，
 点那个下载按钮，再读回 blob：
 
+**照抄下面这一版，别照抄那个三行的。** 三行版把 `URL.createObjectURL` 永久换掉、
+把 blob 攒在 `window.__cap` 里从不清空，后果是此后**任何**「这个页面产生下载了吗、
+产生了几个 blob」的问题，答案都来自我们自己留在页面上的钩子——
+而 `window.__cap[0]` 很可能是**上一个页面**留下的那个，会被读成这一次的产物。
+装钩子的这段代码要能还原，采集前要归零，失败要能分辨是哪一种失败：
+
 ```js
-const orig = URL.createObjectURL
-window.__cap = []
-URL.createObjectURL = function (b) { window.__cap.push(b); return orig.call(URL, b) }
-// 点「下载验证文件」之后
-await window.__cap[0].text()
+// ── 注入清单：本段改动页面上的 URL.createObjectURL，一条，用完在 finally 里还原。
+//    不写任何 window 全局：捕获到的 blob 收在闭包里，每次 capture() 归零。
+//    道理见 backlink/SKILL.md 的 law `readiness-must-bind-to-this-query`：
+//    注入进页面的任何东西都会成为后续观测的一部分，哪怕它从没被当成判据。
+async function captureDownloadedBlob(clickIt, waitMs = 800) {
+  const orig = URL.createObjectURL
+  const blobs = []                                   // ← 每次调用一份新的，绝不跨调用累积
+  const wrapper = function (b) { blobs.push(b); return orig.call(URL, b) }
+  try { URL.createObjectURL = wrapper } catch { /* 属性被冻住，装不上 */ }
+  const installed = URL.createObjectURL === wrapper   // ← 装没装上，当场记，别事后猜
+  let displaced = false
+  try {
+    clickIt()                                        // 点「下载验证文件」
+    await new Promise((r) => setTimeout(r, waitMs))
+  } finally {
+    // 只有还是我们那层时才写回；否则说明页面在我们之上又换了一次实现，
+    // 硬覆盖回去等于把页面自己的实现抹掉。
+    if (URL.createObjectURL === wrapper) URL.createObjectURL = orig
+    else displaced = true
+  }
+  if (blobs.length) return { ok: true, 个数: blobs.length, 内容: await blobs[0].text() }
+  // 三种「拿不到」不是一回事，别塌成一句「没抓到」：
+  if (!installed) return { ok: false, 原因: "hook-not-installed —— 钩子没装上（属性被冻住 / 注入被拦）" }
+  if (displaced) return { ok: false, 原因: "hook-displaced —— 页面换了下载实现，我们那层被顶掉了" }
+  return { ok: false, 原因: "no-blob-observed —— 钩子在，但这次点击没走 createObjectURL（可能是直链下载）" }
+}
+
+// 用法：把「点哪个按钮」当参数传进去，钩子的寿命就等于这一次点击。
+await captureDownloadedBlob(() => document.querySelector("#download-verification").click())
 ```
 
 **判据：凡是「把这个文件放到根目录」的验证，内容必须来自真实产物。**

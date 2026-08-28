@@ -41,6 +41,11 @@
  * - **别读剪贴板。** `navigator.clipboard.readText()` 要权限 + 页面焦点，
  *   自动化里两者都不稳。改成**劫持写入侧**：包一层 `writeText` 再兜一个
  *   `copy` 事件监听，页面照常复制，我们拿到同一份文本。
+ * - **钩子只在 grab() 里活着，用完在 finally 里拆掉。** 常驻的 writeText 包装层
+ *   会让此后每一次「页面复制了什么」的观测都经过我们自己的手；状态也不写页面全局
+ *   （旧版写 `window.__cap`，跨调用留在页面上）。注入清单见 createClipboardCapture 头注释，
+ *   道理见 backlink/SKILL.md 的 `readiness-must-bind-to-this-query`。
+ *   `grab()` 失败时带 `诊断`：钩子没装上 / 装上了但页面没触发 / 页面换了复制实现 / 复制到空串。
  * - **别靠按钮文案判完成。** 实测「停止」这个文案在流结束后仍会滞留一小会儿，
  *   曾据此判过一次「还在生成」而其实早就完事了。判据用**回答长度连续两次不变**
  *   加按钮回到「发送」，两者都满足才算完。
@@ -84,6 +89,124 @@ window.__gf = (() => {
   const $ai = () => [...document.querySelectorAll(".msg.ai")].pop()
   let lastLen = -1
 
+  /**
+   * 剪贴板捕获器：**只在 grab() 那一小段时间里存在**，用完在 finally 里拆掉。
+   *
+   * ── 注入清单（install 改了页面上的什么，uninstall 必须逐条还原）──────────────
+   *   1. `navigator.clipboard.writeText` —— 包一层记下文本再转调原实现；
+   *      uninstall 时**只在它还是我们那层的情况下**写回 orig（否则说明页面
+   *      在我们之上又换了一次实现，覆盖回去等于把页面的实现抹掉）。
+   *   2. `document` 上一个捕获阶段的 `copy` 监听 —— uninstall 时 removeEventListener。
+   *   3. 除此之外不写任何 window 全局。**历史版本写的是 `window.__cap`**，
+   *      那个值跨调用留在页面上，下一次 grab 读到的可能是上一次的产物；
+   *      现在状态收在闭包里，每次 install 归零。
+   *
+   * 为什么值得这么麻烦：见 backlink/SKILL.md 的 `readiness-must-bind-to-this-query`
+   * ——注入进页面的任何东西都会成为后续观测的一部分，哪怕它从没被当成判据。
+   * 一个常驻的 writeText 包装层意味着此后「页面复制了什么」拿到的都是我们的值。
+   *
+   * ── 失败要能分辨（旧版本三种全塌成「拿不到内容」）───────────────────────────
+   *   hook-not-installed  一个钩子都没装上（没有 document / clipboard 也拿不到）
+   *   no-copy-observed    钩子在、也完好，但页面压根没触发复制
+   *   hook-displaced      我们装的那层被页面换掉了 —— 页面换了复制实现
+   *   empty-copy          复制触发了，但给出来的是空串
+   */
+  function createClipboardCapture() {
+    let text = null
+    let installed = false
+    let sawWrite = false
+    let sawCopyEvent = false
+    let displaced = false
+    let armed = []
+    let orig = null
+    let wrapper = null
+    let onCopy = null
+
+    const clip = () => (typeof navigator !== "undefined" && navigator.clipboard) || null
+
+    return {
+      /** 装钩子。每次都先归零，绝不跨调用累积。 */
+      install() {
+        text = null
+        sawWrite = false
+        sawCopyEvent = false
+        displaced = false
+        armed = []
+        if (installed) return armed
+        if (typeof document !== "undefined" && document.addEventListener) {
+          onCopy = (e) => {
+            sawCopyEvent = true
+            try {
+              const s = e.clipboardData && e.clipboardData.getData("text/plain")
+              if (s) text = s
+            } catch {
+              /* 某些浏览器禁止读 clipboardData，writeText 那条已经兜住了 */
+            }
+          }
+          document.addEventListener("copy", onCopy, true)
+          armed.push("copy-listener")
+        }
+        const c = clip()
+        if (c && typeof c.writeText === "function") {
+          orig = c.writeText
+          wrapper = function (t) {
+            sawWrite = true
+            text = t
+            try {
+              return orig.call(c, t)
+            } catch {
+              return Promise.resolve()
+            }
+          }
+          try {
+            c.writeText = wrapper
+            armed.push("clipboard.writeText")
+          } catch {
+            orig = null
+            wrapper = null
+          }
+        }
+        installed = armed.length > 0
+        return armed
+      },
+
+      /** 拆钩子。放在 finally 里，任何一条路径都必须走到。 */
+      uninstall() {
+        if (onCopy && typeof document !== "undefined" && document.removeEventListener) {
+          document.removeEventListener("copy", onCopy, true)
+        }
+        const c = clip()
+        if (wrapper && c) {
+          if (c.writeText !== wrapper) displaced = true
+          else c.writeText = orig
+        }
+        installed = false
+        onCopy = null
+        wrapper = null
+        orig = null
+      },
+
+      text: () => text,
+      armed: () => armed.slice(),
+
+      /** 拿不到内容时，说清楚是哪一种拿不到。uninstall 之后再问。 */
+      diagnose() {
+        if (text) return "ok"
+        if (armed.length === 0) return "hook-not-installed"
+        if (displaced) return "hook-displaced"
+        if (sawWrite || sawCopyEvent) return "empty-copy"
+        return "no-copy-observed"
+      },
+    }
+  }
+
+  const 诊断说明 = {
+    "hook-not-installed": "钩子没装上 —— 页面没有 clipboard API，或注入被拦",
+    "no-copy-observed": "钩子装上了但页面没触发复制 —— 按钮点了却没走复制路径",
+    "hook-displaced": "我们装的那层被页面换掉了 —— 页面换了复制实现",
+    "empty-copy": "复制触发了但内容是空的 —— 这一段可能还没渲染完",
+  }
+
   return {
     /** 填入并发送。返回填入的字数，便于确认没被受控组件吃掉。 */
     ask(text) {
@@ -124,37 +247,42 @@ window.__gf = (() => {
      * 落盘、去重、截断检查都交给调用方（`gefei-ask.mjs`）做。
      */
     async grab() {
-      window.__cap = null
-      const orig = navigator.clipboard && navigator.clipboard.writeText
-      if (orig) {
-        navigator.clipboard.writeText = function (t) {
-          window.__cap = t
-          return Promise.resolve()
-        }
-      }
-      document.addEventListener(
-        "copy",
-        (e) => {
-          try {
-            window.__cap = e.clipboardData.getData("text/plain") || window.__cap
-          } catch {
-            /* 某些浏览器禁止读 clipboardData，writeText 那条已经兜住了 */
-          }
-        },
-        { once: true },
-      )
       const ai = $ai()
+      if (!ai) return { 错误: "没找到 .msg.ai —— 页面改版了，重新探选择器", 诊断: "no-answer" }
       // 必须精确匹配「复制本段」：回答里若有代码块，代码块自带的「复制」按钮
       // 在 DOM 里排在前面，/复制/ 会先命中它，拿回来的是代码片段不是全文。
       const btn = [...ai.querySelectorAll("button")].find((b) => /复制本段/.test(b.textContent))
-      if (!btn) return { 错误: "没找到复制按钮", 候选: [...ai.querySelectorAll("button")].map((b) => b.textContent.trim()) }
-      btn.click()
-      await new Promise((r) => setTimeout(r, 300))
-      if (!window.__cap) return { 错误: "劫持没拿到内容 —— 页面可能换了复制实现" }
+      if (!btn) {
+        return {
+          错误: "没找到复制按钮",
+          诊断: "no-copy-button",
+          候选: [...ai.querySelectorAll("button")].map((b) => b.textContent.trim()),
+        }
+      }
+      const cap = createClipboardCapture()
+      let armed = []
+      try {
+        armed = cap.install()
+        btn.click()
+        await new Promise((r) => setTimeout(r, 300))
+      } finally {
+        // 无论点击抛没抛异常，页面都必须被还原成我们来之前的样子。
+        cap.uninstall()
+      }
+      const text = cap.text()
+      const 诊断 = cap.diagnose()
+      if (!text) {
+        return {
+          错误: `劫持没拿到内容 —— ${诊断说明[诊断] || 诊断}`,
+          诊断,
+          装上的钩子: armed,
+        }
+      }
       return {
-        字数: window.__cap.length,
-        文本: window.__cap,
-        结尾: window.__cap.slice(-60), // 结尾不是完整句子 = 被服务端截断了，见文件头
+        字数: text.length,
+        文本: text,
+        结尾: text.slice(-60), // 结尾不是完整句子 = 被服务端截断了，见文件头
+        诊断,
       }
     },
 

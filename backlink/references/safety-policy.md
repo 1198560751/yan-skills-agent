@@ -8,8 +8,24 @@
 - Default every OpenCLI browser session to background mode. Do not use foreground
   mode or click a launcher that steals focus unless the user explicitly requests it.
   Background mode is not headless — it drives the owner's real logged-in Chrome
-  (`navigator.webdriver=false`, no Headless UA, `visibilityState=visible`), so
-  there is never a reason to reach for foreground to "look more human".
+  (`navigator.webdriver=false`, no Headless UA), so there is never a reason to
+  reach for foreground to "look more human".
+  ⚠️ **Corrected 2026-08-29.** This line used to claim background mode also gives
+  you `visibilityState=visible`. It does not. The OpenCLI Skill's own measured
+  record — repeated in its session-laws reference and its SKILL.md — is the
+  opposite: throughout a background `open` / `eval` / `screenshot` / `click` /
+  `type` run, the page reports `document.hasFocus()` permanently `false` and
+  `visibilityState` permanently `hidden`. Read that as a *readiness* fact, not a
+  stealth one: a background tab is not focused and not visible, which is exactly
+  why the `hidden-tabs-do-not-hydrate` law in SKILL.md exists. Being unfocused is not a
+  bot tell, so the conclusion (never reach for foreground) is unchanged.
+  How the wrong version probably got in: the visibility-disguise patch — the one
+  that redefines `document.visibilityState` to `visible` and used to also override
+  `document.hasFocus` — makes *this exact claim* verify. Anyone who checked
+  `visibilityState` with that patch installed saw "visible, confirmed", and the
+  instrument, not the browser, is what answered. See the instrument-contamination
+  lesson under `readiness-must-bind-to-this-query` in SKILL.md: before you take a
+  signal as corroboration, confirm your own instrument has not touched it.
 - Never hardcode a literal OpenCLI session name in a script. A session name is a
   tab claim; two concurrent tasks sharing one name share one tab and silently read
   back each other's pages. Suffix defaults with `CLAUDE_CODE_HOST_SESSION_ID` and

@@ -58,6 +58,9 @@
  *     1. 地址栏 URL 存下来没用，它只会把你带回「新对话」空白页；
  *     2. 一刷新当前会话就从视图里消失，只能去**侧边栏列表**里点回来；
  *     3. 刷新会连 window.__rk 一起清掉 —— **重新加载后必须重新注入脚本再 init()**。
+ *        （这曾经是个隐患：老版本在 init() 里装剪贴板钩子、用 window.__rkHooked 做守卫，
+ *        刷新清掉 __rk 却不一定清掉钩子，状态和 API 只活下来一半。现在钩子只在
+ *        capture() 期间存在，init() 不再往页面上留任何东西，这个不一致就不存在了。）
  *
  *   所以每开一个新会话，**send() 之后立刻 __rk.session() 记一笔 {id, title}**，
  *   连同这次问了什么一起写进项目记忆。id 通常挂在侧边栏条目的 data-id 上，是稳定主键；
@@ -80,6 +83,124 @@
 
   const $ = (sel) => (sel ? document.querySelector(sel) : null);
   const $$ = (sel) => (sel ? [...document.querySelectorAll(sel)] : []);
+
+  /**
+   * 剪贴板捕获器：**只在 capture() 那一小段时间里存在**，用完在 finally 里拆掉。
+   *
+   * ── 注入清单（install 改了页面上的什么，uninstall 必须逐条还原）──────────────
+   *   1. `navigator.clipboard.writeText` —— 包一层记下文本再转调原实现；
+   *      uninstall 时**只在它还是我们那层的情况下**写回原实现（否则说明页面
+   *      在我们之上又换了一次，覆盖回去等于把页面的实现抹掉）。
+   *   2. `document` 上一个捕获阶段的 `copy` 监听 —— uninstall 时 removeEventListener。
+   *   3. 不写任何 window 全局。**旧版本在 init() 里装钩子、用 `window.__rkHooked`
+   *      做幂等守卫，从此不再卸载** —— 此后页面每一次复制都先经过我们的手，
+   *      而且刷新会清掉 `window.__rk` 却清不掉那半截守卫，状态和 API 只活下来一半。
+   *
+   * 为什么值得这么麻烦：见 backlink/SKILL.md 的 `readiness-must-bind-to-this-query`
+   * ——注入进页面的任何东西都会成为后续观测的一部分，哪怕它从没被当成判据。
+   *
+   * ── 失败要能分辨（旧版本三种全塌成 "clipboard hook captured nothing"）────────
+   *   hook-not-installed  一个钩子都没装上
+   *   no-copy-observed    钩子在、也完好，但页面压根没触发复制
+   *   hook-displaced      我们装的那层被页面换掉了 —— 页面换了复制实现
+   *   empty-copy          复制触发了，但给出来的是空串
+   */
+  function createClipboardCapture() {
+    let text = null;
+    let installed = false;
+    let sawWrite = false;
+    let sawCopyEvent = false;
+    let displaced = false;
+    let armed = [];
+    let orig = null;
+    let wrapper = null;
+    let onCopy = null;
+
+    const clip = () => (typeof navigator !== "undefined" && navigator.clipboard) || null;
+
+    return {
+      /** 装钩子。每次都先归零，绝不跨调用累积。 */
+      install() {
+        text = null;
+        sawWrite = false;
+        sawCopyEvent = false;
+        displaced = false;
+        armed = [];
+        if (installed) return armed;
+        if (typeof document !== "undefined" && document.addEventListener) {
+          onCopy = (e) => {
+            sawCopyEvent = true;
+            try {
+              const s = e.clipboardData && e.clipboardData.getData("text/plain");
+              if (s) text = s;
+            } catch {
+              /* 读不到 clipboardData 也没关系，writeText 那条已经兜住了 */
+            }
+          };
+          document.addEventListener("copy", onCopy, true);
+          armed.push("copy-listener");
+        }
+        const c = clip();
+        if (c && typeof c.writeText === "function") {
+          orig = c.writeText;
+          wrapper = function (t) {
+            sawWrite = true;
+            text = t;
+            try {
+              return orig.call(c, t);
+            } catch {
+              /* 无权限也没关系，文本已经拿到 */
+              return Promise.resolve();
+            }
+          };
+          try {
+            c.writeText = wrapper;
+            armed.push("clipboard.writeText");
+          } catch {
+            orig = null;
+            wrapper = null;
+          }
+        }
+        installed = armed.length > 0;
+        return armed;
+      },
+
+      /** 拆钩子。放在 finally 里，任何一条路径都必须走到。 */
+      uninstall() {
+        if (onCopy && typeof document !== "undefined" && document.removeEventListener) {
+          document.removeEventListener("copy", onCopy, true);
+        }
+        const c = clip();
+        if (wrapper && c) {
+          if (c.writeText !== wrapper) displaced = true;
+          else c.writeText = orig;
+        }
+        installed = false;
+        onCopy = null;
+        wrapper = null;
+        orig = null;
+      },
+
+      text: () => text,
+      armed: () => armed.slice(),
+
+      /** 拿不到内容时，说清楚是哪一种拿不到。uninstall 之后再问。 */
+      diagnose() {
+        if (text) return "ok";
+        if (armed.length === 0) return "hook-not-installed";
+        if (displaced) return "hook-displaced";
+        if (sawWrite || sawCopyEvent) return "empty-copy";
+        return "no-copy-observed";
+      },
+    };
+  }
+
+  const REASONS = {
+    "hook-not-installed": "clipboard hook could not be installed",
+    "no-copy-observed": "hook was live but the page never fired a copy",
+    "hook-displaced": "the page replaced our writeText wrapper — copy implementation changed",
+    "empty-copy": "a copy fired but carried no text",
+  };
 
   /** 把值写进受控输入框：原生 setter + input 事件，缺一不可。 */
   function setValue(el, value) {
@@ -131,30 +252,20 @@
       };
     },
 
-    /** 安装配置与剪贴板钩子。可重复调用（幂等）。 */
+    /**
+     * 只装配置。可重复调用（幂等）。
+     *
+     * **不再在这里装剪贴板钩子。** 钩子改到 capture() 里现装现拆，
+     * 见 createClipboardCapture 的注入清单：常驻的 writeText 包装层意味着
+     * 此后页面每一次复制都先经过我们，任何「页面复制了什么」的观测都被自己污染。
+     */
     init(cfg) {
       S.cfg = cfg;
-      if (!window.__rkHooked) {
-        const orig = navigator.clipboard.writeText.bind(navigator.clipboard);
-        navigator.clipboard.writeText = async (t) => {
-          S.text = t;
-          try {
-            return await orig(t);
-          } catch {
-            /* 无权限也没关系，文本已经拿到 */
-          }
-        };
-        document.addEventListener(
-          "copy",
-          (e) => {
-            const s = e.clipboardData && e.clipboardData.getData("text/plain");
-            if (s) S.text = s;
-          },
-          true,
-        );
-        window.__rkHooked = true;
-      }
-      return { ok: true, hooked: true, answers: $$(S.cfg.answer).length };
+      return {
+        ok: true,
+        hooked: false, // 钩子是 capture() 期间临时装的，这里不留任何东西在页面上
+        answers: $$(S.cfg.answer).length,
+      };
     },
 
     /** 发一条消息。返回后立刻进入 wait() 轮询。 */
@@ -195,12 +306,29 @@
       const el = index < 0 ? list[list.length + index] : list[index];
       if (!el) return { ok: false, error: "answer not found" };
       const btn = el.querySelector(S.cfg.copy);
-      if (!btn) return { ok: false, error: "copy button not found: " + S.cfg.copy };
-      S.text = null;
-      btn.click();
-      await new Promise((r) => setTimeout(r, 600));
-      if (!S.text) return { ok: false, error: "clipboard hook captured nothing" };
-      return { ok: true, chars: S.text.length, head: S.text.slice(0, 120) };
+      if (!btn) return { ok: false, error: "copy button not found: " + S.cfg.copy, reason: "no-copy-button" };
+      S.text = null; // 每次采集前归零：上一次的原文绝不能被读成这一次的产物
+      const cap = createClipboardCapture();
+      let armed = [];
+      try {
+        armed = cap.install();
+        btn.click();
+        await new Promise((r) => setTimeout(r, 600));
+      } finally {
+        // 不管点击抛没抛异常，页面都要被还原成我们来之前的样子。
+        cap.uninstall();
+      }
+      S.text = cap.text();
+      const reason = cap.diagnose();
+      if (!S.text) {
+        return {
+          ok: false,
+          error: "clipboard hook captured nothing: " + (REASONS[reason] || reason),
+          reason,
+          armed,
+        };
+      }
+      return { ok: true, chars: S.text.length, head: S.text.slice(0, 120), reason };
     },
 
     /** 分片读出 capture() 的原文——一次别超过 ~1000 字，工具输出会截断。 */
@@ -282,8 +410,29 @@
       await new Promise((r) => setTimeout(r, 800));
       return { ok: true, total: $$(S.cfg.convItem).length };
     },
+
+    /**
+     * 把这份注入从页面上拿掉。**注入清单只有一条：`window.__rk` 本身**
+     * ——剪贴板钩子是 capture() 期间临时装的，正常路径下走到这里时页面已经干净了。
+     * 用完就调，别让它留在页面上参与后面的观测。
+     */
+    uninstall() {
+      S.cfg = null;
+      S.text = null;
+      try {
+        delete window.__rk;
+      } catch {
+        window.__rk = undefined;
+      }
+      return { ok: true, removed: ["window.__rk"] };
+    },
   };
 
+  // ── 本文件在页面上留下的东西（全清单）─────────────────────────────────────
+  //   window.__rk  —— 这份 API 本身，`__rk.uninstall()` 可移除
+  //   capture() 期间临时的 clipboard.writeText 包装层 + document 的 copy 监听，
+  //   在同一个调用的 finally 里拆掉，不跨调用存在。
+  // 除此之外不写任何页面全局。
   window.__rk = api;
-  return "__rk ready: probe / init / send / wait / capture / read";
+  return "__rk ready: probe / init / send / wait / capture / read / uninstall";
 })();
