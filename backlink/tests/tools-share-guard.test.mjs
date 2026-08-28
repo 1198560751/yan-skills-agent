@@ -112,6 +112,74 @@ test('captureStable settles after enough identical fingerprints and aborts on tr
   assert.equal(timeoutResult.aborted, false);
 });
 
+// <law-ref id="readiness-must-bind-to-this-query"/>：「连续读到一样」是重复，重复不是完成。
+// 一个还没开始渲染的区域是完美稳定的，所以 needed=2 会被「稳定的空」瞬间满足。
+// renderSignal 把结论绑到页面产出的完成信号上；拿不到信号就只能是 inconclusive。
+test('captureStable: a stable fingerprint with no render signal is inconclusive, not stable', async () => {
+  // 默认（不传 renderSignal）：行为必须和从前逐字一致 —— 稳定的空照样收下。
+  const ungated = await captureStable({
+    read: () => Promise.resolve({ rows: 0, pager: false }),
+    fingerprint: (c) => `rows=${c.rows}`,
+    needed: 2,
+    timeoutMs: 5000,
+    intervalMs: 10,
+  });
+  assert.equal(ungated.stable, true, 'no renderSignal → unchanged legacy behaviour');
+  assert.equal(ungated.inconclusive, false);
+  assert.equal(ungated.fingerprint, 'rows=0');
+
+  // 传了信号但页面始终没产出它：同一串读数**必须**变成 inconclusive。
+  // 这就是「稳定的空」——它在旧实现里会被收下当成确认值。
+  const gatedNoSignal = await captureStable({
+    read: () => Promise.resolve({ rows: 0, pager: false }),
+    fingerprint: (c) => `rows=${c.rows}`,
+    renderSignal: (c) => c.pager,
+    needed: 2,
+    timeoutMs: 200,
+    intervalMs: 10,
+  });
+  assert.equal(gatedNoSignal.stable, false, 'stable-but-unsignalled must NOT be reported as stable');
+  assert.equal(gatedNoSignal.inconclusive, true, 'and it must be inconclusive, not a plain timeout');
+  assert.equal(gatedNoSignal.fingerprint, 'rows=0', 'the raw evidence still travels with the verdict');
+
+  // 信号到了：照常收下。
+  let reads = 0;
+  const gatedWithSignal = await captureStable({
+    read: () => Promise.resolve({ rows: 0, pager: reads++ >= 2 }),
+    fingerprint: (c) => `rows=${c.rows}`,
+    renderSignal: (c) => c.pager,
+    needed: 2,
+    timeoutMs: 5000,
+    intervalMs: 10,
+  });
+  assert.equal(gatedWithSignal.stable, true);
+  assert.equal(gatedWithSignal.inconclusive, false);
+
+  // 信号见过一次就算数，之后被虚拟列表回收掉不该撤销一个已经成立的事实。
+  let flick = 0;
+  const flickering = await captureStable({
+    read: () => Promise.resolve({ rows: 3, pager: flick++ === 0 }),
+    fingerprint: (c) => `rows=${c.rows}`,
+    renderSignal: (c) => c.pager,
+    needed: 2,
+    timeoutMs: 5000,
+    intervalMs: 10,
+  });
+  assert.equal(flickering.stable, true, 'a render signal seen once is not withdrawn');
+
+  // 「值一直在跳」和「稳定但没信号」是两种失败，下游必须分得开。
+  const churning = await captureStable({
+    read: () => Promise.resolve({ rows: Math.random(), pager: false }),
+    fingerprint: (c) => `rows=${c.rows}`,
+    renderSignal: (c) => c.pager,
+    needed: 2,
+    timeoutMs: 100,
+    intervalMs: 10,
+  });
+  assert.equal(churning.stable, false);
+  assert.equal(churning.inconclusive, false, 'a never-settling read is a plain timeout, not inconclusive');
+});
+
 test('serializes concurrent users of the same tool lock', async () => {
   const lockRoot = await mkdtemp(join(tmpdir(), 'tools-share-lock-test-'));
   try {

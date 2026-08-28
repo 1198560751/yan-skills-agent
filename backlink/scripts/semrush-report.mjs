@@ -849,7 +849,18 @@ function readPageInfo(bodyText) {
  * 「非常稳定」地不存在——把 absent 当成「没有下一页」，就是「行数不再增长所以到头了」
  * 那个错误换了件衣服。
  *   `disabled` 是页面自己产出的「这是最后一页」信号，可以立刻采信；
- *   `absent`   是「还没渲染出来」和「真的没有分页器」的叠加态，必须熬过最小等待。
+ *   `absent`   是「还没渲染出来」和「真的没有分页器」的叠加态，**它永远不是一个结论**。
+ *
+ * 【2026-08-28 第二次修正】上一版给 absent 装了个 9 秒下限，等满就 return
+ * 「没有下一页」。那是同一个赌，只是换了个数——见
+ * <law-ref id="readiness-must-bind-to-this-query"/>：*等够久了还是空，所以是空* 这条
+ * 规则永远不可证伪，任何反例都能用一个更大的常数回答。**时长不是页面产出的东西。**
+ *
+ * 这里还有一条**结构判据**把话说死：进入翻页循环的前提是 `readPageInfo` 从页面上
+ * 读到了「1 / 201」——**页面自己已经说了它有 N 页**。所以在这个代码路径里，
+ * 「分页控件不存在」和一个页面产出的事实直接矛盾，它只能是「还没渲染」，
+ * 不可能是「已到最后一页」。absent 的判定因此恒为 `inconclusive`。
+ * 下限只保留为**一轮的时间上界**（别让一次探针死等），不作为判据。
  */
 const NEXT_PAGE_JS = `(() => {
   const all = [...document.querySelectorAll('button,a,[role="button"]')]
@@ -861,19 +872,33 @@ const NEXT_PAGE_JS = `(() => {
   return JSON.stringify({ control: 'enabled', clicked: true });
 })()`;
 
-/** absent 至少要连续观察这么久才允许据此收工。 */
-const MIN_PAGER_ABSENT_MS = 9000;
-/** 翻页后表体「解析出 0 行」至少要撑过这么久才算数——空表在水合前完美地稳定。 */
-const MIN_PAGE_SETTLE_MS = 6000;
+/**
+ * absent 探针一轮的**时间上界**。不是判据——等满它得到的是 `inconclusive`，
+ * 不是「没有下一页」。名字带 BUDGET 而不是 MIN_，是为了下一个读代码的人不会
+ * 再把它当成「等够了就能下结论」。
+ */
+const PAGER_ABSENT_BUDGET_MS = 9000;
+/**
+ * 翻页后表体「解析出 0 行」的时间上界。同样不是判据：判据是下面那条结构判据
+ * （表在但无行 → 继续等；整页无表 → 可以下结论）。只有在拿不到结构信号时，
+ * 这个数字才作为退化兜底出现，并且退化路径本身会在注释里被标出来。
+ */
+const PAGE_SETTLE_BUDGET_MS = 6000;
 
 /**
  * 点「下一页」，等页码真的变了再返回。
- * 返回 `{ advanced, reason }`——reason 会原样进 `stoppedBecause`，所以它必须能区分
- * 「页面说这是最后一页」和「等了 N 秒也没等到分页控件」。
+ *
+ * 返回 `{ advanced, verdict, reason }`。**`verdict` 才是给下游读的东西**，reason 只是
+ * 给人看的原文：
+ *   `advanced`      翻过去了
+ *   `last-page`     页面产出的禁用态 —— 唯一一个「确实到头了」的结论
+ *   `inconclusive`  分页器一直没出现 / 点了没反应 —— **不知道**，不是「到头了」
+ * 把 last-page 和 inconclusive 挤进同一个 `advanced: false` 里，下游就只能靠正则去猜
+ * reason 的措辞；这两个词对下游意思完全不同，必须是结构化字段。
  */
 async function clickNextPage(evalPage, before, options = {}) {
   const {
-    minAbsentMs = MIN_PAGER_ABSENT_MS,
+    absentBudgetMs = PAGER_ABSENT_BUDGET_MS,
     probeIntervalMs = 1500,
     now = () => Date.now(),
     sleepFn = sleep,
@@ -884,14 +909,16 @@ async function clickNextPage(evalPage, before, options = {}) {
     const probe = await evalPage(NEXT_PAGE_JS);
     if (probe?.control === 'enabled') break;
     if (probe?.control === 'disabled') {
-      return { advanced: false, reason: '分页控件已渲染且「下一页」为禁用态 —— 这是最后一页' };
+      return { advanced: false, verdict: 'last-page', reason: '分页控件已渲染且「下一页」为禁用态 —— 这是最后一页' };
     }
     const waited = now() - startedAt;
-    if (waited >= minAbsentMs) {
+    if (waited >= absentBudgetMs) {
       return {
         advanced: false,
-        reason: `等了 ${Math.round(waited / 1000)}s 仍没有「下一页」控件（既没有启用态也没有禁用态）`
-          + ` —— 分页器可能还没渲染，这不等于已经到最后一页`,
+        verdict: 'inconclusive',
+        reason: `inconclusive：探了 ${Math.round(waited / 1000)}s 分页控件始终没有出现`
+          + `（既没有启用态也没有禁用态）。页面自己报的总页数说明它有下一页，`
+          + `所以这只说明分页器没渲染出来 —— **这不等于已经到最后一页**，本次读到的行不是全量。`,
       };
     }
     await sleepFn(probeIntervalMs);
@@ -899,23 +926,47 @@ async function clickNextPage(evalPage, before, options = {}) {
   for (let i = 0; i < pageWaits; i++) {
     await sleepFn(probeIntervalMs);
     const current = await evalPage('(() => JSON.stringify({ t: document.body?.innerText || "" }))()');
-    if (readPageInfo(current.t).current > before) return { advanced: true, reason: null };
+    if (readPageInfo(current.t).current > before) return { advanced: true, verdict: 'advanced', reason: null };
   }
-  return { advanced: false, reason: '点了「下一页」但页码始终没有前进' };
+  return { advanced: false, verdict: 'inconclusive', reason: 'inconclusive：点了「下一页」但页码始终没有前进' };
 }
 
 /**
  * 翻页后那一页的 fingerprint。三条否定：还是上一页 → 继续等；parse 抛了 → 继续等；
- * **解析出 0 行而上一页有行、且还没过最小等待 → 继续等**。第三条是这次修的：
- * 「行数不再增长」在表体水合完成之前恒成立，把它当终止条件就会把一张慢表当成空表。
+ * **解析出 0 行而上一页有行 → 看结构，不看时长**。
+ *
+ * 【2026-08-28 第二次修正】上一版是「0 行且还没过最小等待 → 继续等」，等满 6 秒之后
+ * 就把 0 行收下当成「这一页确实是空的」。那是 <law-ref id="readiness-must-bind-to-this-query"/>
+ * 点名的那个赌：一张水合更慢的表只需要 6.1 秒就能骗过它。
+ *
+ * 换成实测出来的结构判据 —— 它可观测、互斥，而且不依赖等了多久：
+ *
+ *   | 形态       | 结构特征                                  | 能否下结论 |
+ *   |------------|-------------------------------------------|-----------|
+ *   | 表来得晚   | table 元素存在（列头齐全），只是无行        | 不能，继续等 |
+ *   | 本来没表   | 整页不存在 table / [role=grid]              | 能         |
+ *
+ * 「继续等」等到 captureStable 的 deadline 为止，然后 `stable === false`，调用方把它
+ * 记成截断并报出来 —— 显式失败，而不是把一张慢表写成空表。
+ *
+ * `tableCount` 拿不到时（老调用方没传）退回旧的时间兜底，只为不改变既有调用方的行为；
+ * 本文件唯一的调用点是传的。
  */
-function makeNextPageFingerprint({ prevPrint, prevRowCount, minSettleMs = MIN_PAGE_SETTLE_MS, now = () => Date.now() }) {
+function makeNextPageFingerprint({ prevPrint, prevRowCount, settleBudgetMs = PAGE_SETTLE_BUDGET_MS, now = () => Date.now() }) {
   const startedAt = now();
-  return (print) => {
+  return (print, ctx = {}) => {
     if (print == null || print === prevPrint) return null;
     let rows = 0;
     try { rows = (JSON.parse(print).rows || []).length; } catch { return null; }
-    if (rows === 0 && prevRowCount > 0 && now() - startedAt < minSettleMs) return null;
+    if (rows === 0 && prevRowCount > 0) {
+      const tableCount = ctx?.tableCount;
+      // 退化路径：没有结构信号，只剩时间兜底。保留只为兼容，不要在新调用点上依赖它。
+      if (typeof tableCount !== 'number') return now() - startedAt < settleBudgetMs ? null : print;
+      // 表在、列头在、就是没行 —— 这正是「还没水合」的样子，等多久都不许收下。
+      if (tableCount > 0) return null;
+      // 整页连 table / [role=grid] 都没有 —— 这是页面产出的结构事实，可以收下。
+      return print;
+    }
     return print;
   };
 }
@@ -1300,12 +1351,23 @@ if (flags['self-test']) {
   let absentClock = 0;
   const neverRenders = await clickNextPage(async () => ({ control: 'absent' }), 1,
     { now: () => absentClock, sleepFn: async (ms) => { absentClock += ms; }, probeIntervalMs: 1500 });
-  const nextControlOk = late.advanced === true && pagerProbes === 4
-    && lastPage.advanced === false && /最后一页/.test(lastPage.reason)
-    && neverRenders.advanced === false && /还没渲染/.test(neverRenders.reason)
-    && absentClock >= MIN_PAGER_ABSENT_MS;
+  // 分页器始终不出现 → **verdict 必须是 inconclusive，不许是 last-page**。
+  // 只有 disabled（页面产出的信号）配得上 last-page。
+  const nextControlOk = late.advanced === true && late.verdict === 'advanced' && pagerProbes === 4
+    && lastPage.advanced === false && lastPage.verdict === 'last-page' && /最后一页/.test(lastPage.reason)
+    && neverRenders.advanced === false && neverRenders.verdict === 'inconclusive'
+    && /这不等于已经到最后一页/.test(neverRenders.reason)
+    && absentClock >= PAGER_ABSENT_BUDGET_MS;
 
-  // ---- 翻页水合：第 2 页表格尚未水合、解析出 0 行，不许当成「这一页就是空的」 ----
+  // 点了「下一页」但页码不动，同样是 inconclusive —— 不是「到头了」。
+  const stalled = await clickNextPage(
+    async (js) => (js === NEXT_PAGE_JS ? { control: 'enabled', clicked: true } : { t: '页码：1\n/\n5' }),
+    1,
+    { now: () => 0, sleepFn: async () => {}, probeIntervalMs: 1, pageWaits: 2 },
+  );
+  const stalledOk = stalled.advanced === false && stalled.verdict === 'inconclusive';
+
+  // ---- 翻页水合：第 2 页解析出 0 行。**结构判据，不是时长。** ----
   let hydClock = 0;
   const hydrate = makeNextPageFingerprint({
     prevPrint: JSON.stringify({ rows: [{ referringDomain: 'a.com' }] }),
@@ -1314,12 +1376,15 @@ if (flags['self-test']) {
   });
   const emptyPrint = JSON.stringify({ rows: [] });
   const filledPrint = JSON.stringify({ rows: [{ referringDomain: 'b.com' }] });
-  const emptyRejectedEarly = hydrate(emptyPrint) === null;   // 还没到最小等待 → 继续等
-  hydClock = MIN_PAGE_SETTLE_MS + 1;
-  const hydrationOk = emptyRejectedEarly
-    && hydrate(JSON.stringify({ rows: [{ referringDomain: 'a.com' }] })) === null   // 还是上一页
-    && hydrate(filledPrint) === filledPrint                                          // 水合完了
-    && hydrate(emptyPrint) === emptyPrint;                                           // 过了下限，空就是空
+  // 表在、无行：等再久也不许收下。时钟直接推到远超旧下限的地方，旧的时长实现会在这里翻车。
+  const tableLate = hydrate(emptyPrint, { tableCount: 1 }) === null;
+  hydClock = PAGE_SETTLE_BUDGET_MS * 100;
+  const stillWaitingLongAfter = hydrate(emptyPrint, { tableCount: 1 }) === null;
+  // 整页无表：这是页面产出的结构事实，可以收下。
+  const noTableConclusive = hydrate(emptyPrint, { tableCount: 0 }) === emptyPrint;
+  const hydrationOk = tableLate && stillWaitingLongAfter && noTableConclusive
+    && hydrate(JSON.stringify({ rows: [{ referringDomain: 'a.com' }] }), { tableCount: 1 }) === null // 还是上一页
+    && hydrate(filledPrint, { tableCount: 1 }) === filledPrint;                                      // 水合完了
 
   // 2026-08-28 live 核验：这一格不是「域名 + 分类」，是「域名 + 分类？+ 状态徽章 +
   // 徽章的整句 tooltip」拼在一起。下面三行是核验时给出的原文，逐字照抄，不是按摘要
@@ -1369,7 +1434,7 @@ if (flags['self-test']) {
       || !coverage.parserAligned || coverage.virtualScrollTruncated || coverage.pageSelfReportedTotal !== 2
       || positions.rows.length !== 3 || positions.rows[1].serpFeatures !== null || positions.rows[2].kd !== null
       || !magicOk || !renamedOk || !refOk || !refCoverageOk || !quotaOk || !badgeOk || !refHeadlineOk
-      || !nextControlOk || !hydrationOk) {
+      || !nextControlOk || !stalledOk || !hydrationOk) {
     throw new Error(`semrush-report self-test failed: ${JSON.stringify({ parsed, coverage, positions, magic, renamed, ref, refRollup, refCoverage, badge, refHeadlineCoverage, pagerZh, pagerEn })}`);
   }
   console.log('semrush-report self-test: PASS');
@@ -1410,6 +1475,9 @@ try {
   const pageInfo = readPageInfo(cap.bodyText);
   let pagesRead = 1;
   let stoppedBecause = null;
+  // 「停下来的原因」和「停下来这件事说明了什么」是两回事。`last-page` 是页面产出的
+  // 结论，其余一律是 `inconclusive`：我们不知道后面还有没有，只知道没读到。
+  let paginationVerdict = null;
 
   // **不允许静默截断**（本 Skill 的明文规则）：要么把页翻完，要么把丢掉的量报出来。
   if (spec.paginated && pageInfo.total > 1) {
@@ -1418,9 +1486,17 @@ try {
       const seen = new Set((parsed.rows || []).map(rowKey));
       let prevPrint = JSON.stringify(parsed);
       while (pagesRead < pageInfo.total) {
-        if (pagesRead >= maxPages) { stoppedBecause = `max-pages=${maxPages}`; break; }
+        if (pagesRead >= maxPages) {
+          stoppedBecause = `max-pages=${maxPages}`;
+          paginationVerdict = 'inconclusive';
+          break;
+        }
         const advance = await clickNextPage(evalPage, pagesRead);
-        if (!advance.advanced) { stoppedBecause = advance.reason; break; }
+        if (!advance.advanced) {
+          stoppedBecause = advance.reason;
+          paginationVerdict = advance.verdict;
+          break;
+        }
         pagesRead += 1;
         const pageFingerprint = makeNextPageFingerprint({
           prevPrint, prevRowCount: (parsed.rows || []).length,
@@ -1430,12 +1506,14 @@ try {
         // 而 rowKey 去重会把它悄悄吞掉，表现为「翻了 5 页只多出 12 行」。
         // 所以这里同样要等到解析结果稳定，**并且与上一页不同**。
         const nextPage = await captureStable({
-          read: () => evalPage(`(() => JSON.stringify({ bodyText: document.body?.innerText || "", cells: ${spec.cells || 'null'} }))()`),
+          // tableCount 是结构判据的原料：**表在但无行** 和 **整页无表** 是两件不同的事，
+          // 只有后者能支持「这一页就是空的」。见 makeNextPageFingerprint 顶部的表。
+          read: () => evalPage(`(() => JSON.stringify({ bodyText: document.body?.innerText || "", tableCount: document.querySelectorAll('table,[role="grid"]').length, cells: ${spec.cells || 'null'} }))()`),
           fingerprint: (c) => {
             let print = null;
             try { print = JSON.stringify(spec.parse(String(c?.bodyText || '').split(/\n+/).map((l) => l.trim()).filter(Boolean), c?.cells)); } catch { return null; }
-            // 还是上一页的内容 → 继续等；解析出 0 行且还没过最小等待 → 也继续等。
-            return pageFingerprint(print);
+            // 还是上一页的内容 → 继续等；解析出 0 行而表还在 → 也继续等（不看时长）。
+            return pageFingerprint(print, { tableCount: c?.tableCount });
           },
           timeoutMs: Number(flags['page-timeout'] || 30) * 1000,
           intervalMs: 1500,
@@ -1451,6 +1529,8 @@ try {
           pagesRead -= 1;
           // 整页搜「限额」在这里同样不合法（见 classifyQuotaBlock）——绑表体区。
           const quota = classifyQuotaBlock(freshProbe);
+          // 三种都是「没读成」，没有一种是「后面没有了」。
+          paginationVerdict = 'inconclusive';
           stoppedBecause = quota === 'quota-blocked'
             ? `每日报告限额在第 ${pagesRead + 1} 页触发（表体区 0 个非空单元格且提示在表体区内）——换 --node 重跑，不是网络超时`
             : quota === 'quota-suspected'
@@ -1474,6 +1554,7 @@ try {
       }
     } else {
       stoppedBecause = 'no --all-pages';
+      paginationVerdict = 'inconclusive';
       console.error(
         `[truncated] ${name} 共 ${pageInfo.total} 页，本次只读了第 1 页（${(parsed.rows || []).length} 行）。` +
         `要全量加 --all-pages。`,
@@ -1533,8 +1614,18 @@ try {
       quotas: tool.state.quotas, warning: expiryWarning(tool.state),
     },
     // complete=false 时 stoppedBecause 必须有值——「少了」和「为什么少」要一起交付。
+    // `verdict` 是给机器读的那一半：`complete` = 页数读满了；`last-page` = 页面自己
+    // 产出的禁用态说到头了；`inconclusive` = 我们不知道后面还有没有，**别当成读完了**。
+    // 见 <law-ref id="readiness-must-bind-to-this-query"/>：负向判定必须绑到页面产出的
+    // 完成信号，绑不到就只能是 inconclusive。
     pagination: spec.paginated
-      ? { pages: pageInfo.total, pagesRead, complete: pagesRead >= pageInfo.total, stoppedBecause }
+      ? {
+        pages: pageInfo.total,
+        pagesRead,
+        complete: pagesRead >= pageInfo.total,
+        verdict: pagesRead >= pageInfo.total ? 'complete' : (paginationVerdict || 'inconclusive'),
+        stoppedBecause,
+      }
       : null,
     coverage,
     rollup,

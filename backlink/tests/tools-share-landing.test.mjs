@@ -8,7 +8,7 @@
  */
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
-import { gotoInTool, routeMismatch } from '../scripts/lib-tools-share.mjs';
+import { gotoInTool, routeMismatch, routeWindow } from '../scripts/lib-tools-share.mjs';
 
 const SW = 'https://sim.3ue.co';
 const HIJACK = `${SW}/#/digitalsuite/ai-brand-visibility/home`;
@@ -118,4 +118,110 @@ test('a relative target is compared against the absolute landed url', async () =
   const { evalPage } = fakeEvalPage(`${SW}/#/digitalsuite/websiteanalysis/overview/website-performance/*/999/28d?key=e.com`);
   const landed = await goto(evalPage, '/#/digitalsuite/websiteanalysis/overview/website-performance/*/999/28d?key=e.com');
   assert.ok(landed.url.includes('website-performance'));
+});
+
+/* ------------------------------------------------------------------ *
+ * 时间窗口段被面板改写：容忍，但必须把真实窗口带回来
+ *
+ * 2026-08-28 实测（creem.io）：请求
+ *   /digitalsuite/websiteanalysis/traffic-overview/marketing-channels/999/28d
+ * 落到
+ *   /digitalsuite/websiteanalysis/traffic-overview/marketing-channels/999/6m
+ * 顶层报表没变，只有窗口段被改写（小站没有 28 天数据，面板自动放宽）。
+ * **逐字节相同的这条路由在 canva.com 上完全不被改写**，所以拿大站永远测不出来,
+ * 而 payment-referrers.mjs 的全部工作负载就是这类小站——它在真实用途上必炸。
+ *
+ * 光「忽略窗口段」是不够的：落地 6m 而脚本仍按 28d 标注输出，
+ * 就是把 6 个月的数字标成 28 天,正是这道校验本来要防的那类错标。
+ * ------------------------------------------------------------------ */
+
+const CHANNELS = `${SW}/#/digitalsuite/websiteanalysis/traffic-overview/marketing-channels/999`;
+
+test('only the time-window segment differing is tolerated', () => {
+  assert.equal(routeMismatch(`${CHANNELS}/28d?key=creem.io`, `${CHANNELS}/6m?key=creem.io`), null);
+  assert.equal(routeMismatch(`${CHANNELS}/28d`, `${CHANNELS}/3m`), null);
+  assert.equal(routeMismatch(`${CHANNELS}/28d`, `${CHANNELS}/1m`), null);
+  assert.equal(routeMismatch(`${CHANNELS}/1m`, `${CHANNELS}/7d`), null);
+});
+
+test('a differing report segment still throws, window segment identical or not', () => {
+  // 报表段变了：真重定向，照抛。
+  assert.deepEqual(
+    routeMismatch(`${CHANNELS}/28d`, `${SW}/#/digitalsuite/websiteanalysis/traffic-overview/referrals/999/28d`),
+    {
+      requested: '/digitalsuite/websiteanalysis/traffic-overview/marketing-channels/999/28d',
+      landed: '/digitalsuite/websiteanalysis/traffic-overview/referrals/999/28d',
+    },
+  );
+  // 报表段和窗口段一起变：更明显的重定向，同样照抛。
+  assert.deepEqual(
+    routeMismatch(`${CHANNELS}/28d`, `${SW}/#/digitalsuite/websiteanalysis/traffic-overview/referrals/999/6m`),
+    {
+      requested: '/digitalsuite/websiteanalysis/traffic-overview/marketing-channels/999/28d',
+      landed: '/digitalsuite/websiteanalysis/traffic-overview/referrals/999/6m',
+    },
+  );
+});
+
+test('999 is not a window segment — changing it still throws', () => {
+  // `999` 在多条路由上都是这个固定值，它不是时间窗口。
+  // 把容忍放宽成「忽略最后一段」或「忽略任何纯数字段」，这条就会漏过去。
+  const base = `${SW}/#/digitalsuite/websiteanalysis/traffic-overview/marketing-channels`;
+  assert.deepEqual(routeMismatch(`${base}/999/28d`, `${base}/123/28d`), {
+    requested: '/digitalsuite/websiteanalysis/traffic-overview/marketing-channels/999/28d',
+    landed: '/digitalsuite/websiteanalysis/traffic-overview/marketing-channels/123/28d',
+  });
+  // 末段就是 999 时（没有窗口段的路由）也一样必须抛。
+  assert.deepEqual(routeMismatch(`${base}/999`, `${base}/6m`), {
+    requested: '/digitalsuite/websiteanalysis/traffic-overview/marketing-channels/999',
+    landed: '/digitalsuite/websiteanalysis/traffic-overview/marketing-channels/6m',
+  });
+  assert.deepEqual(routeMismatch(`${base}/28d`, `${base}/999`), {
+    requested: '/digitalsuite/websiteanalysis/traffic-overview/marketing-channels/28d',
+    landed: '/digitalsuite/websiteanalysis/traffic-overview/marketing-channels/999',
+  });
+});
+
+test('a window-looking segment that is not the last one is not tolerated', () => {
+  // 只放宽末段：中间段变了属于路由形状变了，不是窗口放宽。
+  const a = `${SW}/#/digitalsuite/websiteanalysis/28d/marketing-channels/999`;
+  const b = `${SW}/#/digitalsuite/websiteanalysis/6m/marketing-channels/999`;
+  assert.deepEqual(routeMismatch(a, b), {
+    requested: '/digitalsuite/websiteanalysis/28d/marketing-channels/999',
+    landed: '/digitalsuite/websiteanalysis/6m/marketing-channels/999',
+  });
+});
+
+test('gotoInTool tolerates the window rewrite and reports the landed window', async () => {
+  const requested = `${CHANNELS}/28d/?webSource=Total&key=creem.io`;
+  const landedUrl = `${CHANNELS}/6m?webSource=Total&key=creem.io`;
+  const { evalPage } = fakeEvalPage(landedUrl);
+  const landed = await goto(evalPage, requested);
+  assert.equal(landed.url, landedUrl);
+  // 回传必须同时带上「请求的窗口」和「实际的窗口」——只有实际窗口的话，
+  // 下游看到 6m 也不知道它本来要的是 28d。
+  assert.deepEqual(landed.routeWindow, { requested: '28d', landed: '6m', rewritten: true });
+});
+
+test('gotoInTool reports the window even when it was not rewritten', async () => {
+  const route = `${CHANNELS}/28d?key=canva.com`;
+  const { evalPage } = fakeEvalPage(route);
+  const landed = await goto(evalPage, route);
+  assert.deepEqual(landed.routeWindow, { requested: '28d', landed: '28d', rewritten: false });
+});
+
+test('routeWindow is null for routes whose last segment is not a window', () => {
+  const base = `${SW}/#/digitalsuite/websiteanalysis/traffic-overview/marketing-channels/999`;
+  assert.equal(routeWindow(base, base), null);
+  assert.equal(routeWindow('https://sem.3ue.co/analytics/overview/', 'https://sem.3ue.co/analytics/overview/'), null);
+});
+
+test('the referrals hop also carries its landed window', async () => {
+  // payment-referrers.mjs:281 —— 在窗口误报修掉之前，这一跳从来没被执行到
+  // （280 行那一跳先抛了错）。它的输出同样要带上落地窗口。
+  const requested = `${SW}/#/digitalsuite/websiteanalysis/referrals/*/999/28d?selectedTab=incomingTraffic&key=creem.io`;
+  const landedUrl = `${SW}/#/digitalsuite/websiteanalysis/referrals/*/999/6m?selectedTab=incomingTraffic&key=creem.io`;
+  const { evalPage } = fakeEvalPage(landedUrl);
+  const landed = await goto(evalPage, requested);
+  assert.deepEqual(landed.routeWindow, { requested: '28d', landed: '6m', rewritten: true });
 });

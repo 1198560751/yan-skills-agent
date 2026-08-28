@@ -552,13 +552,72 @@ function normalizeRoutePath(p) {
 }
 
 /**
+ * 「时间窗口段」的判据：**纯数字 + 单个时间单位字母**，如 `28d` / `6m` / `3m` / `1y`。
+ *
+ * 为什么卡得这么死：路由里还有别的纯数字段——`999`（实测在 marketing-channels、
+ * referrals、website-performance 多条路由上都是这个固定值）和 `*`。它们**不是窗口**，
+ * 一起放宽就等于「路由最后一段随便变都不管」，这道校验能防住的东西直接归零。
+ * 所以只认 `\d+[dwmy]`，`999` 不匹配（没有单位字母），`*` 也不匹配。
+ */
+const WINDOW_SEG = /^\d+[dwmy]$/i;
+
+/**
+ * 只在**最后一段**上认窗口。窗口位在实测见过的每条路由里都是末段
+ * （`.../marketing-channels/999/28d`、`.../referrals/*​/999/28d`、
+ * `.../website-performance/*​/999/28d`），而「只放宽末段」比「在任意位置找窗口段」
+ * 少放宽一大片：中间某段被改成 `6m` 属于路由形状变了，仍旧照抛。
+ *
+ * 返回 `{ requested, landed }`（两边窗口不同）或 null（不是纯窗口改写）。
+ */
+function windowSegDrift(want, got) {
+  if (want.mode !== got.mode) return null;
+  const a = want.path.split('/');
+  const b = got.path.split('/');
+  if (a.length !== b.length) return null;
+  const last = a.length - 1;
+  // 其余路径段仍然必须逐字节相同：这次只有窗口段被改，顶层报表没变；
+  // 哪天报表段也变了，那就是真重定向。
+  for (let i = 0; i < last; i += 1) if (a[i] !== b[i]) return null;
+  if (a[last] === b[last]) return null;
+  if (!WINDOW_SEG.test(a[last]) || !WINDOW_SEG.test(b[last])) return null;
+  return { requested: a[last], landed: b[last] };
+}
+
+/**
+ * 请求路由与落地路由的**时间窗口**，不管有没有被改写都回传，供调用方标注输出。
+ *
+ * 2026-08-28 实测（creem.io）：请求 `.../marketing-channels/999/28d` 落到
+ * `.../marketing-channels/999/6m`——顶层报表没变，只有窗口段被面板改写了。
+ * 合理解释是小站没有 28 天数据，面板自动把窗口放宽。逐字节相同的这条路由在
+ * canva.com 上完全没被改写，所以**拿大站永远测不出来**。
+ *
+ * 光容忍不够：落地是 `6m` 而脚本仍按 `28d` 标注输出，就是把 6 个月的数字标成 28 天,
+ * 正是这道校验本来要防的那类错标。所以窗口必须回传到调用方并写进输出。
+ *
+ * 返回 `{ requested, landed, rewritten }`，或 null（这条路由末段根本不是窗口）。
+ */
+export function routeWindow(requestedUrl, landedUrl) {
+  const want = routeOf(requestedUrl);
+  const got = routeOf(landedUrl);
+  const wantSeg = want.path.split('/').pop();
+  if (!WINDOW_SEG.test(wantSeg)) return null;
+  const gotSeg = got.path.split('/').pop();
+  const landedSeg = WINDOW_SEG.test(gotSeg) ? gotSeg : null;
+  return { requested: wantSeg, landed: landedSeg, rewritten: landedSeg !== null && landedSeg !== wantSeg };
+}
+
+/**
  * 比对「请求的路由」和「落地的路由」，一致返回 null，不一致返回两边的路由。
+ *
+ * **唯一容忍的差异是末段时间窗口被面板改写**（见 windowSegDrift / routeWindow）——
+ * 容忍是为了不误报，而不是为了忘掉它：真正的窗口由 gotoInTool 回传给调用方。
  * 导出只为可测。
  */
 export function routeMismatch(requestedUrl, landedUrl) {
   const want = routeOf(requestedUrl);
   const got = routeOf(landedUrl);
   if (want.mode === got.mode && want.path === got.path) return null;
+  if (windowSegDrift(want, got)) return null;
   return { requested: want.path, landed: got.path };
 }
 
@@ -574,6 +633,13 @@ export function routeMismatch(requestedUrl, landedUrl) {
  *
  * `{ allowRedirect: true }` 是给**已知会合法重定向**的调用方留的出口。
  * 默认必须是严格的——默认宽松等于没修。
+ *
+ * 返回值在落地状态上多带一个 `routeWindow`：`{ requested, landed, rewritten }`，
+ * 路由末段不是时间窗口时为 null。**报表窗口跟报表身份一样是数据的一部分**——
+ * 面板会在小站上把 `28d` 悄悄放宽成 `6m`（见 routeWindow 的实测记录），
+ * 调用方必须把 `routeWindow.landed` 写进输出，否则就是把 6 个月的数字标成 28 天。
+ * 放在这里而不是让每个调用方自己解析落地 URL：7 个调用点一次性受益，
+ * 而且「窗口段怎么认」只有这一处判据，不会各写各的。
  */
 export async function gotoInTool(evalPage, target, settleSeconds = 15, { allowRedirect = false } = {}) {
   const url = target.startsWith('http') ? target : target.replace(/^\/?/, '/');
@@ -597,7 +663,16 @@ export async function gotoInTool(evalPage, target, settleSeconds = 15, { allowRe
       ));
     }
   }
-  return landed;
+  const window = routeWindow(url, landed.url);
+  if (window?.rewritten) {
+    // 说出来，不只是塞进返回值：跑批的人看日志，不看每条记录的 routeWindow。
+    console.error(redactSecrets(
+      `[gotoInTool] the app rewrote the report time window: requested ${window.requested}, landed ${window.landed}. ` +
+      `The numbers on this page are ${window.landed} numbers — label them as such.\n` +
+      `  landed url: ${landed.url}`,
+    ));
+  }
+  return { ...landed, routeWindow: window };
 }
 
 /** 订阅快到期时的提醒文案，几个脚本都要用。 */
@@ -627,14 +702,39 @@ export function expiryWarning(state) {
  *
  * abortIf(capture) 为真时立刻返回 { stable: false, aborted: true }：给「等下去也没用」的
  * 页面状态留出口（瞬时错误页要的是重载，不是更长的超时）。
+ *
+ * ---------------------------------------------------------------------------
+ * **`renderSignal` —— 「连续读到一样」这条判据自己的破绽，以及唯一的补法。**
+ *
+ * `needed` 计数是**重复**，重复不是完成。见
+ * <law-ref id="readiness-must-bind-to-this-query"/>：*一个还没开始渲染的区域是完美稳定的*，
+ * 所以「稳定的空」瞬间就能满足 needed=2，而它什么都不证明。加大 needed、加长 interval
+ * 都只是把同一个赌换个数字——**时长和读数都不是页面产出的东西**。
+ *
+ * 补法只有一个形状：把结论绑到**页面产出的「已渲染完成」信号**上——分页器出现了、
+ * 行数计数出现了、加载指示消失了、整页根本不存在 table（「本来就没有表」是结构事实，
+ * 和「表来得晚」互斥且可观测）。调用方传 `renderSignal(capture) => boolean`：
+ *
+ *   - 不传（默认）：**行为与从前逐字一致**。既有 7 个调用点一个都不受影响。
+ *   - 传了、且在收下之前见过一次为真：照常 `{ stable: true }`。
+ *   - 传了、指纹一直稳定但信号始终拿不到：熬到 deadline，返回
+ *     `{ stable: false, inconclusive: true, fingerprint }` ——
+ *     **inconclusive，不是 empty，也不是确认过的稳定值**。这两个词对下游意思完全不同，
+ *     本仓库的立场是显式失败，而不是安静地交一个可能是空壳的读数。
+ *
+ * 信号见过一次就记住（`sawSignal` 不回退）：分页器渲染出来之后又被虚拟列表回收掉，
+ * 不该把已经成立的完成事实撤销。
+ * ---------------------------------------------------------------------------
  */
-export async function captureStable({ read, fingerprint, timeoutMs, intervalMs = 2500, needed = 2, abortIf }) {
+export async function captureStable({ read, fingerprint, timeoutMs, intervalMs = 2500, needed = 2, abortIf, renderSignal }) {
   const deadline = Date.now() + Math.max(0, timeoutMs);
   const want = (print) => Math.max(2, Number(typeof needed === 'function' ? needed(print) : needed) || 2);
+  const gated = typeof renderSignal === 'function';
   let last = null;
   let lastPrint = null;
   let repeats = 0;
   let reads = 0;
+  let sawSignal = false;
   while (Date.now() < deadline) {
     let capture = null;
     try { capture = await read(); } catch { capture = null; }
@@ -642,7 +742,10 @@ export async function captureStable({ read, fingerprint, timeoutMs, intervalMs =
     // abortIf 是「别再等了，等下去也不会变」的出口——瞬时错误页就是这种：
     // 它要的是重载，不是更长的超时。没有这个出口，一张错误页会白白吃满整个 timeout。
     if (capture != null && typeof abortIf === 'function' && abortIf(capture)) {
-      return { capture, stable: false, aborted: true, reads, fingerprint: null };
+      return { capture, stable: false, aborted: true, inconclusive: false, reads, fingerprint: null };
+    }
+    if (gated && capture != null && !sawSignal) {
+      try { sawSignal = Boolean(renderSignal(capture)); } catch { /* 读不出信号 = 还没拿到信号 */ }
     }
     const print = capture == null ? null : fingerprint(capture);
     if (print == null) {
@@ -652,10 +755,17 @@ export async function captureStable({ read, fingerprint, timeoutMs, intervalMs =
       repeats = print === lastPrint ? repeats + 1 : 1;
       lastPrint = print;
       last = capture;
-      if (repeats >= want(print)) return { capture, stable: true, aborted: false, reads, fingerprint: print };
+      // 指纹够稳了，但只有拿到页面产出的完成信号才允许把它当结论。
+      // 没拿到就继续等——等到 deadline 为止，然后交 inconclusive。
+      if (repeats >= want(print) && (!gated || sawSignal)) {
+        return { capture, stable: true, aborted: false, inconclusive: false, reads, fingerprint: print };
+      }
     }
     if (Date.now() + intervalMs >= deadline) break;
     await sleep(intervalMs);
   }
-  return { capture: last, stable: false, aborted: false, reads, fingerprint: lastPrint };
+  // gated 且指纹其实一直是稳的，只差那个信号 —— 这不是「值一直在跳」，
+  // 也不是「什么都没读到」，调用方必须能把它和那两种分开，所以单开一个字段。
+  const inconclusive = gated && !sawSignal && lastPrint != null && repeats >= want(lastPrint);
+  return { capture: last, stable: false, aborted: false, inconclusive, reads, fingerprint: lastPrint };
 }

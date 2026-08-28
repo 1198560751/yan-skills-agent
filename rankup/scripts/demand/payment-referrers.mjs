@@ -36,6 +36,14 @@
  *      （实测同一条 URL 两次，一次出数一次空）。本脚本因此先落到已知稳定的
  *      marketing-channels 路由，再切到 referrals，并轮询「只有数据到了才会出现的字符串」。
  *      即便如此仍可能超时——那是站点行为，不是脚本坏了，重跑即可。
+ *      **这条「白屏」至今未被实测过**：2026-08-28 之前 marketing-channels 那一跳
+ *      必抛错（窗口段误报），referrals 那一跳从来没被执行到。窗口误报修掉之后
+ *      它才第一次会跑起来，这条链路上的白屏概率仍是开放问题。
+ *   1b. **面板会改写时间窗口**：小站没有 28 天数据时，`.../999/28d` 会静默落到
+ *      `.../999/6m`（2026-08-28 实测 creem.io；同一条路由在 canva.com 上不改写）。
+ *      本脚本的全部用途就是查小站，所以这是常态而非异常。输出里的
+ *      `requestedWindow` / `window` / `windowRewritten` 记的就是这件事——
+ *      **拿数字之前先看 `window`，那才是这些百分比真正对应的时间跨度。**
  *   2. **`-site:` 在 Brave / DuckDuckGo 上基本无效**（实测直接返回无结果）。
  *      真要排除自身域名就用 --exclude，在本地过滤，不要指望搜索引擎。
  *   3. 指纹表里的结账域名会变（网关改版就会失效）。跑出来全是文档站时，
@@ -271,14 +279,33 @@ async function cmdSimilarweb(args) {
   }
 
   let out;
+  // 实际用上的会话名要从 launchTool 的返回里拿：Similarweb 是配额站，
+  // 不传 --sw-session 时 launchTool 会把它收敛到固定的 similarweb-nav。
+  // 原来 finally 里关的是这里的 `session`（多半是 undefined），等于没关——
+  // 2026-08-28 就这样在一次未捕获抛错里泄漏过一个标签页。
+  // 只关自己开的这一个会话，**绝不调用 cleanup**（那会连别人的标签页一起端掉）。
+  let openedSession = null;
   try {
     const l = await lib.launchTool({ session, tool: 'similarweb', window: 'background', wait: 8, timeout: 60 });
+    openedSession = l.session ?? session ?? null;
     const ev = l.evalPage;
     console.error(`· 面板订阅到期 ${l.state.expiry ?? '—'}（剩 ${l.state.daysLeft ?? '—'} 天）· 配额 ${JSON.stringify(l.state.quotas ?? '—')}`);
     const base = 'https://sim.3ue.co/#/digitalsuite/websiteanalysis';
     // 先落到已知稳定的路由再切过去；直接深链到 referrals 有概率白屏。
-    await lib.gotoInTool(ev, `${base}/traffic-overview/marketing-channels/999/28d/?webSource=Total&key=${encodeURIComponent(domain)}`, 12);
-    await lib.gotoInTool(ev, `${base}/referrals/*/999/28d?webSource=Total&selectedTab=${tab}&key=${encodeURIComponent(domain)}`, settle);
+    //
+    // **请求的窗口是 28d，但面板会自己改写它。** 2026-08-28 实测 creem.io：
+    // marketing-channels 请求 `.../999/28d` 落地 `.../999/6m`（顶层报表没变，只有窗口段）。
+    // 合理解释是小站没有 28 天数据，面板自动放宽。同一条路由在 canva.com 上不改写,
+    // 所以这个网关脚本（全部用途就是查 creem / lemonsqueezy 这类小站）**必踩**。
+    // gotoInTool 现在容忍这条改写并把真实窗口回传，我们必须把它写进输出。
+    const hopWindow = (await lib.gotoInTool(ev, `${base}/traffic-overview/marketing-channels/999/28d/?webSource=Total&key=${encodeURIComponent(domain)}`, 12)).routeWindow;
+    const referralsUrl = `${base}/referrals/*/999/28d?webSource=Total&selectedTab=${tab}&key=${encodeURIComponent(domain)}`;
+    // ⚠️ 开放问题（至今未验证）：本文件顶部「直接深链 referrals 有一定概率白屏」这句
+    // 一直没被实测过——2026-08-28 之前，上面那次 marketing-channels 跳转必抛错，
+    // 这一行**从来没被执行到**。修掉窗口误报之后它才第一次会跑起来。
+    // 下面的轮询失败时要能区分两种情况：白屏（页面根本没渲染）与窗口被改写
+    // （页面渲染了，但是另一个时间窗口的数字）——后者不是失败，只需正确标注。
+    const refLanded = await lib.gotoInTool(ev, referralsUrl, settle);
 
     // 轮询「只有数据到了才会出现的东西」：这一页的表格里必然带 % 份额。
     const started = Date.now();
@@ -291,7 +318,18 @@ async function cmdSimilarweb(args) {
       if (cap.ready) break;
       await sleep(3000);
     }
-    if (!cap?.ready) die(`Similarweb 的引荐流量页没渲染出来（白屏或超时）。加大 --settle 后重跑；这是 SPA 行为，不是脚本坏了。`);
+    // 落地窗口以轮询结束时的 location.href 为准（面板可能在 settle 之后才改写窗口），
+    // 取不到窗口段时退回导航当时回传的那份。
+    const capWindow = cap?.url ? lib.routeWindow(referralsUrl, cap.url) : null;
+    const timeWindow = (capWindow?.landed ? capWindow : refLanded.routeWindow) ?? null;
+
+    if (!cap?.ready) {
+      // 区分白屏和窗口改写：窗口被改写的页面**是渲染出来的**，不该被当成白屏重跑。
+      const rewritten = timeWindow?.rewritten ? `落地窗口是 ${timeWindow.landed}（请求的是 ${timeWindow.requested}）；` : '';
+      die(`Similarweb 的引荐流量页没渲染出来（白屏或超时）。${rewritten}` +
+        `页面正文 ${cap?.text?.length ?? 0} 字符、未出现份额百分比，属于白屏/未水合，不是窗口问题。` +
+        `加大 --settle 后重跑；这是 SPA 行为，不是脚本坏了。`);
+    }
 
     // 表格在文本里是「一列域名，然后一列分类，然后一列排名，然后一列份额」这种竖排。
     // 靠位置配对极易错位，所以只做一件保守的事：把域名和百分比按各自出现顺序取出来，
@@ -315,18 +353,32 @@ async function cmdSimilarweb(args) {
     out = {
       gateway: gw?.label ?? domain, domain, direction: tab, url: cap.url,
       retrievedAt: new Date().toISOString(),
+      // 请求的窗口和**实际落地的窗口**都写出来：只写实际窗口的话，下游看到 `6m`
+      // 也不知道它本来要的是 28 天，同样没法判断这份数字能不能跟别的报表并排比。
+      requestedWindow: timeWindow?.requested ?? null,
+      window: timeWindow?.landed ?? null,
+      windowRewritten: Boolean(timeWindow?.rewritten),
+      // 中转跳转的窗口也留一份：两跳落到不同窗口是面板行为变化的早期信号。
+      hopWindow: hopWindow ? { requested: hopWindow.requested, landed: hopWindow.landed } : null,
       paired,
       referrers: domains.map((d, i) => ({ domain: d, share: paired ? shares[i] : null })),
       note: paired ? null
         : `域名 ${domains.length} 个、份额 ${shares.length} 个，数量对不上，已放弃配对——错位的份额比没有份额更危险。份额请在面板里人工核对。`,
     };
   } finally {
-    try { await core?.closeSession(session); } catch { /* 关不掉不该让命令失败 */ }
+    // 只关自己开的那一个会话。**绝不调用 cleanup**——它会把机主别的标签页一起端掉。
+    if (openedSession) {
+      try { await core?.closeSession(openedSession); } catch { /* 关不掉不该让命令失败 */ }
+    }
   }
 
   if (args.out) { const p = (await import('node:fs')).writeFileSync(args.out, JSON.stringify(out, null, 2) + '\n'); console.error(`已写入 ${args.out}`); void p; }
   if (args.json) { console.log(JSON.stringify(out, null, 2)); return; }
   if (out.note) console.error(`· ${out.note}`);
+  if (out.windowRewritten) {
+    console.error(`⚠ 时间窗口被面板改写：请求 ${out.requestedWindow}，实际 ${out.window}。` +
+      `下面这些数字是 ${out.window} 的，别按 ${out.requestedWindow} 解读。`);
+  }
   printTable(out.referrers, [{ key: 'domain', label: '引荐域名', max: 40 }, { key: 'share', label: '份额' }]);
   console.error(`\n${out.gateway} · ${out.direction} · 共 ${out.referrers.length} 个域名`);
 }

@@ -24,7 +24,8 @@
  * 【必须知道的一条】指标区是分两拍渲染的：标签和占位值先挂上，真值几秒后才水合。
  * 所以本脚本读到**同一组数值连续若干次完全一致**才收下，`stable === false`
  * 时直接抛错而不是把最后一次读数当结论——静默的错数比一次显式超时坏得多。
- * 空态（「未找到匹配内容」）要连续确认 3 次才算数，因为它同样会在数据水合前短暂出现。
+ * 空态（「未找到匹配内容」）是**页面正面渲染出来的一句话**，不是「读到 0 行」——
+ * 这两者形状不同，见下面 fingerprint 处的长注释，别按同一条规则改。
  *
  * `belowFloor: true` 是**结论**（数据源明说没有此站的数据），不是失败，别和「查不到」混为一谈。
  * 只有 performance 报表有 metrics：在渠道页上跑 deriveMetrics 会把筛选器文字当数值抓
@@ -53,6 +54,23 @@ import {
   SW_GEO_TABLE_CELLS,
   SW_ROW_MAJOR_TABLE_CELLS,
 } from './lib-similarweb.mjs';
+
+/**
+ * 数据源**正面渲染出来的**「查无此站」文案。这是一个 page-produced 的完成信号：
+ * 页面必须先判定查无结果才会挂上它，骨架屏和未水合的空表都产不出这句话。
+ * 提到模块作用域只为一件事——让 `--self-test` 能离线断言它，不用连浏览器。
+ * 见 fingerprint 处的长注释和 <law-ref id="readiness-must-bind-to-this-query"/>。
+ */
+const NO_DATA = /抱歉，未找到与该搜索匹配的内容|没有足够的数据|Not enough data|我们没有此网站的数据/;
+
+/**
+ * 法则要求的另一半：**这句空态提示是本次查询产出的吗？**
+ * 标签页是复用的，上一个域名的空态会原样留在 DOM 里。URL 里的 `key=` 是面板自己
+ * 写的本次查询标识，绑定它，空态才归本次查询所有。
+ */
+function boundToThisQuery(url, target) {
+  return String(url || '').includes(`key=${encodeURIComponent(target)}`);
+}
 
 const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
@@ -199,7 +217,6 @@ try {
     if (report === 'audience-geo' || report === 'site-keywords') return !payload?.rows?.length;
     return !payload.text;
   };
-  const NO_DATA = /抱歉，未找到与该搜索匹配的内容|没有足够的数据|Not enough data|我们没有此网站的数据/;
 
   const settled = await captureStable({
     read: () => evaluate(`(() => ({
@@ -210,7 +227,7 @@ try {
     }))()`),
     fingerprint: (cap) => {
       const text = String(cap?.bodyText || '');
-      if (!String(cap?.url || '').includes(`key=${encodeURIComponent(domain)}`)) return null;
+      if (!boundToThisQuery(cap?.url, domain)) return null;
       if (!text.includes(READY_MARKERS[report])) {
         // 数据源正面说了「没有此网站的数据」——这是结论，不是失败，但要多确认一次。
         return NO_DATA.test(text) ? 'no-data' : null;
@@ -219,7 +236,27 @@ try {
       if (isEmptyPayload(payload)) return NO_DATA.test(text) ? 'no-data' : null;
       return JSON.stringify(payload);
     },
-    // 空态比数字先出现，多要一次确认；否则一个还在加载的页会被判成「这个站没数据」。
+    /**
+     * 【2026-08-28 复核：这一处**不是**阈值赌博，不要「顺手」改成 inconclusive。】
+     *
+     * <law-ref id="readiness-must-bind-to-this-query"/> 打掉的是这个形状：
+     * *读到空 N 次 / 等了 N 秒还是空 → 判空*。那里的证据是「什么都没有」，
+     * 而一个还没开始渲染的区域天然就是「什么都没有」，所以证据为零。
+     *
+     * 这里的证据不是「没有」，是**有**：`NO_DATA` 匹配的是页面自己渲染出来的一句
+     * 「我们没有此网站的数据 / 抱歉，未找到与该搜索匹配的内容」。骨架屏、占位符、
+     * 还没水合的空表都产不出这句话——**页面必须先判定查无结果，才会把它挂上去**。
+     * 按法则的话说：它是一个 positive、page-produced 的完成信号，和「表里有一个非空
+     * 单元格」是同一个等级的证据，跟时长和读数不是一回事。
+     *
+     * 另一半（法则要求的「这是本次查询产出的吗」）由上面第一行的 URL 断言兜住：
+     * 不含 `key=<本次查询的域名>` 一律返回 null，所以上一个域名残留在标签页里的
+     * 那句空态提示，在这里根本进不了判定。
+     *
+     * 下面的 3 次重复因此**是冗余，不是判据**：判据是那句话本身。留着它的成本是几秒，
+     * 收益是挡住一次偶发的读取抖动；删掉也不会让结论变得不可靠，但别反过来
+     * 以为把它调大就能让「读到 0 行」变成可信的空态——那条路是被法则封死的。
+     */
     needed: (print) => (print === 'no-data' ? 3 : 2),
     timeoutMs,
     intervalMs: Number(flags['stable-interval'] || 2.5) * 1000,
@@ -770,6 +807,22 @@ function runSelfTest() {
   assertEqual('columnDepthMismatch false is passed through', geoRowsNoMismatch.columnDepthMismatch, false);
   const geoRowsUnknownMismatch = deriveGeoRows({ headers: geoHeaders, rows: [geoSampleRow] });
   assertEqual('columnDepthMismatch is null (unknown), not false, when the extractor did not report it', geoRowsUnknownMismatch.columnDepthMismatch, null);
+
+  // ---- 空态判据：它是「页面产出的一句话」，不是「读到 0 行」 ----
+  // 见 <law-ref id="readiness-must-bind-to-this-query"/>。这几条断言在锁两件事：
+  // (1) 触发空态的是明确的文案，加载/骨架屏文本一律不触发；
+  // (2) 空态只有绑定到本次查询的 URL 才作数——上一个域名残留的提示进不来。
+  assert('no-data 认的是页面正面写出来的那句话', NO_DATA.test('抱歉，未找到与该搜索匹配的内容'));
+  assert('英文空态同样认', NO_DATA.test('Not enough data to display'));
+  assert('「我们没有此网站的数据」同样认', NO_DATA.test('我们没有此网站的数据'));
+  // 骨架屏 / 加载中 / 空表：什么都没有，不是「说了没有」。这里必须**不**匹配，
+  // 否则「还没渲染」就会被当成「查无此站」——正是法则打掉的那个形状。
+  assert('加载中的骨架屏不算空态', !NO_DATA.test('总访问量\n加载中…\n\n\n'));
+  assert('一张空表不算空态', !NO_DATA.test('国家/地区\n流量份额\n变动'));
+  assert('空 body 不算空态', !NO_DATA.test(''));
+  assert('空态绑定本次查询的 key', boundToThisQuery('https://x/#/a/b?key=example.com', 'example.com'));
+  assert('上一个域名残留的空态不算数', !boundToThisQuery('https://x/#/a/b?key=other.com', 'example.com'));
+  assert('没有 key 段一律不作数', !boundToThisQuery('https://x/#/a/b', 'example.com'));
 
   console.log('similarweb-query self-test: PASS');
 }

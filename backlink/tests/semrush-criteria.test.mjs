@@ -60,19 +60,19 @@ async function loadPager() {
   vm.runInContext(
     'const sleep = (ms) => new Promise((r) => setTimeout(r, ms));\n'
     + `${extract(/const NEXT_PAGE_JS = `[\s\S]*?`;/, 'NEXT_PAGE_JS')}\n`
-    + `${extract(/const MIN_PAGER_ABSENT_MS = \d+;/, 'MIN_PAGER_ABSENT_MS')}\n`
-    + `${extract(/const MIN_PAGE_SETTLE_MS = \d+;/, 'MIN_PAGE_SETTLE_MS')}\n`
+    + `${extract(/const PAGER_ABSENT_BUDGET_MS = \d+;/, 'PAGER_ABSENT_BUDGET_MS')}\n`
+    + `${extract(/const PAGE_SETTLE_BUDGET_MS = \d+;/, 'PAGE_SETTLE_BUDGET_MS')}\n`
     + `${extract(/function readPageInfo\(bodyText\) \{[\s\S]*?\n\}/, 'readPageInfo()')}\n`
     + `${extract(/async function clickNextPage\(evalPage, before, options = \{\}\) \{[\s\S]*?\n\}/, 'clickNextPage()')}\n`
     + `${extract(/function makeNextPageFingerprint\(\{[\s\S]*?\n\}/, 'makeNextPageFingerprint()')}\n`
-    + 'globalThis.api = { clickNextPage, makeNextPageFingerprint, MIN_PAGER_ABSENT_MS, MIN_PAGE_SETTLE_MS, NEXT_PAGE_JS };',
+    + 'globalThis.api = { clickNextPage, makeNextPageFingerprint, PAGER_ABSENT_BUDGET_MS, PAGE_SETTLE_BUDGET_MS, NEXT_PAGE_JS };',
     context,
   );
   return context.api;
 }
 
-test('an unrendered pager is not "the last page" — absent needs a minimum wait', async () => {
-  const { clickNextPage, MIN_PAGER_ABSENT_MS, NEXT_PAGE_JS } = await loadPager();
+test('an unrendered pager is inconclusive — never "the last page"', async () => {
+  const { clickNextPage, PAGER_ABSENT_BUDGET_MS, NEXT_PAGE_JS } = await loadPager();
 
   // 分页器和表体一样是后渲染的：翻完一页的那一瞬间它不存在，而且非常稳定。
   let probes = 0;
@@ -87,31 +87,50 @@ test('an unrendered pager is not "the last page" — absent needs a minimum wait
     { now: () => clock, sleepFn: async (ms) => { clock += ms; }, probeIntervalMs: 1500 },
   );
   assert.equal(late.advanced, true, 'a pager that renders late must still be used');
+  assert.equal(late.verdict, 'advanced');
   assert.equal(probes, 4, 'the driver must keep probing, not give up on the first absent read');
 
-  // 真的没有分页器：只有熬过下限之后才允许收工，而且理由必须说出「还没渲染」这个可能。
+  // 【本轮修的就是这一条】分页器一直不出现 → **inconclusive**。
+  // 上一版等满 9 秒就报「没有下一页」，那是同一个阈值赌博换了个数：
+  // 见 <law-ref id="readiness-must-bind-to-this-query"/>，时长不是页面产出的东西。
+  // 而且在这条代码路径上，页面自己已经报了总页数 > 1 —— 「分页器不存在」和那个
+  // 页面产出的事实直接矛盾，所以它只能是「还没渲染」，绝不可能是「已到最后一页」。
   let absentClock = 0;
   const never = await clickNextPage(
     async () => ({ control: 'absent' }), 1,
     { now: () => absentClock, sleepFn: async (ms) => { absentClock += ms; }, probeIntervalMs: 1500 },
   );
   assert.equal(never.advanced, false);
-  assert.ok(absentClock >= MIN_PAGER_ABSENT_MS, 'the negative verdict needs an elapsed-time floor');
-  assert.match(never.reason, /还没渲染|不等于已经到最后一页/);
+  assert.equal(never.verdict, 'inconclusive', 'an absent pager must NEVER be reported as the last page');
+  assert.notEqual(never.verdict, 'last-page');
+  assert.match(never.reason, /这不等于已经到最后一页/);
+  // 下限还在，但它只是**一轮的时间上界**（别让探针死等），不是判据。
+  assert.ok(absentClock >= PAGER_ABSENT_BUDGET_MS, 'the round is still bounded in time');
 
-  // disabled 是页面自己产出的「这是最后一页」信号 —— 可以立刻采信，不用等。
+  // 点了「下一页」但页码不动：同样是 inconclusive。
+  const stalled = await clickNextPage(
+    async (js) => (js === NEXT_PAGE_JS ? { control: 'enabled', clicked: true } : { t: '页码：1\n/\n5' }),
+    1,
+    { now: () => 0, sleepFn: async () => {}, probeIntervalMs: 1, pageWaits: 2 },
+  );
+  assert.equal(stalled.advanced, false);
+  assert.equal(stalled.verdict, 'inconclusive');
+
+  // disabled 是页面自己产出的「这是最后一页」信号 —— 唯一配得上 last-page 的一种，
+  // 而且可以立刻采信，不用等。
   let fastClock = 0;
   const last = await clickNextPage(
     async () => ({ control: 'disabled' }), 1,
     { now: () => fastClock, sleepFn: async (ms) => { fastClock += ms; } },
   );
   assert.equal(last.advanced, false);
+  assert.equal(last.verdict, 'last-page');
   assert.equal(fastClock, 0, 'a rendered, disabled pager is a positive signal — no waiting needed');
   assert.match(last.reason, /最后一页/);
 });
 
-test('a next page whose table has not hydrated does not count as an empty page', async () => {
-  const { makeNextPageFingerprint, MIN_PAGE_SETTLE_MS } = await loadPager();
+test('a next page whose table has not hydrated is decided by structure, not by elapsed time', async () => {
+  const { makeNextPageFingerprint, PAGE_SETTLE_BUDGET_MS } = await loadPager();
   let clock = 0;
   const prevPrint = JSON.stringify({ rows: [{ referringDomain: 'a.com' }] });
   const fingerprint = makeNextPageFingerprint({ prevPrint, prevRowCount: 1, now: () => clock });
@@ -119,22 +138,37 @@ test('a next page whose table has not hydrated does not count as an empty page',
   const empty = JSON.stringify({ rows: [] });
   const filled = JSON.stringify({ rows: [{ referringDomain: 'b.com' }] });
 
-  // 第 2 页表格尚未水合：解析出 0 行，且非常稳定。行数「不再增长」不是终止条件。
-  assert.equal(fingerprint(empty), null);
-  clock = MIN_PAGE_SETTLE_MS - 1;
-  assert.equal(fingerprint(empty), null, 'still inside the floor');
+  // 实测出来的结构判据，两态互斥且可观测：
+  //   table 在、列头齐全、只是无行  → 表来得晚，继续等（**不论等了多久**）
+  //   整页不存在 table/[role=grid] → 本来就没有表，这是页面产出的事实，可以下结论
+  assert.equal(fingerprint(empty, { tableCount: 1 }), null, 'table present but empty → keep waiting');
+  clock = PAGE_SETTLE_BUDGET_MS * 100;
+  assert.equal(
+    fingerprint(empty, { tableCount: 1 }), null,
+    'and the answer must not change just because a lot of time passed — that is the gamble this replaced',
+  );
   // 还是上一页的内容 —— 任何时候都要继续等。
-  assert.equal(fingerprint(prevPrint), null);
-  // 水合完成 —— 立刻采信，不必等满下限。
-  assert.equal(fingerprint(filled), filled);
-  // 过了下限，空就是空。
-  clock = MIN_PAGE_SETTLE_MS + 1;
-  assert.equal(fingerprint(empty), empty);
+  assert.equal(fingerprint(prevPrint, { tableCount: 1 }), null);
+  // 水合完成 —— 立刻采信。
+  assert.equal(fingerprint(filled, { tableCount: 1 }), filled);
+  // 整页无表 —— 结构事实，可以收下。
+  assert.equal(fingerprint(empty, { tableCount: 0 }), empty);
+
+  // 拿不到结构信号的老调用方退回旧的时间兜底（只为兼容，别在新调用点上依赖）。
+  let legacyClock = 0;
+  const legacy = makeNextPageFingerprint({ prevPrint, prevRowCount: 1, now: () => legacyClock });
+  assert.equal(legacy(empty), null);
+  legacyClock = PAGE_SETTLE_BUDGET_MS + 1;
+  assert.equal(legacy(empty), empty);
 });
 
 test('the pagination loop consumes the structured verdict, not a bare boolean', () => {
   assert.match(source, /const advance = await clickNextPage\(evalPage, pagesRead\);/);
-  assert.match(source, /if \(!advance\.advanced\) \{ stoppedBecause = advance\.reason; break; \}/);
+  // 停下的**原因**（给人读）和停下**说明了什么**（给机器读）必须分开传，
+  // 否则下游只能靠正则去猜 reason 的措辞来分辨 last-page 和 inconclusive。
+  assert.match(source, /stoppedBecause = advance\.reason;/);
+  assert.match(source, /paginationVerdict = advance\.verdict;/);
+  assert.match(source, /verdict: pagesRead >= pageInfo\.total \? 'complete' : \(paginationVerdict \|\| 'inconclusive'\),/);
   // 翻页路径上的限额检测同样必须绑表体区。
   assert.match(source, /const quota = classifyQuotaBlock\(freshProbe\);/);
   assert.doesNotMatch(source, /QUOTA_BLOCKED\.test\(freshBody\)/);
