@@ -1326,7 +1326,12 @@ try {
   output = {
     version: 1,
     source: 'Semrush via authenticated Tools Share browser session',
-    note: 'Semrush 的流量是自然搜索估算，与 Similarweb 的总访问量不同口径，不要并列。',
+    // 这句只管**自然搜索**口径。Semrush 另有一个和 Similarweb 同口径的总访问量，
+    // 在 Traffic & Market（.Trends）里，2026-08-28 实测两家相差 2.4%——见
+    // rankup/references/provider-capabilities.md「跨平台哪些数能并列」。
+    note: 'Semrush 的这个流量是自然搜索估算，与 Similarweb 的总访问量不同口径，不要并列。'
+        + '要和 Similarweb 对得上的总访问量，去 Traffic & Market（/analytics/traffic/traffic-overview/），'
+        + '那个口径实测与 Similarweb 相差 2.4%。',
     retrievedAt: new Date().toISOString(),
     report: name,
     target,

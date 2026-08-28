@@ -20,11 +20,11 @@
         "verifiedWorkflow": "keyword geo-hop from US/global demand to India database",
         "sidebarExtraction": "The toolkit sidebar lives in shadow DOM. Read it with document.querySelectorAll('snav-sidebar-ribbon-item, snav-sidebar-list-item') then el.shadowRoot.querySelector('a').getAttribute('href'). A plain querySelectorAll('a') returns only header and footer marketing links, which is why an earlier pass concluded the sidebar was invisible.",
         "boundaries": [
-          "Traffic analysis submission creates a project",
           "SEOquake is an external provider",
           "paid, account, and export actions were not executed",
           "the gmitm proxy anonymises some third-party domains, so competitor widgets can return placeholder domains such as silver-switchboard.net that are not real data",
-          "several report tables failed to render across repeated reloads and are recorded as not-reached rather than missing"
+          "several report tables failed to render across repeated reloads and are recorded as not-reached rather than missing",
+          "2026-08-28 更正：旧边界「Traffic analysis submission creates a project」已证伪，见 Traffic & Market 模块的 note。"
         ],
         "knownMissing": [
           "Brand Monitoring: confirmed 404 on two reloads; replaced by the third-party Brand24 Media Monitoring app in App Center at $39/mo",
@@ -80,7 +80,7 @@
         "keywordMagicMeasured": "seed nonogram: 20.1K keywords over 201 pages; seed tower defense: 98.5K. 100 rows per page, 15 columns, read via DOM cells because the innerText row shape is variable-length.",
         "verificationStrength": {
           "enumeratedPages": 102,
-          "pagesWithCapturedData": 15,
+          "pagesWithCapturedData": 16,
           "note": "枚举数不是验证数。引用某项能力前先看该模块的 observed 字段；没有就是只有名字。"
         }
       },
@@ -187,8 +187,8 @@
             "Trends API",
             "Trending Websites"
           ],
-          "observed": "enumerated-only",
-          "note": "2026-08-28 从侧栏 shadow DOM 读到 28 条确切路由（见 routes），比之前的功能名列表可直接使用。**依然一个数都没取过**，observed 仍是 enumerated-only。 当天的两条实测更正：(1) 入口路由是 /analytics/traffic/traffic-overview/，不是 /analytics/traffic/overview/——后者会被重定向到 Getting Started 落地页并丢掉 query，我曾据此误以为深链不可用；(2) 落地页 needsProject=false，页面给的是一个直接输域名的「分析」框，「保存的列表 / 创建新列表」是另一个显式动作。所以旧边界「提交查询会创建项目」**疑似不成立**——但提交那一步没跑完（共享面板中途登出），所以只记为存疑，不改判。",
+          "observed": "captured",
+          "note": "2026-08-28 实测跑通。28 条确切路由见 routes。 **旧边界「提交查询会创建项目」已证伪**：填域名提交后报表直接渲染，无升级提示、无限额、不需要项目；提交前后面板「保存的列表」可见部分逐字节相同（列表下方还有「再显示 20 个结果」未展开，比对的是可见部分）。「保存的列表 / 创建新列表」是独立的显式控件，报表头上的「未命名列表」是未保存临时选择的默认名。 入口路由是 /analytics/traffic/traffic-overview/，不是 /overview/——后者重定向到落地页并丢掉 query。 深链参数仍未知：?q=<domain> 不被识别，必须在页面上填域名提交。",
           "routes": [
             [
               "/analytics/traffic/",
@@ -303,10 +303,36 @@
               "热门网站趋势"
             ]
           ],
-          "openQuestions": [
-            "提交一次流量分析到底算不算写操作？落地页看不出建项目，但没实际提交过，未定论。",
-            "深链参数格式未知：?q=<domain> 不被识别，页面停在空态。需要提交一次后读回 URL 才能确定。"
-          ]
+          "capturedSample": {
+            "domain": "canva.com",
+            "period": "2026年7月",
+            "scope": "全球 / 所有设备",
+            "visits": "7.9亿",
+            "uniqueVisitors": "2.1亿",
+            "purchaseConversionPercent": 0.21,
+            "pagesPerVisit": 5.4,
+            "avgVisitDuration": "11:02",
+            "bounceRatePercent": 30.23,
+            "deviceSplit": {
+              "desktopPercent": 84.26,
+              "mobilePercent": 15.74
+            }
+          },
+          "crossPlatformCheck": {
+            "against": "Similarweb 网站表现（similarweb-query --domain canva.com）",
+            "comparable": [
+              "总访问量（相差 2.4%）",
+              "设备占比（相差 1.7pp）"
+            ],
+            "notComparable": [
+              "平均访问时长（Semrush 11:02 vs Similarweb 05:56，相差 86%）"
+            ],
+            "roughlyComparable": [
+              "跳出率（相差 3.2pp）",
+              "页数/访问（相差 15%）"
+            ],
+            "caveat": "窗口不完全重合：Semrush 是 2026 年 7 月整月，Similarweb 总访问量标 Jul–Aug 2026、参与度标 Last 28 days as of Aug 24。"
+          }
         },
         {
           "name": "AI SEO / AI Visibility",

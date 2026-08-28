@@ -149,7 +149,9 @@ try {
     version: 1,
     source: 'Semrush domain overview via authenticated Tools Share browser session',
     note: `organicTraffic 是 db=${db || '(Semrush 默认库，非全球)'} 这一个国家库的自然搜索流量估算，` +
-      '与 Similarweb 的总访问量不是同一口径，不要并列比较；换一个 --db 会得到完全不同的数字，本脚本没有全球选项。',
+      '与 Similarweb 的总访问量不是同一口径，不要并列比较；换一个 --db 会得到完全不同的数字，本脚本没有全球选项。'
+      + ' 要和 Similarweb 同口径的总访问量，用 Traffic & Market（/analytics/traffic/traffic-overview/）——'
+      + '2026-08-28 实测两家在 canva.com 上相差 2.4%。',
     retrievedAt: new Date().toISOString(),
     domain,
     db: db || null,
