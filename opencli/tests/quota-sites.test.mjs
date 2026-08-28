@@ -40,8 +40,10 @@ test('节流必须走 eval，不能走 wait time', () => {
   // wait time 在 opencli 1.8.7 是坏的：报 "Waited 5s"，实测 928ms 就返回。
   // 这条一旦退回 {cmd:'wait'}，整套间隔机制会静默变成空操作。
   const step = sleepStep(4);
-  assert.equal(step.cmd, 'eval');
-  assert.match(step.args.js, /setTimeout\(r, 4000\)/);
+  assert.equal(step.cmd, 'eval', 'wait 分支会让节流静默失效');
+  assert.match(step.args.js, /setTimeout\([^,]+,\s*4000\)/, '延时必须是 4000ms');
+  // 断言到此为止：回调参数叫 r 还是 resolve 不是不变量。第一版把名字也钉住了，
+  // 于是两份副本统一变量名时这条无辜变红——测试该守行为，不该守写法。
 });
 
 test('探活那一次不许带 open', () => {
