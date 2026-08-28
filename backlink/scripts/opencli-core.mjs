@@ -1,5 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { appendFileSync, renameSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 export function parseFlags(argv) {
   const flags = {};
@@ -146,6 +149,107 @@ export async function run(command, args, options = {}) {
   });
 }
 
+/* ------------------------------------------------------------------ *
+ * 访问记账
+ * ------------------------------------------------------------------ */
+
+/**
+ * 每次浏览器调用追一行 JSONL 到 ~/.opencli/logs/site-access.jsonl。
+ *
+ * 为什么必须在这一层记：OpenCLI 自己的日志**看不见限流**。守护进程记的是
+ * 标签页租约、导航超时、窗口分组，没有 HTTP 状态码、没有响应体。而 Semrush
+ * 的限流是 **HTTP 200 + 页面里写着「已达上限」**——对守护进程来说和一次
+ * 完全正常的访问一模一样。限流只在**取数结果**里才现形，所以记账点得在
+ * 拿得到 body 的地方，也就是这里。
+ *
+ * 这一层是纯观测，不改任何行为：不判限流、不退避、不重试。它只留下证据，
+ * 让「哪几个路由值得封 adapter」和「限流页长什么样」这两件事以后有数据可查。
+ *
+ * 关掉：OPENCLI_ACCESS_LOG=0
+ */
+const ACCESS_LOG_MAX_BYTES = 8 * 1024 * 1024;
+const lastUrlBySession = new Map();
+
+function accessLogPath() {
+  return join(homedir(), '.opencli', 'logs', 'site-access.jsonl');
+}
+
+export function logSiteAccess(entry) {
+  if (process.env.OPENCLI_ACCESS_LOG === '0') return;
+  try {
+    const path = accessLogPath();
+    // 满了就滚一次。丢最老的一段，好过让它无限长下去——
+    // 这是观测日志，不是账本，没人会去读半年前那一行。
+    try {
+      if (statSync(path).size > ACCESS_LOG_MAX_BYTES) renameSync(path, `${path}.1`);
+    } catch { /* 文件还不存在 */ }
+    appendFileSync(path, `${JSON.stringify(entry)}\n`);
+  } catch { /* 记账绝不能把调用方搞挂 */ }
+}
+
+/** 从一次调用的参数里认出目标 URL：open 的位置参数，或 batch 里第一个 open。 */
+export function urlFromArgs(args) {
+  for (const arg of args) {
+    if (typeof arg !== 'string') continue;
+    if (/^https?:\/\//.test(arg)) return arg;
+    if (arg.startsWith('[') || arg.startsWith('{')) {
+      const m = arg.match(/https?:\/\/[^"'\s\\]+/);
+      if (m) return m[0];
+    }
+  }
+  return null;
+}
+
+function accessEntry(args, { ms, ok, bytes, error }) {
+  const session = args[0] === 'browser' && args[1] && !['sessions', 'cleanup'].includes(args[1])
+    ? args[1] : null;
+  // eval 的参数里没有 URL——页面是上一次 open 留下的。所以按会话记住最后
+  // 一次导航目标，让 eval 也能归到路由上；否则「访问频次」只数得到 open，
+  // 而真正的取数几乎全发生在 eval 里。
+  let url = urlFromArgs(args.slice(2));
+  if (url && session) lastUrlBySession.set(session, url);
+  else if (session) url = lastUrlBySession.get(session) || null;
+
+  let site = null; let route = null;
+  if (url) {
+    try { const u = new URL(url); site = u.hostname; route = u.pathname; } catch { /* 不是合法 URL */ }
+  }
+  const action = args[0] === 'browser'
+    ? (args.find((a, i) => i >= 2 && !a.startsWith('--') && args[i - 1] !== '--window'
+        && args[i - 1] !== '--source' && args[i - 1] !== '--commands') || 'unknown')
+    : args[0];
+  return {
+    ts: new Date().toISOString(),
+    site, route, session, action, ms, ok,
+    bytes: bytes ?? null,
+    quota: site ? Boolean(quotaSiteOf(url)) : false,
+    // 复盘时最想知道的是「这一串标签页是谁开的」。会话名能答一半，
+    // 但同一轮对话里多个 sub agent 会各用各的名字，所以再记一层归属：
+    // OPENCLI_ACCESS_TAG 给调用方自己标（比如任务名），who 是对话 id，
+    // pid 用来把同一个进程里的一串调用串起来。
+    who: (process.env.CLAUDE_CODE_SESSION_ID || '').slice(0, 12) || null,
+    tag: process.env.OPENCLI_ACCESS_TAG || null,
+    pid: process.pid,
+    ...(error ? { error: String(error).slice(0, 200) } : {}),
+  };
+}
+
+/** 包一次调用并记账。内部用；`opencli()` 和 `batchBrowser()` 都走它。 */
+async function withAccessLog(args, fn) {
+  const started = Date.now();
+  try {
+    const result = await fn();
+    logSiteAccess(accessEntry(args, {
+      ms: Date.now() - started, ok: true,
+      bytes: typeof result?.stdout === 'string' ? result.stdout.length : null,
+    }));
+    return result;
+  } catch (error) {
+    logSiteAccess(accessEntry(args, { ms: Date.now() - started, ok: false, error: error?.message }));
+    throw error;
+  }
+}
+
 export async function opencli(args, options = {}) {
   const resolved = [...args];
   // `sessions` / `cleanup` 不是会话名，是子命令本身。给它们注入 --window 会让
@@ -164,7 +268,7 @@ export async function opencli(args, options = {}) {
     const sub = resolved.findIndex((a, i) => i >= 2 && a === 'state');
     if (sub >= 0) resolved.splice(sub + 1, 0, '--source', 'ax');
   }
-  return await run('opencli', resolved, options);
+  return await withAccessLog(resolved, () => run('opencli', resolved, options));
 }
 
 export function firstJson(text) {
@@ -203,10 +307,11 @@ export function printJson(value) {
  */
 export async function batchBrowser(session, commands, options = {}) {
   const windowMode = options.windowMode || options.env?.OPENCLI_WINDOW || 'background';
-  const result = await run('opencli', [
+  const args = [
     'browser', session, '--window', windowMode === 'foreground' ? 'foreground' : 'background',
     'batch', '--commands', JSON.stringify(commands),
-  ], options);
+  ];
+  const result = await withAccessLog(args, () => run('opencli', args, options));
   return JSON.parse(result.stdout);
 }
 

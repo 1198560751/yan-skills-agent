@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   quotaSession, quotaSiteOf, sessionForUrl, guardSessionName,
-  sleepStep, buildExtractCommands, QUOTA_SITES, resolveSession,
+  sleepStep, buildExtractCommands, QUOTA_SITES, resolveSession, urlFromArgs, logSiteAccess,
 } from '../scripts/opencli-core.mjs';
 
 test('配额站收敛成固定会话名，普通站不受影响', () => {
@@ -76,4 +76,26 @@ test('配额站的会话名由站点决定，--session 不能悄悄恢复旧行�
     // 守卫仍然拦 $$ 形状
     assert.throws(() => resolveSession({ session: 'probe-48321' }, 'x'), /PID 的形状/);
   } finally { console.error = real; }
+});
+
+test('访问记账能从各种参数形状里认出 URL', () => {
+  assert.equal(urlFromArgs(['open', 'https://sem.3ue.co/analytics/overview/']),
+    'https://sem.3ue.co/analytics/overview/');
+  // batch 的 URL 埋在 --commands 的 JSON 里
+  assert.equal(urlFromArgs(['batch', '--commands',
+    JSON.stringify([{ cmd: 'open', args: { url: 'https://example.com/a' } }])]),
+    'https://example.com/a');
+  assert.equal(urlFromArgs(['state', '--source', 'ax']), null, '没有 URL 就是 null');
+});
+
+test('OPENCLI_ACCESS_LOG=0 时记账彻底闭嘴', () => {
+  const prev = process.env.OPENCLI_ACCESS_LOG;
+  process.env.OPENCLI_ACCESS_LOG = '0';
+  try {
+    // 不抛异常即可——记账绝不能把调用方搞挂，关掉时更不该有任何副作用
+    assert.doesNotThrow(() => logSiteAccess({ ts: 'x', site: 'y' }));
+  } finally {
+    if (prev === undefined) delete process.env.OPENCLI_ACCESS_LOG;
+    else process.env.OPENCLI_ACCESS_LOG = prev;
+  }
 });

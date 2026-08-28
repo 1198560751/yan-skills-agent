@@ -440,6 +440,30 @@ opencli browser "$S" batch --commands '[
 `opencli daemon logs`（默认 errors）/ `commands` / `extension` / `daemon`，
 支持 `-n` 与 `--grep`。它从守护进程的下一次启动开始记，之前的没有留下来。
 
+### 守护进程的日志看不见的那一半
+
+它记标签页租额、导航超时、窗口分组——**没有 HTTP 状态码、没有响应体、没有调用方**。
+所以有一整类问题它答不了：
+
+| 问题 | 守护进程日志 | `site-access.jsonl` |
+|---|---|---|
+| 站点限流了吗 | **看不见**（Semrush 限流是 HTTP 200 + 页面里写着已达上限） | 留下 payload 大小和失败痕迹 |
+| 哪个路由访问最多（该封 adapter） | 看不见（只记超时，不记成功导航） | 有 |
+| 这一串标签页是谁开的 | 只有会话名 | 会话名 + `tag` + 对话 id + pid |
+| 哪个报表慢、慢多少 | 看不见 | p50 / p95 |
+
+`scripts/opencli-core.mjs` 每次浏览器调用追一行 JSONL 到
+`~/.opencli/logs/site-access.jsonl`。**纯观测，不改行为**——不判限流、不退避、不重试，
+只留证据。关掉用 `OPENCLI_ACCESS_LOG=0`；标注调用方用 `OPENCLI_ACCESS_TAG=<任务名>`。
+
+```bash
+node <opencli-skill-dir>/scripts/access-report.mjs --since 2h
+node <opencli-skill-dir>/scripts/access-report.mjs --suspicious   # 挑限流样本
+```
+
+**限流的自动判据还没有，因为缺样本**——而样本就从 `--suspicious` 里挑：
+它列出失败的、以及成功但 payload 小得不像有数据的那些行。
+
 | 症状 | 先看哪里 |
 |---|---|
 | `doctor` 红、`session_not_found`、守护进程/扩展问题 | [`references/troubleshooting.md`](references/troubleshooting.md) |
@@ -486,6 +510,7 @@ opencli browser "$S" batch --commands '[
 | `scripts/opencli-core.mjs` | 给 JS 调用方的最小封装：`defaultSession()` / `sessionForUrl()` 生成安全的会话名、`openAndExtract()` 把一次访问打包成原子 batch、`sequentialCrawl()` 顺序采集带间隔、`reconcileSessions()` 差集回收、`sleepStep()` 真睡眠、`batchBrowser()` / `openAndEval()` 包住 batch |
 | `scripts/session.sh` | Bash tool 侧的同一套：`oc_session <base>`、`oc_session_for <url>`（配额站自动收敛）、`oc_guard_session` 拒绝 `$$` 形状的名字 |
 | `scripts/pressure.mjs` | **开工前的自查：现在能不能动手。** 配额站各有几个标签页（分「我的 / 共享 / 别人的」）、到没到线、tools-share 锁被哪个 pid 拿着多久、那个进程还活着吗，裁决 `go` / `wait` / `stale-lock` / `unknown` 并给出具体动作。`--tool <key>` 只看一个工具，`--json` 机读，退出码 0/2/3/4 可以直接当闸门。**陈旧锁只报告不删**——删别人的锁比等更危险 |
+| `scripts/access-report.mjs` | 读 `site-access.jsonl` 做复盘：按路由看频次与 p50/p95、按调用方看是谁开的标签页、`--suspicious` 挑限流样本 |
 | `tests/quota-sites.test.mjs` | 上面那些护栏的纯函数测试，不碰浏览器：`node --test opencli/tests/quota-sites.test.mjs` |
 | `tests/pressure.test.mjs` | `pressure.mjs` 的纯函数测试，会话列表和锁状态全部注入，不碰浏览器 |
 | `scripts/receiver.mjs` | 本地接收端：页面把数据 POST 进项目目录，绕开下载目录。端口按项目根派生、占用即崩、`/ping` 回报 root、`/script` 按白名单喂提取器源码 |
