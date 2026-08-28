@@ -40,7 +40,7 @@
 import { writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import {
-  closeSession, defaultSession, parseFlags, printJson,
+  closeSession, resolveSession, parseFlags, printJson,
   showHelpIfRequested, validateSession,
 } from './opencli-core.mjs';
 import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
@@ -111,7 +111,7 @@ if (!seeds.length) {
   process.exit(2);
 }
 
-const session = flags.session ? validateSession(flags.session) : defaultSession('similarweb-keywords');
+const session = resolveSession(flags, 'similarweb-keywords', 'similarweb');
 const results = [];
 let launched;
 try {

@@ -33,7 +33,7 @@
  * 批量关键词之间默认等待 12–25 秒；第一大国家份额 >=35% 或当前库量 <500 时，
  * 同一 session 内自动 geo-hop 一次，不回 dashboard、不递归查询。
  */
-import { defaultSession, parseFlags, printJson, validateSession, showHelpIfRequested} from './opencli-core.mjs';
+import { resolveSession, parseFlags, printJson, validateSession, showHelpIfRequested} from './opencli-core.mjs';
 import { assertToolsShareAvailable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { randomInt } from 'node:crypto';
@@ -52,7 +52,7 @@ if (flags.bulk && !bulkPlanFile && !dbGiven) throw new Error('Bulk keyword looku
 if (!dbGiven && !bulkPlanFile && !flags['self-test']) {
   console.error(`⚠ --db not given, defaulting to "jp". volume/KD/CPC will be Japan's numbers even for an English or global keyword — pass --db us (or uk/de/…) for any non-Japan market. Need a worldwide figure instead? Read globalVolume in the output, it doesn't depend on --db.`);
 }
-const session = flags.session ? validateSession(flags.session) : defaultSession('semrush-keyword');
+const session = resolveSession(flags, 'semrush-keyword', 'semrush');
 const appOrigin = (process.env.TOOLS_SHARE_APP_ORIGIN_SEMRUSH || 'https://sem.3ue.co').replace(/\/+$/, '');
 
 let keywords = [];

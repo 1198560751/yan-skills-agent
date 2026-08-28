@@ -33,7 +33,7 @@
 import { writeFile } from 'node:fs/promises';
 import {
   closeSession,
-  defaultSession,
+  resolveSession,
   parseFlags,
   showHelpIfRequested,
   printJson,
@@ -61,7 +61,7 @@ if (flags['self-test']) {
   process.exit(0);
 }
 const domain = normalizeDomain(required(flags, 'domain'));
-const session = flags.session ? validateSession(flags.session) : defaultSession('similarweb-research');
+const session = resolveSession(flags, 'similarweb-research', 'similarweb');
 const REPORTS = new Set(['performance', 'similar-sites', 'channels', 'audience-geo', 'site-keywords']);
 const report = REPORTS.has(flags.report) ? flags.report : 'performance';
 const windowMode = flags.window === 'foreground' ? 'foreground' : 'background';

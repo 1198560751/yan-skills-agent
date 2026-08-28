@@ -110,7 +110,7 @@ Chrome/目标网站，并要求不要立即重试。读操作仍可并行；含�
 
 | # | 法律 | 一句话理由 |
 |---|---|---|
-| 1 | **一个会话一个标签页；N 个页面就要 N 个会话名** | 三个 agent 各用独立名字：跨 agent 抢占 0 次。共用 `work`：3 / 12 / 2 次，其中一个每次读都读错 |
+| 1 | **一个会话一个标签页；N 个页面就要 N 个会话名** | 三个 agent 各用独立名字：跨 agent 抢占 0 次。共用 `work`：3 / 12 / 2 次，其中一个每次读都读错。**唯一例外是配额站，见下一节** |
 | 2 | **不要用 `tab new` / `tab select` / `open --tab` 在一个会话里放多个页面** | 三个都**静默**失败：命令报成功，下一次读回错误的页面。一次三 agent 运行把用户的 Chrome 从 11 个标签页涨到 30 个孤儿页 |
 | 3 | **绝不硬编码会话名** | `opencli browser --help` 的第一个例子就是 `work`，抄它的人全撞在一起 |
 | 4 | **开工前一次性把要用的会话全部开好、handle 全部拿到，再进工作循环** | 边创建边使用会把理论上的竞态变成可复现的竞态 |
@@ -120,6 +120,44 @@ profile 和同一个登录身份，所以如果站点把「当前选中的项目
 一个标签页切换目标，其它标签页刷新后会跟着变——会话名分得再开也拦不住。
 **判据：在站点里切换目标之后 URL 变不变？** 不变就先验证再并行，
 细节见 [`references/session-laws.md`](references/session-laws.md)。
+
+### 配额站：法律 1 的唯一例外
+
+有些站**同时加载**会触发上限。实测（2026-08-28）Semrush 大约 3 个标签页同时 load
+就出问题，一个个开、中间隔几秒则没事。**受限的是导航事件，不是标签页存在**——
+所以它要的不是信号量，是串行加间隔。
+
+而串行 daemon 已经免费给了：同名会话的写会在本机排队。于是配额站的解法是把法律 1
+反过来用——**一个站一个固定会话名，不带任何 per-agent 后缀**：
+
+```
+semrush-nav        similarweb-nav
+```
+
+十个 agent 拿到同一个名字，daemon 就把它们排成一队，Semrush 那边永远只看到
+一个标签页在一页页地翻。
+
+| 规则 | 为什么 |
+|---|---|
+| **配额站用固定会话名**，`sessionForUrl(url, base)` 自动判 | 会话名就是并发度。名字固定 = 并发度 1 |
+| **一次访问 = 一个 batch**（`openAndExtract`） | 「含任一写操作的混合 batch 整体按写处理」，所以整包是原子的，别人插不进来——这正是共用名字仍然安全的原因 |
+| **禁止 open 一次隔几轮对话再读** | 会话一直占着，后面全在排队。实测 daemon.log 一天 1016 条 busy 轮询 |
+| **采集写成顺序循环**（`sequentialCrawl`），不要扇出 | 排队是兜底不是调度器：daemon 默认只等 10 分钟，20 个词顺序跑就快贴到上限 |
+| **间隔用 `sleepStep()`，不要用 `wait time`** | `wait time 5` 在 1.8.7 是坏的：报 "Waited 5s"，实测 928ms 就返回。写错了整套节流静默失效 |
+| **撞上限的第一动作是 `close`，不是 `sleep`** | 释放标签页本身就是退避。当成「页面没加载好」去重试只会再开一个，越retry越糟 |
+
+**分析阶段一律不碰配额站。** 采集落盘（`scripts/receiver.mjs`），N 个分析 agent 读文件，
+站点侧并发度是 0。这是唯一能让 agent 数量和站点压力彻底解耦的做法——今天那
+19 个 `tm-*` 标签页全开在同一个 Semrush 报表上，就是因为扇出的单位是 agent 而资源是页面。
+
+**导航超时不等于页面没开。** 扩展硬编码 15 秒且改不了，Semrush 的重报表经常超。
+标签页那时已经建好了，正确反应是先 extract 探活，确认真没内容才在**同一个会话里**
+重新导航。`openAndExtract` 已经这么做了；手写的话千万别开新会话去重试。
+
+> Semrush / Similarweb **一个 adapter 都没有**（`opencli list` 里 0 条），所以每次取数
+> 都必须开真标签页。想从根上删掉这个问题，就得给最高频的几个报表写 COOKIE/INTERCEPT
+> adapter——从日志看是 `analytics/overview`、`keywordoverview`、`keywordmagic`
+> （也正好是超时最多的三个：9 / 8 / 5 次）。
 
 ### `$$` 在脚本里安全，在 Bash tool 里不安全
 
@@ -137,7 +175,13 @@ agent 看到的永远是空白页，以为页面没加载好不断重试，最�
 **名字要描述工作**，不只是唯一：`backlink-probe-<后缀>` 胜过 `bl-1`。
 会话名是唯一存在的标识符，一个唯一但无意义的名字仍然回答不了「这是谁的标签页」。
 
-JS 里不要手搓后缀，用 `scripts/opencli-core.mjs` 的 `defaultSession(base)`。
+JS 里不要手搓后缀，用 `scripts/opencli-core.mjs` 的 `defaultSession(base)`；
+**Bash 里 `source scripts/session.sh` 然后 `S=$(oc_session <base>)`**——出事的那批
+会话全是从 Bash tool 直接发出去的，压根没经过 JS 那个助手。
+
+两边都有一道守卫会**拒绝**以 3~6 位数字结尾的会话名（`guardSessionName` /
+`oc_guard_session`），因为那就是 `$$` 展开后的形状。这个失败原本不报错，
+只表现为「页面怎么老是空的」，所以必须让它当场红。
 
 ### 用完必须还回去
 
@@ -151,8 +195,23 @@ opencli browser cleanup             # 释放**全部**——只有主线能跑�
 
 **`cleanup` 是主线专用。** 它释放的是**这台机器上全部**的租约，不是「我的」——
 sub agent 跑它会把兄弟 agent 正在用的标签页一起关掉，
-而那些 agent 只会看到自己的页面莫名其妙不见了。并行扇出时只有父级在全部收工后才跑它。
-留着的会话在用户 Chrome 里就是一个标签页，看起来和别人正在做的活儿一模一样。
+而那些 agent 只会看到自己的页面莫名其妙不见了。留着的会话在用户 Chrome 里就是一个标签页，看起来和别人正在做的活儿一模一样。
+
+**父级收尾用差集回收，不要用 `cleanup`：**
+
+```js
+const before = await snapshotSessions();      // 扇出前存快照
+// ... 扇出 ...
+await reconcileSessions(before, { prefix: 'tm-' });   // 只关自己那批
+```
+
+它能收掉崩溃的 sub agent 留下的标签页，一个兄弟的都不碰。
+**`prefix` 或 `sessions` 必须给**——否则它只报告不动手，因为「快照之后新出现的」
+里面也包含兄弟 agent 同期开的会话，无差别关掉就退化成了 `cleanup`
+（实测一次 dry-run 就混进了一个别人的 `sweep2-*`）。
+
+差集也比 idle alarm 快：实测 2026-08-28 有 31 个标签页是靠 idle 自己掉的，
+在它掉之前用户的标签栏一直是脏的。
 
 ### 三个窗口模式，默认已经是不打扰的那个
 
@@ -413,7 +472,9 @@ opencli browser "$S" batch --commands '[
 
 | 脚本 | 干什么 |
 |---|---|
-| `scripts/opencli-core.mjs` | 给 JS 调用方的最小封装：`defaultSession()` 生成安全的会话名、`batchBrowser()` / `openAndEval()` 包住 batch、`opencli()` 统一调用与 JSON 解析 |
+| `scripts/opencli-core.mjs` | 给 JS 调用方的最小封装：`defaultSession()` / `sessionForUrl()` 生成安全的会话名、`openAndExtract()` 把一次访问打包成原子 batch、`sequentialCrawl()` 顺序采集带间隔、`reconcileSessions()` 差集回收、`sleepStep()` 真睡眠、`batchBrowser()` / `openAndEval()` 包住 batch |
+| `scripts/session.sh` | Bash tool 侧的同一套：`oc_session <base>`、`oc_session_for <url>`（配额站自动收敛）、`oc_guard_session` 拒绝 `$$` 形状的名字 |
+| `tests/quota-sites.test.mjs` | 上面那些护栏的纯函数测试，不碰浏览器：`node --test opencli/tests/quota-sites.test.mjs` |
 | `scripts/receiver.mjs` | 本地接收端：页面把数据 POST 进项目目录，绕开下载目录。端口按项目根派生、占用即崩、`/ping` 回报 root、`/script` 按白名单喂提取器源码 |
 
 ```bash

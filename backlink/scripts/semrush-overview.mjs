@@ -24,7 +24,7 @@
  *   node semrush-overview.mjs --domain example.com [--db jp] [--subdomain] [--node 5]
  *   # 不传 --db 会走 Semrush 自己的默认库（未必是你想要的那个国家），脚本会警告一次
  */
-import { defaultSession, parseFlags, showHelpIfRequested, printJson, required, validateSession } from './opencli-core.mjs';
+import { resolveSession, parseFlags, showHelpIfRequested, printJson, required, validateSession } from './opencli-core.mjs';
 import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
 import { writeFile } from 'node:fs/promises';
 
@@ -36,7 +36,7 @@ const db = String(flags.db || '').trim().toLowerCase();
 if (!dbGiven) {
   console.error(`⚠ --db not given. organicTraffic will be whatever country Semrush defaults to — not a global total (this script has no global option). Pass --db us (or uk/de/…) to know which country you're reading.`);
 }
-const session = flags.session ? validateSession(flags.session) : defaultSession('semrush-overview');
+const session = resolveSession(flags, 'semrush-overview', 'semrush');
 const appOrigin = (process.env.TOOLS_SHARE_APP_ORIGIN_SEMRUSH || 'https://sem.3ue.co').replace(/\/+$/, '');
 
 function normalizeDomain(value) {

@@ -25,13 +25,13 @@
  *   # --db 建议总是显式传；省略会打印警告并落到 Semrush 自己的默认库，不是全球
  */
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
-import { defaultSession, parseFlags, showHelpIfRequested, required, validateSession } from './opencli-core.mjs';
+import { resolveSession, parseFlags, showHelpIfRequested, required, validateSession } from './opencli-core.mjs';
 import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
 const outPath = required(flags, 'out');
-const session = flags.session ? validateSession(flags.session) : defaultSession('sem-batch');
+const session = resolveSession(flags, 'sem-batch', 'semrush');
 const appOrigin = (process.env.TOOLS_SHARE_APP_ORIGIN_SEMRUSH || 'https://sem.3ue.co').replace(/\/+$/, '');
 const dbGiven = flags.db !== undefined && String(flags.db).trim() !== '';
 const db = String(flags.db || '').trim().toLowerCase();

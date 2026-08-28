@@ -28,7 +28,7 @@
  * 已验证：2026-08-20。
  */
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
-import { defaultSession, parseFlags, showHelpIfRequested, required, validateSession } from './opencli-core.mjs';
+import { resolveSession, parseFlags, showHelpIfRequested, required, validateSession } from './opencli-core.mjs';
 import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
 // 解析只有一份，住在 lib-similarweb.mjs。**不要在这里再抄一份 deriveMetrics。**
 import { deriveMetrics } from './lib-similarweb.mjs';
@@ -36,7 +36,7 @@ import { deriveMetrics } from './lib-similarweb.mjs';
 const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
 const outPath = required(flags, 'out');
-const session = flags.session ? validateSession(flags.session) : defaultSession('sw-batch');
+const session = resolveSession(flags, 'sw-batch', 'similarweb');
 const appOrigin = (process.env.TOOLS_SHARE_APP_ORIGIN || 'https://sim.3ue.co').replace(/\/+$/, '');
 // settle 与超时在 2026-08-24 调大过一次，**不要为了快调回去**：占位值本身是稳定的，
 // 两次快读之间它根本不变，「连读两次一致」这条判据在小 settle 下整个失效
