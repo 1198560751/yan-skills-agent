@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、rankup check、环节闸门、检查清单、checklist、"现在该做什么"、"到哪一步了"、"这个环节能不能过"、"本轮还差什么"、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、挖需求、找需求、需求挖掘、找方向、找选题、"最近有什么能做的"、"找几个关键词"、"挖个新词的工具站"、"看看有什么游戏站能做"、竞品调研、榜单调研、差评挖掘、反查谁在赚钱、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 哥飞、web.cafe、哥飞论坛、哥飞的朋友们、悬赏、悬赏问答、经验帖、"群里怎么说的"、"社群里有没有讲过"、"论坛里搜一下"、"哥飞说过什么"、哥飞.ai，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
 metadata:
-  version: "2.59.0"
+  version: "2.60.0"
 ---
 
 # Rankup 2.0
@@ -15,9 +15,15 @@ metadata:
 
 **每个环节都有一套 checklist。不过 check 不许进下一个环节；每一轮迭代新做的东西，也要把相关的 check 重新过一遍。这是硬性门槛，不是建议。**
 
-清单在 [`references/checklists.md`](references/checklists.md)——12 个环节，每个环节一张表：
-**检查项 / 客观通过条件 / 证据落点 / 怎么做（一句话加指路）/ 复查口径**。
-状态记在项目侧 `.rankup/checks.md`。
+清单分两层：
+
+- **闸门 check** 在 [`references/checklists.md`](references/checklists.md)——12 个环节，每环节一张表：
+  **检查项 / 客观通过条件 / 证据落点 / 怎么做（一句话加指路）/ 复查口径**。判「这个环节能不能算完」。
+- **步骤 check** 在各阶段自己的 md 里，紧跟必做动作后面（[`lifecycle.md`](references/lifecycle.md)
+  每个阶段的「步骤 check」一节，共 92 步）。判「这一步做对了没有」，**每做完一步就核，不要攒到闸门**。
+
+**闸门过不了，一定是某条步骤 check 没过**；反过来不成立——闸门还要判跨步骤的一致性。
+状态都记在项目侧 `.rankup/checks.md`。
 
 **判断由你做，不要找脚本代劳。** 「三方对账一致吗」「全站每一个 URL 的 TDK 都核过了吗」
 「每条 AI 建议都有采纳或拒绝理由吗」——这些要去看真实代码、真实线上响应、真实后台读数。
@@ -277,6 +283,11 @@ npx @yan-labs/rankup audit similarweb \\
 1. **地理范围**——Semrush 域名维度给的是**一个国家库**（`--db`，省略也不是全球，只是落到 Semrush 自己的默认库），Similarweb 默认给**全球**。真实事故：同一个域名 Semrush 报 5,900/月（`--db us`）、Similarweb 报约 92,000/月，看着是 15 倍的矛盾，换算成同一地理范围（该站美国流量仅占约两成）之后倍数就收窄到个位数。关键词维度不受此限——Semrush 关键词有 `globalVolume` 字段，不必再拿多个 `--db` 求和。
 2. **面板页面**——Similarweb 自己不同页面（如「网站表现」总量 vs「流量来源渠道」渠道加总）之间也能差 6–35%，报数字要写清楚是哪一页。
 3. **口径定义**——Semrush 自然流量是**模型**（追踪到的关键词 × 搜索量 × 位次点击率），Similarweb 是**面板外推**，一个是模型输出一个是观测外推，不要相减或相除，各自标清楚。
+
+4. **模型侧的失真有一条可判定的规律**——Semrush 的自然流量在**单个大头词以第 5–10 位
+   撑起该站过半模型流量**时会高估 4–13 倍（泛型头词首页有搜索引擎自己的组件和 AI 答案，
+   真实 CTR 远低于通用曲线）。**拿到域名自然流量后先拉它的排名词分布再决定信不信总数**，
+   判据与实测表见 [`demand-sources.md`](references/demand-sources.md) 的 ②·六·四。
 
 三条都对齐了还差几倍，才是真的矛盾，值得深入查；对不上先怀疑口径，不要先怀疑数据源坏了。方法细节见 `backlink/references/authorized-data-sources.md` 的「Semrush role」一节和 `rankup/references/experiences/webcafe-experiences.md` 十六·五。
 
@@ -631,6 +642,7 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | 关键词难度、SERP 盘面、页面体检、域名与外链估值 | [`seo-webcafe.md`](references/seo-webcafe.md) | `scripts/seo-webcafe.mjs`（一个脚本覆盖全部工具，零配置可跑） |
 | **前期调研、挖需求、「做什么方向」、反推别人在赚什么钱、选题验证** | 判断先读 [`experiences/demand-discovery.md`](references/experiences/demand-discovery.md)（裁定集），取数直接查 [`demand-sources.md`](references/demand-sources.md)（源 → 脚本路由表） | `scripts/demand/` 整组 + `scripts/gt.py` + `seo-webcafe.mjs kd` 收敛成词 |
 | **「找几个关键词」「找点需求」「挖个新方向」「有什么新词的工具站能做」「挖游戏站/AI 产品」** | [`demand-sources.md`](references/demand-sources.md) —— **按「你现在缺哪一类信号」查表，不要凭印象挑站** | `scripts/demand/`。拿到候选后一律走该文件第十节的验证链路，别跳过 |
+| **「这个词能不能做站」「这条赛道值不值得进」「窗口还开着吗」** | [`demand-sources.md`](references/demand-sources.md) **十·五**（能排上去 ≠ 能赚钱）+ **九·六**（自己扩的词表一定漏了一半）+ **②·六·四**（模型流量什么时候高估） | 量/KD/SERP 窗口三道闸之后**还有第四道**：查同类站真实流量并用 `seo-webcafe.mjs money` 折成钱。**漏掉它会得出 SEO 正确、商业错误的结论**。「新域两个月能进前十」要读成没有护城河，不是机会刚出现 |
 | **小游戏站、游戏新词、监控游戏站、游戏 iframe、游戏站变现** | 加载 Rankup 的专项模块 `game-opportunity`；建站阶段再读 [`game-sites.md`](references/game-sites.md) + [`lifecycle.md`](references/lifecycle.md) | 通用 SOP/Checklist/脚本属于 Rankup 仓库；项目 `.rankup/` 只存平台清单、快照、取数和日报 |
 | **0→1 怎么排优先级、「1」怎么定义、虚荣指标、要不要重构、什么时候止损、新站上线执行清单** | [`experiences/zero-to-one.md`](references/experiences/zero-to-one.md) | 无需工具，是裁定集。**接到「优化一下这个站」时默认打磨转化链路，不是重构架构** |
 | **转化率上不去、访客不注册、注册不付费、定价怎么定、用户行为数据怎么提** | [`experiences/conversion.md`](references/experiences/conversion.md) | 无需工具，是裁定集。**动页面之前先查上游流量意图** |
