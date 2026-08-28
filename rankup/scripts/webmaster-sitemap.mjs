@@ -137,13 +137,27 @@ const wanted = (k) => {
 }
 
 // ── OpenCLI 封装 ──────────────────────────────────────────
-function cli(action_, { timeout = 30000 } = {}) {
+function cli(action_, { timeout = 60000 } = {}) {
   try {
     return execSync(`opencli browser "${session}" --window background ${action_}`,
       { encoding: "utf-8", timeout, stdio: ["pipe", "pipe", "pipe"] }).trim()
   } catch (e) {
-    const err = (e.stderr?.toString() || e.stdout?.toString() || e.message).trim()
-    throw new Error(`opencli 失败: ${action_}\n  ${err}`)
+    // 报错必须带上真实成因。旧版只回显 stderr，而 Node 会把
+    // `[UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental` 这类**无害警告**
+    // 写进 stderr —— 于是一次 30 秒超时会被显示成那条警告，读的人以为是代理配置问题，
+    // 实际是页面没在超时内加载完。2026-08-28 实测踩到，遂改。
+    // 超时也从 30s 提到 60s：Bing Webmaster 的 sitemap 页首次加载经常超过 30 秒。
+    const timedOut = e.killed || e.signal === "SIGTERM" || e.code === "ETIMEDOUT"
+    const cause = timedOut
+      ? `超时（>${timeout}ms）——页面没在时限内加载完，不是参数错`
+      : `退出码 ${e.status ?? "?"}${e.signal ? ` / 信号 ${e.signal}` : ""}`
+    const err = (e.stderr?.toString() || e.stdout?.toString() || "").trim()
+    const noise = /^\(node:\d+\).*(Warning|trace-warnings)/
+    const meaningful = err.split("\n").filter((l) => l.trim() && !noise.test(l)).join("\n")
+    throw new Error(
+      `opencli 失败: ${action_}\n  成因: ${cause}` +
+        (meaningful ? `\n  输出: ${meaningful}` : "\n  （stderr 只有 Node 的无害警告，没有别的信息）")
+    )
   }
 }
 /** eval 的 JS 一律包成 IIFE：本环境 eval 上下文跨调用持续，重复声明会抛错。 */
@@ -157,6 +171,23 @@ function open(url) { cli(`open "${url}"`) }
  * `wait text` is still better whenever there is something concrete to wait for.
  * See backlink/tests/opencli-wait.test.mjs.
  */
+/**
+ * 轮询直到 `js` 返回真值，或超时。返回是否等到。
+ *
+ * 为什么不用 settle(n) 硬等：固定秒数在慢的时候不够、在快的时候白等，
+ * 而「不够」的表现是下一步报一个**指向错误方向**的错（找不到元素 → 以为标签写错了）。
+ */
+function waitFor(js, seconds = 10) {
+  const deadline = Date.now() + seconds * 1000
+  while (Date.now() < deadline) {
+    try {
+      if (String(evalJs(js)).includes("true")) return true
+    } catch { /* 页面正在导航时 eval 会失败，继续等 */ }
+    settle(0.5)
+  }
+  return false
+}
+
 function settle(seconds) {
   const ms = Math.max(0, Math.round(Number(seconds) * 1000))
   cli(`eval '(async()=>{await new Promise(r=>setTimeout(r,${ms}));return true})()'`, { timeout: ms + 30000 })
@@ -217,7 +248,20 @@ if (!anchor) {
  *
  * 打属性再按选择器点，正好把「谁是目标」和「怎么点」分开，两边各用各擅长的那一半。
  */
-function stampAndClick(texts) {
+/**
+ * 找到按钮并点它。
+ *
+ * `viaJs` 用 `element.click()` 而不是 opencli 的合成点击。
+ * **为什么需要这个开关**：2026-08-28 实测，Bing 的「Submit sitemap」按钮
+ * （Fluent UI）对 opencli 的合成点击**没有反应** —— 而 opencli 仍然回报
+ * `"hit": "target"`，看起来完全成功，只是对话框没开。
+ * 这是最难查的一类失败：命令成功、元素命中、效果为零。
+ * `element.click()` 能正常触发它的 handler。
+ *
+ * 只在**幂等**的动作上用 viaJs（开对话框、展开面板）。
+ * 真正的提交仍走 opencli 的点击，那更接近真实用户操作。
+ */
+function stampAndClick(texts, { viaJs = false } = {}) {
   const js = `
     const want=${JSON.stringify(texts)};
     document.querySelectorAll('[data-rankup-target]').forEach(e=>e.removeAttribute('data-rankup-target'));
@@ -227,12 +271,13 @@ function stampAndClick(texts) {
     if(!el) el=cands.find(e=>want.some(w=>norm(e).includes(w)));
     if(!el) return 'NOT_FOUND';
     el.setAttribute('data-rankup-target','1');
+    ${viaJs ? "el.click();" : ""}
     return 'OK:'+norm(el);`
   const r = evalJs(js)
   if (r.includes("NOT_FOUND")) {
     throw new Error(`页面上找不到按钮（试过：${texts.join(" / ")}）。界面语言可能不是 zh/en，改 LABELS 表。`)
   }
-  cli(`click '[data-rankup-target="1"]'`)
+  if (!viaJs) cli(`click '[data-rankup-target="1"]'`)
   return r
 }
 
@@ -296,8 +341,29 @@ if (action === "status") {
   // Bing：先点开表单，输入框才存在。GSC：openForm 为 null，跳过。
   const openForm = wanted("openForm")
   if (openForm) {
-    stampAndClick(openForm)
-    settle(2)
+    stampAndClick(openForm, { viaJs: true })
+    // **等对话框里的输入框真的出现，不要按固定秒数赌。**
+    // 原来是 settle(2)：Bing 的提交对话框实测要 2–4 秒才渲染出 input，
+    // 2 秒经常不够，于是下一步报「找不到 sitemap 输入框」，
+    // 而那条报错会把人引去改 LABELS 表——**方向完全错了，标签一直是对的**。
+    // 2026-08-28 实测：点开后手动等 4 秒，input（aria-label="Sitemap URL"）稳定出现。
+    // 改成轮询到出现为止，最多 12 秒，比任何固定值都稳且通常更快。
+    // 谓词必须**指名道姓找 sitemap 那个输入框**，不能只问「有没有可见 input」：
+    // 后者在别的页面状态下会被导航里的搜索框满足，于是等到的是个假的 true。
+    // 这一行是 2026-08-28 在真实页面上先验过的：开对话框前 false，开后 true。
+    const SITEMAP_INPUT =
+      'return [...document.querySelectorAll("input:not([type=hidden])")].some(e=>{' +
+      'const s=getComputedStyle(e);if(s.display==="none"||s.visibility==="hidden")return false;' +
+      'const t=((e.getAttribute("aria-label")||"")+" "+(e.placeholder||"")).toLowerCase();' +
+      'return t.includes("sitemap")})'
+    if (!waitFor(SITEMAP_INPUT, 15)) {
+      console.error(
+        "点开了提交表单，但 15 秒内没等到 sitemap 输入框出现。\n" +
+          "  1. 确认该站点在 Bing 后台有「Submit sitemap」权限（只读账号点不开对话框）\n" +
+          "  2. 若界面语言既不是 zh 也不是 en，改 LABELS 表的 openForm"
+      )
+      process.exit(1)
+    }
   }
 
   // 提交。输入框是受控组件（React/Angular 一类），直接改 .value 不触发框架状态，
