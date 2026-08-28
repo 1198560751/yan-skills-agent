@@ -440,6 +440,41 @@ opencli browser "$S" batch --commands '[
 `opencli daemon logs`（默认 errors）/ `commands` / `extension` / `daemon`，
 支持 `-n` 与 `--grep`。它从守护进程的下一次启动开始记，之前的没有留下来。
 
+### 原生对话框会把会话锁死，而唯一的解法排不进去
+
+**症状**：某个会话上的调用永不返回，日志里是 `opencli timed out after 60000ms`。
+
+**成因**（2026-08-28 实测跑通整条链，扩展 1.0.32）：
+
+```
+站点弹一个原生 alert（Semrush 的设备上限就是 alert，不是页面元素）
+        ↓
+alert 阻塞渲染进程的 JS 线程 → eval 永不返回
+        ↓
+会话锁被这个挂住的 eval 握着
+        ↓
+dialog accept ——唯一能清掉 alert 的命令——排在同一把锁后面，轮不到
+        ↓
+客户端被超时杀掉后，守护进程仍认为它握着锁
+（实测 "browser eval (pid 49191) has been driving it for 110s"，而那个 pid 早已不存在）
+```
+
+| | |
+|---|---|
+| **脱困** | `opencli browser <session> close`——同样要排队，但最终会成功，关掉标签页也带走 alert |
+| **不要做** | `dialog accept`（排不进去）· 重开一个会话重试（原来那个标签页还挂着） |
+| **判据** | 同一会话上连续超时 + `access-report.mjs --suspicious` 里的「超时」行 |
+
+**这把锁不探活。** backlink 那层文件锁会 `process.kill(pid, 0)` 回收崩溃遗留的锁，
+守护进程的会话锁不会——所以死掉的客户端会把会话按住一段时间。
+
+**测这件事的时候别用 setTimeout 造 alert**：后台标签页的定时器会被冻结
+（`visibilityState: hidden`），回调根本不跑，看起来像「alert 不阻塞」，
+其实是 alert 压根没弹。要同步调 `alert()`。
+
+**alert 挡着的时候页面本身仍是 HTTP 200、DOM 齐全**，降级形态只表现为
+指标全 `n/a` 和一个没解析的 i18n key `state.undefined`——所以协议层看不出任何异常。
+
 ### 守护进程的日志看不见的那一半
 
 它记标签页租额、导航超时、窗口分组——**没有 HTTP 状态码、没有响应体、没有调用方**。
@@ -461,9 +496,12 @@ node <opencli-skill-dir>/scripts/access-report.mjs --since 2h
 node <opencli-skill-dir>/scripts/access-report.mjs --suspicious   # 挑限流样本
 ```
 
-**限流的自动判据还没有，因为缺样本**——所以出事那一刻会自动把页面原文
-存进 `~/.opencli/logs/samples/`（`openAndExtract` 重试耗尽时触发，
-也可以自己调 `captureSample(session, reason)`）。
+**限流的自动判据还没有，因为缺样本**——所以出事那一刻会自动取样存进
+`~/.opencli/logs/samples/`（`openAndExtract` 重试耗尽时触发，也可以自己调
+`captureSample(session, reason)`）。取样是三级降级，每级都带短超时：
+先 `dialog accept`（**原生 alert 的文案只有这里拿得到**，顺手清掉它），
+再 `eval` 取页面原文，都不行就把诊断本身写下来。
+第一版只会 `eval`——而在最需要它的场景里 eval 自己就挂住了，见上一节。
 
 **为什么 `bytes` 不够、必须留原文**：限流、设备上限、降级渲染全是
 **HTTP 200 + DOM 齐全**，只是数据没来。2026-08-28 实测抓到一次 Semrush 的

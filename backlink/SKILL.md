@@ -489,9 +489,15 @@ owner's desktop. Nothing in the CLI reaches that.
 **So the strategy is not "make it visible", it is "only believe the reads taken
 while it was visible".** The protocol that has been measured to work:
 
-- at most **3 navigation rounds** per route, each polling up to **100 seconds**;
+- at most **3 navigation rounds** per route, each polling up to **150 seconds**
+  (**raised from 100** — see the correction below);
 - a verdict is admissible only when `filled > 0`, **or** when three consecutive
-  reads under `vis === 'visible'` all came back empty;
+  reads under `vis === 'visible'` all came back empty **and at least 100 seconds
+  have elapsed in that round**. **The time floor is not optional.** Without it
+  the three reads can all land inside the first 18 seconds, before the table has
+  begun rendering at all, and a slow table gets filed as an absent one — measured
+  2026-08-28, protocol now `v5-visible-gated-min100s`. See
+  <law-ref id="readiness-must-bind-to-this-query"/>, instance 5;
 - if `visible` never arrived in the whole budget, the verdict is
   **`inconclusive-hidden`** — **never** "empty";
 - record `visibilityState` on **every** read, not just the last one.
@@ -710,6 +716,8 @@ opencli browser "$S" eval '(() => JSON.stringify({
 node scripts/semrush-traffic.mjs --domain canva.com --window foreground
 # -> a read that came back visible with len 1957 and all 15 fields => real data
 # -> never saw "visible" in the budget => status "inconclusive-hidden"
+# -> three visible reads AND >=100s elapsed, still empty => admissible "empty".
+#    Three visible reads in 18s is NOT admissible: the table renders last.
 
 # 3. empty under THREE consecutive visible reads, with 0 table elements and
 #    only svg? That is Class A: the route serves charts, not tables. Read the
@@ -726,6 +734,198 @@ const ready = /摘要|Summary/.test(bodyText) && document.querySelector('table')
 # treating a chart-only route as a hydration problem and retrying forever
 for (let i = 0; i < 20; i++) await relaunchForeground('/analytics/traffic/referral/');
 # FALSE — three visible reads already agreed: 0 table elements. It has no table.
+]]></wrong>
+</law>
+<law id="readiness-must-bind-to-this-query" weight="load-bearing">
+<statement>
+A readiness check and a target check must bind to **something this query
+produced**. Any criterion of the shape "the page contains X" is unsound until
+you have answered one question about it: **could X have been supplied by
+something other than this query?** Marketing copy, decorative chrome, a
+neighbouring tool's widget docked at the bottom of the panel, and a saved-list
+picker full of account history are all "on the page", and none of them is your
+result.
+
+The criterion that has survived every instance so far is **"a table on this page
+holds at least one non-empty cell"** — `filledCells > 0`. Skeleton rows, column
+headers, prose and svg cannot satisfy it.
+
+A **target** check needs both halves: a positive condition (the target's own
+identifier is present) **and** a negative one (no marker of the empty-state
+landing page — e.g. a "create a new list" control). The positive half alone is
+satisfiable by the very picker that lists your target as a *previously saved*
+item.
+
+**The same question applies to a negative verdict, and there it is harder to
+see.** "I read empty N times in a row, so it is empty" is the same mistake
+wearing repetition as a disguise: a region that has not begun rendering yet is
+*perfectly* stable. **Stable is not finished.** A stability criterion is only
+sound with a **minimum elapsed-time floor** underneath it, or bound to an
+independent "the page is done" signal.
+
+And write down the raw evidence the verdict rests on — the filled-cell count,
+the elapsed time and read count behind an empty verdict, the
+`listPickerVisible` flag, the account initial in the page header — so the next
+reader can tell a verdict from a coincidence.
+</statement>
+<why>
+This is not hypothetical. **The same shape appeared five times in a single day
+(2026-08-28)**, and each time it came within one step of turning a failed read
+into a business conclusion. All five are worth reading in full, because in
+isolation every one of these criteria looks reasonable.
+
+**Instance 1 — "ready = digits appear anywhere on the page".** The check
+scanned the whole document for numbers. It matched **another tool's widget
+docked at the bottom of the panel** — a local-visibility comparison card
+carrying `axa.fr`, `42`, `758`, `15%`. Those are someone else's numbers about
+someone else's domain. Trusting that gate would have filed `axa.fr`'s figures
+under the queried domain.
+
+**Instance 2 — "ready = the word 访问量 (visits) is present".** It is present —
+inside marketing copy: 通过访问量、跳出率和参与度对多个域名进行基准测试
+("benchmark several domains on visits, bounce rate and engagement"). A sentence
+advertising the feature satisfied the check that the feature had produced data.
+
+**Instance 3 — "ready = the page has a chart (an `svg` element)".** The
+**empty-state landing page ships decorative svg of its own**. The criterion was
+therefore satisfied exactly on the page that carries no report at all.
+
+**Instance 4 — "the target took effect = the body text contains
+`canva.com`".** After a node switch the old `lid=` was not recognised by the new
+account, and the page **silently fell back to the empty-state landing page**.
+That landing page carries a saved-lists picker — and `canva.com` happened to be
+one of the saved lists listed inside it. The criterion passed. The target had
+never taken effect. `top-pages` then read **0 rows, no table, `innerText` length
+353**, one step away from being written down as "node 8 is empty too" — which
+would have manufactured a node difference of exactly the kind that had already
+been measured, retracted and documented once
+(see <law-ref id="hidden-tabs-do-not-hydrate"/>).
+
+**Instance 5 — "ready to call it empty = three consecutive reads under
+`visible` all came back empty".** This one is the subtlest, because the
+criterion is the remedy prescribed by <law-ref id="hidden-tabs-do-not-hydrate"/>
+and it is not wrong — it was just missing a floor. The reads were 6 seconds
+apart, so **the verdict could land 18 seconds after arrival**. These pages
+render in layers — **summary block, then charts, then the table last** — so
+during those 18 seconds the table region is reliably, reproducibly, stably
+empty. It has not begun.
+
+The counter-evidence is hard: on node 8, `page-groups` produced **20 filled
+cells** and `geographical-regions` produced **198** (sample row: `北美 | 20.69%
+| 1.6亿 | 4752.6万 | 82.63% | 5.3 | 12:05 | 32.98%`). And going back to the node
+5 records for those same two routes, **the summary block was fully populated**
+(`访问量 7.9亿 ↑4.53% | 唯一身份访问量 2.1亿 ↑2.92% | 购买转化率 0.21% ↑28.17%`)
+while the table read 0 rows. The page was working. The criterion simply did not
+wait for it, and filed a slow table as an absent one.
+
+The repair: an empty verdict now requires **both** three `visible` reads **and**
+at least 100 seconds elapsed in that round, rounds capped at 150 seconds, at
+most 3 of them — protocol id `v5-visible-gated-min100s`.
+
+**This Skill had already written this warning down and then walked past it.**
+`scripts/lib-tools-share.mjs` `captureStable` carries a comment saying in so
+many words that these vendors render metrics in two beats, that a readiness
+check keyed on labels passes during the gap, and that the resulting error is
+silent — small or zero numbers, no exception. That comment was about a
+*positive* read landing on placeholder values; the early-stop bug is the same
+mechanism producing a *negative* verdict. The lesson did not transfer because
+it had been filed as a fact about `captureStable` rather than as a fact about
+criteria. That is the reason this law exists as a law.
+
+The repaired criterion for instance 4 is
+`contains "canva.com" AND NOT contains 创建新列表 ("create a new list")`,
+plus two recorded facts: `listPickerVisible`, and **the account initial in the
+page header** (node 5 renders `H`, node 8 renders `B`) — the cheapest available
+proof of *which account you are actually looking at*.
+
+What the five share: the criterion asked whether **something exists on the
+page** (or, in instance 5, whether something *keeps not* existing), and a page
+has many suppliers — the vendor's copywriter, the stylesheet, a neighbouring
+widget, the account's own history, and the render pipeline that has not reached
+your region yet. Only one of those suppliers is this query.
+</why>
+<scope>
+Applies to every readiness gate, every target/scope check, and every "did this
+report load" probe in this Skill — panel tools, report routes, harvesting runs,
+and the verification step after a submission alike.
+
+It composes with <law-ref id="hidden-tabs-do-not-hydrate"/> rather than
+replacing it: that law says an empty read may not be a fact about the domain;
+this one says a read that *looks* non-empty may not be a fact about your query,
+and that a *repeatedly* empty read may not be a fact about anything. The
+failure modes are opposite and all of them are live. Instance 5 amended that
+law's own admissibility rule — the 100-second floor now written into it.
+
+The rankup Skill's provider-capabilities reference and its JSON sibling hold the
+per-route measurements. **They point here; they must not restate this law.**
+The four instances live in this one place.
+
+**Unmeasured:** whether a filled-cell count can itself be satisfied by a
+foreign table — no panel page has yet been seen rendering a second tool's
+*table* inside the report region, only its widget. Treat one as a candidate if
+you meet it, and scope the cell count to the report container rather than to
+`document`.
+</scope>
+<correct><![CDATA[
+// readiness: bound to THIS query's output. A cell, not a word.
+const ready = (() => {
+  const root = document.querySelector('main') || document.body;
+  const cells = [...root.querySelectorAll('table td, [role="cell"]')]
+    .filter((c) => (c.innerText || '').trim().length > 0);
+  return { filledCells: cells.length, ready: cells.length > 0 };
+})();
+// -> { filledCells: 850, ready: true }   real rows
+// -> { filledCells: 0,   ready: false }  NO verdict yet — see hidden-tabs-do-not-hydrate
+
+// target check: the positive AND the negative condition, in one read.
+const scope = (() => {
+  const t = document.body.innerText || '';
+  const emptyStateMarker = t.includes('创建新列表');   // "create a new list"
+  return {
+    hasTarget: t.includes('canva.com'),
+    listPickerVisible: emptyStateMarker,
+    accountInitial: (document.querySelector('header [class*="avatar" i]')
+                     ?.innerText || '').trim().slice(0, 1),
+    ok: t.includes('canva.com') && !emptyStateMarker,
+  };
+})();
+// -> { hasTarget:true, listPickerVisible:true,  ok:false } landed on the empty state
+// -> { hasTarget:true, listPickerVisible:false, accountInitial:"B", ok:true }
+
+// an EMPTY verdict needs a time floor as well as a repeat count: these pages
+// render summary -> charts -> table, and a table that has not started is stable.
+const emptyIsAdmissible = visibleReads >= 3 && elapsedMsThisRound >= 100_000;
+// rounds capped at 150s, at most 3 -> protocol id "v5-visible-gated-min100s"
+
+// and record the evidence NEXT TO the verdict, not just the verdict
+{ "route": "/analytics/traffic/top-pages/", "verdict": "data",
+  "filledCells": 850, "listPickerVisible": false, "accountInitial": "B",
+  "visibilityStateAtVerdict": "visible" }
+{ "route": "/analytics/traffic/page-groups/", "verdict": "empty",
+  "filledCells": 0, "visibleReads": 3, "elapsedMsThisRound": 104300,
+  "protocolId": "v5-visible-gated-min100s" }
+]]></correct>
+<wrong><![CDATA[
+// 1. digits anywhere -> matched a NEIGHBOURING TOOL'S widget (axa.fr / 42 / 758 / 15%)
+const ready = /\d/.test(document.body.innerText);
+
+// 2. a metric keyword -> matched marketing copy that merely NAMES the metric
+const ready2 = document.body.innerText.includes('访问量');
+
+// 3. "there is a chart" -> the EMPTY-STATE landing page ships decorative svg
+const ready3 = document.querySelectorAll('svg').length > 0;
+
+// 4. target present -> the empty state's saved-list picker LISTS canva.com
+const onTarget = document.body.innerText.includes('canva.com');
+// passed while the target had not taken effect; the 0-row / no-table / len-353
+// read that followed was one step from being filed as "node 8 is empty too"
+
+// 5. "empty three reads running" -> reads 6s apart, so the verdict lands at 18s,
+//    and these pages render summary -> charts -> TABLE LAST. Not-yet-started is
+//    the most stable state there is.
+if (visibleReads >= 3 && filledCells === 0) return 'empty-silent';
+// FALSE — page-groups (20 cells) and geographical-regions (198 cells) were
+// filed as empty this way, while their summary blocks were already full.
 ]]></wrong>
 </law>
 

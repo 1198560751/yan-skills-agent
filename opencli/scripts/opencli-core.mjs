@@ -554,28 +554,67 @@ export function resolveSession(flags, base, siteKey = null) {
 /**
  * 出事的那一刻，把页面上到底写了什么留下来。
  *
- * 为什么 bytes 不够：访问日志记了 payload 大小，但限流/设备上限/降级渲染
- * 全是 **HTTP 200 + DOM 齐全**，只是数据没来。2026-08-28 实测抓到一次
- * Semrush 的降级形态——标题正常是 "Dashboards"，指标全是 n/a，
- * 页面上还留着一个没被解析的 i18n key `state.undefined`。光看 bytes
- * 分不出它和一次正常的小响应，必须留原文。
+ * **第一版是错的，用 eval 取页面原文——而在最需要它的场景里 eval 自己就挂住了。**
+ * 2026-08-28 实测（扩展 1.0.32）把整条链跑通了：
  *
- * 所以判据留给以后（还缺样本），现在只负责**把样本存下来**：
- * 一次调用一个文件，`~/.opencli/logs/samples/<ts>-<session>.txt`。
- * 用 run() 而不是 opencli()，避免记账递归。失败全吞——取样不能把调用方搞挂。
+ *   1. 站点弹一个原生 alert（Semrush 的设备上限就是 alert，不是页面元素）
+ *   2. alert 阻塞渲染进程的 JS 线程 → `eval` **永不返回**，只能等 CLI 超时
+ *      （日志里的签名就是 `opencli timed out after 60000ms`）
+ *   3. 会话锁被这个挂住的 eval 握着
+ *   4. `dialog accept`——唯一能清掉 alert 的命令——排在同一把锁后面，轮不到
+ *   5. 客户端进程被超时杀掉之后，守护进程**仍然认为它握着锁**
+ *      （实测 `browser eval (pid 49191) has been driving it for 110s`，
+ *      而那个 pid 早已不存在——这把锁不像 backlink 那层文件锁会探活回收）
+ *
+ * 逃生路径是 `opencli browser <session> close`：它同样要排队，但最终会成功，
+ * 关掉标签页也就带走了 alert。**不是 `dialog accept`。**
+ *
+ * 另外两条实测顺带钉住，免得下次又用错测法：
+ *   - 后台标签页的 setTimeout 会被冻结（visibilityState: hidden），
+ *     所以用定时器造 alert 根本触发不了，要同步调；
+ *   - alert 弹出后页面本身是 HTTP 200、DOM 齐全，降级形态只表现为
+ *     指标全 n/a 和一个没解析的 i18n key `state.undefined`。
+ *
+ * 于是取样改成三级降级，每一级都带短超时，绝不把调用方拖住：
+ *   1. `dialog accept` —— alert 的文案只有这里拿得到，而且顺手把它清掉
+ *   2. `eval` —— 没有对话框时取页面原文
+ *   3. 都不行就把**诊断本身**写下来：说清楚这是什么形态、怎么脱困
  */
 export async function captureSample(session, reason = 'unspecified') {
   if (process.env.OPENCLI_ACCESS_LOG === '0') return null;
+  const attempt = async (args, ms) => {
+    try {
+      const out = await run('opencli', ['browser', session, ...args],
+        { allowFailure: true, timeoutMs: ms });
+      return out.stdout || '';
+    } catch { return ''; }
+  };
   try {
     const dir = join(homedir(), '.opencli', 'logs', 'samples');
     mkdirSync(dir, { recursive: true });
-    const js = '(() => JSON.stringify({ url: location.href, title: document.title, '
-      + 'text: (document.body?.innerText || "").slice(0, 4000) }))()';
-    const out = await run('opencli', ['browser', session, 'eval', js],
-      { allowFailure: true, timeoutMs: 30_000 });
+
+    // 短超时是有意的：对话框卡住的会话里，任何命令都会排队，
+    // 而取样宁可交白卷也不能变成第二个挂住的调用。
+    let body = await attempt(['dialog', 'accept'], 8_000);
+    let kind = 'dialog';
+    if (!body || /no_javascript_dialog/.test(body)) {
+      body = await attempt(['eval',
+        '(() => JSON.stringify({ url: location.href, title: document.title, '
+        + 'text: (document.body?.innerText || "").slice(0, 4000) }))()'], 12_000);
+      kind = 'page';
+    }
+    if (!body) {
+      kind = 'blocked';
+      body = [
+        '取样时会话无响应——dialog 和 eval 都没在短超时内返回。',
+        '这本身就是判据：多半有一个原生对话框（alert/confirm）挡在前面，',
+        '它阻塞了 JS 线程，而会话锁被那个挂住的调用握着，dialog accept 排不进去。',
+        `脱困：opencli browser ${session} close（要排队，但会成功）。`,
+      ].join('\n');
+    }
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const file = join(dir, `${stamp}-${session}.txt`);
-    writeFileSync(file, `reason: ${reason}\n\n${out.stdout || out.stderr || '(取样时页面也读不到)'}\n`);
+    const file = join(dir, `${stamp}-${session}-${kind}.txt`);
+    writeFileSync(file, `reason: ${reason}\nkind: ${kind}\n\n${body}\n`);
     return file;
   } catch { return null; }
 }
