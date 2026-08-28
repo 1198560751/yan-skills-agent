@@ -1,8 +1,8 @@
 ---
 name: rankup
-description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、挖需求、找需求、需求挖掘、找方向、找选题、"最近有什么能做的"、"找几个关键词"、"挖个新词的工具站"、"看看有什么游戏站能做"、竞品调研、榜单调研、差评挖掘、反查谁在赚钱、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 哥飞、web.cafe、哥飞论坛、哥飞的朋友们、悬赏、悬赏问答、经验帖、"群里怎么说的"、"社群里有没有讲过"、"论坛里搜一下"、"哥飞说过什么"、哥飞.ai，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
+description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、rankup check、环节闸门、检查清单、checklist、"现在该做什么"、"到哪一步了"、"这个环节能不能过"、"本轮还差什么"、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、挖需求、找需求、需求挖掘、找方向、找选题、"最近有什么能做的"、"找几个关键词"、"挖个新词的工具站"、"看看有什么游戏站能做"、竞品调研、榜单调研、差评挖掘、反查谁在赚钱、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 哥飞、web.cafe、哥飞论坛、哥飞的朋友们、悬赏、悬赏问答、经验帖、"群里怎么说的"、"社群里有没有讲过"、"论坛里搜一下"、"哥飞说过什么"、哥飞.ai，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
 metadata:
-  version: "2.56.0"
+  version: "2.59.0"
 ---
 
 # Rankup 2.0
@@ -10,6 +10,44 @@ metadata:
 `rankup` 是网站全生命周期的总控 Skill：恢复项目上下文，判断当前阶段，加载必要的专项能力，完成真实验证，并把项目事实、决策与经验写回 `.rankup/`。
 
 它不重复实现 Wrangler、Stripe、趋势研究或外链工具；它负责把这些能力串成一条长期可维护的网站工作流。
+
+## 主线：维护 checklist，使用 checklist
+
+**每个环节都有一套 checklist。不过 check 不许进下一个环节；每一轮迭代新做的东西，也要把相关的 check 重新过一遍。这是硬性门槛，不是建议。**
+
+清单在 [`references/checklists.md`](references/checklists.md)——12 个环节，每个环节一张表：
+**检查项 / 客观通过条件 / 证据落点 / 怎么做（一句话加指路）/ 复查口径**。
+状态记在项目侧 `.rankup/checks.md`。
+
+**判断由你做，不要找脚本代劳。** 「三方对账一致吗」「全站每一个 URL 的 TDK 都核过了吗」
+「每条 AI 建议都有采纳或拒绝理由吗」——这些要去看真实代码、真实线上响应、真实后台读数。
+只有「`.rankup/` 里某个文件在不在、够不够大」这一层交给 `scripts/review.mjs`，
+它给的是**文件层面的缺口清单，不是「这一项做对了」**：一个 500 字节的 `audit.md`
+能让脚本变绿，里面写的是不是全站逐 URL 的结果只有你看得出来。
+
+### 用法
+
+| 场景 | 动作 |
+|---|---|
+| 开工 / 用户问「现在该做什么」 | 读 `checklists.md` + 项目的 `checks.md`，找到第一个没过闸的环节，报出它还差哪几项，然后**直接照着做** |
+| 做完一项 | 在 `.rankup/checks.md` 记一行：✅ + 证据在哪个文件的哪一段 + 日期 |
+| 开新一轮 | 把标「每轮」的 check 全部打回 ⬜；本轮动过线上 URL 的把标「动了 URL」的也打回 |
+| 收尾 | 本环节全 ✅ 才算这个环节完成；做不了的标 ⏸ 并写明卡在哪、需要用户做什么 |
+
+### 三条硬约束
+
+1. **证据是必填的。** 只跑了命令、没留下证据不算过；控制台一个绿色图标不是证据。
+   这套东西唯一致命的失败形态是**看着全绿、底下什么都没有**。
+2. **判据在 `checklists.md`，操作说明在各自的 md，两处不得各存一份。**
+   同一件事写两遍，改了一处另一处就静默过期，而两边看起来都正常。
+3. **不打回等于默认继承上一轮的绿灯。** 新一轮开工的第一个动作是打回「每轮」那一批——
+   这是清单腐坏最常见的起点。
+
+### 缺 check 的时候
+
+发现某个环节有该做、而清单里没有的动作时，**先补进 `checklists.md`，再去做**——
+顺序反了，这一条就只会存在于那次对话里。补的时候只写判据不写教程，
+并按 [`evolution.md`](references/evolution.md) 的晋升门判断它该进 Skill 还是留在项目侧。
 
 ## 红线：先查脚本清单，禁止重造轮子
 
@@ -35,6 +73,8 @@ metadata:
 
 每一级向下的**唯一理由**是「上一级确实不存在」，不是「我对下一级更熟」。
 沙箱浏览器（Claude Browser pane）不在这个阶梯上——它没有登录态，用它查需要登录的面板必然拿到错误数据。
+
+**这个阶梯管的是「取数」，不替代「亲眼看」。** 任何调研在动用上面任何一级之前，先去 Google、Bing、以及目标市场的本地引擎把词搜一遍，看第一页排的是什么——数据平台给的是模型输出与面板外推，首页是搜索引擎此刻真正端给用户的东西。方法与要记的七样见 [`demand-sources.md`](references/demand-sources.md) 第一·五节；这是 [`checklists.md`](references/checklists.md) 阶段 1 的一条硬性 check。（公开搜索结果不需要登录态，**这是少数可以用沙箱浏览器的场景**，但地区与语言必须显式指定。）
 
 ### 配额前置检查（花配额之前的第一个动作）
 
@@ -301,9 +341,10 @@ node "<rankup-skill-dir>/scripts/check-version.mjs" \
 2. 读取项目 `.rankup/INDEX.md` 和 `.rankup/skill-state.json`；目录不存在时按 [`references/project-memory.md`](references/project-memory.md) 初始化。
 3. 读取 `.rankup/PROJECT.md` 及当前任务相关文件，不要无差别加载整个日志目录。
 4. **三方对账门禁**：在回答“接下来做什么”或宣称任何进度之前，必须交叉核对三个来源——`git log --oneline -25`、真实路由/页面清单、线上 `sitemap.xml` 的全量 `<loc>`。`.rankup/plan.md` 的勾选框、仓库根的 `progress.md`、autopilot 状态文件都是**滞后指标**，读到“未开始”要先去代码里验证。三方结果与记录不一致时，先回写 `.rankup/` 再继续，不能只在回复里口头更正。Cloudflare、GSC、Stripe、索引、外链等外部状态一律以当前查询结果为准，知识库只当线索不当证据。
-5. 判断任务处于哪个生命周期阶段，只读取需要的参考文件和专项 Skill。若本轮需要某类可复用操作（导数据、查词、抓 SERP 等），先查跨项目资产登记表看别的项目有没有现成脚本，有就取用，不要重写。
+5. **读 [`references/checklists.md`](references/checklists.md) 与项目的 `.rankup/checks.md`**，确定当前在哪个环节、本环节还差哪几项。判断阶段以此为准，不凭印象。只读取需要的参考文件和专项 Skill。若本轮需要某类可复用操作（导数据、查词、抓 SERP 等），先查跨项目资产登记表看别的项目有没有现成脚本，有就取用，不要重写。
 6. 实施请求范围内的工作，执行与风险相称的测试，并验证真实目标环境。
 7. 更新 `.rankup/` 中的事实、决策、计划、发布或日志；同步 `INDEX.md` 的更新时间和导航。
+8. **把本轮过掉的 check 逐条记进 `.rankup/checks.md`**，带证据与日期；本轮动过线上 URL 的，把标「动了 URL」的那批打回 ⬜。没记 = 下一轮会重跑一遍，且中间那段时间无人知道它到底过没过。
 
 已有项目没有 `.rankup/` 时，只补建项目记忆，不得因此重新初始化技术栈。只有用户确实要求创建新站时才执行建站脚手架。
 
@@ -440,7 +481,20 @@ node "<rankup-skill-dir>/scripts/registry.mjs" list
 
 ## 命令
 
-两个入口，覆盖「刚接手」和「回头看」，用户只说 `rankup init` / `rankup review` 即可，不必描述要做什么。
+三个入口，覆盖「刚接手」「我现在该做什么」和「回头看」，用户只说 `rankup init` / `rankup check` / `rankup review` 即可，不必描述要做什么。
+
+### `rankup check` — 我现在该做什么
+
+**用户说 `rankup check` 或「现在该干嘛」「到哪一步了」时的唯一动作。**
+
+1. 读 [`references/checklists.md`](references/checklists.md) 与项目的 `.rankup/checks.md`；
+2. 跑一次 `review.mjs` 拿文件层面的缺口（只是线索，不是判定）；
+3. 找到**第一个没过闸的环节**，逐项去真实代码、线上响应、后台读数里核对，得出还差哪几项；
+4. **直接照着做**，不要把清单原样念给用户——这个 Skill 的用户不是在问路，是在执行。
+
+逐项做完、逐项在 `.rankup/checks.md` 记 ✅ 与证据，做到本环节过闸，再进下一个环节。
+遇到确实做不了的（要 CAPTCHA、要付费决策、要用户的物理操作），标 ⏸ 写清卡在哪、
+**以及你已经自动化到了哪一步**，不要留一个悬空的空格。
 
 ### `rankup init` — 把项目接入 rankup
 
@@ -523,6 +577,7 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 在此之上完成：
 
 1. **对账**：`plan.md` 的勾选是滞后指标，与 `git log`、路由清单、线上 `sitemap.xml` 三方交叉；不一致先回写再继续。
+   接着对着 [`references/checklists.md`](references/checklists.md) 过一遍全部环节闸门，未过闸的按环节顺序补，补完逐条记进 `.rankup/checks.md`。
 2. **补生命周期缺口**：按体检报告「生命周期检查点」的待补清单，**逐项执行**——每项产出真实证据落进 `.rankup/` 对应文件，不是只建空文件。已上线项目典型补法：先跑 `is-agentic.mjs scan --save`（零配置，秒出），再跑 `cf-analytics-setup.mjs status`，再按 lifecycle.md 闸门逐项走。这一步是新引入 Skill 的老站最大的价值：一次 review 就能用上 Skill 里全部零配置工具。
 3. **全盘验证接入**：对照上方「接入清单跟踪」的完整平台表，逐项线上实测。`curl` 首页 HTML grep 各平台 beacon、后台查验证状态、请求品牌资产路径。backlink 台账除外（无法自动验证）。SEO 元素（title / description / robots / OG / hreflang）、结构化数据、多语言标记在同一趟 `curl` 里一并检查。结果写回 `.rankup/integrations.md`：通过的 ✅ 记证据+日期，失效的改回 ⬜ 记原因，缺失的当场补接。**这是 review 把偏离轨道的项目拉回来的核心动作**——跑完这张表就知道差多少、从哪补。
 4. **筛信号**：`experience.md` 里合并重复、删除已过时、修订被证伪的条目——**修订原条目，不并列保留冲突结论**。未验证的猜测直接删。
@@ -560,6 +615,7 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 
 | 请求 | 必读参考 | 专项能力 |
 |---|---|---|
+| **「现在该做什么」「到哪一步了」「这个环节能不能过」「本轮还差什么」** | [`checklists.md`](references/checklists.md) —— 12 个环节的判据表，操作说明在各条指向的 md | 判断靠你自己核对真实状态；`scripts/review.mjs` 只给文件层面的缺口线索。**先过一遍清单再决定做什么，不要凭印象判断阶段** |
 | 新站、SaaS、工具站、产品设计、架构 | [`lifecycle.md`](references/lifecycle.md)、[`cloudflare-stack.md`](references/cloudflare-stack.md)、[`project-memory.md`](references/project-memory.md) | 设计或开发相关 Skill |
 | Cloudflare、Worker、数据库、存储、部署 | [`cloudflare-stack.md`](references/cloudflare-stack.md)、[`integrations.md`](references/integrations.md) | Wrangler、workers-best-practices |
 | **上线后接测量与品牌资产（favicon/图标集、分析、站长工具）** | [`lifecycle.md`](references/lifecycle.md) 阶段 7.5、[`search-platforms.md`](references/search-platforms.md) | `scripts/cf-analytics-setup.mjs`、`scripts/indexnow-submit.mjs`、`scripts/webmaster-sitemap.mjs` |
@@ -667,6 +723,7 @@ pnpm dlx shadcn@latest init \
 - `integrations.md`：**所有平台接入的唯一看板**。每项标 ✅（已接+证据+验证日期）/ ⬜（待做）/ ❌（不接+裁决依据）。完成一项立刻打勾，`rankup review` 逐项线上实测验证。格式和规则见下方「接入清单跟踪」。
 - `secrets.md`：只记录名称、用途、环境、保管位置、负责人、访问与轮换状态。
 - `skill-state.json`：本地版本、启用时间、检查与更新时间。
+- `checks.md`：**环节闸门的状态**——一个环节一段，每条 check 标 ✅ / ⬜ / ⏸ / ❌ 加证据与日期。格式见 [`references/checklists.md`](references/checklists.md)。它只存状态，判据在 Skill 侧，两边不得各存一份。
 - `roadmap.md`：长期方向、阶段目标、各阶段的判定条件与放弃条件。跨会话可续，不随单轮任务改写。
 - `iterations.md`：每轮迭代一段——做了什么、判据是什么、结果、下一轮唯一改进。失败轮次同样要记，且必须写清被证伪的假设。
 - `scripts/`：可复用操作脚本（见「可复用操作必须落成脚本」）。
@@ -745,8 +802,9 @@ pnpm dlx shadcn@latest init \
 3. 若涉及发布，真实线上目标和关键路径已验证；上传成功或 Worker Ready 不能单独证明完成。
    若本轮初始化了绿地项目，**远端仓库必须存在且当前状态已推送**——
    只存在于单机上的脚手架不算完成。
-4. 相关 `.rankup/` 文件已更新，过时的交叉引用已一并修正。
-5. 说明完成内容、验证证据、仍存在的风险和需要用户处理的外部事项。
+4. **本环节 [`checklists.md`](references/checklists.md) 的 check 全部过闸**，本轮过掉的每一项都在 `.rankup/checks.md` 里记了证据；确实做不了的标 ⏸ 并写明原因。
+5. 相关 `.rankup/` 文件已更新，过时的交叉引用已一并修正。
+6. 说明完成内容、验证证据、仍存在的风险和需要用户处理的外部事项。
 
 ## 经验回流与版本升级
 

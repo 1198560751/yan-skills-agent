@@ -28,6 +28,8 @@
 难度分是估算模型的输出，而各家工具的「领先者/竞争者」列通常**只给第一名** ——
 第 2 到第 10 名藏着什么，只有实际拉一次 SERP 才知道。
 
+**而且要在多个引擎上各看一遍，亲眼看。** Google 与 Bing 是两套独立索引，对同一个词的取舍经常不同；做非英语市场时目标国的本地引擎（Naver / Yandex / 百度 / Seznam）首页构成可能与 Google 完全不一样。二手 SERP 接口看不到版式、SERP 特性占了多少屏、也看不到 AI 答案引用了谁——那些恰恰是决定「这盘面还有没有独立站空位」的部分。做法与要记的七样见 [`demand-sources.md`](demand-sources.md) 第一·五节。
+
 判据是**看对手是谁，不是看分数是多少**。按信号强弱排：
 
 **正向（可攻）**
@@ -136,6 +138,38 @@
 无论如何都要把每个词实际所处的国家随结果一起记下来，不同国家的结果不可混读。
 快照型数据还要记录快照日期 —— 它不是实时 SERP。
 
+## Google 出站链接改成 `google.com/goto` 跳板（2026-08-26 官方确认推出）
+
+**事实**（出处：seroundtable.com `/google-search-goto-tracking-41957.html`，Barry Schwartz，2026-08-26；Google 发言人已向该站确认；证据等级【实测+官方确认】）：
+
+- 2026-07 开始测试，8 月底接近全量。Nozzle 的 Derek Perkins 在 X 上称
+  「跨多家住宅 IP 提供商接近 100% 覆盖」，并给出四个月的占比爬升曲线。
+- SERP 里的结果链接**不再是目标站的 href**，而是 `google.com/goto` 的**服务端跳转**，
+  客户端链接被整体消灭。Perkins：goto 链接**无法解码**，抓取方只能逐条跟随跳转，
+  「小规模测试能跑通，但每个 SERP 有上百条链接」。
+- Google 官方口径只有一句「我们长期部署技术措施应对不断演变的滥用行为」，
+  没有承认目的；行业解读是反抓取（SerpApi 诉讼 + AI 公司取数）。
+
+**这对我们意味着什么（按动作排）**：
+
+1. **任何「从 Google SERP HTML 按 `href` 取域名」的实现都会静默变错**——
+   取到的全是 `google.com`。判域名改看**结果卡片上可见的 cite / 显示 URL**，
+   不要读链接目标。跟随跳转在单条核查时可行，成批取数不可行。
+2. **第三方 SERP / 排名 / KD 通道会跟着抖**（`serp-query.mjs` 走的 serper.dev、
+   `seo-webcafe.mjs serp|kd`、Semrush 的排名表都是二手 SERP）。表现可能是变慢、变贵、
+   字段缺失，或**悄悄降级但接口照样 200**。因此：**结果域名突然变少、变怪、
+   或某个词的盘面一夜之间「空了」时，先怀疑通道，再怀疑盘面**——
+   换一个源交叉验证过才允许写进 `keywords.md`。这条与「拿 HTTP 200 当取到了」是同一类错误。
+3. **我们的 SERP 判据本身不受影响**：top10 的页面类型、专门经营比例、标题措辞
+   都来自标题与可见域名，不依赖 href。受影响的是「点开看一眼」的成本——
+   人工抽查从「逐条点」降到「挑 2–3 条最关键的点」。
+4. **不要顺手改站侧归因口径**。该报道只讲 SERP 出站链接，**没有**给出 referrer 或
+   分析数据的变化证据；在自己站上实测到差异之前，流量归因仍以 GSC 为准，
+   不得据此调整分析平台的解读。
+
+**复测线**：这是推出中的变更，`goto` 的形态和第三方工具的适配都会继续动。
+凡是依赖二手 SERP 的调研，**引用超过一个月的 SERP 快照前先重跑一次通道自检**。
+
 ## 机会调研：先证伪，再汇总
 
 宽泛种子词的调研里，**「体量大」与「值得做」经常是反相关的**。
@@ -165,6 +199,10 @@
 | **GSC Gen AI 效果报告(AI 曝光,2026-06 新)** | Search Console → 效果 → Generative AI 报告;追踪内容在 AI Overviews/AI Mode 中的曝光次数、页面、国家、设备 | 2026-06-03 上线,按子集推出,不是所有站都有;**暂无点击/CTR/查询词数据**;另有 opt-out 开关(不影响传统排名) |
 | **死路(勿再试)** | **Semrush / Similarweb / Ahrefs 的全部程序化接口(API + MCP)**——共享账号代理**出借的是会话,不是账号**;API key 与 OAuth 同意页都住在账号设置区,面板不会递出来,绕过面板去取等于绕过访问控制。2026-08-27 逐家核实:Semrush Analytics/Projects API 要 Business 档+另购 units、MCP 与 HTTP 共用同一份 units(实测 units=0,**换客户端/换传输/重连 OAuth 都不会改变**);Similarweb Data API 与 MCP 要 Business/Enterprise/API-only 档;Ahrefs 2026-07-18 复验全接口 "Insufficient plan"。**浏览器抓取不是临时替代方案,它是这个账号形态下唯一正确的方案**(详见 `provider-capabilities.md` 四·五)。另:agent-browser 连真实 Chrome(Chrome 136+ 禁 CDP)、Google Trends(共享代理 IP 常年 429) | |
 | 网络 | 本机 shell 直连部分外网 TLS 间歇重置(curl exit 35):Google 系/github/npm registry/ui.shadcn.com 走本机代理($HTTP_PROXY,按需)(node 系 CLI 另加 `NODE_USE_ENV_PROXY=1` 才吃 env,undici EHPA),git push 带 `HTTPS_PROXY`,所有 curl 带 `--retry-all-errors`;**api.cloudflare.com 反着来:必须直连**(2026-07-18 实证代理下 wrangler 全部 fetch failed,直连一次成)——wrangler deploy 不带代理+重试 | zsh 内联 for 循环易 parse error,写成 .sh 脚本跑;管道尾接 tail 会吞退出码,成功判定用输出 grep;刚部署完 workers.dev 可能瞬态回 CF 1042,几十秒自愈勿误判 |
+
+> **2026-08 起，所有二手 SERP 通道都在 `google.com/goto` 的影响半径内**——
+> Google 把 SERP 出站链接换成了不可解码的服务端跳转。通道异常先按上文
+> 「Google 出站链接改成 `google.com/goto` 跳板」一节自检，不要直接当成盘面变化。
 
 ## 二、SEO 项目接入
 

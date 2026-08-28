@@ -9,8 +9,9 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.56.0";
+const expectedVersion = "2.59.0";
 const requiredReferences = [
+  "checklists.md",
   "lifecycle.md",
   "cloudflare-stack.md",
   "project-memory.md",
@@ -49,6 +50,9 @@ const requiredContent = {
     "--new-only",
     "review-state.json",
     "## 经验库：规划与迭代之前先翻一遍",
+    "## 主线：维护 checklist，使用 checklist",
+    "### `rankup check`",
+    "references/checklists.md",
   ],
   "references/experiences/INDEX.md": [
     "## 收录规则（强制）",
