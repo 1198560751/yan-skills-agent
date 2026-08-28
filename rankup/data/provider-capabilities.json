@@ -1093,6 +1093,7 @@
             }
           },
           "savedListCheck": "展开「再显示 20 个结果」后清点 25 条保存的列表，canva.com 不在其中；提交前后前 5 条逐字节相同。 URL 上的 lid（node 5 是 1231490、node 8 是 1231560）**按账号隔离**，拿一个账号的 lid 去另一个账号会落回空态落地页。 结论：分析不创建保存的列表。限度：列表底部仍有「再显示 20 个」未展开，查的是前 25 条。",
+          "savedListCheckLidRemeasure": "**归档位置更正 + 待复测（2026-08-28）**：「lid 按账号隔离」这条一度被当成 Similarweb 侧的结论派出去复测，**它不是**。复测方查证：本文件里 `lid` 只出现一次，就在 `providers.semrush.savedListCheck` 这条，证据用的是 Semrush 的 node 5 / node 8；`providers.similarweb` 下没有任何 lid 记录。**这条留在 Semrush 名下。** 状态：**pending-remeasure**，本轮未复测。 **为什么值得复测（不是走过场）**：它的判据是「拿别的账号的 lid 会静默落回空态」——也就是**读到空 ⇒ 下结论**，正是 2026-08-28 这一天被反复证伪的那种形状（见 backlink Skill 里 id 为 readiness-must-bind-to-this-query 的那条 law，实例 5 与实例 6）。而本模块的 `rule` 里本来就写着「空表不等于没数据」。所以「落回空态」这个观测既可能是 lid 真的不认，也可能只是那一次没水合完 / 没等到 visible。**在复测之前，不要用这条去解释任何一次空读，也不要据此断定跨账号 lid 不可用。** 复测协议：`v6-patient-signal-gated`，轮询间隔 600–700ms（visible 是 ~3 秒脉冲），并要求「同一个 visible 窗口内连续 3 次」读到空态落地页标记，外加正向判据——页头账号首字母 + 页面上有没有「创建新列表」。",
           "rule": "**在这条工具线里，空表不等于没数据。** 例证更新 2026-08-28：**同一个节点（node 5）、同一个 canva.com / 主要页面 / 2026年7月**，一次读到 0 行且不报任何错，另一次读到 850 个非空单元格。变量不是节点——是读取时刻的页面状态（水合完成与否、以及是否有别的进程在抢同一个浏览器）。任何针对本模块的取数脚本必须把「读到 0 行」和「这个域名没有数据」分开报；报空之前重读一次，并同时记下读取瞬间的 document.visibilityState。把 0 行当成业务结论，就是本仓库反复出事的那类错误。（旧例证 node5 vs node8 已作废，见 perRouteFindings.top-pages。） **更正 2026-08-28：「空」有两种，并存，不要合并。** (1) 可见性伪空：同一路由 hidden 读 0、visible 读满——**只在重表格页 /analytics/traffic/top-pages/ 上实测到**（0 格 vs 850 格，三次交叉验证），本规则的重读补救只对它有用。(2) chart-only「本来就没表」：visible 下连读 3 次仍然 0 个表格元素，只有图表——**node 5 上共 10 条**（referral / organic-search / paid-search / organic-social / paid-social / email / display-ads / socioeconomics / behavior / daily-trends），见 perRouteFindings。chart-only 不是水合截面，套可见性重试循环是白费。 **更正 2026-08-28（全量 sweep 之后）：「空」实际有四类，不是两类。** 除上面两类外还有 requires-input（industry-and-bulk-analysis：要人贴最多 100 行域名才产出，不吃 URL 上的目标）和 not-a-report-route（trends-api：营销定价页，压根不返回报表）。四类长得像，成因和补救完全不同，**枚举值必须分开**：data / chart-only / empty-silent / requires-input / not-a-report-route。另有一条独立提醒：`/trending-websites/global/all/` 出数但**不吃目标域名**（全球榜单），它的 targetVisible=false 是正常的，不是一次失败的读。  **更新 2026-08-28（node 8 复测回来之后）：一条成立，一条作废。** (1) **成立**：`/analytics/traffic/top-pages/` 在 node 5 和 node 8 上**都是 850 格，前 5 格逐字相同**（主页 / 39.47% / 按「Tab」启用图形图表访问模块。 / 4.1亿 / 1.1亿）——两个节点是两个不同的共享账号（页头首字母 node 5 = H、node 8 = B）。最初那条「node 5 空 / node 8 有数」的节点差异，是**可见性**与**目标未生效**两个观测缺陷叠出来的，不是账号或订阅差异。 (2) **作废**：那 8 条 `empty-silent` 的判定**全部不可信，正在重测**（`remeasureStatus: pending-remeasure-v5`）。原判据「可见读满 3 次即采信为空」有**早停缺陷**：可见读间隔 6 秒，最快 18 秒下结论，而页面渲染顺序是 **摘要 → 图表 → 表格，表格最后水合**——表格还没开始渲染时，连续读一百次也是稳定的空。已被反证两条：node 8 上 `page-groups` 20 格、`geographical-regions` 198 格，而 node 5 的旧记录里这两条**摘要区数字是齐的**。判据已改为「可见读满 3 次 **且** 本轮已等满 100 秒」，每轮上限 150 秒、最多 3 轮（`v5-visible-gated-min100s`）。**在重测回来之前，不要写「这 8 条是真的空」，也不要写「这个订阅拿不到这条」。** **判据教训单独成条**：这一天出现了五次「判据被这次查询之外的东西满足」——整页找数字命中邻居工具的挂件、关键词命中营销文案、「有 svg」命中空态落地页的装饰图、目标校验命中空态落地页保存列表里的历史记录，以及第五种最隐蔽的：把「连续 N 次读到空」当成「确认是空」。判据必须绑定在**这次查询的产物**上（最可靠的形状是「表格里真的存在一个非空单元格」），否定判据必须配**最小等待时间下限**。五个实例和正确判据形状**只写在** backlink Skill 里 id 为 readiness-must-bind-to-this-query 的那条 law，这里不复述。 **再更新 2026-08-28（耐心模式重测回来之后）：「最小等待下限」本身也被推翻了。** 那 8 条里的 **5 条改判为 `data`**：page-groups 20 格（`美国 / 18.73%·1.5亿 / 81.88% / 18.12% / 巴西`）、geographical-regions 198 格（`北美 / 20.69% / 1.6亿 / 4752.6万 / 82.63%`）、business-regions 36 格（`APAC / 34.96% / 2.8亿 / 6769.9万 / 85.84%`）、sources-destinations 272 格、subfolders-subdomains 900 格。**其中 geographical-regions 和 business-regions 是第二次重测才出的数——100 秒的下限没兜住它们**，重表格页的水合时间跨度大而且不稳定。所以这条规则的正确形状不是「把下限调大」：**只要判据长成「等够久 + 还是空 → 判空」，它就永远只是在赌一个阈值**，而阈值随页面、随目标、随负载变化。600 秒是现在的经验值，不是保证。**改成**：「空」这个结论默认就是暂定的，判空必须绑定一个正向的「本页已渲染完成」信号（分页器出现 / 行数计数出现 / 加载指示消失 / 只在数据到位后才出现的控件）；拿不到那种信号就**输出 `inconclusive` 而不是 `empty`**——这两个词对下游的意义完全不同，本仓库的规矩是宁可显式失败。时间下限保留，但它是**兜底不是判据**。现行协议 `v6-patient-signal-gated`（每轮 200 秒、3 轮跑满不早停、单条最长 600 秒）。**另记一条实测机制**：Semrush 流量与市场的渲染顺序是**摘要 → 图表 → 表格，表格永远最后**；摘要区已经出数、表格仍 0 行是正常中间态，不是空表。而 `captureStable` 那套「读两次一致就收下」在这里恰好会被**稳定的空态**骗过——0 行本身就是完全稳定的。剩下 3 条（usa / demographics / audience-overlap）仍在重测，**不要替它们下任何结论**。判据教训和六个实例见 backlink Skill 里 id 为 readiness-must-bind-to-this-query 的那条 law（实例 5 与实例 6），这里不复述。 **收尾 2026-08-28：不是 5 条改判，是 8 条全部改判，`empty-silent` 这一类在 node 5 上归零。** 补齐的三条：usa 459 格（`加利福尼亚 / 13.92% / 1811.9万 / 531.5万 / 82.66%`）、demographics 20 格（`美国 / 18.73%·1.5亿 / 81.88% / 18.12% / 巴西`）、audience-overlap 204 格（`chatgpt.com / 无类别 / 8.5亿 / 6.4亿 / 12.25%·1亿`）。另两条的样本原文：sources-destinations `canva.com / 直接 / 79.32% / 6.3亿 / ↑4.4%`、subfolders-subdomains `/design/ / 35.74% / 6.1亿 / 1.4亿 / 2.8亿`。实盘原话：**「我判过的每一条『空』，最后都是我等得不够。零例外。」** ⚠️ **并且 `chart-only` 那 10 条也没结案**：它们同样是在早停判据下测的，正按耐心模式重跑（先跑 referral / organic-search / paid-search / organic-social / socioeconomics）。表现不同（连 table 元素都不存在）**不构成免测的理由**——原话：「虽然它们的表现不同，但我不能凭这个就免测。」在结果回来之前，别把 chart-only 当成已确认的分类。",
           "methodologyNote": "**windowMode ≠ visibilityState。** 脚本传给 opencli 的 --window / windowMode 只是意图，不是标签页的实际状态：2026-08-28 实测中，标记为 background 的那次读到 document.visibilityState=visible，标记为 foreground 的那次读到 hidden。**唯一可信的记录是读取瞬间在页面里读到的 document.visibilityState**，任何按模式名归因的结论都要重做。 **更正 2026-08-28：可见性根本不是 CLI 侧能控制的量，它会自己来回翻。** 同一会话、期间什么都没做：全新 window:foreground launch 落地那一刻是 visible → 一次页内 location.href 导航之后变 hidden → 再隔约 10 分钟又自己变回 visible。推测机制：Chrome 对被其它窗口遮挡的窗口报 hidden，取决于机主桌面此刻哪个窗口在前。**所以策略不是「设法让它可见」，而是「只采信 visible 时的那一次读」**：每条路由最多 3 轮导航、每轮轮询 100 秒；只有 filled > 0、或连续 3 次在 vis === visible 下读到空，才允许下判定；全程没等到过 visible 就判 inconclusive-hidden，绝不记成「空」；每次读都记 visibilityState。详见 backlink Skill 里 id 为 hidden-tabs-do-not-hydrate 的那条 law。",
           "observedNote": "2026-08-28：node 5 上 22 条路由全部按 v4-visible-gated 协议判定完毕，四类分布见 perRouteFindings._distributionNode5。仍是 `partially-captured` 的部分只剩两处：8 条静默空表等 node 8 复测（pendingCrossNodeCheck），以及 traffic-overview / top-pages / countries / market-overview / competitor-monitoring 这几条不在本次 sweep 里的路由。  **更新 2026-08-28（node 8 复测回来之后）**：`top-pages` 的跨节点复测已完成（两节点都 850 格，逐格一致），`pendingCrossNodeCheck` 取消。8 条静默空表**没有**因此结案——它们的原判定用的是有早停缺陷的 v4 判据，已全部作废并按 `v5-visible-gated-min100s` 重测中（`remeasureStatus: pending-remeasure-v5`），`pendingCrossNodeCheck` 保留。所以本模块仍是 `partially-captured`，且待办比之前多，不比之前少。 **再更新 2026-08-28（耐心模式重测）**：8 条里 **5 条已改判为 `data`**（page-groups 20 / geographical-regions 198 / business-regions 36 / sources-destinations 272 / subfolders-subdomains 900 格），其中两条第二次重测才出数；`_distributionNode5` 已改为 data 7 / empty-silent 3。**剩 3 条（usa / demographics / audience-overlap）仍标 `pending-remeasure-v5`**，协议已升级为耐心模式 `v6-patient-signal-gated`（每轮 200 秒 / 3 轮 / 最长 600 秒）。另：`page-groups` 的 node 5 结果与 node 8 **逐格相同**，是继 top-pages 之后第二条跨节点一致的路由。本模块仍是 `partially-captured`。 **再收尾 2026-08-28**：8 条 empty-silent **全部**改判为 `data`，这一类计数归零，`_distributionNode5` 为 data 10 / chart-only 10 / requires-input 1 / not-a-report-route 1。但 **chart-only 的 10 条正在重测**（同一个早停判据），所以那个 10 是「待重测的条数」不是结论；本模块因此仍是 `partially-captured`。",
@@ -1233,6 +1234,7 @@
             "most-popular": 10
           },
           "collectionsNote": "Toolkits returned 0 as an observation, not as an absence: the page title matched the other collections, there were simply no matching app-card links on it. Whether the collection is genuinely empty or uses a different card structure was not separately verified. Do not record this as 'the collection does not exist'.",
+          "collectionsToolkitsRemeasure": "**pending-remeasure（2026-08-28）**：App Center 分类 `Toolkits` 的「返回 0 条」本轮**未复测**，保持待复测。这条和上面的 savedListCheck lid 结论是同一种形状——**页面上没看到东西 ⇒ 记 0**——而 0 条既可能是分类真的为空，也可能是卡片结构变了导致选择器没匹配上，甚至只是没渲染完。复测要求：换一个不依赖 app-card 链接选择器的判据（比如页面自报的条目数 / 分页器 / 空态文案），并按 600–700ms 轮询到一个正向的「本页已渲染完成」信号，拿不到就记 `inconclusive` 而不是 0。归属：Semrush 名下。",
           "activeOnThisAccount": [
             {
               "name": "SERP Gap Analyzer",
@@ -1542,6 +1544,25 @@
             }
           ]
         },
+        "hiddenTabHydrationControl": {
+          "recordedAt": "2026-08-28",
+          "verdict": "Similarweb 面板不受「隐藏标签页不水合」影响 —— 正面对照实验，已确认",
+          "control": "#/digitalsuite/websiteanalysis/home",
+          "measurement": "vis=hidden 下稳定读到完整内容：mainLen=445 / bodyLen=745，跨 4 次运行、900+ 次读全都如此，没有出现过降级形态。",
+          "conclusion": "这个 SPA 的隐藏标签页照常渲染。所以在 Similarweb 上，「读到空」不能用 hidden 解释掉——空读必须靠它自己的证据来判，而不是靠可见性来免责。",
+          "strength": "这是这条问题上的第一个正面对照实验，比之前那条负面证据（similarweb-query.mjs 长期后台使用能取到数）强：没出事比不上测过。",
+          "scopeOfTheLaw": "由此，backlink Skill 里 id 为 hidden-tabs-do-not-hydrate 的那条 law 的适用范围收窄为：已确认受影响 = Semrush 流量与市场（.Trends）的重表格页；已确认不受影响 = Similarweb 面板；其余仍未测量。范围表只写在那条 law 的 scope 里，这里只做指路和记录本次证据。",
+          "notYetExcluded": "本次对照用的是网站分析首页这类较轻的页面。Similarweb 侧的重表格页（站点排名 1 万行榜单、关键词研究大表、反向链接表）没有单独做过 hidden/visible 对照，所以「Similarweb 不受影响」目前是面板级结论、重表格页未单测。"
+        },
+        "segmentsObservation": {
+          "recordedAt": "2026-08-28",
+          "route": "#/digitalsuite/segments/home?tab=0",
+          "verdict": "维持，已达标（empty-confirmed-visible）",
+          "conclusion": "网站区段只渲染导航壳，是「还没建区段」的空态，不是坏页。",
+          "evidence": "在单个 visible 窗口内连续 3 次读到 mainLen=0 / bodyLen=209 / document.title=网站区段。这满足协议要求的「同一 visible 窗口内连续 3 次」，所以判定强度是达标，不是打折。",
+          "shellIdentity": "这 209 字符的外壳与 #/premium-features/home 逐字节相同（侧栏 19 项 + 用户指南浮层），这一点是 premiumFeaturesObservation.remeasure20260828.corroboration 的依据。",
+          "protocol": "v6-patient-signal-gated，轮询间隔 600–700ms（visible 是约 3 秒脉冲，6 秒轮询几乎必然错过）。"
+        },
         "premiumFeaturesObservation": {
           "route": "#/premium-features/home",
           "observed": "route-exists-content-empty",
@@ -1553,7 +1574,18 @@
             "location.reload() 后重读 → 空"
           ],
           "attempts": "2 个独立会话、合计 10+ 次轮询，.sw-layout-section-content 的 innerText 长度 mainLen 全为 0（更早一轮记的是恒定 209 字符的导航壳）。",
-          "notAScriptFailure": "同一会话、同一读法，在另外 18 条路由上都读到了内容。"
+          "notAScriptFailure": "同一会话、同一读法，在另外 18 条路由上都读到了内容。",
+          "attemptsWordingCorrection": "**更正 2026-08-28（原文保留在上面的 attempts 里，不改）**：attempts 把那 209 个字符称为「导航壳」。更准确的说法是：那 209 字符**不是「内容」**，而是**侧栏 19 项 + 用户指南浮层**（「我们如何提供帮助？…前往知识中心」）；**主内容区确实是 0**。所以 mainLen=0 / bodyLen=209 这一对读数并不矛盾，它们描述的是同一件事的两层。",
+          "concurrencyHazard": "复测期间全程 1400+ 次读里只有 6 次 vis=visible——因为另一个 agent 的 semrush-nav 标签页一直是 Chrome 的活动标签；第一次运行还被别人直接把 similarweb-nav 会话关掉了（日志出现 No active session）。**任何按 6 秒轮询做的可见性复测在这台机器上都近乎必然采不到 visible。**visible 是约 3 秒的短脉冲，轮询间隔必须降到 600–700ms。",
+          "remeasure20260828": {
+            "verdict": "维持，但强度打折（not-fully-met）",
+            "protocol": "v6-patient-signal-gated，轮询间隔 600–700ms",
+            "evidence": "3 次独立的 visible 读，来自 3 个会话、跨度约 40 分钟，全部 mainLen=0 / bodyLen=209 / document.title=高级版功能 / location.hash 未漂移；合计 821 次读形态恒定。",
+            "whyNotFullyMet": "协议要求的是「单个 visible 窗口内连续 3 次」。premium-features 每次 visible 脉冲只采到 1 次读就翻回 hidden，所以那 3 次是跨会话的，不是同一窗口内的。复测方自己拒绝把它写成达标——这个分寸要保留，不要在下游把它读成 empty-confirmed-visible。",
+            "corroboration": "有一个合理的补强论证：premium-features 和网站区段（Segments）共用逐字节相同的 209 字符外壳，而网站区段已达标（同一个 visible 窗口内连续 3 次读到 mainLen=0 / bodyLen=209）。这说明同一个外壳在确认的 visible 状态下就是这个样子，因此 premium-features 那 3 次读是真实渲染结果，而不是隐藏态伪影。",
+            "visibilityExcuseUnavailable": "另外，Similarweb 面板的隐藏标签页照常水合（见 liveAudit.hiddenTabHydrationControl 的正面对照实验），所以这里的空本来就不能用 hidden 解释掉。",
+            "conclusionStands": "route-exists-content-empty 维持。仍然不能据此说这个功能不存在，也仍然不知道那里本该渲染什么（iframe？套餐挡掉的组件？）。"
+          }
         },
         "knownMissing": [],
         "resolvedQuestions": [
@@ -1724,7 +1756,7 @@
           "verdict": "共审 60 条，找到 3 处证据方式受影响（全部已就地标注，未删除），其余为主动确认过的不受影响。"
         },
         "openQuestions": [
-          "#/premium-features/home is route-exists-content-empty, not a missing feature: the route resolves and the title is correct, but the content area read 0 characters across 2 sessions and 10+ polls through four different entries. What renders there (iframe? plan-gated component?) is still unknown.",
+          "#/premium-features/home is route-exists-content-empty, not a missing feature: the route resolves and the title is correct, but the content area read 0 characters across 2 sessions and 10+ polls through four different entries. What renders there (iframe? plan-gated component?) is still unknown. RE-MEASURED 2026-08-28 under v6-patient-signal-gated with a 600-700ms poll: the verdict STANDS but at reduced strength (not-fully-met) — 3 visible reads across 3 sessions / ~40 minutes, 821 reads of constant shape, but never 3 consecutive reads inside ONE visible window. Full record, plus the Segments shared-shell corroboration and the 209-character wording correction, in liveAudit.premiumFeaturesObservation.remeasure20260828. The hidden-tab excuse is not available here: see liveAudit.hiddenTabHydrationControl.",
           "The 2026-08-27 route evidence never recorded the landing hash, so any inner page reached by hash deep link needs one re-check against location.hash before it can be called confirmed. See evidenceAudit."
         ],
         "separateProducts": [

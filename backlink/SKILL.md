@@ -681,6 +681,15 @@ which is why the check below samples `visibilityState` from inside the page
 instead of trusting the flag.
 </why>
 <scope>
+**Read this range statement before you invoke the law — or before you use it as
+an excuse.** The visibility-induced fake empty is a **Semrush Traffic &amp; Market
+(.Trends) heavy-table** phenomenon. It is **confirmed absent on the Similarweb
+panel** (positive control, below): that SPA hydrates in hidden tabs, so on
+Similarweb "I read empty" may **not** be explained away as a visibility
+artefact. Every other surface is **unmeasured** — neither affected nor exempt.
+Measure it and write the result here; do not extend the law by analogy, and do
+not dismiss it by analogy either.
+
 **Confirmed affected — first hydration only:** the Semrush Traffic &amp; Market
 (.Trends) traffic-overview summary block, when it *loads* while hidden.
 `scripts/semrush-traffic.mjs` therefore defaults to `--window foreground`; that
@@ -707,6 +716,18 @@ early-stopping criterion, so the finding is **not confirmed**. All ten Class A
 routes are being re-run under patient mode. The working reading stays "they
 publish charts only, and the numbers are in the chart", and it is not yet a fact
 to file conclusions against.
+
+**Confirmed NOT affected — the whole Similarweb panel (positive control,
+2026-08-28).** This is the first *experiment* on the question rather than an
+inference. Control route `#/digitalsuite/websiteanalysis/home` was read under
+`vis=hidden` across **4 runs and 900+ reads** and returned **complete content
+every single time** — `mainLen=445 / bodyLen=745`, stable, no degraded variant.
+**This SPA renders hidden tabs exactly like visible ones.** The consequence is
+the useful half: on Similarweb an empty read has to be judged on its own
+evidence, because the hidden-tab excuse is not available there. This supersedes
+in strength — it does not merely repeat — the older negative evidence that the
+Similarweb query script "has been getting numbers in background mode for as long
+as it has existed"; absence of trouble is weaker than a measured control.
 
 **Confirmed NOT affected:** reads of an *already hydrated* .Trends page — the
 same top-pages report handed back 850 non-empty cells with
@@ -741,6 +762,20 @@ opencli browser "$S" eval '(() => JSON.stringify({
 #    rounds x 100s of polling) until either filled>0, or three consecutive
 #    reads under visibility==="visible" agree it is empty. You cannot force
 #    "visible" - you can only wait for it and record which reads had it.
+#
+# 2b. POLL EVERY 600-700ms INSIDE THE ROUND. Not 6 seconds. Measured 2026-08-28
+#    on Similarweb: across 1400+ reads only SIX came back "visible", because
+#    another agent's tab held Chrome's active tab for the whole run (one run was
+#    worse - the session was closed out from under it and the log shows
+#    "No active session"). "visible" arrives as a ~3-SECOND PULSE, so a 6s poll
+#    misses it almost every time and the route lands on "inconclusive-hidden"
+#    for a reason that has nothing to do with the route. 600-700ms is the only
+#    cadence measured to actually capture visible reads. It does not shorten the
+#    round or license an earlier verdict - it samples the same wait more densely.
+#    Corollary for the "three consecutive visible reads" rule: at 600-700ms a
+#    single ~3s pulse can hold all three, which is what makes that rule
+#    reachable at all. Three visible reads taken in three DIFFERENT pulses (or
+#    three different sessions) are cross-window evidence and do NOT satisfy it.
 node scripts/semrush-traffic.mjs --domain canva.com --window foreground
 # -> a read that came back visible with len 1957 and all 15 fields => real data
 # -> never saw "visible" in the budget => status "inconclusive-hidden"
@@ -1011,6 +1046,11 @@ const verdict = filledCells > 0 ? 'data'
   : 'inconclusive';          // <- the default when the page never said it was done
 // rounds: 200s each, 3 of them, run to completion, 600s cap per route.
 // Those numbers bound the wait; they do not license the verdict.
+// POLL at 600-700ms inside a round, never 6s: "visible" is a ~3s pulse (measured
+// 2026-08-28 - 6 visible reads out of 1400+ at a 6s cadence, because another
+// agent held Chrome's active tab). visibleReads >= 3 means three reads inside ONE
+// visible window; three reads spread over three separate pulses do not count.
+
 
 // and record the evidence NEXT TO the verdict, not just the verdict
 { "route": "/analytics/traffic/top-pages/", "verdict": "data",
