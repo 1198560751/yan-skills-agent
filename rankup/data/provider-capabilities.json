@@ -188,7 +188,125 @@
             "Trending Websites"
           ],
           "observed": "enumerated-only",
-          "note": "侧栏枚举到 28 个页面名，**一个数都没取过**。当初停在提交按钮前，记录的理由是「Traffic analysis submission creates a project」——提交查询会建项目，按红线属于写操作。该理由从未复查：是不是真的必须建项目、有没有只读入口，都没试过。这是 Semrush 对标 Similarweb 的那条产品线，空着的面积最大。"
+          "note": "2026-08-28 从侧栏 shadow DOM 读到 28 条确切路由（见 routes），比之前的功能名列表可直接使用。**依然一个数都没取过**，observed 仍是 enumerated-only。 当天的两条实测更正：(1) 入口路由是 /analytics/traffic/traffic-overview/，不是 /analytics/traffic/overview/——后者会被重定向到 Getting Started 落地页并丢掉 query，我曾据此误以为深链不可用；(2) 落地页 needsProject=false，页面给的是一个直接输域名的「分析」框，「保存的列表 / 创建新列表」是另一个显式动作。所以旧边界「提交查询会创建项目」**疑似不成立**——但提交那一步没跑完（共享面板中途登出），所以只记为存疑，不改判。",
+          "routes": [
+            [
+              "/analytics/traffic/",
+              "开始"
+            ],
+            [
+              "/analytics/traffic/traffic-overview/",
+              "流量分析"
+            ],
+            [
+              "/analytics/traffic/market-overview/",
+              "市场概览"
+            ],
+            [
+              "/analytics/traffic/top-pages/",
+              "主要页面"
+            ],
+            [
+              "/analytics/traffic/competitor-monitoring/",
+              "竞争对手监控"
+            ],
+            [
+              "/analytics/traffic/ai-traffic/",
+              "AI 流量"
+            ],
+            [
+              "/analytics/traffic/referral/",
+              "引荐流量"
+            ],
+            [
+              "/analytics/traffic/organic-search/",
+              "自然搜索"
+            ],
+            [
+              "/analytics/traffic/paid-search/",
+              "付费搜索"
+            ],
+            [
+              "/analytics/traffic/organic-social/",
+              "自然社交"
+            ],
+            [
+              "/analytics/traffic/paid-social/",
+              "付费社交"
+            ],
+            [
+              "/analytics/traffic/email/",
+              "电子邮件"
+            ],
+            [
+              "/analytics/traffic/display-ads/",
+              "展示广告"
+            ],
+            [
+              "/analytics/traffic/sources-destinations/",
+              "来源与目标"
+            ],
+            [
+              "/analytics/traffic/subfolders-subdomains/",
+              "子文件夹和子域名"
+            ],
+            [
+              "/analytics/traffic/page-groups/",
+              "页面组"
+            ],
+            [
+              "/analytics/traffic/usa/",
+              "美国"
+            ],
+            [
+              "/analytics/traffic/countries/",
+              "国家/地区"
+            ],
+            [
+              "/analytics/traffic/business-regions/",
+              "业务区域"
+            ],
+            [
+              "/analytics/traffic/geographical-regions/",
+              "地理区域"
+            ],
+            [
+              "/analytics/traffic/demographics/",
+              "人口统计"
+            ],
+            [
+              "/analytics/traffic/audience-overlap/",
+              "受众重叠"
+            ],
+            [
+              "/analytics/traffic/socioeconomics/",
+              "社会经济"
+            ],
+            [
+              "/analytics/traffic/behavior/",
+              "行为"
+            ],
+            [
+              "/analytics/traffic/daily-trends/",
+              "每日趋势"
+            ],
+            [
+              "/analytics/traffic/industry-and-bulk-analysis/",
+              "行业与批量分析"
+            ],
+            [
+              "/analytics/traffic/trends-api",
+              "Trends API"
+            ],
+            [
+              "/trending-websites/global/all/",
+              "热门网站趋势"
+            ]
+          ],
+          "openQuestions": [
+            "提交一次流量分析到底算不算写操作？落地页看不出建项目，但没实际提交过，未定论。",
+            "深链参数格式未知：?q=<domain> 不被识别，页面停在空态。需要提交一次后读回 URL 才能确定。"
+          ]
         },
         {
           "name": "AI SEO / AI Visibility",
