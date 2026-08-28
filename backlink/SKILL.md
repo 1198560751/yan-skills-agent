@@ -258,7 +258,23 @@ pacing. What was missing is that its **scheduling consequence** lived only in a
 code comment, where a planner never reads it.
 </why>
 <correct><![CDATA[
-Serialise deliberately, and give the tool-bound work to ONE agent at a time:
+There are TWO separate limits, and hitting either one looks like "the page is
+just sitting there". Respect both.
+
+  (1) This lock — one process per tool per machine, account-level concurrency.
+  (2) Tab-load concurrency — measured 2026-08-28: roughly THREE Semrush tabs
+      loading at once is enough to break it. That one is not this lock's job.
+
+For (2) the opencli Skill prescribes the opposite of unique session names:
+a quota site gets ONE fixed session name with no per-agent suffix, e.g.
+
+  semrush-nav        similarweb-nav
+
+Ten agents handed the same name get queued by the daemon, and the site only
+ever sees a single tab paging through. See the opencli Skill's
+"配额站：法律 1 的唯一例外". Unique names remain correct everywhere else.
+
+Then serialise the work itself, one agent at a time per tool:
   agent A -> Semrush routes      (holds the semrush lock, start to finish)
   agent B -> Similarweb features (different lock, may still queue behind others)
   agent C -> offline work        (parsers, fixtures, docs — no lock at all)
@@ -269,8 +285,12 @@ Before dispatching, check who holds it:
 ]]></correct>
 <wrong><![CDATA[
 Three agents each told "use session name sweep-1 / sweep-2 / sweep-3, go".
-The names are fine. The lock is not: two of them burn their budget waiting,
-and a retry loop that re-attempts every 30s makes the contention worse.
+On a quota site the names are NOT fine — distinct names set the concurrency to
+the agent count, which is how 19 tm-* tabs ended up loading the same Semrush
+report at once on 2026-08-28. And the lock is not fine either: two agents burn
+their budget waiting, while a retry loop that re-attempts every 30s makes the
+contention worse. The first move when you hit the ceiling is `close`, not
+`sleep` — retrying just opens another tab.
 ]]></wrong>
 </law>
 
