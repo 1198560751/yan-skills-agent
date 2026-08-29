@@ -99,10 +99,26 @@ const REAL_CHAIN = [
   'Authority Score 100 行业领导者 自然流量 287.9M +0.4% 付费流量 442.1K -28%',
 ];
 
+/**
+ * 同一天实盘取回的**第二条**祖先链（mmradar.gg，AS=22，中低分档）。形状和 canva 一模一样，
+ * 唯一的差别是等级文案的措辞：`流量/反向链接的比例较高` 里**含指标名 `反向链接`**。
+ * 旧的整段子串 `OTHER` 因此在 k4→k5 的门口把爬升掐断（`climbed=4, stoppedBy=other-metric,
+ * hasValue=false`），中低分站被系统性判成 inconclusive。canva 能过纯属措辞侥幸。
+ */
+const REAL_CHAIN_MIDBAND = [
+  'Authority Score',
+  'Authority Score',
+  'Authority Score',
+  'Authority Score',
+  'Authority Score',                                       // ← 撞串的旧判据停在这里
+  'Authority Score 22 流量/反向链接的比例较高',                // ← 真正的挂件，值和等级词都在
+  'Authority Score 22 流量/反向链接的比例较高 自然流量 23.9K +67% 付费流量 0 引荐域名 37',
+];
+
 /** 概览页的整页文本：AS 一行标签一行值，其余指标照旧。 */
-function overviewText(as) {
+function overviewText(as, grade = '行业领导者') {
   return [
-    'Authority Score', String(as), '行业领导者',
+    'Authority Score', String(as), grade,
     '自然流量', '23.8K', '+12%',
     '付费流量', '0',
     '引荐域名', '1.6K',
@@ -156,6 +172,52 @@ test('end to end on the real chain: value + grade label ⇒ confirmed, authority
   });
   assert.equal(settleVerdict(settled), 'confirmed');
   assert.equal(readMetrics(settled.capture.bodyText).authorityScore, 100);
+});
+
+test('a mid-band grade label that contains a metric name must not stop the climb (mmradar.gg)', () => {
+  // 这是本次的 bug 本体：等级文案 `流量/反向链接的比例较高` 里含 `反向链接`。
+  // 旧的整段子串 `OTHER` 在 k4 看 k5 时命中 → climbed=4 / stoppedBy=other-metric /
+  // hasValue=false → 完成信号永远为假 → 中低分站全被拒收。
+  const { widget } = runProbe({ levels: REAL_CHAIN_MIDBAND });
+  assert.equal(widget.stoppedBy, 'value', 'a grade label is not "another metric" — the climb must go on');
+  assert.equal(widget.climbed, 5);
+  assert.equal(widget.text, 'Authority Score 22 流量/反向链接的比例较高');
+  assert.equal(widget.hasValue, true);
+  assert.equal(widget.hasGrade, true);
+  // 挂件里**不许**混进邻居的数字，否则 hasValue 就成了别人的证据。
+  assert.doesNotMatch(widget.text, /23\.9K|自然流量|付费流量|引荐域名/);
+  assert.equal(makeAuthorityScoreRenderSignal()({ asWidget: widget }), true);
+});
+
+test('end to end on the mid-band chain: authorityScore 22 is confirmed, not inconclusive', async () => {
+  const { widget } = runProbe({ levels: REAL_CHAIN_MIDBAND });
+  const settled = await pollOverview({
+    ...POLL,
+    read: constantRead({
+      ready: true,
+      title: 'Domain Overview',
+      bodyText: overviewText(22, '流量/反向链接的比例较高'),
+      asWidget: widget,
+    }),
+  });
+  assert.equal(settleVerdict(settled), 'confirmed', 'the mid-band site must reach a verdict, not inconclusive');
+  assert.equal(readMetrics(settled.capture.bodyText).authorityScore, 22);
+});
+
+test('the neighbouring-metrics strip is still refused, even one level up from the mid-band widget', () => {
+  // 防止修过头：k6 那一层是「一堆别的指标的值」，爬进去就是错配来源。
+  // 构造成挂件层里没有值，值只在 k6 出现——此时必须停在 k6 门口，宁可报「没值」。
+  const stripOnly = [
+    'Authority Score',
+    'Authority Score',
+    'Authority Score 流量/反向链接的比例较高',                  // 等级词在，但值还没水合
+    'Authority Score 流量/反向链接的比例较高 自然流量 23.9K +67% 付费流量 0 引荐域名 37',
+  ];
+  const widget = runProbe({ levels: stripOnly }).widget;
+  assert.equal(widget.stoppedBy, 'other-metric', 'the metrics strip must still stop the climb');
+  assert.equal(widget.hasValue, false, 'and its numbers must never be borrowed as AS evidence');
+  assert.doesNotMatch(widget.text, /23\.9K|自然流量/);
+  assert.equal(makeAuthorityScoreRenderSignal()({ asWidget: widget }), false);
 });
 
 test('2026-08-23 incident: a placeholder 0 that is perfectly stable is NOT a fact', () => {
@@ -269,9 +331,16 @@ test('the locale comes from the page, not from us guessing', () => {
 
 test('the probe scopes itself to the Authority Score widget, not the whole page', () => {
   const probe = extract(/const AS_WIDGET_PROBE_JS = `[\s\S]*?`;/, 'AS_WIDGET_PROBE_JS');
-  // 往上爬遇到别的指标就停：否则取到的证据是别的卡片的，和 AS 无关。
-  assert.match(probe, /自然流量\|付费流量\|引荐域名/);
-  assert.match(probe, /OTHER\.test/);
+  // 往上爬遇到别的**指标条**就停：否则取到的证据是别的卡片的，和 AS 无关。
+  for (const name of ['自然流量', '付费流量', '引荐域名', '自然搜索关键词', '反向链接']) {
+    assert.ok(probe.includes(name), `the metric-name list must still know ${name}`);
+  }
+  assert.match(probe, /hasOtherMetricStrip\(clean\(parent\.innerText\)\)/);
+  // 判据必须是**位置性**的，不是整段 innerText 的子串匹配 —— 后者会被 AS 自己的等级文案
+  // 撞串（`流量/反向链接的比例较高` 含 `反向链接`），中低分站因此永远拿不到确认。
+  assert.match(probe, /isEdge\(s\[at - 1\]\)/, 'a metric name only counts when it stands alone as a word');
+  assert.match(probe, /startsWithMetricName\(after\)/, '…and is followed by its own value or the next label');
+  assert.doesNotMatch(probe, /const OTHER = \//, 'the whole-innerText substring regex is what caused the bug');
   // 探针不许把「值是多少」带进信号。
   assert.doesNotMatch(probe, /!==\s*0|>\s*0/);
   // 层数只许当上界，不许当判据：停止条件必须是「挂件里出现了数字」。

@@ -127,12 +127,52 @@ function readMetrics(bodyText) {
  * ⚠️ **不采集「值是不是 0」**。「非 0」不是完成信号，而是把结论绑回了要判定的那个
  * 数本身：真值就是 0 的新站会因此永远等到超时，而这正是本脚本 2026-08-21 那条注释
  * 要保住的合法取值。等级标签判据对 0 与 100 一视同仁。
+ *
+ * 【2026-08-29 第三轮：`OTHER` 的**形状**错了，不是词表错了】
+ * 实盘 `--domain mmradar.gg`：`inconclusive`，widget 证据 `climbed=4, stoppedBy=other-metric,
+ * hasValue=false` —— 而同一刻页面上 AS 早就渲染完了。取回的祖先链：
+ *   k4 `Authority Score`  ← 探针停在这
+ *   k5 `Authority Score 22 流量/反向链接的比例较高`   ← 值和等级词都在这一层
+ *   k6 `… 自然流量 23.9K +67% 付费流量 0 引荐域名 37 …`
+ * 中低分档的等级文案 `流量/反向链接的比例较高` 里含 `反向链接`，而旧的 `OTHER` 是对整段
+ * innerText 做**子串匹配**，于是在**含值的那一层门口**把爬升掐断 → `hasValue` 永远 false
+ * → 完成信号永远为假 → 中低分站被系统性拒收。canva.com 逃过一劫纯属措辞侥幸
+ * （`行业领导者` 不含任何指标名）。
+ *
+ * 修的是**判据的形状，不是词表的内容**——从词表里删掉 `反向链接` 只是把一个撞串换成
+ * 下一个撞串（下一档等级词里出现 `自然流量` 就又中招）。现在 `OTHER` 认的是
+ * **「指标条」的形状**，见探针里的 `hasOtherMetricStrip()`：指标名必须
+ *   (a) 两侧都是边界（前后都不是字母/数字，也就是它**自成一个词**），且
+ *   (b) 紧跟着它自己的数值，或紧跟着下一个指标名——这正是 k6 那条并排指标条的样子。
+ * 等级文案里的指标名是**黏在句子中间**的（`流量/反向链接的比例较高`：左边 `/`、右边 `的`），
+ * 两条都不成立。这样 k6 照旧被拦住（`自然流量 23.9K` 前后有边界、后面跟着自己的数值），
+ * 而 k5 放行。判据与具体档位词无关，不需要我们去猜中低分区间还有哪些措辞。
  */
 const AS_WIDGET_PROBE_JS = `(() => {
   const clean = (s) => String(s == null ? '' : s).replace(/\\s+/g, ' ').trim();
   const LABEL = /^(Authority Score|权威分数|权重分)$/;
   const LABEL_WORDS = /Authority Score|权威分数|权重分/g;
-  const OTHER = /自然流量|付费流量|引荐域名|自然搜索关键词|反向链接|Organic Traffic|Referring Domains|Backlinks/;
+  // ⚠️ 这是**指标名**，不是给等级词用的黑名单。等级文案里会正常出现这些词
+  // （实测低分档「流量/反向链接的比例较高」），所以下面认的是**位置**，不是出现与否。
+  const OTHER_NAMES = ['自然流量', '付费流量', '引荐域名', '自然搜索关键词', '反向链接', 'Organic Traffic', 'Referring Domains', 'Backlinks'];
+  // 边界 = 字母/数字以外的任何东西（含字符串两端）。中文没有空格分词，所以
+  // 「自成一个词」只能靠两侧不是字母/汉字来判。
+  const isEdge = (ch) => ch === undefined || !/[\\p{L}\\p{N}]/u.test(ch);
+  const startsWithMetricName = (s) => OTHER_NAMES.some((n) => s.startsWith(n) && isEdge(s[n.length]));
+  /**
+   * 「这一层是不是把并排的指标条圈进来了」。指标条的形状：**指标名自成一个词，
+   * 后面紧跟着它自己的数值（或直接是下一个指标名）**——「自然流量 23.9K +67% 付费流量 0」。
+   * 等级文案里的指标名黏在句子里（「流量/反向链接的比例较高」），两条都不成立。
+   * 这条判据只依赖形状，不依赖我们能不能穷举等级词。
+   */
+  const hasOtherMetricStrip = (s) => OTHER_NAMES.some((name) => {
+    for (let at = s.indexOf(name); at !== -1; at = s.indexOf(name, at + 1)) {
+      if (!isEdge(s[at - 1]) || !isEdge(s[at + name.length])) continue;
+      const after = s.slice(at + name.length).replace(/^[\\s:：]+/, '');
+      if (/^\\d/.test(after) || startsWithMetricName(after)) return true;
+    }
+    return false;
+  });
   const NO_DATA = /不可用|暂无数据|暂无|n\\/a/i;
   // 层数只是**上界**（防死循环 / 防爬到 body），不是判据。真正的停止条件在下面。
   const MAX_CLIMB = 8;
@@ -152,14 +192,15 @@ const AS_WIDGET_PROBE_JS = `(() => {
   let widget = label;
   let climbed = 0;
   let stoppedBy = 'value';
-  // 一直爬到**挂件里出现数字**为止；在 OTHER 命中之前停下。
-  // 实测：值在第 5 层出现，OTHER 在第 6 层才命中，所以这一步是安全且必要的。
+  // 一直爬到**挂件里出现数字**为止；在「别的指标条」被圈进来之前停下。
+  // 实测两条链：值都在第 5 层出现，指标条在第 6 层才出现，所以这一步是安全且必要的。
   while (!/\\d/.test(restOf(widget))) {
     if (!widget.parentElement) { stoppedBy = 'root'; break; }
     if (climbed >= MAX_CLIMB) { stoppedBy = 'max-climb'; break; }
     const parent = widget.parentElement;
-    // 爬到把别的指标也圈进来了就停：再往上取到的证据是别人的，不是 AS 的。
-    if (OTHER.test(clean(parent.innerText))) { stoppedBy = 'other-metric'; break; }
+    // 爬到把别的指标**连同它们的数值**一起圈进来了就停：再往上取到的证据是别人的。
+    // 注意判的是指标条的形状，不是「文本里出现过指标名」——后者会被 AS 自己的等级文案撞串。
+    if (hasOtherMetricStrip(clean(parent.innerText))) { stoppedBy = 'other-metric'; break; }
     widget = parent;
     climbed += 1;
   }
