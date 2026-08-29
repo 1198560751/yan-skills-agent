@@ -15,7 +15,9 @@
  *
  *   1. **就绪判据是 filledCells > 0，不是文本长度。** deep text 在 9 秒就到
  *      1.6M（纯壳），数据 76 秒才落进 DOM；用文本长度当就绪判据会提前约 1 分钟
- *      误判。见 isReady()。
+ *      误判。见 isReady()。2026-08-29 重测 9 条 chart-only 路由后补了第二分支：
+ *      filledCells 恒 0 但 svgText > 0 且 3 轮稳定 → chart 分支就绪，见
+ *      isChartReady()；manifest 的 readyBranch 记录走了哪条分支。
  *   2. **先轮询到有数据，再开始截图。** 顺序反了会存下一堆加载态废图。
  *   3. **到底判据 = census 不变 且 截图 md5 不变。** 双证人同时不变才算到底，
  *      单证人不变可能只是滚错了对象或页面根本没动。见 pairsIdentical()。
@@ -86,13 +88,57 @@ export function scrubEvalPayload(text) {
 }
 
 /**
- * 就绪判据：**deep.filledCells > 0，绝不是文本长度。**
+ * 就绪判据（table 分支，**优先级最高**）：**deep.filledCells > 0，绝不是文本长度。**
  * 试点实测：deep textLength 9 秒就 1,599,006（外壳），非空单元格 76 秒才从
  * 0 → 850。textLength 是壳不是货，任何用它当就绪判据的实现都会提前约 1 分钟
  * 把加载态当成数据。
  */
 export function isReady(census) {
   return Number(census?.deep?.filledCells) > 0;
+}
+
+/**
+ * 就绪判据（chart 分支，table 分支不满足时才看）：**svgText > 0 且连续
+ * `stablePolls`（默认 3）轮 svgText 与 deepTextLength 稳定不变。**
+ *
+ * 背景（2026-08-29 重测，见 evidence/ground-truth/remeasure-VERDICTS.md）：
+ * 9 条 Semrush chart-only 路由 filledCells 恒 0，老判据下永远「不就绪」，
+ * 每条烧满 240 秒预算 + 触发 2 次无效刷新。图表就绪的形状是 svg text 节点
+ * 落地后不再变（referral 44、daily-trends 1132……），所以用「有 svg 文本
+ * 且稳定」当 chart 分支的就绪。
+ *
+ * 与 stall 判据的相互作用：两者都是「3 轮稳定」，区别是 svgText>0（就绪）
+ * vs 全零（卡住）。**chart 就绪检查必须先于 stall 检查**——否则 svgText>0
+ * 的稳定会被当成卡住去刷新。
+ */
+export const CHART_STABLE_POLLS = 3;
+export function isChartReady(recent, stablePolls = CHART_STABLE_POLLS) {
+  if (!Array.isArray(recent) || recent.length < stablePolls) return false;
+  const window = recent.slice(-stablePolls);
+  // filledCells > 0 归 table 分支管，这里绝不越权判就绪。
+  if (window.some((poll) => Number(poll?.filledCells) > 0)) return false;
+  const svg = Number(window[0]?.svgText);
+  if (!(svg > 0)) return false;
+  const textLen = window[0]?.deepTextLength;
+  if (textLen == null) return false;
+  return window.every((poll) => Number(poll?.svgText) === svg && poll?.deepTextLength === textLen);
+}
+
+/**
+ * 疑似空态打标（采集侧，不构成结论）：svgText === 0 且 deepTextLength 稳定
+ * 且无 filledCells。email 路由的教训：无文案的占位空态（灰色锯齿占位图）
+ * 不触发 detectEmptyState，svgText 0 是唯一能把它从 chart-only 里分出来的
+ * 信号。命中只在 manifest 记 `suspectedEmptyState: true`，仍按预算走完——
+ * 「空」的结论一律留给 AI 对质双证人。
+ */
+export function isSuspectedEmptyState(recent, stablePolls = CHART_STABLE_POLLS) {
+  if (!Array.isArray(recent) || recent.length < stablePolls) return false;
+  const window = recent.slice(-stablePolls);
+  if (window.some((poll) => Number(poll?.filledCells) > 0)) return false;
+  if (window.some((poll) => Number(poll?.svgText) !== 0)) return false;
+  const textLen = window[0]?.deepTextLength;
+  if (textLen == null) return false;
+  return window.every((poll) => poll?.deepTextLength === textLen);
 }
 
 /**
@@ -164,6 +210,7 @@ export function pairsIdentical(prev, curr) {
 export function buildManifest({
   url, session, startedAt, finishedAt, readyAfterMs, polls, steps,
   stopReason, budgetSeconds, maxScreens, error = null, refreshes = [],
+  readyBranch = null, suspectedEmptyState = false,
 }) {
   return {
     schemaVersion: 1,
@@ -174,6 +221,12 @@ export function buildManifest({
     budgetSeconds,
     maxScreens,
     readyAfterMs,
+    // 就绪走的是哪条分支："table"（filledCells>0）| "chart"（svgText>0 稳定）
+    // | null（从未就绪）。
+    readyBranch,
+    // svgText===0 且 deepTextLength 稳定且无 filledCells 的疑似空态打标。
+    // 只是打标——判断留给 AI 对质双证人。
+    suspectedEmptyState,
     pollCount: polls.length,
     stepCount: steps.length,
     // 「刷了 2 次还起不来」和「从没刷过就放弃」是完全不同的证据：
@@ -243,6 +296,8 @@ async function main() {
   let stopReason = 'error';
   let exitCode = 3;
   let readyAfterMs = null;
+  let readyBranch = null;
+  let suspectedEmptyState = false;
   let errorRecord = null;
 
   /** 同一停留位置的一对证人：census-sN.json 先落，紧接 shot-sN.png。 */
@@ -297,13 +352,34 @@ async function main() {
         filledCells: capture.census?.deep?.filledCells ?? null,
         deepTextLength: capture.census?.deep?.textLength ?? null,
         lightTextLength: capture.census?.lightDom?.textLength ?? null,
+        svgText: capture.census?.deep?.svgText ?? null,
       };
       polls.push(summary);
-      if (isReady(capture.census)) { readyAfterMs = Date.now() - startedAtMs; break; }
+      // 就绪分支优先级：table（filledCells>0，立即）> chart（svgText>0 且 3 轮稳定）。
+      if (isReady(capture.census)) {
+        readyAfterMs = Date.now() - startedAtMs;
+        readyBranch = 'table';
+        suspectedEmptyState = false;
+        break;
+      }
       emptyMarker = detectEmptyState(capture.census?.deepText);
       if (emptyMarker) break;
 
-      sinceRefresh.push({ fingerprint: pollFingerprint(capture), filledCells: summary.filledCells });
+      sinceRefresh.push({
+        fingerprint: pollFingerprint(capture),
+        filledCells: summary.filledCells,
+        svgText: summary.svgText,
+        deepTextLength: summary.deepTextLength,
+      });
+      // chart 就绪必须先于 stall 检查：svgText>0 的 3 轮稳定是就绪，不是卡住。
+      if (isChartReady(sinceRefresh)) {
+        readyAfterMs = Date.now() - startedAtMs;
+        readyBranch = 'chart';
+        suspectedEmptyState = false;
+        break;
+      }
+      // 疑似空态（svgText===0 稳定）只打标，仍按预算走完；stall 刷新照旧。
+      if (isSuspectedEmptyState(sinceRefresh)) suspectedEmptyState = true;
       if (isStalled(sinceRefresh) && refreshes.length < MAX_REFRESHES) {
         refreshes.push({
           refresh: refreshes.length + 1,
@@ -334,7 +410,7 @@ async function main() {
       stopReason = emptyMarker ? 'empty-state' : 'budget';
       exitCode = emptyMarker ? 0 : 2;
       if (emptyMarker) errorRecord = null;
-      else errorRecord = { code: 'budget-exhausted', message: 'data never became ready (filledCells stayed 0)' };
+      else errorRecord = { code: 'budget-exhausted', message: 'data never became ready (no table filledCells, no stable svgText)' };
     } else {
       // 3. 分屏循环：census + 截图成对落盘 → 滚一屏 → 真睡眠 → 再采。
       //    到底 = 与上一步双证人同时不变，连续 1 次。
@@ -363,7 +439,7 @@ async function main() {
       finishedAt: new Date().toISOString(),
       readyAfterMs, polls, steps, stopReason,
       budgetSeconds: budgetMs / 1000, maxScreens,
-      error: errorRecord, refreshes,
+      error: errorRecord, refreshes, readyBranch, suspectedEmptyState,
     });
     try { writePayload(outDir, 'manifest.json', manifest); } catch (writeError) {
       console.error(redactSecrets(`manifest write failed: ${writeError?.message || writeError}`));
@@ -372,7 +448,7 @@ async function main() {
     await closeSession(session).catch(() => {});
   }
 
-  console.error(redactSecrets(`[ground-truth] stopReason=${stopReason} steps=${steps.length} polls=${polls.length} refreshes=${refreshes.length} exit=${exitCode}`));
+  console.error(redactSecrets(`[ground-truth] stopReason=${stopReason} readyBranch=${readyBranch} steps=${steps.length} polls=${polls.length} refreshes=${refreshes.length} exit=${exitCode}`));
   process.exitCode = exitCode;
 }
 

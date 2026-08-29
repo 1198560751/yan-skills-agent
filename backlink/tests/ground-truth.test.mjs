@@ -14,8 +14,10 @@ import {
   buildManifest,
   censusFingerprint,
   detectEmptyState,
+  isChartReady,
   isReady,
   isStalled,
+  isSuspectedEmptyState,
   pairsIdentical,
   sanitizeUrlString,
   scrubEvalPayload,
@@ -212,6 +214,76 @@ test('manifest：refreshes / refreshCount 进 manifest —— 「刷了 2 次没
 // ---------------------------------------------------------------------------
 // 空态标记（采集侧停轮询用，不构成结论）
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// chart 分支就绪（2026-08-29 重测：9 条 chart-only 路由 filledCells 恒 0）
+// ---------------------------------------------------------------------------
+
+const chartPoll = (svgText, deepTextLength, filledCells = 0, fingerprint = `fp:${svgText}:${deepTextLength}`) => (
+  { fingerprint, filledCells, svgText, deepTextLength }
+);
+
+test('chart 分支：svgText>0 且连续 3 轮 svgText 与 deepTextLength 稳定 → 就绪', () => {
+  // referral 的真实形状：svgText 44，filledCells 恒 0。
+  assert.equal(isChartReady([chartPoll(44, 900_000), chartPoll(44, 900_000), chartPoll(44, 900_000)]), true);
+  // 前面有过变化不影响：看的是最近 3 轮。
+  assert.equal(isChartReady([chartPoll(0, 100), chartPoll(44, 900_000), chartPoll(44, 900_000), chartPoll(44, 900_000)]), true);
+});
+
+test('chart 分支：svgText 为 0 绝不就绪 —— email 空态（svgText 0）不许走 chart 分支', () => {
+  assert.equal(isChartReady([chartPoll(0, 900_000), chartPoll(0, 900_000), chartPoll(0, 900_000)]), false);
+});
+
+test('chart 分支：仍在变化不就绪 —— svgText 或 deepTextLength 任一漂移都打断稳定', () => {
+  assert.equal(isChartReady([chartPoll(30, 900_000), chartPoll(40, 900_000), chartPoll(44, 900_000)]), false);
+  assert.equal(isChartReady([chartPoll(44, 800_000), chartPoll(44, 850_000), chartPoll(44, 900_000)]), false);
+});
+
+test('chart 分支：不足 3 轮不就绪；filledCells>0 归 table 分支，chart 分支不越权', () => {
+  assert.equal(isChartReady([]), false);
+  assert.equal(isChartReady([chartPoll(44, 900_000), chartPoll(44, 900_000)]), false);
+  assert.equal(isChartReady([chartPoll(44, 900_000, 850), chartPoll(44, 900_000, 850), chartPoll(44, 900_000, 850)]), false);
+});
+
+test('分支相互作用：svgText>0 的 3 轮稳定是就绪不是卡住 —— 不许触发刷新', () => {
+  // chart-only 页面稳定后 census 指纹逐轮相同：isStalled 会把它当卡住去刷新。
+  // 主循环必须先查 isChartReady（就绪）再查 isStalled（刷新）——这里锁住
+  // 两个判据在同一序列上的取值，证明「就绪检查先于 stall 检查」是必要的。
+  const stableChart = [chartPoll(44, 900_000, 0, 'same'), chartPoll(44, 900_000, 0, 'same'), chartPoll(44, 900_000, 0, 'same')];
+  assert.equal(isChartReady(stableChart), true, 'svgText>0 稳定 → 就绪');
+  assert.equal(isStalled(stableChart), true, 'stall 判据本身也会命中——所以顺序承重');
+  // 全零的稳定：只有 stall 命中，chart 分支不命中 → 走刷新。
+  const stableShell = [chartPoll(0, 100, 0, 'shell'), chartPoll(0, 100, 0, 'shell'), chartPoll(0, 100, 0, 'shell')];
+  assert.equal(isChartReady(stableShell), false);
+  assert.equal(isStalled(stableShell), true);
+});
+
+test('疑似空态打标：svgText===0 且 deepTextLength 稳定 且无 filledCells → true', () => {
+  // email 的真实形状：svgText 0，deepText 稳定，无任何表格。
+  assert.equal(isSuspectedEmptyState([chartPoll(0, 500_000), chartPoll(0, 500_000), chartPoll(0, 500_000)]), true);
+});
+
+test('疑似空态打标：svgText>0 / 文本仍在变 / 有 filledCells / 不足 3 轮 都不打标', () => {
+  assert.equal(isSuspectedEmptyState([chartPoll(44, 500_000), chartPoll(44, 500_000), chartPoll(44, 500_000)]), false, '有 svg 文本是 chart 不是空态');
+  assert.equal(isSuspectedEmptyState([chartPoll(0, 100), chartPoll(0, 200), chartPoll(0, 300)]), false, '还在加载');
+  assert.equal(isSuspectedEmptyState([chartPoll(0, 500_000, 850), chartPoll(0, 500_000, 850), chartPoll(0, 500_000, 850)]), false);
+  assert.equal(isSuspectedEmptyState([chartPoll(0, 500_000), chartPoll(0, 500_000)]), false);
+});
+
+test('manifest：readyBranch 与 suspectedEmptyState 进 manifest，缺省为 null / false', () => {
+  const base = {
+    url: 'https://sem.3ue.co/x', session: 'semrush-nav', startedAt: 'a', finishedAt: 'b',
+    readyAfterMs: 30_000, polls: [], steps: [], stopReason: 'stable', budgetSeconds: 240, maxScreens: 12,
+  };
+  const chart = buildManifest({ ...base, readyBranch: 'chart' });
+  assert.equal(chart.readyBranch, 'chart');
+  assert.equal(chart.suspectedEmptyState, false);
+  const table = buildManifest({ ...base, readyBranch: 'table' });
+  assert.equal(table.readyBranch, 'table');
+  const never = buildManifest({ ...base, readyAfterMs: null, stopReason: 'budget', suspectedEmptyState: true });
+  assert.equal(never.readyBranch, null, '从未就绪 → null');
+  assert.equal(never.suspectedEmptyState, true);
+});
 
 test('空态标记：命中已知空态文案返回标记，普通文本返回 null', () => {
   assert.ok(detectEmptyState('该报告没有数据可显示'));

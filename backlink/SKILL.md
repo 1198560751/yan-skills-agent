@@ -2186,6 +2186,56 @@ could catch. Scripts collect; the AI judges.
 </why>
 </law>
 
+<semrush-traffic-route-capabilities date="2026-08-29">
+<summary>
+**Route capability map for Semrush Traffic Analytics — double-witness
+re-measurement, 2026-08-29.** All nine routes whose historical verdicts had
+been voided were re-measured with <ref file="scripts/ground-truth.mjs"/>
+(census + screenshot pairs, session `semrush-nav`, strictly serial), and the
+AI cross-examined both witnesses per route. The full judge's write-up is
+`backlink/evidence/ground-truth/remeasure-VERDICTS.md` — **kept local**: the
+evidence directory is gitignored, so that path does not resolve in a clean
+checkout. This table is the durable summary.
+</summary>
+
+| route | shape | magnitude (canva.com, monthly) | historical verdict vs now |
+|---|---|---|---|
+| `referral` | chart-only | 40M–60M | "no table" holds; "no data" was false |
+| `organic-search` | chart-only | 100M–130M, axis top 150M | same |
+| `paid-search` | chart-only | 0.8M–1.15M, axis top 1.5M | historical "chart values never rendered" (`chart=0/exp=6`) did not reproduce — the chart carries real digits |
+| `organic-social` | chart-only | 11M–24M, axis top 30M | "no table" holds; data lives in the chart |
+| `paid-social` | chart-only | 140K–170K, axis top 200K | same |
+| `email` | **empty-state** | none — grey jagged placeholder, no axes, export greyed out | historically lumped in with the chart routes; it has no chart at all |
+| `display-ads` | chart-only | 45K–170K | "no table" holds; data lives in the chart |
+| `socioeconomics` | chart-only | summary cards + bar/stacked charts; every value present as DOM text — densest of the nine | Class A "no table" holds, but the page is the richest, not empty |
+| `daily-trends` | chart-only | daily visits 20M–35M, axis top 40M | historical "BLANK content area, exportBtns===12" did not reproduce — the same 12 export controls sit beside a full page of charts |
+| `top-pages` (control) | **table** | 850 filled cells | the known-good table route, included as the positive control |
+
+**Collection guidance for the chart-only routes.** They need a chart reader:
+after piercing shadow DOM the axis labels, series names and data values are
+present in the deep DOM text (`deep.svgText` 13–1132 nodes across these
+routes), and every spot-checked pixel number was found there. **Never again
+derive "no data" from "no table"** — that inference was wrong on 8 of 9
+routes. The collector's readiness now has a matching second branch:
+`filledCells > 0` (table, checked first) else `svgText > 0` stable three
+polls (chart), recorded as `readyBranch` in the manifest.
+
+**The email lesson, one line: a copy-free placeholder empty state exists, and
+`svgText: 0` is the discriminator.** The placeholder has no "no data" text, so
+marker-based empty-state detection never fires; among these routes only the
+census's `svgText` separates it from chart-only (0 vs 13–1132). The collector
+marks it `suspectedEmptyState: true` in the manifest; the verdict still
+belongs to the AI with both witnesses.
+
+**Corrections to the historical record.** "No table" was confirmed 9/9; the
+"no data / feature does not exist" extension was wrong 8/9 (all but `email`).
+The historical magnitude clues (referral 60M, organic-search axis 150M,
+organic-social 30M, paid-search 1.5M) matched the re-measured axis tops
+route by route. Neither historical anomaly — "paid-search chart values never
+drew" and "daily-trends blank content area" — reproduced; both were
+un-rendered loading states filed as page truth.
+</semrush-traffic-route-capabilities>
+
 <other-drivers>
 <driver name="agent-browser" verdict="no logged-in identity, ever">
 It attaches over CDP, and CDP cannot reach the owner's Chrome: Chrome 136+
