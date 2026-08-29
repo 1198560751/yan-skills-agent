@@ -17,7 +17,8 @@
  *   node semrush-traffic.mjs --self-test
  *
  * 参数：--domain（必填）/ --session / --node / --out / --json / --help
- *       --settle --timeout --input-timeout 调节等待，正常不用给。
+ *       --settle --timeout --stable-interval 调节等待，正常不用给。
+ *       （`--input-timeout` 已废弃：这条路由上没有输入框，见下面第 3 条。）
  *       --window 默认 **foreground**（全仓唯一例外，见下面 DEFAULT_WINDOW 的注释：
  *       这张报表在后台标签页里不水合），可显式覆盖成 background / isolated。
  *
@@ -94,13 +95,71 @@
 import { parseFlags, printJson, resolveSession, showHelpIfRequested } from './opencli-core.mjs';
 import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
 import { parseNumber } from './lib-similarweb.mjs';
+import { classifyTargetScope } from './lib-report-readiness.mjs';
 import { writeFile } from 'node:fs/promises';
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const TRAFFIC_PATH = '/analytics/traffic/traffic-overview/';
+export const TRAFFIC_PATH = '/analytics/traffic/traffic-overview/';
+/** 目标类型。**和 `q` 一样是必需参数**：只给 `q` 页面停在空态，那正是旧结论写反的原因。 */
+export const TRAFFIC_SEARCH_TYPE = 'domain';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * 深链。`q` + `searchType` 两个都要，缺一个页面就停在空态。
+ * 域名走 `encodeURIComponent`——虽然域名里通常没有需要转义的字符，
+ * 但拼 URL 不转义是一类会在别处咬人的习惯。
+ */
+export function buildTrafficUrl(origin, domain) {
+  const base = String(origin || '').replace(/\/+$/, '');
+  return `${base}${TRAFFIC_PATH}?q=${encodeURIComponent(domain)}&searchType=${TRAFFIC_SEARCH_TYPE}`;
+}
+
+/**
+ * **结构信号，不看一个字的文案。** 落地之后 URL 里还带不带我们请求的 `q`/`searchType`。
+ *
+ * 这是取代「等输入框 → 提交」那条路径的唯一就绪前提：目标是从 query string 进去的，
+ * 那么 query string 被吞掉（`/analytics/traffic/overview/` 就会 302 丢 query）就是
+ * 「这一页读到的不是我们要的目标」的确切证据，而且这个证据和 UI 语言无关。
+ *
+ * 返回 `{ ok, reason, pathname, q, searchType }`；`reason` 是稳定的机器码，不是文案。
+ */
+export function classifyDeepLink({ landedUrl, domain, expectedPath = TRAFFIC_PATH } = {}) {
+  const base = { ok: false, reason: null, pathname: null, q: null, searchType: null };
+  let url;
+  try { url = new URL(String(landedUrl || '')); } catch { return { ...base, reason: 'unparsable-url' }; }
+  const pathname = url.pathname;
+  const q = url.searchParams.get('q');
+  const searchType = url.searchParams.get('searchType');
+  const out = { ...base, pathname, q, searchType };
+  // 尾斜杠不作数：`/x/` 和 `/x` 是同一条路由。
+  const norm = (p) => String(p || '').replace(/\/+$/, '');
+  if (norm(pathname) !== norm(expectedPath)) return { ...out, reason: 'path-drift' };
+  if (!q) return { ...out, reason: 'query-dropped' };
+  if (String(q).trim().toLowerCase().replace(/^www\./, '') !== String(domain || '').toLowerCase()) {
+    return { ...out, reason: 'query-target-mismatch' };
+  }
+  if (searchType !== TRAFFIC_SEARCH_TYPE) return { ...out, reason: 'search-type-dropped' };
+  return { ...out, ok: true };
+}
+
+/**
+ * 页头主体 vs 请求主体。**读到别人的页面必须是硬失败，不是一行 console.error。**
+ *
+ * 旧代码在这里只打一行警告就照常把数据写出去；同一次污染运行里「37 次读取」的那份
+ * 数据其实来自另一个任务的 dashboard，而输出看上去是成功的。现在：
+ *   - 页头主体和请求主体**不一致** → `mismatch`，调用方抛错，不出数；
+ *   - 页头里**根本没找到主体** → `unknown`，记进输出但不阻断（页头形状变了不等于读错了页，
+ *     而且深链校验已经在前面把「读的是不是这一页」挡住了一道）。
+ */
+export function verifyReportTarget({ headerTarget, domain } = {}) {
+  const want = String(domain || '').trim().toLowerCase();
+  const got = String(headerTarget || '').trim().toLowerCase().replace(/^www\./, '');
+  if (!got) return { status: 'unknown', headerTarget: null, expected: want || null };
+  if (!want) return { status: 'unknown', headerTarget: got, expected: null };
+  return { status: got === want ? 'match' : 'mismatch', headerTarget: got, expected: want };
+}
 
 /**
  * **这张报表必须在前台标签页里跑。** 全仓的默认是后台
@@ -306,49 +365,30 @@ export function parseHeader(bodyText, expected) {
 /** 面板/工具页偶发的整页错误文案。站主口述：瞬时的，重载即恢复。 */
 const TRANSIENT = /出错了|我们已经发现了问题|请稍后重试|Something went wrong/;
 
-const INPUT_SELECTOR = 'input[aria-label="Input target"]';
-
 /**
- * 等输入框水合出来。**实测至少要 10–14 秒**，所以是轮询不是一次性查询。
- * 一次性查询会稳定地「找不到输入框」，读起来像选择器写错了。
+ * 读一次「我现在在哪」：URL（深链校验用）+ 页面语言（诊断用）+ 瞬时错误页。
+ * **一个选择器都不查**——这条路由上没有我们要找的控件，查了也只是自欺。
  */
-async function waitForInput(evalPage, timeoutSeconds) {
-  const deadline = Date.now() + timeoutSeconds * 1000;
-  while (Date.now() < deadline) {
-    const probe = await evalPage(`(() => JSON.stringify({
-      present: Boolean(document.querySelector(${JSON.stringify(INPUT_SELECTOR)})),
-      transient: ${TRANSIENT.toString()}.test(document.body?.innerText || ''),
-    }))()`);
-    if (probe?.present) return true;
-    if (probe?.transient) {
-      await evalPage('(() => { location.reload(); return JSON.stringify({ reload: 1 }); })()');
-      await sleep(6000);
-    }
-    await sleep(2000);
-  }
-  return false;
+async function readLocation(evalPage) {
+  return await evalPage(`(() => JSON.stringify({
+    url: location.href,
+    lang: document.documentElement?.getAttribute('lang') || '',
+    transient: ${TRANSIENT.toString()}.test(document.body?.innerText || ''),
+  }))()`);
 }
 
 /**
- * 填域名并回车。React 受控组件不认 `el.value = x`——必须走 prototype 上的原生
- * value setter，再补 input/change 事件，否则框里看着填上了、组件状态还是空的。
+ * 瞬时错误页（「出错了 / 请稍后重试」）就地重载一次，最多 `attempts` 次。
+ * 这是原来 `waitForInput` 里唯一还有用的那半——它和输入框无关，所以留下来单独成函数。
  */
-async function submitTarget(evalPage, value) {
-  return await evalPage(`(() => {
-    const el = document.querySelector(${JSON.stringify(INPUT_SELECTOR)});
-    if (!el) return JSON.stringify({ ok: false, why: 'input not found' });
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-    setter.call(el, ${JSON.stringify(value)});
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    el.focus();
-    for (const type of ['keydown', 'keypress', 'keyup']) {
-      el.dispatchEvent(new KeyboardEvent(type, {
-        key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true,
-      }));
-    }
-    return JSON.stringify({ ok: true, value: el.value });
-  })()`);
+async function reloadPastTransient(evalPage, attempts = 2) {
+  let state = await readLocation(evalPage);
+  for (let i = 0; i < attempts && state?.transient; i += 1) {
+    await evalPage('(() => { location.reload(); return JSON.stringify({ reload: 1 }); })()');
+    await sleep(6000);
+    state = await readLocation(evalPage);
+  }
+  return state;
 }
 
 /**
@@ -362,6 +402,8 @@ async function loadSummary(evalPage, { timeout, intervalMs }) {
   return await captureStable({
     read: () => evalPage(`(() => { const t = document.body?.innerText || ''; return JSON.stringify({
       url: location.href.split('?')[0], title: document.title,
+      href: location.href, pathname: location.pathname,
+      lang: document.documentElement?.getAttribute('lang') || '',
       transient: ${TRANSIENT.toString()}.test(t),
       bodyText: t.slice(0, 60000),
     }); })()`),
@@ -482,6 +524,25 @@ export function runSelfTest() {
     && header.scope === '全球' && header.devices === '所有设备',
     JSON.stringify(header));
 
+  // 深链必须同时带 q 和 searchType——只给 q 就是 2026-08-28 那次得出错误结论的写法。
+  const url = buildTrafficUrl('https://sem.example', 'canva.com');
+  check('deep-link-carries-q-and-search-type',
+    url === 'https://sem.example/analytics/traffic/traffic-overview/?q=canva.com&searchType=domain', url);
+
+  // 落地校验只看结构（路径 + query），一个字的文案都不看。
+  check('deep-link-classify',
+    classifyDeepLink({ landedUrl: url, domain: 'canva.com' }).ok === true
+    && classifyDeepLink({ landedUrl: 'https://sem.example/analytics/traffic/traffic-overview/', domain: 'canva.com' }).reason === 'query-dropped'
+    && classifyDeepLink({ landedUrl: 'https://sem.example/analytics/traffic/traffic-overview/?q=canva.com', domain: 'canva.com' }).reason === 'search-type-dropped'
+    && classifyDeepLink({ landedUrl: 'https://sem.example/analytics/traffic/?q=canva.com&searchType=domain', domain: 'canva.com' }).reason === 'path-drift'
+    && classifyDeepLink({ landedUrl: url, domain: 'figma.com' }).reason === 'query-target-mismatch');
+
+  // 页头主体对不上 = 读到别人的页面，必须是 mismatch（调用方据此硬失败）。
+  check('verify-report-target',
+    verifyReportTarget({ headerTarget: 'canva.com', domain: 'canva.com' }).status === 'match'
+    && verifyReportTarget({ headerTarget: 'axa.fr', domain: 'canva.com' }).status === 'mismatch'
+    && verifyReportTarget({ headerTarget: null, domain: 'canva.com' }).status === 'unknown');
+
   // 错误文本必须过 redactSecrets 才能进输出——这是仓库红线，在这里也验一遍。
   const redacted = redactSecrets('open https://sem.example/app?__gmitm=SECRET123 failed');
   check('errors-are-redacted', !redacted.includes('SECRET123') && redacted.includes('__gmitm=<redacted>'));
@@ -507,6 +568,8 @@ async function main() {
 
   let output;
   let launched;
+  let deepLink = null;
+  let targetCheck = null;
   try {
     launched = await launchTool({
       session,
@@ -524,19 +587,27 @@ async function main() {
 
     // 导航一律走 gotoInTool（在已登录的工具页内部跳转）。**不能用 `opencli open` 打深链**——
     // 那会开一个没有登录态的新标签页。
-    await gotoInTool(evalPage, `${origin}${TRAFFIC_PATH}`, Number(flags.settle || 8));
+    // **目标带在 URL 里**，不在页面上填。见头部注释第 2/3 条。
+    const requested = buildTrafficUrl(origin, domain);
+    await gotoInTool(evalPage, requested, Number(flags.settle || 8));
 
-    const inputTimeout = Number(flags['input-timeout'] || 40);
-    if (!(await waitForInput(evalPage, inputTimeout))) {
+    // 瞬时错误页先重载掉，再做深链校验——否则会把「出错了」误判成「query 被吞了」。
+    const located = await reloadPastTransient(evalPage);
+    if (located?.transient) {
+      throw new Error('页面停在瞬时错误页（出错了/请稍后重试），重载重试仍未恢复，稍后再跑。');
+    }
+    // 结构判据：落地 URL 还带不带我们请求的 q/searchType。和 UI 语言无关。
+    deepLink = classifyDeepLink({ landedUrl: located?.url, domain });
+    if (!deepLink.ok) {
       throw new Error(
-        `流量分析总览页在 ${inputTimeout}s 内没有出现主体输入框（${INPUT_SELECTOR}）。` +
-        `依次排查：(1) 节点挂了——换 --node 重跑（症状是白页、长时间不渲染）；` +
-        `(2) 路由被改了——本脚本用的是 ${TRAFFIC_PATH}，不是 /analytics/traffic/overview/；` +
-        `(3) 这个输入框实测水合要 10–14 秒，网络慢时调大 --input-timeout。`,
+        `深链没有落地（reason=${deepLink.reason}）：请求的是 ${TRAFFIC_PATH}?q=${domain}&searchType=${TRAFFIC_SEARCH_TYPE}，` +
+        `落地路径是 ${deepLink.pathname || '(读不出)'}，q=${deepLink.q ?? '(无)'}，searchType=${deepLink.searchType ?? '(无)'}。` +
+        `依次排查：(1) 路由被改了——本脚本用的是 ${TRAFFIC_PATH}，不是 /analytics/traffic/overview/（后者 302 到落地页并把 query 丢掉）；` +
+        `(2) searchType 缺失会让页面停在空态，**两个参数缺一不可**；` +
+        `(3) 节点挂了——换 --node 重跑。` +
+        `注意：这条路由上**没有查询表单**，不要退回「在页面上填域名提交」，那条路径已被实盘证伪。`,
       );
     }
-    const submitted = await submitTarget(evalPage, domain);
-    if (!submitted?.ok) throw new Error(`提交主体失败：${submitted?.why || 'unknown'}`);
 
     const loaded = await loadSummary(evalPage, {
       timeout: Number(flags.timeout || 120),
@@ -544,12 +615,27 @@ async function main() {
     });
 
     if (!loaded.stable || !loaded.capture) {
+      // 诊断（**只在失败时用文案**，而且走 locale 表）：分清「空态落地页」和「有数据但还没稳」。
+      // locale 不在 EMPTY_STATE_MARKERS 覆盖表里时是 `unknown`，**不默认判成「不在空态」**——
+      // 这个共享账号的 UI 是中文，写死单语言的判据在这里会一路默认通过。
+      const scope = loaded.capture ? classifyTargetScope({
+        text: loaded.capture.bodyText, target: domain,
+        documentLang: loaded.capture.lang, pathname: loaded.capture.pathname,
+      }) : null;
+      const scopeNote = scope
+        ? `页面诊断：emptyState=${scope.emptyState}（locale=${scope.uiLocale || '未知'}，`
+          + `covered=${scope.localeCovered}）、页面上${scope.hasTarget ? '有' : '没有'} "${domain}" 字样。`
+          + (scope.emptyState === 'unknown'
+            ? `（这个 locale 没有空态标记，所以**不能**据此断定不在空态——` +
+              `要继续用，把观测到的标记加进 lib-report-readiness.mjs 的 EMPTY_STATE_MARKERS。）`
+            : '')
+        : '';
       // **空结果不是事实。** 这里绝不输出一堆 0/null 假装成功。
       throw new Error(
         loaded.aborted
           ? `页面停在瞬时错误页（出错了/请稍后重试）。重载重试仍未恢复，稍后再跑。`
-          : `"${domain}" 的摘要区在 ${loaded.reads} 次读取里始终没出现稳定数值。` +
-            `依次排查：(1) 提交没生效，页面还停在空态落地页；` +
+          : `"${domain}" 的摘要区在 ${loaded.reads} 次读取里始终没出现稳定数值。${scopeNote}` +
+            `依次排查：(1) 深链虽然落地了但页面还停在空态（emptyState=yes 时基本就是它）；` +
             `(2) 该域名在 .Trends 里流量太小、没有数据；` +
             `(3) 还在水合——调大 --timeout / --stable-interval。` +
             `注意：这**不等于**「这个站没有流量」。`,
@@ -559,9 +645,19 @@ async function main() {
     const cap = loaded.capture;
     const parsed = JSON.parse(loaded.fingerprint);
     const header = parseHeader(cap.bodyText, domain);
-    // 页头主体和请求主体对不上 = 读的是别人的数据，必须说出来而不是照单写下。
-    if (header.headerTarget && header.headerTarget.toLowerCase() !== domain) {
-      console.error(`[target-mismatch] 请求的是 ${domain}，页头显示的是 ${header.headerTarget}——提交可能没生效。`);
+    // 页头主体和请求主体对不上 = 读的是别人的页面。**这里是硬失败，不是一行警告。**
+    // 旧代码只 console.error 就照常出数——那正是「37 次读取」那份数据其实来自
+    // 另一个任务的 dashboard、而输出看上去成功的原因。
+    targetCheck = verifyReportTarget({ headerTarget: header.headerTarget, domain });
+    if (targetCheck.status === 'mismatch') {
+      throw new Error(
+        `读到的是别人的页面：请求 ${domain}，页头显示 ${targetCheck.headerTarget}。` +
+        `多半是会话被别的任务抢了标签页（同名会话共用标签页），或者深链落地后页面又跳走了。` +
+        `重跑前先确认 --session 没有和别的任务撞名。`,
+      );
+    }
+    if (targetCheck.status === 'unknown') {
+      console.error(`[target-unknown] 页头里没认出主体域名；深链校验已通过（q=${deepLink?.q}），数据照常输出，但请人工复核 header。`);
     }
 
     output = {
@@ -578,6 +674,10 @@ async function main() {
       title: cap.title,
       url: cap.url,
       header,
+      // 取数是怎么落地的：深链的结构校验结果 + 页头主体核对结果。
+      // 下游能据此把「读到了正确的页」和「读到了某一页」分开。
+      deepLink,
+      targetCheck,
       subscription: launched.reused ? null : {
         expiry: launched.state?.expiry, daysLeft: launched.state?.daysLeft,
         quotas: launched.state?.quotas, warning: expiryWarning(launched.state || {}),
@@ -598,6 +698,8 @@ async function main() {
       // **错误消息必须过 redactSecrets。** opencli 失败会把带 __gmitm 令牌的会话 URL
       // 打进 stderr，那段文本会一路进 output、进 --out 文件、进日志。
       status: 'unavailable',
+      deepLink,
+      targetCheck,
       error: { code: 'traffic_overview_unavailable', message: redactSecrets(error.message) },
     };
   } finally {
