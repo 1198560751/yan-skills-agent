@@ -53,6 +53,21 @@ two SEO cards, and the card labels describe the *plan*, not the product:
 So the mapping is not guessable from the label — verify the landed origin
 rather than trusting the card text, which is what `tools-share-open.mjs` does.
 
+⚠️ **`sem.3ue.co` is the ONLY authorised Semrush base, and typing the wrong host
+fails SILENTLY onto a sales page.** Measured 2026-08-29: a deep link built on
+`www.semrush.com/analytics/traffic/...` **does not error**. It renders a
+skeleton, bounces to `/analytics/traffic/` — the **public marketing page**
+(`innerText` 514, 10 images, title
+`Traffic Analytics: Estimate Any Website's Traffic | Semrush`) — then bounces
+again to overview. **A scanner will record "no table, has svg, has export
+buttons" off a sales page and file it as a finding about your target.** After
+those bounces the tab was sitting on **`mmradar.gg`**'s domain overview (23
+filled cells, AS 22, organic 23.9K), so any probe reading `cells > 0` at that
+moment files someone else's numbers under your domain. Assert **landed path ==
+requested route** and **header domain == requested target** before classifying
+anything — see <law-ref id="readiness-must-bind-to-this-query"/> and
+`scripts/lib-report-readiness.mjs`.
+
 ### Use the script, not hand-driven clicks
 
 ```bash

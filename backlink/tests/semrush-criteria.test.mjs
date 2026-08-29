@@ -221,8 +221,14 @@ test('a report that really is empty still resolves, on a page-produced fact', as
   const empty = JSON.stringify({ rows: [] });
 
   // 整页连 table / [role=grid] 都没有 —— 结构事实。
-  assert.equal(fingerprint({ bodyText: 'example.com/', tableCount: 0 }), empty);
-  // 页面自己渲染了「未找到结果」—— 页面产出的空态，也是结论。
+  // ⚠️ 2026-08-29 追加的前提：`tableCount === 0` **必须来自穿透读数**。Semrush 的表
+  // 就挂在 shadow root 里，浅层的 0 是「页面的一小块里没有表」，那正是整族
+  // `no-table` 结论的来路。
+  assert.equal(fingerprint({ bodyText: 'example.com/', tableCount: 0, deepProbe: true }), empty);
+  assert.equal(fingerprint({ bodyText: 'example.com/', tableCount: 0 }), null,
+    '浅层读数的 tableCount:0 不许下结论');
+  assert.equal(fingerprint({ bodyText: 'example.com/', tableCount: 0, deepProbe: false }), null);
+  // 页面自己渲染了「未找到结果」—— 页面产出的空态，也是结论，这一条和探针深浅无关。
   assert.equal(fingerprint({ bodyText: '未找到结果', tableCount: 1 }), empty);
   assert.equal(fingerprint({ bodyText: 'No results found', tableCount: 3 }), empty);
 });
@@ -242,7 +248,12 @@ test('a hydrated report is accepted regardless of the structural probe', async (
 test('loadReport actually wires the structural probe, and stopped counting repeats', () => {
   // 判据在生产代码里真的被 loadReport 用上了，而且原料是页面读回来的。
   assert.match(source, /fingerprint: makeReportFingerprint\(\{ isReady, parseText, target \}\)/);
-  assert.match(source, /tableCount: document\.querySelectorAll\('table,\[role="grid"\]'\)\.length/);
+  // 2026-08-29：原料改走穿透遍历，浅层读数降级到 lightDom 里做诊断。
+  assert.match(source, /tableCount: deepQueryAll\(root, 'table,\[role="grid"\]'\)\.length/);
+  assert.match(source, /lightDom: \{ textLength: light\.length, tableCount: document\.querySelectorAll/);
+  assert.match(source, /if \(cap\.deepProbe !== true\) return null;/,
+    '浅层读数不许支撑「整页无表」这个结论');
+  assert.doesNotMatch(source, /bodyText: t\.slice\(0, 60000\),\n        tableCount: document\./);
   // 「看起来空就多读一次」必须已经不存在。
   assert.doesNotMatch(source, /needed: \(print\) => \(looksEmpty/);
 });

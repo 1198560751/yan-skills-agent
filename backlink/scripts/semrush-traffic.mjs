@@ -18,6 +18,7 @@
  *
  * 参数：--domain（必填）/ --session / --node / --out / --json / --help
  *       --settle --timeout --stable-interval 调节等待，正常不用给。
+ *       --scroll-segments[=N] / --scroll-pause 分段滚动，**默认关闭**，理由见调用点注释。
  *       （`--input-timeout` 已废弃：这条路由上没有输入框，见下面第 3 条。）
  *       --window 默认 **foreground**（全仓唯一例外，见下面 DEFAULT_WINDOW 的注释：
  *       这张报表在后台标签页里不水合），可显式覆盖成 background / isolated。
@@ -96,6 +97,7 @@ import { parseFlags, printJson, resolveSession, showHelpIfRequested } from './op
 import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
 import { parseNumber } from './lib-similarweb.mjs';
 import { classifyTargetScope } from './lib-report-readiness.mjs';
+import { DEEP_DOM_JS, scrollThroughSegments } from './lib-deep-dom.mjs';
 import { writeFile } from 'node:fs/promises';
 
 import path from 'node:path';
@@ -370,11 +372,21 @@ const TRANSIENT = /出错了|我们已经发现了问题|请稍后重试|Somethi
  * **一个选择器都不查**——这条路由上没有我们要找的控件，查了也只是自欺。
  */
 async function readLocation(evalPage) {
-  return await evalPage(`(() => JSON.stringify({
-    url: location.href,
-    lang: document.documentElement?.getAttribute('lang') || '',
-    transient: ${TRANSIENT.toString()}.test(document.body?.innerText || ''),
-  }))()`);
+  // ⚠️ 2026-08-29：瞬时错误页的文案也可能在 shadow DOM 里。整页 `innerText` 在这个站
+  // 上只有 59 个字符（深层 1,605,054），认不到「出错了」不等于没出错。
+  return await evalPage(`(() => {
+    ${DEEP_DOM_JS}
+    const root = document.body || document.documentElement;
+    const deepText = deepTextSample(root, { maxChars: 20000 });
+    return JSON.stringify({
+      url: location.href,
+      lang: document.documentElement?.getAttribute('lang') || '',
+      transient: ${TRANSIENT.toString()}.test(deepText),
+      shadowRoots: collectRoots(root).roots.length - 1,
+      lightDom: { textLength: (document.body?.innerText || '').length },
+      deep: { textLength: deepTextLength(root) },
+    });
+  })()`);
 }
 
 /**
@@ -400,12 +412,26 @@ async function reloadPastTransient(evalPage, attempts = 2) {
  */
 async function loadSummary(evalPage, { timeout, intervalMs }) {
   return await captureStable({
-    read: () => evalPage(`(() => { const t = document.body?.innerText || ''; return JSON.stringify({
+    // ⚠️ 2026-08-29：`bodyText` 改走穿透遍历。摘要区的切分（sliceSummary）、指标解析、
+    // 页头解析全都吃这一份文本，所以只要它是浅层的，后面每一层都是在读页面的一小块。
+    // **浅层长度一并带出来**（`lightDom.textLength`）：它和 `deep.textLength` 的差就是
+    // 「这一页有多少东西藏在 shadow DOM 里」，是这次事故唯一的直接诊断量。
+    read: () => evalPage(`(() => {
+      ${DEEP_DOM_JS}
+      const root = document.body || document.documentElement;
+      const light = document.body?.innerText || '';
+      const t = deepTextSample(root, { maxChars: 60000 });
+      return JSON.stringify({
       url: location.href.split('?')[0], title: document.title,
       href: location.href, pathname: location.pathname,
       lang: document.documentElement?.getAttribute('lang') || '',
       transient: ${TRANSIENT.toString()}.test(t),
       bodyText: t.slice(0, 60000),
+      deepProbe: true,
+      shadowRoots: collectRoots(root).roots.length - 1,
+      lightDom: { textLength: light.length },
+      deep: { textLength: deepTextLength(root) },
+      scrollContainers: deepScrollContainers(root).slice(0, 20),
     }); })()`),
     abortIf: (cap) => Boolean(cap?.transient),
     fingerprint: (cap) => {
@@ -609,6 +635,26 @@ async function main() {
       );
     }
 
+    // **分段滚动，默认关闭。** 理由和 semrush-report.mjs 那处逐字相同：2026-08-29 实测
+    // `body.scrollHeight === window.innerHeight`（772）、`scrollY` 滚 8 次没动过，
+    // **但那是因为整个报表模块渲染成了空白**——那次观测既不能证明这个站需要滚动，
+    // 也不能证明不需要。默认开启就是把一个没测过的假设写进默认行为。另外在一个把外壳
+    // 挂在 44 个 shadow root 里的页面上，真正的滚动容器很可能不是 window，
+    // 「滚 window 不动」和「没有可滚内容」读数一模一样（见 deepScrollContainers）。
+    // 探针每轮回报 `scrollContainers`，下一次实盘用数据来定这个默认值。
+    if (flags['scroll-segments'] !== undefined) {
+      try {
+        const scrolled = await scrollThroughSegments(evalPage, {
+          sleep,
+          segmentPauseMs: Number(flags['scroll-pause'] || 1.5) * 1000,
+          maxSegments: Number(flags['scroll-segments'] || 12),
+        });
+        console.error(`[scroll] ${JSON.stringify(scrolled)}`);
+      } catch (error) {
+        console.error(`[scroll] 分段滚动失败，继续按不滚动读：${redactSecrets(String(error?.message || error))}`);
+      }
+    }
+
     const loaded = await loadSummary(evalPage, {
       timeout: Number(flags.timeout || 120),
       intervalMs: Number(flags['stable-interval'] || 3) * 1000,
@@ -673,6 +719,15 @@ async function main() {
       sessionReused: Boolean(launched.reused),
       title: cap.title,
       url: cap.url,
+      // 2026-08-29 起随每次取数一并落盘：浅层 vs 深层的差值，就是「这一页有多少东西
+      // 藏在 shadow DOM 里」。历史记录里的所有数字都是浅层的，靠这一栏才能对账。
+      domProbe: {
+        deepProbe: cap.deepProbe === true,
+        shadowRoots: cap.shadowRoots ?? null,
+        lightTextLength: cap.lightDom?.textLength ?? null,
+        deepTextLength: cap.deep?.textLength ?? null,
+        scrollContainers: cap.scrollContainers ?? null,
+      },
       header,
       // 取数是怎么落地的：深链的结构校验结果 + 页头主体核对结果。
       // 下游能据此把「读到了正确的页」和「读到了某一页」分开。

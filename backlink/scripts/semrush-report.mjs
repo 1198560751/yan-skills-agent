@@ -22,6 +22,9 @@
  *   node semrush-report.mjs --report backlinks-overview --domain example.com
  *   node semrush-report.mjs --self-test
  *
+ * 可选：--scroll-segments[=N] 分段滚动（默认**关闭**，理由见主流程里 scrollSegments
+ *       的注释）、--scroll-pause 每段等待秒数（默认 1.5）。
+ *
  * 已验证 2026-08-26：organic-pages 从 URL 后方读取当前行；旧版向前读，首行会吞表头，
  * 后续每个 URL 都会拿到上一页的字段，行数看似正确但内容整体错位。
  *
@@ -38,6 +41,7 @@
  */
 import { resolveSession, opencli, firstJson, parseFlags, showHelpIfRequested, printJson, validateSession } from './opencli-core.mjs';
 import { captureStable, expiryWarning, launchTool, redactSecrets } from './lib-tools-share.mjs';
+import { DEEP_DOM_JS, scrollThroughSegments } from './lib-deep-dom.mjs';
 import { writeFile } from 'node:fs/promises';
 
 const flags = parseFlags(process.argv.slice(2));
@@ -72,11 +76,21 @@ const escapeRe = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  *
  * 顺带一个好处：DOM 给的是 `27,100`，innerText 给的是 `27.1K`。
  */
+/**
+ * ⚠️ **2026-08-29：这份提取器现在穿透 shadow DOM。** 在这之前它用的是
+ * `document.querySelectorAll`，而 Semrush 把外壳与报表挂件渲染在 44 个 shadow root
+ * 里——`querySelectorAll` 到 shadow 边界就停了，于是它量到的是页面的一小块。
+ * 行数看起来正常（因为没有表头就返回 null），但一整族「这条路由没有表格」的结论
+ * 就是这么来的。走 <ref file="scripts/lib-deep-dom.mjs"/> 的共用遍历，不要在这里
+ * 再写一份。
+ */
 const ARIA_GRID_CELLS = `(() => {
-  const headers = [...document.querySelectorAll('[role=columnheader]')].map((e) => (e.innerText || '').trim());
+  ${DEEP_DOM_JS}
+  const root = document.body || document.documentElement;
+  const headers = deepQueryAll(root, '[role=columnheader]').map((e) => (e.innerText || '').trim());
   if (!headers.length) return null;
-  const rows = [...document.querySelectorAll('[role=row]')]
-    .map((r) => [...r.querySelectorAll('[role=gridcell],[role=cell]')].map((c) => (c.innerText || '').trim()))
+  const rows = deepQueryAll(root, '[role=row]')
+    .map((r) => deepQueryAll(r, '[role=gridcell],[role=cell]').map((c) => (c.innerText || '').trim()))
     .filter((cells) => cells.length === headers.length);
   return { headers, rows };
 })()`;
@@ -443,25 +457,35 @@ const QUOTA_BLOCKED = /已达到每日报告限额|Daily report limit reached/i;
  * **表体区自己的文字**里。表头、列名、周边散文都满足不了 `filledCells > 0`。
  */
 const REGION_PROBE_JS = `(() => {
+  ${DEEP_DOM_JS}
   const clean = (s) => String(s == null ? '' : s).replace(/\\s+/g, ' ').trim();
-  const bodies = [
-    ...document.querySelectorAll('tbody, [role="rowgroup"]:not(:first-of-type), [class*="table-body" i], [class*="tableBody"], [class*="grid-body" i]'),
-  ];
+  const root = document.body || document.documentElement;
+  // ⚠️ 2026-08-29：表体区**要在深层里找**。旧写法是 document.querySelectorAll，
+  // 在这个站上连表体区都可能因为在 shadow root 里而定位不到，于是每一次都走
+  // 「bodies.length === 0」那条分支，报一个 region:null + 59 字符的 bodyText。
+  const bodies = deepQueryAll(root, 'tbody, [role="rowgroup"]:not(:first-of-type), [class*="table-body" i], [class*="tableBody"], [class*="grid-body" i]');
+  // 浅层读数一并留着：两者的差就是「有多少表体藏在 shadow DOM 里」。
+  const lightBodies = document.querySelectorAll('tbody, [role="rowgroup"]:not(:first-of-type), [class*="table-body" i], [class*="tableBody"], [class*="grid-body" i]').length;
+  const bodyText = clean(deepTextSample(root, { maxChars: 8000 })).slice(0, 4000);
+  const lightBodyText = clean(document.body && document.body.innerText).slice(0, 4000);
+  const shadowRoots = collectRoots(root).roots.length - 1;
   // 表体区定位不到就老实说不知道，绝不退化成「整页搜一遍」然后当成同等证据。
   if (!bodies.length) {
-    return JSON.stringify({ region: null, bodyText: clean(document.body && document.body.innerText).slice(0, 4000) });
+    return JSON.stringify({ region: null, bodyText, lightDom: { bodies: lightBodies, textLength: lightBodyText.length }, shadowRoots });
   }
   let filledCells = 0;
   const texts = [];
   for (const b of bodies) {
-    for (const c of b.querySelectorAll('td, [role="gridcell"], [role="cell"]')) {
+    for (const c of deepQueryAll(b, 'td, [role="gridcell"], [role="cell"]')) {
       if (clean(c.innerText) !== '') filledCells += 1;
     }
     texts.push(clean(b.innerText));
   }
   return JSON.stringify({
     region: { filledCells, text: texts.join(' ').slice(0, 4000), containers: bodies.length },
-    bodyText: clean(document.body && document.body.innerText).slice(0, 4000),
+    bodyText,
+    lightDom: { bodies: lightBodies, textLength: lightBodyText.length },
+    shadowRoots,
   });
 })()`;
 
@@ -572,6 +596,10 @@ function makeReportFingerprint({ isReady, parseText, target }) {
     if (!looksEmpty(parsed)) return print;
     if (EMPTY_STATE_RENDERED.test(cap.bodyText)) return print;
     if (typeof cap.tableCount !== 'number') return null;
+    // ⚠️ 2026-08-29：`tableCount === 0` 只有在**穿透读数**上才有意义。浅层的 0 是
+    // 「页面的一小块里没有表」，而 Semrush 的表就在 shadow root 里——那正是整族
+    // `no-table` 结论的来路。读数不是穿透读的就继续等，宁可超时也不下这个结论。
+    if (cap.deepProbe !== true) return null;
     return cap.tableCount > 0 ? null : print;
   };
 }
@@ -590,7 +618,10 @@ function makeReportFingerprint({ isReady, parseText, target }) {
  * 返回 { capture, parsed, stable, reads }。**stable 为 false 时不许把 parsed 当结论**——
  * 那是一份还在变的数，写出去不会有人发现它是错的。
  */
-async function loadReport(url, spec, { settle = 10, timeout = 120, retries = 3, intervalMs = 3000 } = {}) {
+async function loadReport(url, spec, {
+  settle = 10, timeout = 120, retries = 3, intervalMs = 3000,
+  scrollSegments = false, scrollPauseMs = 1500, maxScrollSegments = 12,
+} = {}) {
   // ready 可以是正则（页面级字样）或函数 (bodyText, target) => boolean（需要认数据行时）。
   const isReady = typeof spec.ready === 'function' ? spec.ready : (t) => spec.ready.test(t);
   const parseText = (t, cells) => {
@@ -601,14 +632,39 @@ async function loadReport(url, spec, { settle = 10, timeout = 120, retries = 3, 
   for (let attempt = 1; attempt <= retries; attempt++) {
     await evalPage(`(() => { location.href = ${JSON.stringify(url)}; return JSON.stringify({ nav: 1 }); })()`);
     await sleep(settle * 1000);
+    // 见调用点关于默认值的长注释。滚完回顶，后面还要读页头。
+    if (scrollSegments) {
+      try {
+        const scrolled = await scrollThroughSegments(evalPage, {
+          sleep, segmentPauseMs: scrollPauseMs, maxSegments: maxScrollSegments,
+        });
+        console.error(`[scroll] ${JSON.stringify(scrolled)}`);
+      } catch (error) {
+        console.error(`[scroll] 分段滚动失败，继续按不滚动读：${redactSecrets(String(error?.message || error))}`);
+      }
+    }
     const settled = await captureStable({
       // tableCount 是结构判据的原料：**表在但无行** 和 **整页无表** 是两件不同的事，
       // 而「读了几次」区分不了它们。见 makeReportFingerprint。
-      read: () => evalPage(`(() => { const t = document.body?.innerText || ''; return JSON.stringify({
+      // ⚠️ 2026-08-29：`bodyText` 与 `tableCount` 都改走穿透遍历。旧版是
+      // `document.body.innerText` + `document.querySelectorAll`，两者都不进
+      // shadow DOM；同一页实测浅层 59 字符 / 深层 1,605,054，`tableCount` 因此
+      // 恒为 0，`makeReportFingerprint` 的结构判据就一直落在「整页无表 ⇒ 能下结论」
+      // 那一格上。浅层读数保留在 `lightDom` 里，差值是诊断信号。
+      read: () => evalPage(`(() => {
+        ${DEEP_DOM_JS}
+        const root = document.body || document.documentElement;
+        const light = document.body?.innerText || '';
+        const t = deepTextSample(root, { maxChars: 60000 });
+        return JSON.stringify({
         url: location.href.split('?')[0], title: document.title,
+        landedUrl: location.href,
         transient: ${TRANSIENT.toString()}.test(t),
         bodyText: t.slice(0, 60000),
-        tableCount: document.querySelectorAll('table,[role="grid"]').length,
+        tableCount: deepQueryAll(root, 'table,[role="grid"]').length,
+        deepProbe: true,
+        shadowRoots: collectRoots(root).roots.length - 1,
+        lightDom: { textLength: light.length, tableCount: document.querySelectorAll('table,[role="grid"]').length },
         cells: ${spec.cells || 'null'},
       }); })()`),
       // 瞬时错误页要的是重载，不是更长的超时——立刻出让，别把 timeout 白烧完。
@@ -1490,7 +1546,24 @@ let launched;
 try {
   const tool = launched = await ensureTool();
   const url = `${APP_ORIGIN}${spec.path(target, db)}`;
+  // **分段滚动，默认关闭。**
+  //
+  // 为什么默认关：2026-08-29 实测这几条路由 `body.scrollHeight === window.innerHeight`
+  // （772）、`scrollY` 滚 8 次没动过、350 秒内所有数字冻结——**但那是因为整个报表
+  // 模块渲染成了空白**，一个什么都没渲染的页面当然没有首屏之下的内容。所以那次观测
+  // 既不能证明「这个站需要滚动」，也不能证明「不需要」，它什么都没证明。在这种情况下
+  // 默认开启就是把一个**没有测过的假设**写进默认行为——正是把我们送到今天这一步的
+  // 那个动作。默认关、一个 flag 就能开，并且探针每一轮都回报
+  // `scrollContainers` / `windowNeverMoved`，让下一次实盘用数据来定这个默认值。
+  //
+  // ⚠️ 另一重观测限度：在一个把外壳挂在 44 个 shadow root 里的页面上，真正的滚动
+  // 容器**很可能不是 window**。「滚 window 8 次 scrollY 没动」和「没有可滚的内容」
+  // 在读数上一模一样。见 lib-deep-dom.mjs 的 `deepScrollContainers()`。
+  const scrollSegments = flags['scroll-segments'] !== undefined;
   const loaded = await loadReport(url, spec, {
+    scrollSegments,
+    scrollPauseMs: Number(flags['scroll-pause'] || 1.5) * 1000,
+    maxScrollSegments: Number(flags['scroll-segments'] || 12),
     settle: Number(flags.settle || 10),
     timeout: Number(flags.timeout || 120),
     retries: Number(flags.retries || 3),
@@ -1550,7 +1623,18 @@ try {
         const nextPage = await captureStable({
           // tableCount 是结构判据的原料：**表在但无行** 和 **整页无表** 是两件不同的事，
           // 只有后者能支持「这一页就是空的」。见 makeNextPageFingerprint 顶部的表。
-          read: () => evalPage(`(() => JSON.stringify({ bodyText: document.body?.innerText || "", tableCount: document.querySelectorAll('table,[role="grid"]').length, cells: ${spec.cells || 'null'} }))()`),
+          // 同一处穿透修复的翻页版本。见上面那段注释。
+          read: () => evalPage(`(() => {
+            ${DEEP_DOM_JS}
+            const root = document.body || document.documentElement;
+            return JSON.stringify({
+              bodyText: deepTextSample(root, { maxChars: 60000 }),
+              tableCount: deepQueryAll(root, 'table,[role="grid"]').length,
+              deepProbe: true,
+              lightDom: { textLength: (document.body?.innerText || '').length, tableCount: document.querySelectorAll('table,[role="grid"]').length },
+              cells: ${spec.cells || 'null'},
+            });
+          })()`),
           fingerprint: (c) => {
             let print = null;
             try { print = JSON.stringify(spec.parse(String(c?.bodyText || '').split(/\n+/).map((l) => l.trim()).filter(Boolean), c?.cells)); } catch { return null; }

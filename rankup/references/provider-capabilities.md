@@ -116,6 +116,7 @@ Similarweb 不同口径，不要并列」。那句话**对的是自然搜索口�
 |---|---|
 | 节点 5，第一次 | **0 行**。无错误、无升级提示、无限额提示——纯静默空表 |
 | 节点 8 | **850 个非空单元格**（主页 流量比例 39.47%、访问量 3.1亿） |
+| **2026-08-29，同一路由** | ⛔ **`tables:0, grids:0, cells:0, innerText:59`，持续 150 秒** —— 见本文件的作废公告：这就是那轮扫描的**对照组**，一条已知有数据的路由和 9 条「无表格」读出来完全一样，**分类零区分力**。850 这个数本身没作废（正向证据），但只能当**下界**读 |
 | **节点 5，后续实测** | **同样 850 个非空单元格**（前 6 格：`主页` / `39.47%` / `按「Tab」启用图形图表访问模块。` / `4.1亿` / `1.1亿` / `3.1亿`，页头确认 `canva.com`） |
 
 **收尾 2026-08-28（node 8 复测回来之后）：这条现在两边都测过了。** 两个节点是**两个不同的
@@ -246,10 +247,104 @@ id 为 `hidden-tabs-do-not-hydrate` 的那条 law。
 判定时的 `visibilityState`，以及**被推翻的旧观测原样保留在 `supersededObservation` 里**，
 都落在 `rankup/data/provider-capabilities.json` 的 `perRouteFindings.routes`。
 
+---
+
+## ⛔ 2026-08-29 作废公告：本节以下所有基于 DOM 探针的分类，全部受一个失明的探针污染
+
+**本节保留原样，一个字没删。** 但在读下面任何一行之前，先读这一段——
+它推翻了 9 条判定，并把另外 10 条降级为「待复查」。
+
+### 根因：探针对 shadow DOM 结构性失明
+
+同一页、同一时刻，只读实盘：
+
+| 量 | 读数 |
+|---|---|
+| `document.body.innerText.length` | **59** |
+| 穿透 shadow DOM 的深层文本长度 | **1,605,054** |
+| 文档里的 shadow root 数量 | **44** |
+
+**Semrush 把外壳和报表挂件渲染在 44 个 shadow root 里。**
+`innerText` 不穿透 shadow DOM，`querySelectorAll` 也不穿透。
+**所以本节里所有按 `table` / 单元格 / `innerText` 计数的数字，量到的都是页面的一小块。**
+同一页穿透前后的对照：svg 从 32 → 45、从 3 → 16、从 49 → 62。
+
+⚠️ **这个教训本仓库已经交过一次学费。** Semrush 的**侧栏**也在 shadow DOM 里，
+当时的结论是「侧栏看不见」，直到改用
+`document.querySelectorAll('snav-sidebar-ribbon-item, snav-sidebar-list-item')`
++ `el.shadowRoot.querySelector('a')` 才拿到 15 个额外页面。
+**那次只修了侧栏这一处，没有推广到取数探针。**
+
+### 对照组：分类零区分力
+
+`top-pages`——本文件里写着 **850 个非空单元格**的那条路由——现在读到
+`tables:0, grids:0, cells:0, innerText:59`，**持续 150 秒**。
+**一条已知有数据的路由，和那 9 条「无表格」读出来完全一样。**
+所以「9 条通过结构判据」这个结论，不是一个弱结论，而是**没有分辨力的读数上做出的结论**。
+
+### `exportBtns` 是伪造的证据，`chartHydrated` 无法复现
+
+- `daily-trends` 内容区**一片空白**，却量到 `exportBtns: 12`，
+  **与本文件记录的 `exp=12` 完全一致**。那 12 个匹配全在 shadow DOM 的**导航壳**里，
+  不在任何报表内。这正是 `readiness-must-bind-to-this-query` 那条 law 描述的形态。
+- `chartHydrated` 在三条路由上**全部读到 0**，包括记录里写着 `chart=122` 的那条。
+  一个在同一页上既能读到 122 又能读到 0 的量，不能证明任何事。
+
+**处置：两个信号已在 backlink Skill 与 `scripts/lib-report-readiness.mjs` 里退役**——
+继续量、继续记进证据，**不再参与任何判定**。下面那张「档」表里的 `chart/exp` 计数
+从此只能当史料读，不能当依据。
+
+### 判定变更
+
+| 原判定 | 条数 | 新状态 | 说明 |
+|---|---|---|---|
+| `no-table-structural` | **9** | **`voided-blind-probe`，回到 `pending-remeasure`** | 成因三条：浅层 DOM 探针 + 空白模块 + 伪造的 `exportBtns` |
+| `data` | **10** | **待复查（`pending-recheck-blind-probe`），判定未作废** | 有**正向**证据（真实的非空单元格字符串），更可能保得住；但**是同一个失明探针产出的**，`filledCells` 只能当**下界**读，而且要复查那些数**是不是这个域名的** |
+
+### `sem.3ue.co` 是唯一授权基址，写错会**静默**走到销售页
+
+`www.semrush.com/analytics/traffic/...` **不是授权基址**
+（见 `backlink/references/authorized-data-sources.md`）。**它不报错**：
+渲染骨架 → 弹到 `/analytics/traffic/`（**公开营销页**，`innerText` 514、10 张图、标题
+`Traffic Analytics: Estimate Any Website's Traffic | Semrush`）→ 再弹到 overview。
+**一个扫描器会从销售页上记下「无表格、有 svg、有导出按钮」。**
+
+而且弹完之后标签页停在 **`mmradar.gg`** 的完整域名概览
+（23 个非空单元格、AS 22、自然流量 23.9K）。
+**任何当时读到 `cells > 0` 的探针，都会把 mmradar.gg 的数字记到 canva.com 名下。**
+这就是上面那 10 条 `data` 必须复查「数是不是这个域名的」的原因。
+
+### 分类之前的三条硬闸门（新增）
+
+任一不满足 ⇒ 输出 `inconclusive`，**绝不输出 `no-table` 或 `empty`**：
+
+1. **落地 URL 的 path == 请求的路由**（防销售页/弹跳）；
+2. **页头的域名 == 请求的目标**（防 mmradar.gg 那类错配）；
+3. **穿透之后的报表区内容非空**——承重的是**正向**证据（非空单元格 / 值形数字 /
+   页面自己渲染的空态），字符数地板只是**兜底**，从属于正向证据，只会把结论推向
+   `inconclusive`，永远不能反过来用。
+
+另加两条同级前提：读数必须来自**穿透遍历**，报表区的根必须是**实测确认过的**（不是 `main` 这个惯例）。
+**今天这轮扫描本该全部 `inconclusive`。**
+实现在 `backlink/scripts/lib-deep-dom.mjs` + `backlink/scripts/lib-report-readiness.mjs`，
+判据全文仍然只写在 backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里。
+
+### 滚动不是根因，但那次观测有限度
+
+实测 `body.scrollHeight === window.innerHeight`（772）、`scrollY` 滚 8 次从没动过、
+350 秒内所有数字冻结。**但那是因为整个报表模块渲染空白**——一个什么都没渲染的页面
+当然没有首屏之下的内容。**不能推广成「这个站不需要滚动」。**
+另外在一个把外壳挂在 44 个 shadow root 里的页面上，真正的滚动容器很可能**不是 window**，
+「滚 window 不动」和「没有可滚内容」读数一模一样。
+分段滚动 + 每段等待的能力已加进取数探针，**默认关闭**（默认开启就是把一个没测过的假设
+写进默认行为），探针每轮回报 `scrollContainers`，下一次实盘用数据来定这个默认值。
+
+---
+
 | 类别 | 旧计数（v4，早停） | 现计数 | 一句话含义 | 路由 |
 |---|---|---|---|---|
-| `data` | 2 | **10** | 有表且有行，**只有这一类能直接喂给取数脚本** | `subfolders-subdomains`(900)、`usa`(459)、`sources-destinations`(272)、`audience-overlap`(204)、`geographical-regions`(198)、`trending-websites`(140)、`ai-traffic`(120)、`business-regions`(36)、`page-groups`(20)、`demographics`(20) |
-| `chart-only` | 10 | **9** | 没有 table 元素，数在图里。**9 条全部通过结构判据**，判定 `no-table-structural` | `referral`、`organic-search`、`paid-search`、`organic-social`、`paid-social`、`email`、`display-ads`、`daily-trends`、`socioeconomics` |
+| `data` | 2 | **10**（⛔ 全部**待复查**，见上面的作废公告；`filledCells` 只能当下界读） | 有表且有行，**只有这一类能直接喂给取数脚本** | `subfolders-subdomains`(900)、`usa`(459)、`sources-destinations`(272)、`audience-overlap`(204)、`geographical-regions`(198)、`trending-websites`(140)、`ai-traffic`(120)、`business-regions`(36)、`page-groups`(20)、`demographics`(20) |
+| `chart-only` | 10 | **9** ⛔ **9 条判定已于 2026-08-29 全部作废**（`voided-blind-probe`），回到 `pending-remeasure` | ~~没有 table 元素，数在图里。9 条全部通过结构判据，判定 `no-table-structural`~~ —— **那个「没有 table 元素」是浅层探针读出来的，穿透之后不成立；见上面的作废公告** | `referral`、`organic-search`、`paid-search`、`organic-social`、`paid-social`、`email`、`display-ads`、`daily-trends`、`socioeconomics` |
 | `data-not-in-table` | —— | **1** | **新分类。** 没有 table 元素，但**数据就在 DOM 文本里**（列表 + 条形图）。⚠️ **按非空单元格判会得 0，但不是没数据** | `behavior` |
 | `pending` | —— | **0** | 还没拿到可采信判据。**这是待办，不是结论** | ——（B 的最终报告后已清零） |
 | `empty-silent` | 8 | **0** | 列头齐全、0 行。⚠️ **8 条全部改判为 `data`，这一类在 node 5 上已经清零** | —— |
@@ -329,6 +424,11 @@ id 为 `hidden-tabs-do-not-hydrate` 的那条 law。
 
 #### `chart-only` 那 10 条：拆成四档，只有一档可采信（2026-08-29）
 
+> ⛔ **本小节整节的结论已于同日晚些时候作废**，见本节开头的作废公告：
+> 下面的 `chartHydrated` / `exportBtns` 计数出自一个对 shadow DOM 失明的探针，
+> 两个信号已退役，9 条 `structural-confirmed` 全部回到 `pending-remeasure`。
+> **原文保留，只标注被什么推翻。**
+
 它们原本是**同一个早停判据下测出来的**，同一个 bug。表现确实和「静默空表」不同——
 **连 `table` 元素都不存在**，而不是有表 0 行——但这不构成免测的理由，原话：
 **「虽然它们的表现不同，但我不能凭这个就免测。」** 耐心模式重跑之后结果如下。
@@ -375,7 +475,7 @@ DOM 观测本身有效。**不要因为这条去重跑它们。**
 
 | 档 | 条数 | 路由（括号内为 `chartHydrated / exportBtns`） | 能不能用 |
 |---|---|---|---|
-| **structural-confirmed** | 9 | `organic-social`(30/5)、`paid-social`(34/5)、`email`(23/4)、`display-ads`(29/4)、`referral`、`organic-search`、`paid-search`、`daily-trends`、`socioeconomics` | **能**。判定 `no-table-structural`。后 5 条 B 的最终报告只给了「均通过结构判据」，没逐条转述 chart/exp 计数，JSON 里那两个字段记 `null` 而不是编一个 |
+| **structural-confirmed** ⛔ 已作废 | 9 | `organic-social`(30/5)、`paid-social`(34/5)、`email`(23/4)、`display-ads`(29/4)、`referral`、`organic-search`、`paid-search`、`daily-trends`、`socioeconomics` | **能**。判定 `no-table-structural`。后 5 条 B 的最终报告只给了「均通过结构判据」，没逐条转述 chart/exp 计数，JSON 里那两个字段记 `null` 而不是编一个 |
 | **data-not-in-table** | 1 | `behavior` | **能，但不是这一类的用法**。它没有 table，可**数据在 DOM 文本里**，见下一节 |
 
 **`behavior` 从「弱证据 pending」翻案成一个独立类别，方向和原来相反。**

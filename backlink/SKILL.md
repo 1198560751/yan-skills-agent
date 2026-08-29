@@ -86,6 +86,21 @@ backlink/
 │   ├── apply-traffic-screen.mjs    write verdicts back into submission-targets.json
 │   ├── inspect-page.mjs            dump one target's form / login / CAPTCHA state
 │   ├── safe-fill.mjs               fill a reviewed payload, never submit
+│   ├── lib-deep-dom.mjs           ★ the ONE shadow-DOM-piercing traversal. EVERY counting
+│   │                               probe goes through it. Measured 2026-08-29 on one page,
+│   │                               one instant: body.innerText 59 chars / deep text
+│   │                               1,605,054 / 44 shadow roots. innerText and
+│   │                               querySelectorAll both stop at the shadow boundary, so
+│   │                               every table / cell / text count taken before this file
+│   │                               existed measured a sliver of the page. Emits the LIGHT
+│   │                               reading beside the deep one - the gap is the diagnostic.
+│   │                               Also holds the segmented-scroll capability (default off).
+│   │                               See <law-ref id="readiness-must-bind-to-this-query"/>
+│   ├── lib-report-readiness.mjs    ★ the report-route criteria, and the HARD GATE that runs
+│   │                               BEFORE any classification: landed path == requested
+│   │                               route, header domain == requested target, content region
+│   │                               non-empty. Any one failing ⇒ `inconclusive`, never
+│   │                               `no-table` and never `empty`.
 │   ├── lib-submit-outcome.mjs      ★ the ONE "did this submission get accepted" criterion.
 │   │                               Paired on purpose: acceptance evidence must sit OUTSIDE
 │   │                               every form, and no rejection marker may be present — a
@@ -1381,6 +1396,104 @@ without the other.
    exist** — nobody has recorded the empty-state page's DOM. That, too, is in
    the collection list below.
 
+**CORRECTION 2026-08-29, last and deepest — the whole probe family was
+structurally blind to shadow DOM, and that is the root cause under all four
+corrections above.** One page, one instant, read-only live:
+
+| measurement | value |
+|---|---|
+| `document.body.innerText.length` | **59** |
+| deep text length, piercing shadow DOM | **1,605,054** |
+| shadow roots in the document | **44** |
+
+Semrush renders its shell **and its report widgets** inside those 44 roots.
+`innerText` does not cross a shadow boundary and neither does
+`querySelectorAll`. **So every `table` / cell / `innerText` count this Skill has
+ever taken measured a sliver of the page.** Piercing the same page moved `svg`
+32 → 45, 3 → 16, 49 → 62.
+
+⚠️ **This repo had already paid for this lesson once.** The Semrush sidebar is
+also in shadow DOM; the verdict at the time was "the sidebar is invisible" until
+`document.querySelectorAll('snav-sidebar-ribbon-item, snav-sidebar-list-item')`
+plus `el.shadowRoot.querySelector('a')` produced 15 extra pages. **That repair
+was made in one place and never generalised to the data probes.** The traversal
+now lives in <ref file="scripts/lib-deep-dom.mjs"/> and every counting probe goes
+through it — and it emits the **light reading beside the deep one**, because the
+gap is itself the diagnostic ("how much of this page is hidden behind shadow
+DOM").
+
+**Three things this overturns, none of them small.**
+
+1. **`exportBtns` and `chartHydrated` are retired as criteria.** `daily-trends`
+   measured `exportBtns: 12` — **byte-identical to the `exp=12` on its record** —
+   with a **blank content area**. All twelve matches live in the navigation shell
+   inside shadow DOM, in no report at all. That is exactly the shape this law
+   describes, and it is flawless: no seam to notice. Meanwhile `chartHydrated`
+   read **0 on all three routes probed**, including the one whose record says
+   `chart=122`. A quantity that reads 122 and 0 on the same page **is not
+   evidence of anything**. Both keep being measured and recorded; neither may
+   enter a verdict. "It is page output" was never sufficient — a signal must also
+   be **bound to this report section**, and that section's root has still never
+   been measured.
+2. **The control group destroys the classification's discriminating power.**
+   `top-pages` — the route whose record reads **850 filled cells** — now reads
+   `tables:0, grids:0, cells:0, innerText:59` for 150 seconds. **A route known to
+   carry data is indistinguishable from the nine filed "no table".** Any scheme
+   that separated them was separating noise.
+3. **A wrong deep-link host walks silently onto a sales page.**
+   `www.semrush.com/analytics/traffic/...` is **not the authorised base**
+   (`sem.3ue.co` is — see <ref file="references/authorized-data-sources.md"/>).
+   It does not error: skeleton → bounce to `/analytics/traffic/` (the **public
+   marketing page**: `innerText` 514, 10 images, title
+   `Traffic Analytics: Estimate Any Website's Traffic | Semrush`) → bounce again
+   to overview. **A scanner will happily record "no table, has svg, has export
+   buttons" off a sales page.** And after the bounces the tab was sitting on
+   **`mmradar.gg`**'s domain overview (23 filled cells, AS 22, organic 23.9K) —
+   any probe reading `cells > 0` at that moment files mmradar.gg's numbers under
+   canva.com.
+
+**Hence a HARD GATE that runs BEFORE any classification**
+(`classifyAdmissibility` in <ref file="scripts/lib-report-readiness.mjs"/>).
+Three assertions; any one failing yields **`inconclusive`**, never `no-table`
+and never `empty`:
+
+| gate | what it asserts | the instance it stops |
+|---|---|---|
+| 1 | landed URL's path **==** the requested route | the silent bounce to the sales page |
+| 2 | the header's domain **==** the requested target | mmradar.gg's cells filed under canva.com |
+| 3 | the content region is non-empty, **after piercing** | `innerText:59` for 150 seconds |
+
+Plus two preconditions of the same rank, because without them the three are
+self-deception: the reading must come from the **piercing** traversal
+(`deepProbe`), and the report region's root must be **measured**, not the `main`
+convention. **Today's entire sweep should have been `inconclusive` throughout.**
+
+⚠️ **On gate 3's threshold, since this repo has already lost once to a threshold
+bet (instance 5 → 6).** The load-bearing half is **positive and region-bound**:
+a filled cell, or a value-shaped number, or **the page's own rendered empty
+state** — that last one on purpose, so a genuinely empty report does not become
+permanently `inconclusive`. The character floor (**60**, one more than the
+59-character shell measured today) is a **backstop, subordinate to the positive
+half**: it never runs when positive evidence exists, it can only ever push a
+verdict toward `inconclusive`, and its only job is to tell "never read the
+content region at all" apart from "read it, nothing there to recognise". Used the
+other way round — "text too short, therefore empty" — it would be instance 6
+again with a smaller number.
+
+**Scrolling: the capability is added, the default is off, and the observation
+has a limit that must be stated.** Today's routes measured
+`body.scrollHeight === window.innerHeight` (772), `scrollY` unmoved across 8
+scrolls, every number frozen for 350 seconds. **But the module rendered blank** —
+a page that rendered nothing has nothing below the fold, so that observation
+proves neither that this site needs scrolling nor that it does not. Turning it on
+by default would write an unmeasured assumption into default behaviour, which is
+the move that produced everything above. So: **segmented scroll with a per-segment
+wait, one flag away, default off**, and the probe now reports
+`scrollContainers` every round. Second limit, sharper: on a page whose shell sits
+in 44 shadow roots **the real scroller is very likely not `window`** — "scrolled
+8 times, `scrollY` never moved" and "there is nothing to scroll" are the same
+reading.
+
 ⚠️ **None of this softens <law-ref id="hidden-tabs-do-not-hydrate"/> by a word.**
 The two claims are about different objects:
 
@@ -1763,34 +1876,49 @@ const verdict = filledCells > 0 ? 'data'
 // It used to have five; `vis === 'visible'` was removed the same day - it is not
 // page output, and after one foreground attach it is a pinned constant. See the
 // correction in the statement above.
+// ⚠️ CORRECTED 2026-08-29 (root cause): EVERY count below pierces shadow DOM.
+// Same page, same instant: body.innerText 59 chars / deep text 1,605,054 /
+// 44 shadow roots. `querySelectorAll` and `innerText` both stop at the shadow
+// boundary, so the pre-correction version of this block measured a sliver.
+// deepQueryAll / deepTextSample / collectRoots come from lib-deep-dom.mjs.
 const structural = (() => {
-  const scoped = document.querySelector(SCOPE_SELECTOR);
+  // the report root is looked up DEEP too - on this vendor the report region
+  // itself can sit inside a shadow root, and the old lookup silently fell back
+  // to document.body, i.e. back to those 59 characters.
+  const scoped = deepQueryAll(document.body, SCOPE_SELECTOR)[0] || null;
   const root = scoped || document.body;
   return {
     scopeSelector: SCOPE_SELECTOR,
     scopeResolved: !!scoped,
     scopeIsUnverifiedDefault: SCOPE_SELECTOR === 'main',
+    deepProbe: true,                    // this reading pierced shadow DOM
+    shadowRoots: collectRoots(root).roots.length - 1,
     // 1. no table anywhere. ON ITS OWN THIS PROVES NOTHING - an unrendered page
-    //    has no table element either.
-    noTable: root.querySelectorAll('table, [role="grid"]').length === 0,
-    // 2. THE SOUL OF THE CRITERION: the charts have finished hydrating. Text
-    //    nodes inside svg that actually carry digits = axes and data labels drawn.
-    //    ⚠️ UNBOUND UNTIL SCOPE_SELECTOR IS MEASURED. Under the default root this
-    //    counts every svg digit under `main`, and the axa.fr widget of instance 1
-    //    is `42 / 758 / 15%` - three, on its own, if it is drawn as svg.
-    chartHydrated: [...root.querySelectorAll('svg text')]
+    //    has no table element either. AND it must be the DEEP count: the shallow
+    //    one says "no table in this sliver of the page", which is how nine
+    //    `no-table-structural` verdicts were manufactured.
+    noTable: deepQueryAll(root, 'table, [role="grid"]').length === 0,
+    // the SHALLOW readings are kept beside the deep ones on purpose: the gap is
+    // the diagnostic ("how much of this page is behind shadow DOM").
+    lightDom: {
+      tables: root.querySelectorAll('table, [role="grid"]').length,
+      textLength: (root.innerText || '').length,
+    },
+    deep: { textLength: deepTextLength(root) },
+    // 2 + 3. RETIRED AS CRITERIA 2026-08-29, still recorded. daily-trends
+    //    measured exportBtns:12 (identical to its record's exp=12) with a BLANK
+    //    content area - all twelve in the nav shell, inside shadow DOM, in no
+    //    report. chartHydrated read 0 on all three routes probed, including the
+    //    one recorded as chart=122. One is vacuously true on a blank page, the
+    //    other vacuously false on a populated one. Neither may gate anything
+    //    until this section's real root has been MEASURED.
+    chartHydrated: deepQueryAll(root, 'svg text')
       .filter((t) => /\d/.test(t.textContent || '')).length,
-    // 3. ALSO THE SOUL: the section's own export controls are mounted, i.e. the
-    //    rest of the page is done being built.
-    //    ⚠️ SAME UNBOUND WARNING, and this Skill's own notes hold the counter-
-    //    example: `daily-trends` renders ONE 导出 PER CHANNEL NAME in the body.
-    //    So an 导出 button may belong to the global toolbar or to a different
-    //    section, and has no necessary relation to THIS section being rendered.
-    //    Record the labels, so a later reader can see whose buttons these were.
-    exportBtns: [...root.querySelectorAll('button, a')]
+    exportBtns: deepQueryAll(root, 'button, a')
       .filter((b) => /导出|export/i.test(b.innerText || '')).length,
-    exportControlLabels: [...root.querySelectorAll('button, a')]
+    exportControlLabels: deepQueryAll(root, 'button, a')
       .map((b) => (b.innerText || '').trim()).filter((l) => /导出|export/i.test(l)),
+    advisoryOnly: ['chartHydrated', 'exportBtns', 'vis', 'hasFocus'],
     // 4. and it is THIS query's page, being looked at right now. NOT droppable:
     //    the empty-state landing page is a PERFECT noTable===true (instance 4).
     onTarget: scope.ok,
@@ -1798,19 +1926,75 @@ const structural = (() => {
     // hasFocus is the cross-check on a `visible` that may be a pinned lie.
     vis: document.visibilityState,
     hasFocus: document.hasFocus(),
+    // scrolling: the capability exists and is OFF by default. Today's routes read
+    // scrollHeight === innerHeight and scrollY never moved - BUT THE MODULE
+    // RENDERED BLANK, so that proves nothing either way. And on a page with 44
+    // shadow roots the real scroller is very likely not `window`, which reads
+    // exactly like "nothing to scroll". Record the candidates; decide later.
+    scrollContainers: deepScrollContainers(root).slice(0, 20),
   };
 })();
-const noTableStructural =
-  structural.noTable && structural.chartHydrated >= 3 &&
-  structural.exportBtns >= 1 && structural.onTarget;
-// meaning, in one sentence: EVERYTHING ELSE ON THIS PAGE IS READY AND THERE IS
-// STILL NO SUCH THING AS A TABLE HERE. That, and only that, rules out "the table
-// is still on its way". Conditions 2 and 3 ARE the finished-rendering evidence;
-// `visible` was a proxy for the same thing and a proxy that lies.
+
+// THE HARD GATE. It runs BEFORE any classification, and nothing downstream may
+// name a class until it passes. Today's whole sweep should have been
+// `inconclusive`, and it was not, because none of these three was asserted.
+const gate = (() => {
+  const reasons = [];
+  // precondition A: the reading pierced shadow DOM at all.
+  if (!structural.deepProbe) reasons.push('shallow-probe');
+  // precondition B: the report root was MEASURED, not the `main` convention.
+  if (!structural.scopeResolved) reasons.push('scope-unresolved');
+  else if (structural.scopeIsUnverifiedDefault) reasons.push('scope-unverified-default');
+  // 1. landed path == requested route. www.semrush.com is NOT the authorised
+  //    base and does not error: skeleton -> /analytics/traffic/ (the public
+  //    MARKETING page) -> overview. A scanner records "no table, has svg, has
+  //    export buttons" off a SALES PAGE.
+  const landedPath = new URL(location.href).pathname.replace(/\/+$/, '');
+  if (landedPath !== REQUESTED_PATH.replace(/\/+$/, '')) reasons.push('path-drift');
+  // 2. header domain == requested target. After those bounces the tab was on
+  //    mmradar.gg's overview: 23 filled cells, AS 22. Anything reading cells > 0
+  //    then files mmradar.gg's numbers under canva.com. Header unreadable is
+  //    ALSO a fail - this is the last gate, nothing catches it afterwards.
+  const headerTarget = (parseHeader(structural.deepText).headerTarget || '')
+    .toLowerCase().replace(/^www\./, '');
+  if (!headerTarget) reasons.push('header-target-unknown');
+  else if (headerTarget !== TARGET) reasons.push('header-target-mismatch');
+  // 3. the content region is non-empty AFTER piercing. top-pages - 850 filled
+  //    cells on its record - read tables:0 cells:0 innerText:59 for 150 seconds.
+  //    POSITIVE and region-bound, three ways; the page's own rendered empty
+  //    state counts, so a genuinely empty report is not stuck at inconclusive.
+  const deepText = deepTextSample(root, { maxChars: 60000 });
+  const evidence = filledCells > 0 ? 'filled-cells'
+    : /[\d.,]+\s*(?:[KMB]|万|亿|%)/i.test(deepText) ? 'value-token'
+    : /未找到结果|没有数据|No results|No data/i.test(deepText) ? 'rendered-empty-state'
+    : null;
+  if (!evidence) {
+    // the 60-char floor is a BACKSTOP SUBORDINATE TO THE POSITIVE HALF: it never
+    // runs when evidence exists, it can only push toward `inconclusive`, and it
+    // exists to tell "never read the region" from "read it, nothing to
+    // recognise". 60 = the 59-char shell measured today, plus one. Run the other
+    // way round ("too short, therefore empty") it is instance 6 with a smaller
+    // number.
+    if (deepText.length <= 60) reasons.push('content-below-floor');
+    reasons.push('no-content-evidence');
+  }
+  return { admissible: reasons.length === 0, reasons, evidence };
+})();
+
+const noTableStructural = gate.admissible && structural.deepProbe &&
+  structural.noTable && structural.onTarget;
+// meaning, in one sentence: THIS IS DEMONSTRABLY THE RIGHT PAGE FOR THE RIGHT
+// TARGET, ITS CONTENT REGION HAS RENDERED, AND THERE IS STILL NO SUCH THING AS A
+// TABLE IN IT - counted through shadow DOM. The finished-rendering evidence now
+// comes from the gate's content check, which is bound to the report subtree, so
+// the twelve export buttons in the nav shell cannot reach it.
 
 // three verdict names, and only two of them are results. Check data-not-in-table
 // BEFORE concluding absence: "no table" and "no data" are different sentences.
-const absence = anchored.ready ? 'data-not-in-table'                   // admissible
+// AND: `admissible` is a REQUIRED first term. A gate that passes when you forget
+// to pass it is not a gate - which is precisely how today's sweep got classified.
+const absence = !gate.admissible ? 'inconclusive'                      // THE GATE
+  : anchored.ready ? 'data-not-in-table'                               // admissible
   : noTableStructuralTwiceRunning ? 'no-table-structural'              // admissible
   : budgetExhausted ? 'no-table'                                       // NOT admissible
   : 'inconclusive';
@@ -1878,6 +2062,36 @@ if (filledCells === 0) return 'no-data';
 if (/\d/.test(document.body.innerText)) return 'data-not-in-table';
 // FALSE - that is the axa.fr widget. Non-table data needs anchors DECLARED BY
 // THE ROUTE and values read from inside those sections. No generic form is safe.
+
+// 10. counting anything with a NON-PIERCING query. THIS IS THE ROOT CAUSE.
+const noTable = document.querySelectorAll('table, [role="grid"]').length === 0;
+const bodyText = document.body.innerText;
+// FALSE - on this vendor, same page same instant: innerText 59 chars vs 1,605,054
+// piercing, 44 shadow roots. Every table/cell/text count taken this way measured
+// a sliver. And the control group settles it: top-pages, 850 filled cells on its
+// record, reads tables:0 cells:0 innerText:59 for 150 seconds - INDISTINGUISHABLE
+// from the nine routes filed "no table". The classification had zero
+// discriminating power. This repo had already fixed exactly this for the sidebar
+// (snav-sidebar-* + el.shadowRoot) and never generalised it.
+
+// 11. export controls / hydrated chart digits as "the rest of the page finished".
+if (noTable && chartHydrated >= 3 && exportBtns >= 1 && onTarget) return 'no-table-structural';
+// FALSE - daily-trends: BLANK content area, exportBtns === 12, byte-identical to
+// the exp=12 on its own record. All twelve live in the nav shell inside shadow
+// DOM, in no report at all. chartHydrated read 0 on all three routes probed,
+// including the one recorded chart=122. Vacuously true where it lies, vacuously
+// false where it is honest - the same shape as `vis === 'visible'`, one layer
+// down. "It is page output" is NOT sufficient; it must be bound to THIS section.
+
+// 12. classifying without asserting where you landed or whose page it is.
+const verdict = classify(probe);   // no route check, no header check
+// FALSE - www.semrush.com is not the authorised base (sem.3ue.co is) and DOES
+// NOT ERROR: skeleton -> /analytics/traffic/ (public marketing page, innerText
+// 514, title "Traffic Analytics: Estimate Any Website's Traffic | Semrush") ->
+// overview, ending on mmradar.gg's domain overview (23 filled cells, AS 22).
+// So this line can file a SALES PAGE as "no table, has svg, has export buttons",
+// or file mmradar.gg's numbers under canva.com. Assert path == route and
+// header == target BEFORE classifying, or emit `inconclusive`.
 
 // 9. gating the structural criterion on visibility.
 if (noTable && chartHydrated >= 3 && exportBtns >= 1 && onTarget
