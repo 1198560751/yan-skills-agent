@@ -96,6 +96,7 @@ opencli browser sessions    # 当前活跃的租约
 
 | 症状 | 大概率原因 | 修法 |
 |---|---|---|
+| `Extension: not connected`，**而且刚重启过守护进程** | service worker 睡死了，靠自己醒不过来 | `open -g -a "Google Chrome" "https://example.com"` 给它一个事件，见下节。**先试这个**，别急着重装 |
 | `Extension: not connected` | 扩展没装 / 被禁用 / Chrome 没开 | 从 [Release](https://github.com/yan-labs/OpenCLI/releases/latest) 下载 zip 解压后在 `chrome://extensions` 加载已解压的扩展程序，确认 Chrome 在跑。**不要装应用商店版** |
 | 行为与本 Skill 描述不符（默认前台、`isolated` 无效） | 装的是应用商店版或旧构建 | `opencli doctor` 看 Extension 版本，< 1.0.32 就换成 [Release](https://github.com/yan-labs/OpenCLI/releases/latest) 里的 zip |
 | `attach failed: chrome-extension://...` | 别的扩展抢 CDP | 临时禁用 1Password 一类占用 CDP 的扩展 |
@@ -171,6 +172,42 @@ git status --short
 - **`doctor` 前两行绿、第三行红**，说明守护进程和扩展这两个**组件**都活着，
   坏的是它们之间那条命令路径。重启守护进程通常没用——它正是唯一确认健康的那个。
 - **提示信息在逻辑上自相矛盾时，先确认你在跑哪个构建**，再决定是查代码还是查环境。
+
+## `daemon restart` 之后扩展不会自动重连
+
+**这是重启守护进程的隐藏代价，实测踩到过一次，浏览器自动化断了 16 分钟。**
+
+扩展是 MV3 的 service worker，Chrome 会在闲置约 30 秒后把它杀掉，靠事件唤醒。
+守护进程一重启，那条长连接就断了——而**断开本身不是一个能唤醒 service worker 的事件**。
+于是它就一直睡着，`doctor` 一直是 `[MISSING] Extension: not connected`，
+Chrome 明明开着，扩展明明装着。
+
+实测（2026-08-28，扩展 1.0.32）：重启后连续两次 `opencli daemon restart` 都没能让它回来，
+扩展日志整整 16 分钟一个字都没有。
+
+**唤醒方法是给 Chrome 一个导航事件：**
+
+```bash
+open -g -a "Google Chrome" "https://example.com"   # -g 不抢焦点
+```
+
+实测 8 秒后 `Connected to daemon`，`doctor` 三行恢复全绿。
+
+| 做法 | 结果 |
+|---|---|
+| 再 `daemon restart` 一次 | **没用**——重启的是守护进程，睡着的是扩展 |
+| 等它自己醒 | 实测 16 分钟没醒 |
+| **给 Chrome 一个导航事件** | **8 秒重连** |
+| 去 `chrome://extensions` 手动 reload | 也行，但要人动手；上面那条不用 |
+
+**所以任何自动重启守护进程的脚本，重启之后必须验一次 `doctor`，红了就唤醒再验。**
+少这一步的后果不是脚本报错，是**它后面所有的浏览器操作都在一个没有桥的守护进程上跑**，
+每一条都失败，而失败原因看起来跟当时在测的东西有关——那次踩到时，
+一个本来该验证会话锁的测试报了 FAIL，其实跟锁毫无关系。
+
+**重启守护进程之前先看有没有活儿在跑。** 它会打断所有在飞的浏览器命令。
+`pgrep -f '<你的采集脚本名>'` 或 `opencli browser sessions` 都能判断；
+配额站上打断一个跑了一小时的采集，等于白烧一小时配额。
 
 ## adapter 的自修复入口
 
