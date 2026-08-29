@@ -509,10 +509,22 @@ Measured on one batch of 12 CAPTCHA routes a human solved by hand:
 **Half of that person's manual work went to sites with double-digit traffic.**
 A single batch query beforehand would have removed all six.
 
-The same run measured the effect directly: an unscreened batch converted at
-**1.1%** (attempts → confirmed placement); the next batch, gated on
-`monthlyVisits >= 100`, converted at **3.3%**. Same payloads, same scripts, same
-day. **Three times the yield for one cheap query per domain.**
+The same run measured the effect directly. Counting every attempt row in the
+run's own output files, and defining the split as *all work done before the gate
+existed* versus *the one batch selected through it*:
+
+| | attempts | confirmed | rate |
+|---|---:|---:|---:|
+| no traffic gate | 283 | 7 | **2.5%** |
+| gated on `monthlyVisits >= 100` | 53 | 4 | **7.5%** |
+
+Same payloads, same scripts, same day. **Three times the yield for one cheap
+query per domain.**
+
+State the denominator whenever you quote a rate like this. The first pass at
+these numbers reported 1.1% → 3.3% from memory; recomputing from the files gave
+2.5% → 7.5%. The *ratio* survived, the absolute rates did not — and a rate with
+no stated denominator cannot be checked by the next reader.
 
 Corollary for reporting: a panel that rewrites the requested window (asking for
 28d and landing on 6m — the tool prints this) gives numbers that are **not**
