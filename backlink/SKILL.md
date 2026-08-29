@@ -386,7 +386,7 @@ separate your own pages from each other, and by
 name reused for all three pages obeys this law's letter and breaks Law 1.
 Vary both: `backlink-probe-p1`, `-p2`, `-p3`, each carrying the same
 per-task suffix — from `defaultSession()` in JS, or from
-`oc_session <base>` in `<opencli-skill>/scripts/session.sh` in shell.
+`oc_session &lt;base&gt;` in the opencli Skill's own `session.sh` helper in shell.
 Both refuse a name ending in 3-6 digits, because that is the shape `$$`
 expands to and the failure is otherwise silent: the agent just sees a blank
 page every time and retries.
@@ -582,10 +582,28 @@ reason to exempt them from the test."** The patient re-run split the ten: four
 now carry `no-table-structural` (the page finished, and there is still no table),
 two hold strong evidence under an older protocol, and two came back with the
 weak `no-table` and stay `pending` — one of them having rendered nothing at all.
-The criterion and the two verdict names are in
+The criterion and the verdict names are in
 <law-ref id="readiness-must-bind-to-this-query"/>; the per-route split is in the
 rankup provider-capabilities reference. **A Class A claim is only usable when it
 names `no-table-structural`.**
+
+**And a third kind of empty, found 2026-08-29: not empty at all.**
+`/analytics/traffic/behavior/` has no `table` element and publishes its numbers
+in lists and bar charts (`YouTube 71.8% 1.5亿 | Facebook 49.36% 1亿 | ...`).
+Neither remedy above applies: a visibility retry is wasted on it and a
+"no table, therefore no data" reading is simply false. Its verdict name is
+**`data-not-in-table`**, defined in
+<law-ref id="readiness-must-bind-to-this-query"/>.
+
+**One boundary, because the structural criterion no longer gates on
+`vis === 'visible'` and that is easy to over-read.** This law is untouched by
+that change. Visibility gates whether **rows hydrate inside a table**
+(`top-pages`: 0 cells hidden / 850 visible, three crossing measurements) — that
+finding stands exactly as written. It has never been shown to gate whether the
+**`table` element exists**, and for that question the page's own chart digits
+and export controls are the direct evidence, so a signal that a foreground
+attach pins to `visible` forever has no place in it. Structure and values are
+two questions; only the second one is this law's.
 </statement>
 <why>
 This is the most dangerous failure shape in this Skill, because it does not look
@@ -945,6 +963,50 @@ The criterion that has survived every instance so far is **"a table on this page
 holds at least one non-empty cell"** — `filledCells > 0`. Skeleton rows, column
 headers, prose and svg cannot satisfy it.
 
+**CORRECTION 2026-08-29 — that criterion is sound in one direction only, and it
+was being read in both.** `filledCells > 0` proves data arrived.
+`filledCells === 0` proves **nothing about data**; the most it can ever support
+is the much narrower claim **"no table-shaped data"**. The assumption nobody
+wrote down was **"data means a table"**, and one route falsifies it outright:
+`/analytics/traffic/behavior/` has **no `table` element anywhere**, and the
+numbers are sitting in the DOM text regardless —
+
+> `YouTube 71.8% 1.5亿 | Facebook 49.36% 1亿 | Instagram 48.61% | Reddit 33.71% | TikTok 28.06%`
+
+— plus interest and device splits, presented as **lists and bar charts**. Scored
+by non-empty cells it reads **0**, and the correct verdict is emphatically not
+"no data". So a third verdict name joins the two in the table below:
+**`data-not-in-table`**.
+
+**The supplement is NOT "there are digits on the page".** That is instance 1
+verbatim — it matched a neighbouring widget's `axa.fr / 42 / 758 / 15%` — and
+re-adopting it to cover this blind spot would trade a false negative for the
+worst false positive on record. Nor is there a safe *generic* repair, and the
+reason is worth stating precisely: what makes a filled `td` trustworthy is that
+`td` is a **structural membership claim** — the cell is part of a table, and the
+report region owns its tables. A `div` holding `71.8%` makes no such claim; in
+the DOM it is indistinguishable from a foreign widget's `div` holding `15%`.
+**The anchor a table supplies for free has to be supplied by hand for every
+other presentation shape.**
+
+So the honest conclusion is the narrow one: **there is no safe general positive
+criterion for non-table data. Each route must declare its presentation shape and
+its own anchor labels before anyone can read it.** The check's *shape*
+generalises; its *anchors* never do:
+
+- record **`presentationShape`** per route — `table` / `list` / `bar-chart` /
+  `card` — as a measured field, never a guess;
+- a non-table route must also declare **the dimension labels it owns** (for
+  `behavior`: 社交媒体 / 兴趣度 / 设备). Those come from the route's own
+  navigation, decided *before* the read — not harvested from the page you are
+  about to judge, which would be the same circularity as instance 2;
+- the positive read is then **a value inside the subtree of a declared label**,
+  never a value found "on the page". Every foreign widget is outside every one
+  of those subtrees, which is exactly the property the body-wide scan threw away;
+- `anchoredValues > 0` is admissible exactly as `filledCells > 0` is — and
+  `anchoredValues === 0` is admissible exactly as little. Absence still has to
+  be proven the structural way, below.
+
 A **target** check needs both halves: a positive condition (the target's own
 identifier is present) **and** a negative one (no marker of the empty-state
 landing page — e.g. a "create a new list" control). The positive half alone is
@@ -1000,8 +1062,15 @@ one be read as a result.**
 
 | verdict | what it means | admissible |
 |---|---|---|
-| `no-table-structural` | all four conditions held, twice running | **yes** — this route has no table |
+| `no-table-structural` | all conditions held, twice running | **yes** — this route has no table |
+| `data-not-in-table` | no table, but values were read under the route's own declared anchors | **yes** — this route has data, in another shape |
 | `no-table` | the whole patience budget ran out with no table, structural conditions never assembled | **no** — file it `pending`, it is `inconclusive` wearing a better name |
+
+**`no-table-structural` and `data-not-in-table` are not alternatives to check in
+order — check the second one first.** "This route has no table" and "this route
+has no data" are different sentences, and the only route that has ever needed
+the distinction, `behavior`, is the one where getting it backwards costs a real
+capability.
 
 The two routes that landed in the weak tier are the argument for the split:
 `paid-search` finished with `chart=0 / exp=6` (the chart numbers never
@@ -1009,6 +1078,83 @@ rendered), and `behavior` with `chart=0 / exp=0` — **nothing on that page
 rendered at all**, which is to say nothing was measured. Filing either as
 "this route serves charts, not tables" would have been the old mistake with a
 new label.
+
+**CORRECTION 2026-08-29, same day, later — the structural criterion had a fifth
+condition, `vis === 'visible'`, and it is removed.** It was inherited from
+<law-ref id="hidden-tabs-do-not-hydrate"/>, where visibility is a genuine
+confounder on *value fill*. It does not belong here, for two independent
+reasons.
+
+1. **It is not bound to anything this query produced** — this law's own test, and
+   the same test that retired the 100-second floor. `document.visibilityState`
+   is a fact about the owner's desktop. `chartHydrated >= 3` and
+   `exportBtns >= 1` are facts about *the page*, and they measure the very thing
+   visibility was standing in for: whether the render pipeline finished.
+   **When the effect is directly observable, the proxy adds nothing.** Here it
+   adds less than nothing, because these routes render summary → charts →
+   table with **the table last**: hydrated chart digits witness that the
+   pipeline reached *the stage immediately before the table*, which is precisely
+   the evidence a "no table" claim needs. `visible` never carried that and
+   cannot be made to.
+2. **The signal lies, and it lies in the direction that grants authority.**
+   Experiment E: one foreground attach pins `visibilityState` to `visible` for
+   the life of the tab. So on any foreground-attached session the condition is
+   **vacuously true** — it filters nothing while looking like the strictest term
+   in the conjunction — and on an honest, never-foregrounded session it can be
+   **false while the page is fully rendered**, throwing away a sound structural
+   verdict. A predicate that is automatically true wherever it is a lie and
+   sometimes false wherever it is honest is worse than no predicate at all. This
+   one managed to be both lax and over-strict, each in the wrong place.
+
+**What is kept — and why the other half of condition 4 is not open to the same
+argument.** `onTarget` — the target's own identifier present **and** no
+empty-state marker — is a fact this query produced, and instance 4 is what
+happens without it: a silent fallback to the empty-state landing page read
+`0 rows / no table / innerText 353`, a flawless `noTable === true`. **Condition 1
+is satisfied most perfectly by a page that is not your report at all.**
+`onTarget` therefore stays mandatory, and so does recording `listPickerVisible`
+and the account initial beside it.
+
+**`vis` keeps being recorded and stops being a gate.** Write
+`visibilityStateAtVerdict` next to every structural verdict — with `hasFocus()`
+beside it as the independent cross-check — as evidence *about the instrument*.
+Never let a verdict turn on it.
+
+**What this changes for work already filed. Three separate things; do not merge
+them.**
+
+- The **four `no-table-structural` routes** (`organic-social` 30/5,
+  `paid-social` 34/5, `email` 23/4, `display-ads` 29/4) were confirmed with a
+  `vis` that may well have been a poisoned constant. Under the revised criterion
+  `vis` was never load-bearing, so **those four verdicts survive intact** —
+  they rest on chart digits and export controls, which are page output.
+- The **`strong-but-different-protocol` pair** — `referral` at 98 `visible`
+  reads, `organic-search` at 96 — is the case this reprieve is most likely to be
+  misread as covering. `scripts/semrush-traffic.mjs` carries
+  `DEFAULT_WINDOW = 'foreground'`, so all 194 of those `visible` labels are
+  suspect and **as evidence about visibility they are void**. But they were
+  never evidence about visibility: they are 194 observations of **zero table
+  elements**, and that is a DOM fact the poisoning does not reach. Their status
+  therefore neither improves nor worsens — still inadmissible, for the reason
+  already on their record (**`chartHydrated` and `exportBtns` were never
+  sampled**) and no longer for any visibility reason. Re-measure the two
+  structural fields; do not re-measure the visibility.
+- The **`v4-visible-gated` protocol** was visibility-gated end to end, and its
+  *empty* verdicts stay void on instance 6's grounds. Dropping `vis` from the
+  structural criterion rehabilitates **not one** `empty-silent` verdict.
+
+⚠️ **None of this softens <law-ref id="hidden-tabs-do-not-hydrate"/> by a word.**
+The two claims are about different objects:
+
+| the question | is visibility load-bearing? | evidence |
+|---|---|---|
+| **does a `table` element exist on this route?** | **no** — chart digits and export controls witness the render directly | the Class A routes returned byte-for-byte the same chart-only shape hidden and visible |
+| **will the rows inside a table hydrate?** | **yes, decisively** | `top-pages`: 0 non-empty cells hidden / 850 visible, three crossing measurements |
+
+Element existence is a question about the page's **structure**; row hydration is
+a question about its **values**. Visibility gates the second and has never been
+shown to gate the first. Anyone who reads "visibility does not matter" out of
+this has merged the two rows of that table.
 
 And write down the raw evidence the verdict rests on — the filled-cell count,
 the elapsed time and read count behind an empty verdict, the
@@ -1207,6 +1353,22 @@ foreign table — no panel page has yet been seen rendering a second tool's
 *table* inside the report region, only its widget. Treat one as a candidate if
 you meet it, and scope the cell count to the report container rather than to
 `document`.
+
+**Unmeasured, and it is the residual risk left by dropping `vis` from the
+structural criterion:** whether a genuinely hidden tab can reach
+`chartHydrated >= 3` **and** `exportBtns >= 1` while still withholding the
+`table` element. Nothing observed so far comes close — the degraded hidden reads
+on record are `innerText` 328–549 with no charts and no export controls, which
+fails conditions 2 and 3 on their own — but the pairing has never been measured
+directly, and it cannot be measured on a session that has ever been
+foreground-attached. If someone builds a virgin-background pass for it, record
+the result here. Until then the argument is "conditions 2 and 3 screen out every
+degraded hidden state ever seen", not "they screen out all of them".
+
+**Unmeasured — how many routes need `presentationShape` at all.** `behavior` is
+the only one found so far whose data is not in a table, and it was found by
+accident. The other `pending` routes have not been re-read with anchors, so
+"only one such route exists" is an absence of looking, not a finding.
 </scope>
 <correct><![CDATA[
 // readiness: bound to THIS query's output. A cell, not a word.
@@ -1218,6 +1380,31 @@ const ready = (() => {
 })();
 // -> { filledCells: 850, ready: true }   real rows
 // -> { filledCells: 0,   ready: false }  NO verdict yet — see hidden-tabs-do-not-hydrate
+// AND filledCells === 0 NEVER means "no data". It means "no TABLE-shaped data".
+// The route may publish its numbers as a list or a bar chart - see below.
+
+// NON-TABLE data: no safe generic criterion exists, so the route supplies the
+// anchors. Declare them from the route's own navigation BEFORE the read; never
+// scan the body for digits (that is instance 1, the axa.fr widget).
+const ANCHORS = { '/analytics/traffic/behavior/': ['社交媒体', '兴趣度', '设备'] };
+const anchored = (() => {
+  const root = document.querySelector('main') || document.body;
+  let n = 0;
+  for (const label of ANCHORS[location.pathname] || []) {
+    // the section that OWNS this label, not the page that happens to contain it
+    const head = [...root.querySelectorAll('h1,h2,h3,h4,[role="heading"]')]
+      .find((h) => (h.innerText || '').trim().startsWith(label));
+    const section = head?.closest('section, [class*="section" i], [class*="card" i]');
+    if (!section) continue;
+    n += [...section.querySelectorAll('*')]
+      .filter((e) => !e.children.length && /\d/.test(e.textContent || '')).length;
+  }
+  return { presentationShape: 'list+bar-chart', anchoredValues: n, ready: n > 0 };
+})();
+// -> behavior: { anchoredValues: >0, ready: true } => verdict 'data-not-in-table'
+//    raw: YouTube 71.8% 1.5亿 | Facebook 49.36% 1亿 | Instagram 48.61% ...
+// -> anchoredValues === 0 is NOT absence either. Absence goes through the
+//    structural criterion below, same as for tables.
 
 // target check: the positive AND the negative condition, in one read.
 const scope = (() => {
@@ -1260,7 +1447,10 @@ const verdict = filledCells > 0 ? 'data'
 
 
 // PROVING A ROUTE HAS NO TABLE AT ALL is a different claim, and it has a sound
-// criterion. Run in anger 2026-08-29. All four conditions, on TWO reads running:
+// criterion. Run in anger 2026-08-29. All FOUR conditions, on TWO reads running.
+// It used to have five; `vis === 'visible'` was removed the same day - it is not
+// page output, and after one foreground attach it is a pinned constant. See the
+// correction in the statement above.
 const structural = (() => {
   const root = document.querySelector('main') || document.body;
   return {
@@ -1275,25 +1465,33 @@ const structural = (() => {
     //    rest of the page is done being built.
     exportBtns: [...root.querySelectorAll('button, a')]
       .filter((b) => /导出|export/i.test(b.innerText || '')).length,
-    // 4. and it is THIS query's page, being looked at right now
+    // 4. and it is THIS query's page, being looked at right now. NOT droppable:
+    //    the empty-state landing page is a PERFECT noTable===true (instance 4).
     onTarget: scope.ok,
+    // RECORDED, NOT GATED. Evidence about the instrument, never about the page.
+    // hasFocus is the cross-check on a `visible` that may be a pinned lie.
     vis: document.visibilityState,
+    hasFocus: document.hasFocus(),
   };
 })();
 const noTableStructural =
   structural.noTable && structural.chartHydrated >= 3 &&
-  structural.exportBtns >= 1 && structural.onTarget && structural.vis === 'visible';
+  structural.exportBtns >= 1 && structural.onTarget;
 // meaning, in one sentence: EVERYTHING ELSE ON THIS PAGE IS READY AND THERE IS
 // STILL NO SUCH THING AS A TABLE HERE. That, and only that, rules out "the table
-// is still on its way".
+// is still on its way". Conditions 2 and 3 ARE the finished-rendering evidence;
+// `visible` was a proxy for the same thing and a proxy that lies.
 
-// two verdict names, and only one of them is a result:
-const absence = noTableStructuralTwiceRunning ? 'no-table-structural'  // admissible
+// three verdict names, and only two of them are results. Check data-not-in-table
+// BEFORE concluding absence: "no table" and "no data" are different sentences.
+const absence = anchored.ready ? 'data-not-in-table'                   // admissible
+  : noTableStructuralTwiceRunning ? 'no-table-structural'              // admissible
   : budgetExhausted ? 'no-table'                                       // NOT admissible
   : 'inconclusive';
 // 'no-table' is filed as PENDING, never as a route capability. The two that
 // landed there say why: paid-search chart=0/exp=6 (chart numbers never drew),
 // behavior chart=0/exp=0 (nothing on the page rendered - nothing was measured).
+// behavior has since been re-read and it is 'data-not-in-table', not empty.
 
 // and record the evidence NEXT TO the verdict, not just the verdict
 { "route": "/analytics/traffic/top-pages/", "verdict": "data",
@@ -1341,6 +1539,29 @@ if (document.querySelectorAll('table').length === 0) return 'chart-only';
 // FALSE - behavior finished the whole budget at chart=0/exp=0: not one chart
 // number, not one export button, i.e. the section never rendered. That is a
 // measurement of nothing, filed as a fact about the route.
+
+// 8. the positive criterion run BACKWARDS: no filled cells, therefore no data.
+if (filledCells === 0) return 'no-data';
+// FALSE - and it is our own good criterion misused, which makes it the easiest
+// one to miss. behavior has ZERO table elements and its numbers are right there:
+// YouTube 71.8% 1.5亿 | Facebook 49.36% 1亿 | Instagram 48.61% | Reddit 33.71%
+// drawn as lists and bar charts. filledCells===0 supports exactly one sentence:
+// "no TABLE-shaped data". The hidden premise was "data means a table".
+
+// 8b. and the tempting over-correction, which is instance 1 again:
+if (/\d/.test(document.body.innerText)) return 'data-not-in-table';
+// FALSE - that is the axa.fr widget. Non-table data needs anchors DECLARED BY
+// THE ROUTE and values read from inside those sections. No generic form is safe.
+
+// 9. gating the structural criterion on visibility.
+if (noTable && chartHydrated >= 3 && exportBtns >= 1 && onTarget
+    && document.visibilityState === 'visible') return 'no-table-structural';
+// FALSE - not because the verdict is wrong but because the last term is not
+// evidence. visibilityState is not page output, and after ONE foreground attach
+// it is pinned to 'visible' forever (Experiment E), so it is vacuously true on a
+// poisoned session and can be false on an honest fully-rendered one. Conditions
+// 2 and 3 already prove the render finished; the proxy only adds a liar.
+// Keep onTarget - the empty-state landing page is a perfect noTable===true.
 ]]></wrong>
 </law>
 

@@ -342,82 +342,58 @@
             "_protocol": "v4-visible-gated。每条路由最多 3 轮导航、每轮轮询 100 秒；只有 filled > 0、或**连续 3 次在 document.visibilityState === \"visible\" 下读到空**，才允许下判定；全程没等到过 visible 就判 inconclusive-hidden，绝不记成「空」。每条记录都带判定时的 visibilityState 与 visibleReads。 **已被两次推翻，见各条 supersededObservation**：v4 的早停缺陷（最快 18 秒下结论）先被 v5「可见读满 3 次且等满 100 秒」修补，v5 又被同一天的重测推翻（5 条改判为 data，2 条第二次重测才出数）。现行协议 v6-patient-signal-gated（耐心模式：每轮 200 秒、3 轮跑满不早停、单条最长 600 秒；空判定必须绑定正向的「本页已渲染完成」信号，拿不到就输出 inconclusive 而不是 empty）。",
             "_categories": {
               "data": "有表且有行。这条线上**只有这一类能直接喂给取数脚本**。",
-              "chart-only": "页面本身不提供表格，只有 svg。**重读无效**，要写图表读取器。既不能报「没数据」，也不该套可见性重试循环。 **2026-08-29：这一类不再是一个笼统的计数。** 一条路由只有在满足结构判据、判定为 `no-table-structural` 时才算数（本模块 4 条）；证据强但缺结构字段的记 `strong-but-different-protocol`（2 条）；跑满预算却没凑齐结构判据的只配 `no-table`，**不可采信**，一律移出本分类记 `pending`。逐条看 `chartOnlyTier`。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
+              "chart-only": "页面本身不提供表格，只有 svg。**重读无效**，要写图表读取器。既不能报「没数据」，也不该套可见性重试循环。 **2026-08-29：这一类不再是一个笼统的计数。** 一条路由只有在满足结构判据、判定为 `no-table-structural` 时才算数（本模块 4 条）；证据强但缺结构字段的记 `strong-but-different-protocol`（2 条）；跑满预算却没凑齐结构判据的只配 `no-table`，**不可采信**，一律移出本分类记 `pending`。逐条看 `chartOnlyTier`。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。 **2026-08-29 再更新：结构判据去掉了 `vis === 'visible'` 那一项**（它不是页面产出，且一次 foreground attach 之后会被永久锁死在 `visible`）。保留的是「目标已生效」那半。**这意味着已判定 `no-table-structural` 的路由不受 visible 锁死污染的影响** —— 它们靠的是图表数字与导出按钮，都是页面产出。",
               "empty-silent": "列头齐全、0 行、无 upsell、无限额提示、无「未找到匹配内容」。**与 chart-only 的补救方向相反**：这一类可能是可见性伪空，值得重读/换节点复测。 **2026-08-28 起这一类的门槛提高了**：光是「等够久还是空」不再够格——判空必须绑定一个正向的「本页已渲染完成」信号（分页器 / 行数计数 / 加载指示消失）。拿不到那个信号就记 `inconclusive`，不记 `empty`。 **2026-08-28：这一类在 node 5 上已清空（8 条全部改判为 `data`）。** 保留枚举值是因为它命名的现象仍可能出现，但目前没有任何一条路由属于它。",
               "requires-input": "路由存在且渲染正常，但要人先贴输入才产出。不是「空」，也不是「没数据」。",
               "not-a-report-route": "这条路由根本不返回报表——是营销/定价页。",
-              "pending": "尚未拿到可采信判据的路由：要么弱证据（`no-table`，跑满预算但结构判据没凑齐），要么重测还没回来。**这一类不是一个结论，是一个待办**——不要拿它规划取数，也不要写成「这条路由没有表格」。"
+              "pending": "尚未拿到可采信判据的路由：要么弱证据（`no-table`，跑满预算但结构判据没凑齐），要么重测还没回来。**这一类不是一个结论，是一个待办**——不要拿它规划取数，也不要写成「这条路由没有表格」。",
+              "data-not-in-table": "**2026-08-29 新增，只有 `behavior` 一条。** 路由没有任何 table 元素，但数据就在 DOM 文本里，用列表 + 条形图呈现。⚠️ **按「非空单元格 > 0」判会得 0，但这不是「没数据」** —— 那条正向判据只能正着用：`filledCells > 0` 证明有数据，`filledCells === 0` 只证明「没有表格型数据」，推不出「没数据」。它隐含过一个没说出口的假设：**数据 = 表格**。实测原文：`YouTube 71.8% 1.5亿 | Facebook 49.36% 1亿 | Instagram 48.61% | Reddit 33.71% | TikTok 28.06%`，另有兴趣度与设备分布。取数要写列表/图表读取器，并且**必须按路由声明 `presentationShape` 与本路由自己的锚点维度名**（社交媒体 / 兴趣度 / 设备），在锚点子树内部取值。**绝不能改成「页面上有数字就算有数据」** —— 那正是 axa.fr 挂件那个假阳性。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。"
             },
             "_distributionNode5": {
               "total": 22,
+              "_asOf": "2026-08-29（B 的最终报告）",
+              "_protocolId": "v8-structural-no-visibility-gate",
               "data": 10,
-              "chart-only": {
-                "structural-confirmed": 4,
-                "strong-but-different-protocol": 2,
-                "_members": {
-                  "structural-confirmed": [
-                    "organic-social (chart 30/exp 5)",
-                    "paid-social (34/5)",
-                    "email (23/4)",
-                    "display-ads (29/4)"
-                  ],
-                  "strong-but-different-protocol": [
-                    "referral (98 次 visible 读、0 table)",
-                    "organic-search (96 次)"
-                  ]
-                },
-                "_note": "**2026-08-29：原来那个 `chart-only: 10` 不成立，已拆档。** 只有 structural-confirmed 这一档可采信（4 条）。strong-but-different-protocol 的 2 条证据够但缺结构字段，待补测。另外 4 条已移出本分类计入 `pending`：`paid-search`(chart=0/exp=6) 与 `behavior`(chart=0/exp=0) 是弱证据，`daily-trends` / `socioeconomics` 仍在跑。**不要再给这一类一个笼统的数字。**判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。"
-              },
-              "pending": {
-                "total": 4,
-                "weak-evidence": [
-                  "paid-search (chart=0/exp=6)",
-                  "behavior (chart=0/exp=0 — 整页章节都没渲染)"
-                ],
-                "still-running": [
-                  "daily-trends",
-                  "socioeconomics"
-                ]
-              },
+              "chart-only": 9,
+              "data-not-in-table": 1,
               "empty-silent": 0,
+              "pending": 0,
               "requires-input": 1,
               "not-a-report-route": 1,
-              "note": "**修正 2026-08-28**：此前口述的分布是「出数 3 条（ai-traffic / top-pages / trending-websites）、图表型 9 条」。**以 sweep-results-v2.jsonl 为准，两处都不对**：(1) `/analytics/traffic/top-pages/` **根本不在这次 node 5 的 22 条里**，它只在文件末尾以 node 8 的复测行出现（当时读到 no-table、0 格，那一轮还在跑）——所以本次 node 5 出数的是 2 条，不是 3 条。top-pages 的 850 格是**另一次**实测，见下面它自己的记录，那条结论不受影响。(2) 图表型是 **10** 条不是 9：referral / organic-search / paid-search / organic-social / paid-social / email / display-ads / socioeconomics / behavior / daily-trends。 **再更正 2026-08-28：`empty-silent` 这 8 条的判定已作废，正在重测。** 原判据「可见读满 3 次即采信为空」最快 18 秒下结论，而表格最后水合；node 8 已反证出 page-groups 20 格、geographical-regions 198 格。新判据 v5-visible-gated-min100s（可见读满 3 次且本轮等满 100 秒）。本分布里的 8 这个数字先当作「待重测的条数」看，不要当作结论。 **改判 2026-08-28（耐心模式重测回来之后）：分类计数变了。** `data` 从 **2 条改为 7 条**、`empty-silent` 从 **8 条改为 3 条**。改判的 5 条是 page-groups（20 格）/ geographical-regions（198 格）/ business-regions（36 格）/ sources-destinations（272 格）/ subfolders-subdomains（900 格）；其中 **geographical-regions 与 business-regions 是第二次重测才出的数**，100 秒的下限没兜住它们。剩下的 3 条（usa / demographics / audience-overlap）**仍在重测**，保持 pending-remeasure-v5，那个 3 依旧是「待重测的条数」而不是结论。总数仍是 22。 **最终改判 2026-08-28：`empty-silent` 这一类在 node 5 上的计数是 0。** 8 条全部出数（非空单元格）：page-groups 20 / demographics 20 / business-regions 36 / geographical-regions 198 / audience-overlap 204 / sources-destinations 272 / usa 459 / subfolders-subdomains 900。其中 geographical-regions 与 business-regions 是**第二次重测**才出的数。实盘那边的原话记在这里：**「我判过的每一条『空』，最后都是我等得不够。零例外。」** ⚠️ **同时：`chart-only` 这 10 条的计数现在也不是确认值**——它们同样是在早停判据下测出来的，正按耐心模式重跑（先跑 referral / organic-search / paid-search / organic-social / socioeconomics）。**这个 10 要当作「待重测的条数」读，不要当作结论。** 现在唯一没被判据缺陷牵连的只有 requires-input 与 not-a-report-route 各 1 条。总数仍是 22。 **再更新 2026-08-29：`chart-only: 10` 这个数字作废，拆成四档。** 4 条通过结构判据（organic-social 30/5、paid-social 34/5、email 23/4、display-ads 29/4）标 structural-confirmed，可采信；referral / organic-search 在更早的协议下各被 visible 读了 98 / 96 次仍无 table 元素，证据够但缺结构字段，标 strong-but-different-protocol，待补测；paid-search（chart=0/exp=6）与 behavior（chart=0/exp=0，整页章节都没渲染）只拿到弱判定 `no-table`，**不可采信，移出分类记 pending**；daily-trends / socioeconomics 仍在跑，保持 pending。总数仍是 22（data 10 / chart-only 6 / pending 4 / requires-input 1 / not-a-report-route 1）。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
-              "_countHistory": [
-                {
-                  "asOf": "2026-08-28",
-                  "protocol": "v4-visible-gated",
-                  "data": 2,
-                  "empty-silent": 8,
-                  "note": "早停判据下的计数，已被推翻，保留作对照。"
-                },
-                {
-                  "asOf": "2026-08-28",
-                  "protocol": "v6-patient-signal-gated",
-                  "data": 7,
-                  "empty-silent": 3,
-                  "note": "中间态：5 条改判为 data，余 3 条仍在重测。当天稍后这 3 条也出数了，见下一行。"
-                },
-                {
-                  "asOf": "2026-08-28",
-                  "protocol": "v6-patient-signal-gated",
-                  "data": 10,
-                  "empty-silent": 0,
-                  "chart-only": 10,
-                  "note": "8 条 empty-silent 全部改判为 data，这一类在 node 5 上计数归零。chart-only 的 10 条仍是早停判据下的旧判定，正在重测，不是确认值。"
-                },
-                {
-                  "asOf": "2026-08-29",
-                  "protocol": "v7-structural-absence",
-                  "data": 10,
-                  "empty-silent": 0,
-                  "chart-only": "4 structural-confirmed + 2 strong-but-different-protocol（不再是单一数字）",
-                  "pending": 4,
-                  "requires-input": 1,
-                  "not-a-report-route": 1,
-                  "note": "chart-only 的 10 拆档：4 条通过结构判据可采信，2 条证据强但缺结构字段待补测，4 条移出分类记 pending（2 条弱证据、2 条仍在跑）。"
-                }
-              ]
+              "_members": {
+                "data（22 条之内，10 条）": [
+                  "subfolders-subdomains 900 格",
+                  "usa 459 格",
+                  "sources-destinations 272 格",
+                  "audience-overlap 204 格",
+                  "geographical-regions 198 格",
+                  "trending-websites 140 格",
+                  "ai-traffic 120 格",
+                  "business-regions 36 格",
+                  "page-groups 20 格",
+                  "demographics 20 格"
+                ],
+                "chart-only / no-table-structural（9 条，均通过结构判据）": [
+                  "referral",
+                  "organic-search",
+                  "paid-search",
+                  "organic-social",
+                  "paid-social",
+                  "email",
+                  "display-ads",
+                  "daily-trends",
+                  "socioeconomics"
+                ],
+                "data-not-in-table（1 条）": [
+                  "behavior —— 无 table 元素，数据在 DOM 文本里，列表 + 条形图。**按非空单元格判会得 0，但不是没数据**"
+                ],
+                "非报表路由（2 条）": [
+                  "industry-and-bulk-analysis（requires-input）",
+                  "trends-api（not-a-report-route）"
+                ]
+              },
+              "_countingNote": "**「能出表格数据 11 条」与本表的 `data: 10` 不矛盾，差的那一条是 `top-pages`。** top-pages（850 个非空单元格）**不在 node 5 这次 sweep 的 22 条里**，它是另一次实测，记录在 `notInThisSweep` 里。所以：22 条之内 data 10 条；把 top-pages 算进来，能直接喂给取数脚本的路由共 **11** 条。11 + 9（图表型）+ 1（behavior）+ 2（非报表）= 23 = 22 + top-pages。写数字时把口径写清楚，不要混。",
+              "note": "**修正 2026-08-28**：此前口述的分布是「出数 3 条（ai-traffic / top-pages / trending-websites）、图表型 9 条」。**以 sweep-results-v2.jsonl 为准，两处都不对**：(1) `/analytics/traffic/top-pages/` **根本不在这次 node 5 的 22 条里**，它只在文件末尾以 node 8 的复测行出现（当时读到 no-table、0 格，那一轮还在跑）——所以本次 node 5 出数的是 2 条，不是 3 条。top-pages 的 850 格是**另一次**实测，见下面它自己的记录，那条结论不受影响。(2) 图表型是 **10** 条不是 9：referral / organic-search / paid-search / organic-social / paid-social / email / display-ads / socioeconomics / behavior / daily-trends。 **再更正 2026-08-28：`empty-silent` 这 8 条的判定已作废，正在重测。** 原判据「可见读满 3 次即采信为空」最快 18 秒下结论，而表格最后水合；node 8 已反证出 page-groups 20 格、geographical-regions 198 格。新判据 v5-visible-gated-min100s（可见读满 3 次且本轮等满 100 秒）。本分布里的 8 这个数字先当作「待重测的条数」看，不要当作结论。 **改判 2026-08-28（耐心模式重测回来之后）：分类计数变了。** `data` 从 **2 条改为 7 条**、`empty-silent` 从 **8 条改为 3 条**。改判的 5 条是 page-groups（20 格）/ geographical-regions（198 格）/ business-regions（36 格）/ sources-destinations（272 格）/ subfolders-subdomains（900 格）；其中 **geographical-regions 与 business-regions 是第二次重测才出的数**，100 秒的下限没兜住它们。剩下的 3 条（usa / demographics / audience-overlap）**仍在重测**，保持 pending-remeasure-v5，那个 3 依旧是「待重测的条数」而不是结论。总数仍是 22。 **最终改判 2026-08-28：`empty-silent` 这一类在 node 5 上的计数是 0。** 8 条全部出数（非空单元格）：page-groups 20 / demographics 20 / business-regions 36 / geographical-regions 198 / audience-overlap 204 / sources-destinations 272 / usa 459 / subfolders-subdomains 900。其中 geographical-regions 与 business-regions 是**第二次重测**才出的数。实盘那边的原话记在这里：**「我判过的每一条『空』，最后都是我等得不够。零例外。」** ⚠️ **同时：`chart-only` 这 10 条的计数现在也不是确认值**——它们同样是在早停判据下测出来的，正按耐心模式重跑（先跑 referral / organic-search / paid-search / organic-social / socioeconomics）。**这个 10 要当作「待重测的条数」读，不要当作结论。** 现在唯一没被判据缺陷牵连的只有 requires-input 与 not-a-report-route 各 1 条。总数仍是 22。 **再更新 2026-08-29：`chart-only: 10` 这个数字作废，拆成四档。** 4 条通过结构判据（organic-social 30/5、paid-social 34/5、email 23/4、display-ads 29/4）标 structural-confirmed，可采信；referral / organic-search 在更早的协议下各被 visible 读了 98 / 96 次仍无 table 元素，证据够但缺结构字段，标 strong-but-different-protocol，待补测；paid-search（chart=0/exp=6）与 behavior（chart=0/exp=0，整页章节都没渲染）只拿到弱判定 `no-table`，**不可采信，移出分类记 pending**；daily-trends / socioeconomics 仍在跑，保持 pending。总数仍是 22（data 10 / chart-only 6 / pending 4 / requires-input 1 / not-a-report-route 1）。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。 **最终更新 2026-08-29（B 的最终报告，protocol v8-structural-no-visibility-gate）：`pending` 清零。** 9 条图表型（referral / organic-search / paid-search / organic-social / paid-social / email / display-ads / daily-trends / socioeconomics）**全部通过结构判据**，判定 `no-table-structural`，可采信；`behavior` 单列为新分类 **`data-not-in-table`**（无 table 元素，但数据就在 DOM 文本里，列表 + 条形图；**按非空单元格判会得 0，但不是没数据**）；非报表路由 2 条（industry-and-bulk-analysis / trends-api）。22 条之内 data 10 条，**加上不在这 22 条里的 top-pages（850 格），能出表格数据的共 11 条**。 **同批判据修订：结构判据去掉了 `vis === 'visible'` 这一项。** 理由：(1) 它不是页面产出，而 `chartHydrated` / `exportBtns` 已经直接证明「页面其余部分渲染完了」，代理项不再增加信息；(2) 一次 foreground attach 会把 `visibilityState` 永久锁死在 `visible`，所以这个条件在被污染的会话上恒真（形同虚设），在诚实的纯后台会话上反而可能为假（误杀成立的结构判定）。**保留「目标已生效」那半**（空态落地页是一个完美的 noTable===true）。**连带结论：4 条 structural-confirmed 的判定不受 visible 锁死污染影响**，因为它们从来不靠可见性。⚠️ **但这不动摇「可见性伪空」那条 law**：可见性管的是**表格里的行会不会水合**（top-pages：hidden 0 格 / visible 850 格，三次交叉验证），不是**table 这个元素存不存在**。两者是两个问题，别合并。"
             },
             "routes": {
               "/analytics/traffic/referral/": {
@@ -443,9 +419,16 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类。图表里是 canva.com 的真实量级（流量趋势轴到 6000 万），且「增长最快的页面」区块有逐条读数：剧增 37.1万% canva.com/features/change-background-color-of-image 7413。**数据存在，取数形态是图不是表。**",
-                "remeasureStatus": "strong-but-different-protocol",
-                "remeasureNote": "**2026-08-29**：本条在**更早的协议**下被读了 **98 次**、每次都在 `visible` 下、每次都 0 个 table 元素。证据量足够强，**但那一轮没有记录 `chartHydrated` / `exportBtns` 这两个结构字段**，所以它不满足 `no-table-structural` 的四条件形状。标 **strong-but-different-protocol**，待按结构判据补测一次。可以按 chart-only 规划取数（不要套可见性重试循环），但**不要把它当作已结案的结构判定**。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
-                "chartOnlyTier": "strong-but-different-protocol"
+                "remeasureStatus": "closed-2026-08-29",
+                "remeasureNote": "**2026-08-29 结案。** 此前标 `strong-but-different-protocol`：更早协议下 98 次 `visible` 读、每次 0 个 table 元素，证据强但缺 `chartHydrated` / `exportBtns` 两个结构字段。现按结构判据补测通过，判定 `no-table-structural`，可采信。⚠️ **关于那 98 次「visible 读」**：`scripts/semrush-traffic.mjs` 的 `DEFAULT_WINDOW = 'foreground'`，而一次 foreground attach 会把 `visibilityState` 永久锁死在 `visible`，所以那 98 个 `visible` 标签**作为可见性证据是作废的**。但它们从来不是可见性证据——它们是 98 次「0 个 table 元素」的 DOM 观测，这一点不受污染影响。**结论：那批读数的可信度既不提升也不下降**，它当初不可采信的理由（缺两个结构字段）现在由补测解决，与可见性无关。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。",
+                "chartOnlyTier": "structural-confirmed",
+                "structuralEvidence": {
+                  "verdict": "no-table-structural",
+                  "chartHydrated": null,
+                  "exportBtns": null,
+                  "criterionVersion": "v8-structural-no-visibility-gate",
+                  "note": "**B 的最终报告只给了「均通过结构判据」这个结论，没有逐条转述 chart/exp 计数**，所以这两个数字记为 null 而不是编一个。判定名可采信，逐格证据待从实测日志回填。 **2026-08-29 判据修订：结构判据不再要求 `vis === 'visible'`。** 它不是页面产出，而且一次 foreground attach 之后会被永久锁死在 `visible`（一个 Chrome 窗口里两个标签页同时报 visible 是铁证），是一个可能撒谎的信号。「页面其余部分渲染完了」这件事由 chartHydrated 与 exportBtns 直接证明，不需要可见性做代理。**保留的是「目标已生效」那半**——空态落地页是一个完美的 noTable===true。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。"
+                }
               },
               "/analytics/traffic/ai-traffic/": {
                 "label": "AI 流量",
@@ -508,13 +491,20 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类。图表轴到 1.5 亿。",
-                "remeasureStatus": "strong-but-different-protocol",
-                "remeasureNote": "**2026-08-29**：本条在**更早的协议**下被读了 **96 次**、每次都在 `visible` 下、每次都 0 个 table 元素。证据量足够强，**但那一轮没有记录 `chartHydrated` / `exportBtns` 这两个结构字段**，所以它不满足 `no-table-structural` 的四条件形状。标 **strong-but-different-protocol**，待按结构判据补测一次。可以按 chart-only 规划取数（不要套可见性重试循环），但**不要把它当作已结案的结构判定**。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
-                "chartOnlyTier": "strong-but-different-protocol"
+                "remeasureStatus": "closed-2026-08-29",
+                "remeasureNote": "**2026-08-29 结案。** 此前标 `strong-but-different-protocol`：更早协议下 96 次 `visible` 读、每次 0 个 table 元素，证据强但缺 `chartHydrated` / `exportBtns` 两个结构字段。现按结构判据补测通过，判定 `no-table-structural`，可采信。⚠️ **关于那 96 次「visible 读」**：`scripts/semrush-traffic.mjs` 的 `DEFAULT_WINDOW = 'foreground'`，而一次 foreground attach 会把 `visibilityState` 永久锁死在 `visible`，所以那 96 个 `visible` 标签**作为可见性证据是作废的**。但它们从来不是可见性证据——它们是 96 次「0 个 table 元素」的 DOM 观测，这一点不受污染影响。**结论：那批读数的可信度既不提升也不下降**，它当初不可采信的理由（缺两个结构字段）现在由补测解决，与可见性无关。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。",
+                "chartOnlyTier": "structural-confirmed",
+                "structuralEvidence": {
+                  "verdict": "no-table-structural",
+                  "chartHydrated": null,
+                  "exportBtns": null,
+                  "criterionVersion": "v8-structural-no-visibility-gate",
+                  "note": "**B 的最终报告只给了「均通过结构判据」这个结论，没有逐条转述 chart/exp 计数**，所以这两个数字记为 null 而不是编一个。判定名可采信，逐格证据待从实测日志回填。 **2026-08-29 判据修订：结构判据不再要求 `vis === 'visible'`。** 它不是页面产出，而且一次 foreground attach 之后会被永久锁死在 `visible`（一个 Chrome 窗口里两个标签页同时报 visible 是铁证），是一个可能撒谎的信号。「页面其余部分渲染完了」这件事由 chartHydrated 与 exportBtns 直接证明，不需要可见性做代理。**保留的是「目标已生效」那半**——空态落地页是一个完美的 noTable===true。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。"
+                }
               },
               "/analytics/traffic/paid-search/": {
                 "label": "付费搜索",
-                "category": "pending",
+                "category": "chart-only",
                 "node": 5,
                 "target": "canva.com",
                 "period": "2026年7月",
@@ -535,14 +525,21 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类。图表轴到 150 万。",
-                "remeasureStatus": "pending-remeasure-v7-structural",
-                "remeasureNote": "**2026-08-29：弱证据，不进分类。** 跑满耐心预算仍没等到表，但结构判据没凑齐：`chart=0 / exp=6`——图表数字没渲染出来，页面并没有「其余部分已完成」。这一档的判定名是 **`no-table`**，它是 `inconclusive` 换了个好听的名字，**不可采信**，因此本条 `category` 记为 `pending` 而不是 `chart-only`。重测要求：拿到 chartHydrated>=3 且 exportBtns>=1 才允许下结论。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
-                "chartOnlyTier": "pending-weak-evidence",
+                "remeasureStatus": "closed-2026-08-29",
+                "remeasureNote": "**2026-08-29 结案。** 此前是弱证据 `no-table`（chart=0 / exp=6，图表数字没渲染），记 `pending`。现按结构判据补测通过，判定 `no-table-structural`，可采信。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。",
+                "chartOnlyTier": "structural-confirmed",
                 "weakEvidence": {
                   "chartHydrated": 0,
                   "exportBtns": 6,
                   "verdict": "no-table",
                   "admissible": false
+                },
+                "structuralEvidence": {
+                  "verdict": "no-table-structural",
+                  "chartHydrated": null,
+                  "exportBtns": null,
+                  "criterionVersion": "v8-structural-no-visibility-gate",
+                  "note": "**B 的最终报告只给了「均通过结构判据」这个结论，没有逐条转述 chart/exp 计数**，所以这两个数字记为 null 而不是编一个。判定名可采信，逐格证据待从实测日志回填。 **2026-08-29 判据修订：结构判据不再要求 `vis === 'visible'`。** 它不是页面产出，而且一次 foreground attach 之后会被永久锁死在 `visible`（一个 Chrome 窗口里两个标签页同时报 visible 是铁证），是一个可能撒谎的信号。「页面其余部分渲染完了」这件事由 chartHydrated 与 exportBtns 直接证明，不需要可见性做代理。**保留的是「目标已生效」那半**——空态落地页是一个完美的 noTable===true。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。"
                 }
               },
               "/analytics/traffic/organic-social/": {
@@ -568,7 +565,7 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类。图表轴到 3000 万。",
-                "remeasureStatus": "confirmed-v7-structural",
+                "remeasureStatus": "closed-2026-08-29",
                 "remeasureNote": "**2026-08-29 结案**：耐心模式重测通过**结构判据**，判定 `no-table-structural`，可采信。此前那条「早停判据下测出、不要当成已确认」的警告对本条**已解除**。证据见 `structuralEvidence`。",
                 "chartOnlyTier": "structural-confirmed",
                 "structuralEvidence": {
@@ -580,7 +577,8 @@
                   "consecutiveReads": 2,
                   "verdict": "no-table-structural",
                   "protocolId": "v7-structural-absence",
-                  "note": "四条件全满足、连续两次读都满足：整页 0 个 table/[role=grid]，svg 内含数字的文本节点 30 个（坐标轴/数据标签已渲染完），章节导出按钮 5 个（页面其余部分已渲染完），目标已生效且读取瞬间 visible。含义是「页面别的部分都好了，就是没有表格这个东西」。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。"
+                  "note": "四条件全满足、连续两次读都满足：整页 0 个 table/[role=grid]，svg 内含数字的文本节点 30 个，章节导出按钮 5 个，目标已生效。 **2026-08-29 判据修订：结构判据不再要求 `vis === 'visible'`。** 它不是页面产出，而且一次 foreground attach 之后会被永久锁死在 `visible`（一个 Chrome 窗口里两个标签页同时报 visible 是铁证），是一个可能撒谎的信号。「页面其余部分渲染完了」这件事由 chartHydrated 与 exportBtns 直接证明，不需要可见性做代理。**保留的是「目标已生效」那半**——空态落地页是一个完美的 noTable===true。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。",
+                  "criterionVersion": "v8-structural-no-visibility-gate"
                 }
               },
               "/analytics/traffic/paid-social/": {
@@ -605,7 +603,7 @@
                 "noMatchMessage": false,
                 "error": null,
                 "sweepVerdict": "no-table",
-                "remeasureStatus": "confirmed-v7-structural",
+                "remeasureStatus": "closed-2026-08-29",
                 "remeasureNote": "**2026-08-29 结案**：耐心模式重测通过**结构判据**，判定 `no-table-structural`，可采信。此前那条「早停判据下测出、不要当成已确认」的警告对本条**已解除**。证据见 `structuralEvidence`。",
                 "chartOnlyTier": "structural-confirmed",
                 "structuralEvidence": {
@@ -617,7 +615,8 @@
                   "consecutiveReads": 2,
                   "verdict": "no-table-structural",
                   "protocolId": "v7-structural-absence",
-                  "note": "四条件全满足、连续两次读都满足：整页 0 个 table/[role=grid]，svg 内含数字的文本节点 34 个（坐标轴/数据标签已渲染完），章节导出按钮 5 个（页面其余部分已渲染完），目标已生效且读取瞬间 visible。含义是「页面别的部分都好了，就是没有表格这个东西」。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。"
+                  "note": "四条件全满足、连续两次读都满足：整页 0 个 table/[role=grid]，svg 内含数字的文本节点 34 个，章节导出按钮 5 个，目标已生效。 **2026-08-29 判据修订：结构判据不再要求 `vis === 'visible'`。** 它不是页面产出，而且一次 foreground attach 之后会被永久锁死在 `visible`（一个 Chrome 窗口里两个标签页同时报 visible 是铁证），是一个可能撒谎的信号。「页面其余部分渲染完了」这件事由 chartHydrated 与 exportBtns 直接证明，不需要可见性做代理。**保留的是「目标已生效」那半**——空态落地页是一个完美的 noTable===true。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。",
+                  "criterionVersion": "v8-structural-no-visibility-gate"
                 }
               },
               "/analytics/traffic/email/": {
@@ -642,7 +641,7 @@
                 "noMatchMessage": false,
                 "error": null,
                 "sweepVerdict": "no-table",
-                "remeasureStatus": "confirmed-v7-structural",
+                "remeasureStatus": "closed-2026-08-29",
                 "remeasureNote": "**2026-08-29 结案**：耐心模式重测通过**结构判据**，判定 `no-table-structural`，可采信。此前那条「早停判据下测出、不要当成已确认」的警告对本条**已解除**。证据见 `structuralEvidence`。",
                 "chartOnlyTier": "structural-confirmed",
                 "structuralEvidence": {
@@ -654,7 +653,8 @@
                   "consecutiveReads": 2,
                   "verdict": "no-table-structural",
                   "protocolId": "v7-structural-absence",
-                  "note": "四条件全满足、连续两次读都满足：整页 0 个 table/[role=grid]，svg 内含数字的文本节点 23 个（坐标轴/数据标签已渲染完），章节导出按钮 4 个（页面其余部分已渲染完），目标已生效且读取瞬间 visible。含义是「页面别的部分都好了，就是没有表格这个东西」。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。"
+                  "note": "四条件全满足、连续两次读都满足：整页 0 个 table/[role=grid]，svg 内含数字的文本节点 23 个，章节导出按钮 4 个，目标已生效。 **2026-08-29 判据修订：结构判据不再要求 `vis === 'visible'`。** 它不是页面产出，而且一次 foreground attach 之后会被永久锁死在 `visible`（一个 Chrome 窗口里两个标签页同时报 visible 是铁证），是一个可能撒谎的信号。「页面其余部分渲染完了」这件事由 chartHydrated 与 exportBtns 直接证明，不需要可见性做代理。**保留的是「目标已生效」那半**——空态落地页是一个完美的 noTable===true。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。",
+                  "criterionVersion": "v8-structural-no-visibility-gate"
                 }
               },
               "/analytics/traffic/display-ads/": {
@@ -680,7 +680,7 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类，且是 A 类里最贫的一条：innerText 只有 175 字符，主体区除了区块标题和「导出」按钮之外**读不到任何数值**（`流量趋势 | 导出 | 桌面设备趋势 | 导出 | 移动设备趋势 | 导出 | 增长最快的页面 | 导出`）。svg 26 个。「图里有没有数」本条**没有验证**，不要替它下结论。",
-                "remeasureStatus": "confirmed-v7-structural",
+                "remeasureStatus": "closed-2026-08-29",
                 "remeasureNote": "**2026-08-29 结案**：耐心模式重测通过**结构判据**，判定 `no-table-structural`，可采信。此前那条「早停判据下测出、不要当成已确认」的警告对本条**已解除**。证据见 `structuralEvidence`。",
                 "chartOnlyTier": "structural-confirmed",
                 "structuralEvidence": {
@@ -692,7 +692,8 @@
                   "consecutiveReads": 2,
                   "verdict": "no-table-structural",
                   "protocolId": "v7-structural-absence",
-                  "note": "四条件全满足、连续两次读都满足：整页 0 个 table/[role=grid]，svg 内含数字的文本节点 29 个（坐标轴/数据标签已渲染完），章节导出按钮 4 个（页面其余部分已渲染完），目标已生效且读取瞬间 visible。含义是「页面别的部分都好了，就是没有表格这个东西」。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。"
+                  "note": "四条件全满足、连续两次读都满足：整页 0 个 table/[role=grid]，svg 内含数字的文本节点 29 个，章节导出按钮 4 个，目标已生效。 **2026-08-29 判据修订：结构判据不再要求 `vis === 'visible'`。** 它不是页面产出，而且一次 foreground attach 之后会被永久锁死在 `visible`（一个 Chrome 窗口里两个标签页同时报 visible 是铁证），是一个可能撒谎的信号。「页面其余部分渲染完了」这件事由 chartHydrated 与 exportBtns 直接证明，不需要可见性做代理。**保留的是「目标已生效」那半**——空态落地页是一个完美的 noTable===true。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。",
+                  "criterionVersion": "v8-structural-no-visibility-gate"
                 }
               },
               "/analytics/traffic/sources-destinations/": {
@@ -1011,7 +1012,7 @@
               },
               "/analytics/traffic/socioeconomics/": {
                 "label": "社会经济",
-                "category": "pending",
+                "category": "chart-only",
                 "node": 5,
                 "target": "canva.com",
                 "period": "2026年7月",
@@ -1032,13 +1033,20 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类。主体区只有维度名（家庭规模 / 收入水平 / 就业状况 / 知识 / 义务教育 / 大学 / 研究生 / 未结业），没有数值文本。",
-                "remeasureStatus": "pending-remeasure-v7-structural",
-                "remeasureNote": "**2026-08-29：仍在跑，保持 pending。** 结构判据重测尚未回来，在结果回来之前不要替它下任何结论，也不要按 chart-only 规划。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
-                "chartOnlyTier": "pending-still-running"
+                "remeasureStatus": "closed-2026-08-29",
+                "remeasureNote": "**2026-08-29 结案。** 此前「仍在跑、保持 pending」。重测回来，按结构判据判定 `no-table-structural`，可采信。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。",
+                "chartOnlyTier": "structural-confirmed",
+                "structuralEvidence": {
+                  "verdict": "no-table-structural",
+                  "chartHydrated": null,
+                  "exportBtns": null,
+                  "criterionVersion": "v8-structural-no-visibility-gate",
+                  "note": "**B 的最终报告只给了「均通过结构判据」这个结论，没有逐条转述 chart/exp 计数**，所以这两个数字记为 null 而不是编一个。判定名可采信，逐格证据待从实测日志回填。 **2026-08-29 判据修订：结构判据不再要求 `vis === 'visible'`。** 它不是页面产出，而且一次 foreground attach 之后会被永久锁死在 `visible`（一个 Chrome 窗口里两个标签页同时报 visible 是铁证），是一个可能撒谎的信号。「页面其余部分渲染完了」这件事由 chartHydrated 与 exportBtns 直接证明，不需要可见性做代理。**保留的是「目标已生效」那半**——空态落地页是一个完美的 noTable===true。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。"
+                }
               },
               "/analytics/traffic/behavior/": {
                 "label": "行为",
-                "category": "pending",
+                "category": "data-not-in-table",
                 "node": 5,
                 "target": "canva.com",
                 "period": "2026年7月",
@@ -1059,19 +1067,39 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类。主体区只有维度名（社交媒体 / 兴趣度 / 设备 / 桌面设备 / 移动设备），没有数值文本。",
-                "remeasureStatus": "pending-remeasure-v7-structural",
-                "remeasureNote": "**2026-08-29：弱证据，不进分类。** 跑满耐心预算仍没等到表，但结构判据没凑齐：`chart=0 / exp=0`——**整页章节都没渲染，等于什么都没测到**。这一档的判定名是 **`no-table`**，它是 `inconclusive` 换了个好听的名字，**不可采信**，因此本条 `category` 记为 `pending` 而不是 `chart-only`。重测要求：拿到 chartHydrated>=3 且 exportBtns>=1 才允许下结论。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
-                "chartOnlyTier": "pending-weak-evidence",
+                "remeasureStatus": "closed-2026-08-29",
+                "remeasureNote": "**2026-08-29 结案，但结论方向和原来相反。** 此前记为 `pending` / 弱证据 `no-table`（chart=0 / exp=0），理由是「整页章节都没渲染，等于什么都没测到」。实测复查发现：这条路由**根本没有 table 元素**，而**数据一直在 DOM 文本里**，用列表 + 条形图呈现。所以它既不是 `chart-only`（那一类是「有图无表、数在图里」，本条的数在文本里），也不是 `no-table` / `pending`（不是没测到，是测的东西找错了形状）。新分类 `data-not-in-table`，见 `dataNotInTable` 字段。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。",
+                "chartOnlyTier": null,
                 "weakEvidence": {
                   "chartHydrated": 0,
                   "exportBtns": 0,
                   "verdict": "no-table",
-                  "admissible": false
+                  "admissible": false,
+                  "supersededBy": "data-not-in-table (2026-08-29)",
+                  "note": "保留不删：`chart=0 / exp=0` 这次读数本身没错，错的是用它去回答「这条路由有没有数据」。它回答的是「有没有表格型数据」。"
+                },
+                "presentationShape": "list+bar-chart",
+                "anchorLabels": [
+                  "社交媒体",
+                  "兴趣度",
+                  "设备"
+                ],
+                "dataNotInTable": {
+                  "measuredOn": "2026-08-29",
+                  "hasTable": false,
+                  "filledCells": 0,
+                  "rawSample": "YouTube 71.8% 1.5亿 | Facebook 49.36% 1亿 | Instagram 48.61% | Reddit 33.71% | TikTok 28.06%",
+                  "alsoPresent": [
+                    "兴趣度分布",
+                    "设备分布"
+                  ],
+                  "warning": "**按非空单元格判会得 0，但不是没数据。** 本条是那条正向判据的反例：它证明了「非空单元格 > 0」隐含着「数据 = 表格」这个没说出口的假设。判据本身不推翻——`filledCells > 0` 仍然是表格型报表里最可靠的正向判据——但它不能反过来用：`filledCells === 0` 只推得出「没有表格型数据」。",
+                  "howToRead": "声明 presentationShape 与 anchorLabels，在锚点标题所属的 section 子树内部取数值文本。不要用「页面上有数字」这种宽泛判据（那是 axa.fr 挂件那个假阳性）。"
                 }
               },
               "/analytics/traffic/daily-trends/": {
                 "label": "每日趋势",
-                "category": "pending",
+                "category": "chart-only",
                 "node": 5,
                 "target": "canva.com",
                 "period": "2026年7月",
@@ -1092,9 +1120,16 @@
                 "error": null,
                 "sweepVerdict": "no-table",
                 "note": "A 类。主体区列的是渠道名（直接 / 引荐 / AI 流量 / 谷歌 AI 模式 / 自然搜索 / 自然社交 / 付费搜索 / 付费社交 / 电子邮件 / 展示广告）各带一个「导出」，没有数值文本。",
-                "remeasureStatus": "pending-remeasure-v7-structural",
-                "remeasureNote": "**2026-08-29：仍在跑，保持 pending。** 结构判据重测尚未回来，在结果回来之前不要替它下任何结论，也不要按 chart-only 规划。判据和两个判定名（`no-table-structural` / `no-table`）**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 <correct> 块里，这里不复述。",
-                "chartOnlyTier": "pending-still-running"
+                "remeasureStatus": "closed-2026-08-29",
+                "remeasureNote": "**2026-08-29 结案。** 此前「仍在跑、保持 pending」。重测回来，按结构判据判定 `no-table-structural`，可采信。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。",
+                "chartOnlyTier": "structural-confirmed",
+                "structuralEvidence": {
+                  "verdict": "no-table-structural",
+                  "chartHydrated": null,
+                  "exportBtns": null,
+                  "criterionVersion": "v8-structural-no-visibility-gate",
+                  "note": "**B 的最终报告只给了「均通过结构判据」这个结论，没有逐条转述 chart/exp 计数**，所以这两个数字记为 null 而不是编一个。判定名可采信，逐格证据待从实测日志回填。 **2026-08-29 判据修订：结构判据不再要求 `vis === 'visible'`。** 它不是页面产出，而且一次 foreground attach 之后会被永久锁死在 `visible`（一个 Chrome 窗口里两个标签页同时报 visible 是铁证），是一个可能撒谎的信号。「页面其余部分渲染完了」这件事由 chartHydrated 与 exportBtns 直接证明，不需要可见性做代理。**保留的是「目标已生效」那半**——空态落地页是一个完美的 noTable===true。判据、判定名（`no-table-structural` / `data-not-in-table` / `no-table`）和「非空单元格判据不能反过来用」这条更正**只写在** backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 里，这里不复述。"
+                }
               },
               "/analytics/traffic/industry-and-bulk-analysis/": {
                 "label": "行业与批量分析",
@@ -1195,6 +1230,11 @@
               "/analytics/traffic/market-overview/": "❌ 列头齐全但「域名 (0/0)」，疑似需要先定义市场/加竞品，未验证。**不在 v2 sweep 的 22 条里。**",
               "/analytics/traffic/competitor-monitoring/": "未在 v2 sweep 中读取，无观测。",
               "/analytics/traffic/": "入口/落地页，未在 v2 sweep 中读取，无观测。"
+            },
+            "_limitsDeclaredByMeasurer": {
+              "asOf": "2026-08-29",
+              "by": "B（实盘测量方）",
+              "statement": "**node 8 只完整测过 3 条路由。** JSONL 里 node 8 那几条 `empty-silent` 是**早停协议下的旧观测**，**请当作未测，不要引用**——既不要拿它们写「这条真的空」，也不要拿它们做节点对比。node 5 的 22 条才是这一轮的完整结果。"
             }
           },
           "savedListCheck": "展开「再显示 20 个结果」后清点 25 条保存的列表，canva.com 不在其中；提交前后前 5 条逐字节相同。 URL 上的 lid（node 5 是 1231490、node 8 是 1231560）**按账号隔离**，拿一个账号的 lid 去另一个账号会落回空态落地页。 结论：分析不创建保存的列表。限度：列表底部仍有「再显示 20 个」未展开，查的是前 25 条。",
@@ -1664,11 +1704,36 @@
             "scopeWarning": "⚠️ **只覆盖实测过的这三种页型，不要写成「所有重表格页」。** 那个 1 万域名 / 14 列的榜单**始终没找到**（`ranking` / `websites` / `topsites` / `leaders` 全部静默重定向到 `#/digitalsuite/ai-brand-visibility/home`），**从未被测过**。",
             "design": "3 种重表格页型 × 2 个域名（一大一小 canva.com / creem.io）= 5 组 hidden/visible 配对；约 160 次诚实 hidden 读、约 130 次 visible 读。",
             "pairs": [
-              { "page": "关键词研究 website-keyword-v2", "domain": "canva.com", "hidden": "12546 / 1 表 / 19 列 / 100 行", "visible": "完全相同" },
-              { "page": "关键词研究 website-keyword-v2", "domain": "creem.io", "hidden": "13518 / 1 表 / 19 列 / 100 行", "visible": "完全相同" },
-              { "page": "反向链接 backlinks/table/999", "domain": "canva.com", "hidden": "46993 / 2 表 / 8 列 / 100 行", "visible": "47027，仅差一个「x 分钟前」式相对时间戳（34 字符）" },
-              { "page": "反向链接 backlinks/table/999", "domain": "creem.io", "hidden": "18144 / 2 表 / 8 列 / 100 行", "visible": "18178，同上，仅时间戳差" },
-              { "page": "站点排名 mapping/...", "domain": "canva.com", "hidden": "7170 / 3 表 / 12 列 / 12 行", "visible": "完全相同" }
+              {
+                "page": "关键词研究 website-keyword-v2",
+                "domain": "canva.com",
+                "hidden": "12546 / 1 表 / 19 列 / 100 行",
+                "visible": "完全相同"
+              },
+              {
+                "page": "关键词研究 website-keyword-v2",
+                "domain": "creem.io",
+                "hidden": "13518 / 1 表 / 19 列 / 100 行",
+                "visible": "完全相同"
+              },
+              {
+                "page": "反向链接 backlinks/table/999",
+                "domain": "canva.com",
+                "hidden": "46993 / 2 表 / 8 列 / 100 行",
+                "visible": "47027，仅差一个「x 分钟前」式相对时间戳（34 字符）"
+              },
+              {
+                "page": "反向链接 backlinks/table/999",
+                "domain": "creem.io",
+                "hidden": "18144 / 2 表 / 8 列 / 100 行",
+                "visible": "18178，同上，仅时间戳差"
+              },
+              {
+                "page": "站点排名 mapping/...",
+                "domain": "canva.com",
+                "hidden": "7170 / 3 表 / 12 列 / 12 行",
+                "visible": "完全相同"
+              }
             ],
             "whyStronger": "**证据强在哪要写明**：原始对照组（mainLen=445）**根本没有配对的 visible 读**，所以那个 445 从没被证明是「完整页面」，只被证明是「稳定」——而稳定不等于完成。这 5 组配对补上的正是这个洞。",
             "honestHiddenReadsCaveat": "「诚实 hidden 读」这个限定词是必须的：一次 foreground attach 会把该标签页的 visibilityState 永久锁死在 visible，所以 hidden 那一轮必须跑在从未 foreground attach 过的会话上。**规则的权威版本只写在 backlink Skill 里 id 为 hidden-tabs-do-not-hydrate 的那条 law 里（协议 + Experiment E），本文件不复述。**",

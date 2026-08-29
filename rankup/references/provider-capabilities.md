@@ -226,12 +226,17 @@ id 为 `hidden-tabs-do-not-hydrate` 的那条 law。
   也不要据此断定跨账号 lid 一定不可用。复测要求见 JSON 的 `savedListCheckLidRemeasure`。
 
 
-### 流量与市场 22 条路由的实测分布（node 5，canva.com，2026-08-28）
+### 流量与市场 22 条路由的实测分布（node 5，canva.com，2026-08-28；2026-08-29 按 B 的最终报告更新）
 
-**先说能拿走的那一句：想要表格数据，这条线上至少有 11 条路由能给，而不是 3 条。**
+**先说能拿走的那一句：想要表格数据，这条线上有 11 条路由能给，而不是 3 条。**
 早先写的「只有 3 条」是**早停判据的产物**，不是这个平台的性质——见下面「`empty-silent`
-这一类已经归零」。原来那 10 条 `chart-only` 已在 2026-08-29 拆成四档，只有 4 条通过结构判据
-可以采信，另有 4 条退回 `pending`，所以「能给表格的条数」目前仍只有下界。
+这一类已经归零」。**2026-08-29 B 的最终报告回来之后，`pending` 已经清零**，这个 11 不再是下界，
+是当前的确定值。
+
+**先把口径钉死，因为 11 和下表的 `data: 10` 差一条。** 差的是 `top-pages`（850 格），
+它**不在 node 5 这次 sweep 的 22 条里**（另一次实测，见上面「节点差异是观测假象」一节）。
+所以：**22 条之内 `data` 10 条；把 `top-pages` 算进来，能直接喂给取数脚本的共 11 条。**
+11 + 9（图表型）+ 1（`behavior`）+ 2（非报表）= 23 = 22 + `top-pages`。写数字时带上口径。
 
 判定协议：旧的 **v4-visible-gated**（每条路由最多 3 轮、每轮 100 秒，连续 3 次可见读到空即判空）
 和它的补丁 **v5-visible-gated-min100s**（再加一个 100 秒下限）**都已被推翻**。
@@ -241,17 +246,25 @@ id 为 `hidden-tabs-do-not-hydrate` 的那条 law。
 判定时的 `visibilityState`，以及**被推翻的旧观测原样保留在 `supersededObservation` 里**，
 都落在 `rankup/data/provider-capabilities.json` 的 `perRouteFindings.routes`。
 
-| 类别 | 旧计数（v4，早停） | 现计数 | 一句话含义 | 代表路由 |
+| 类别 | 旧计数（v4，早停） | 现计数 | 一句话含义 | 路由 |
 |---|---|---|---|---|
-| `data` | 2 | **10** | 有表且有行，**只有这一类能直接喂给取数脚本** | `ai-traffic`（120 格）、`trending-websites`（140 格）、外加下面改判的 8 条 |
-| `chart-only` | 10 | **6（分两档，见下）** | 页面本身不提供表格，只有 svg。**这一类不再有一个笼统的数字** | 结构判据已过 4 条：`organic-social`、`paid-social`、`email`、`display-ads`；证据强但协议不同 2 条：`referral`、`organic-search` |
-| `pending` | —— | **4** | 还没拿到可采信判据。**这是待办，不是结论**，不要拿来规划取数 | 弱证据 2 条：`paid-search`、`behavior`；仍在跑 2 条：`daily-trends`、`socioeconomics` |
+| `data` | 2 | **10** | 有表且有行，**只有这一类能直接喂给取数脚本** | `subfolders-subdomains`(900)、`usa`(459)、`sources-destinations`(272)、`audience-overlap`(204)、`geographical-regions`(198)、`trending-websites`(140)、`ai-traffic`(120)、`business-regions`(36)、`page-groups`(20)、`demographics`(20) |
+| `chart-only` | 10 | **9** | 没有 table 元素，数在图里。**9 条全部通过结构判据**，判定 `no-table-structural` | `referral`、`organic-search`、`paid-search`、`organic-social`、`paid-social`、`email`、`display-ads`、`daily-trends`、`socioeconomics` |
+| `data-not-in-table` | —— | **1** | **新分类。** 没有 table 元素，但**数据就在 DOM 文本里**（列表 + 条形图）。⚠️ **按非空单元格判会得 0，但不是没数据** | `behavior` |
+| `pending` | —— | **0** | 还没拿到可采信判据。**这是待办，不是结论** | ——（B 的最终报告后已清零） |
 | `empty-silent` | 8 | **0** | 列头齐全、0 行。⚠️ **8 条全部改判为 `data`，这一类在 node 5 上已经清零** | —— |
 | `requires-input` | 1 | **1** | 路由正常，但要人先贴输入才产出。不是「空」 | `industry-and-bulk-analysis` |
 | `not-a-report-route` | 1 | **1** | 压根不返回报表——是营销/定价页 | `trends-api` |
 
-> 总数仍是 22（data 10 / chart-only 6 / pending 4 / requires-input 1 / not-a-report-route 1）。
-> 另外还有不在这次 sweep 里的 `top-pages`（850 格），见上面「节点差异是观测假象」一节。
+> 总数仍是 22（data 10 / chart-only 9 / data-not-in-table 1 / requires-input 1 / not-a-report-route 1）。
+> 另外还有不在这次 sweep 里的 `top-pages`（850 格），见上面「节点差异是观测假象」一节——
+> 它就是「能出表格数据 11 条」里的第 11 条。
+
+#### ⚠️ 测量方 B 的界限声明：node 8 只完整测过 3 条路由
+
+**JSONL 里 node 8 那几条 `empty-silent` 是早停协议下的旧观测，请当作未测，不要引用。**
+既不要拿它们写「这条路由真的空」，也不要拿它们做节点对比。
+这一轮唯一完整的结果是 node 5 那 22 条。
 
 #### `empty-silent` 这一类已经归零 —— 8 条全部改判为 `data`
 
@@ -322,27 +335,60 @@ id 为 `hidden-tabs-do-not-hydrate` 的那条 law。
 
 **判据不在这里。** 区分「这条路由本来就没有表格」和「表格还在路上」，
 用的是一条四条件、连续两次读都要满足的**结构判据**，以及两个刻意分开的判定名
-`no-table-structural`（可采信）/ `no-table`（不可采信）。**判据全文和两个判定名只写在**
+`no-table-structural`（可采信）/ `no-table`（不可采信），2026-08-29 又加了第三个
+`data-not-in-table`。**判据全文和三个判定名只写在**
 backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 `<correct>` 块里，
 这里不复述，也不要在别处再抄一份。只记住它的含义一句话：
 **「页面别的部分都好了，就是没有表格这个东西」**——光是「没有 table 元素」证明不了任何事，
 因为还没开始渲染的页面同样没有 table 元素。
 
+**2026-08-29 判据修订：结构判据去掉了 `vis === 'visible'` 那一项，保留「目标已生效」那半。**
+去掉的理由两条，互相独立：
+
+1. **没必要。** `chartHydrated` 和 `exportBtns` 已经**直接**证明「页面其余部分渲染完了」，
+   而且这些页面的渲染顺序是 摘要 → 图表 → 表格，**图表数字渲染出来 = 流水线已经走到表格的前一站**。
+   可见性只是同一件事的代理项，效果本身可观测时，代理项不增加任何信息。
+2. **有害。** 一次 foreground attach 会把 `visibilityState` **永久锁死在 `visible`**
+   （铁证：同一个 Chrome 窗口里两个标签页同时报 `visible`）。于是这个条件
+   **在被污染的会话上恒真**（形同虚设），**在诚实的纯后台会话上反而可能为假**（误杀一条成立的结构判定）。
+   一个「在它撒谎的地方自动为真、在它诚实的地方偶尔为假」的条件，比没有还差。
+
+**保留「目标已生效」那半是必须的**：空态落地页是一个**完美的 `noTable === true`**。
+条件一被满足得最彻底的那个页面，恰恰是根本不是你那份报表的页面。
+
+**连带结论：4 条 `structural-confirmed` 的判定不受 `visible` 锁死污染影响**，
+因为它们靠的是图表数字和导出按钮，都是页面产出。
+`referral` / `organic-search` 那 98 / 96 次「visible 读」**作为可见性证据是作废的**
+（`semrush-traffic.mjs` 的 `DEFAULT_WINDOW = 'foreground'`），
+但它们从来不是可见性证据——是 98 / 96 次「0 个 table 元素」的 DOM 观测，这一点不受污染影响。
+**所以那批读数的可信度既不提升也不下降。**
+
+⚠️ **这不动摇「可见性伪空」那条 law。** 两者说的是两件事：
+可见性管的是**表格里的行会不会水合**（`top-pages`：hidden 0 格 / visible 850 格，三次交叉验证），
+不是**`table` 这个元素存不存在**。结构问题和取值问题，别合并。
+
 | 档 | 条数 | 路由（括号内为 `chartHydrated / exportBtns`） | 能不能用 |
 |---|---|---|---|
-| **structural-confirmed** | 4 | `organic-social`(30/5)、`paid-social`(34/5)、`email`(23/4)、`display-ads`(29/4) | **能**。判定 `no-table-structural`，四条件全满足且连续两次读都满足 |
-| **strong-but-different-protocol** | 2 | `referral`、`organic-search` | **暂时能当规划依据，但没结案**。更早的协议下各在 `visible` 下被读了 **98 / 96 次**仍无 table 元素，证据量够，**缺 `chartHydrated` / `exportBtns` 两个结构字段**，待补测 |
-| **pending（弱证据）** | 2 | `paid-search`(0/6)、`behavior`(0/0) | **不能**。判定只到 `no-table`，已移出 `chart-only` |
-| **pending（仍在跑）** | 2 | `daily-trends`、`socioeconomics` | **不能**。结果还没回来，不要替它们下结论 |
+| **structural-confirmed** | 9 | `organic-social`(30/5)、`paid-social`(34/5)、`email`(23/4)、`display-ads`(29/4)、`referral`、`organic-search`、`paid-search`、`daily-trends`、`socioeconomics` | **能**。判定 `no-table-structural`。后 5 条 B 的最终报告只给了「均通过结构判据」，没逐条转述 chart/exp 计数，JSON 里那两个字段记 `null` 而不是编一个 |
+| **data-not-in-table** | 1 | `behavior` | **能，但不是这一类的用法**。它没有 table，可**数据在 DOM 文本里**，见下一节 |
 
-**弱证据那两条正好说明为什么要分开命名。** `paid-search` 的 `chart=0 / exp=6`
-意味着图表数字根本没渲染出来；`behavior` 的 `chart=0 / exp=0`
-意味着**整页章节都没渲染，等于什么都没测到**。把这两条写成「这条路由只提供图表」，
-就是把「我没测到」写成「它没有」——正是这一天被反复证伪的那种形状。
-`no-table` 是 `inconclusive` 换了个好听的名字。
+**`behavior` 从「弱证据 pending」翻案成一个独立类别，方向和原来相反。**
+原来记的是 `chart=0 / exp=0`，读作「整页章节都没渲染，等于什么都没测到」。
+实测复查发现它**根本没有 table 元素，而数据一直在页面上**，用列表 + 条形图呈现：
+
+> `YouTube 71.8% 1.5亿 | Facebook 49.36% 1亿 | Instagram 48.61% | Reddit 33.71% | TikTok 28.06%`
+
+另有兴趣度和设备分布。**按「非空单元格 > 0」判，它得 0——而正确结论绝不是「没数据」。**
+那次 `chart=0 / exp=0` 的读数本身没错，错的是拿它去回答「这条路由有没有数据」；
+它只能回答「有没有**表格型**数据」。
+
+取数方式：**按路由声明 `presentationShape` 和本路由自己的锚点维度名**
+（`behavior` 是 社交媒体 / 兴趣度 / 设备），在锚点标题所属的 section 子树里取数值。
+⚠️ **绝不能改成「页面上有数字就算有数据」**——那正是 `axa.fr` 挂件那个假阳性。
 
 ⚠️ **`chart-only` 和 `empty-silent` 的补救方式相反**（前者重读没用、后者要等），
-这个区分本身仍然成立；`empty-silent` 已清零，`chart-only` 只有上表第一档算结案。
+这个区分本身仍然成立；`empty-silent` 已清零，`chart-only` 9 条全部结案。
+**`data-not-in-table` 是第三种，两种补救都不适用**：重读没用，等也没用，要换读取形状。
 
 #### 三条容易被记错的判定
 
@@ -378,6 +424,8 @@ backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 
   当时读到 `no-table`、0 格，那一轮还在跑）。所以本次 sweep 里出数的是 **2** 条。
   `top-pages` 的 850 格是**另一次**实测，那条结论不受影响。
 - 图表型是 **10** 条，不是 9——上表已列全。
+  **再更新 2026-08-29：现在是 9 条。** 原来那 10 条里的 `behavior` 已经拆出去，
+  单列为 `data-not-in-table`；剩下 9 条全部通过结构判据。
 
 ---
 
