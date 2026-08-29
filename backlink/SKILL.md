@@ -2211,7 +2211,11 @@ caught in one recheck session** (2026-08-29, judge's write-up in
     been credited to canva.com**. The usa run was dragged to another agent's
     referral verification; demographics and behavior were stolen by other
     sessions' "december birthstone color" / "aries birthstone"
-    keywordoverview queries.
+    keywordoverview queries. Second confirmed instance, 2026-08-30
+    (ads-trends run): in a gap where this run held no lock, the shared tab was
+    **legitimately taken over by another session's `semrush-report.mjs` batch
+    (perfume-tools)** — findlinks read the other workflow's keywordoverview
+    page. "读之前必须持锁" now has two independent live confirmations.
 (b) **A whole run holds the machine-wide tool lock**
     (`acquireToolsShareBrowserLocks` in `scripts/lib-tools-share.mjs`,
     `yan-tools-share-&lt;tool&gt;.lock`): acquired before the first command,
@@ -2403,6 +2407,79 @@ stall-refresh handles it.
 </footnote>
 </semrush-organic-route-capabilities>
 
+<semrush-ads-trends-capabilities date="2026-08-30">
+<summary>
+**Route capability map for Semrush 广告研究 (Advertising Research) + .Trends
+市场概览/批量分析 — double-witness ground-truth run, 2026-08-30.** Collector:
+<ref file="scripts/ground-truth.mjs"/> (machine-wide semrush lock held for each
+run), session `semrush-nav`, target domain canva.com. Judge's write-up:
+`backlink/evidence/ground-truth/semrush-ads-trends-VERDICTS.md` — **kept
+local** (the evidence directory is gitignored). Host is the authorized panel
+origin; URL templates below are paths on it.
+</summary>
+
+<routes><![CDATA[
+| page | URL template | shape | scale (canva.com) | answers |
+|---|---|---|---|---|
+| 广告研究 · 排名 | /analytics/adwords/positions/?db=us&q=<domain>&searchType=domain | summary cards + trend chart + table (readyBranch=table, ~31s) | 2,607 paid keywords, $94.4K traffic cost; 100 rows/page × 27 pages | which Google Ads keywords the rival pays for (keyword / position / delta / volume / CPC / URL / traffic / cost / competition) — verified commercial-intent words |
+| 广告研究 · 广告创意 | /analytics/adwords/copies/?db=us&q=<domain>&searchType=domain | card grid, NO table NO chart (data-not-in-table): table/chart ready branches never fire, so a plain run budget-exits 2 while deepText holds all the data — MUST collect with --ready-text '广告创意'; grep deepText before ever calling it empty | 2,118 ad copies; each card = title + display URL + body + keyword count | what the rival's ad copy says, and how many keywords back each copy (high count = a proven copy) |
+| Ads History | ~~/analytics/adwords/adshistory/~~ ~~/adhistory/~~ | BOTH paths 302 back to positions (hijack self-check exit 3) | — | NEGATIVE, on record to stop re-searching: this account/version has NO standalone Ads History tool — the ads nav group (实见截图) has no such entry, and unknown adwords sub-paths all fall back to positions. The "12-months-running" matrix has no entry here; untested candidate: Keyword Overview's ad-history block |
+| .Trends 市场概览 (Market Explorer 后继) | entry form /analytics/traffic/market-overview/ → results ?lid=<listId> (directly addressable; q= is NOT accepted — identity lives in lid) | summary cards + SVG four-quadrant + participants grid (346 filledCells); quadrant names AND domain labels are svg text nodes, bubble coords are SVG attributes — parseable from DOM, no pixel reading needed | market of 99 domains + canva; market traffic 49.4亿 ↑9.23%; TAM 70亿 / SAM 68.6亿 (97.95%); traffic cost $10.7亿 | a niche's market size / growth / consolidation / player quadrants (规则改变者/领导者/利基市场参与者/已有参与者) — pick an ecosystem niche |
+| .Trends 行业与批量分析 (= Bulk Analysis) | /analytics/traffic/industry-and-bulk-analysis/ (remembers lid; tabs 批量分析/商家类别) | form (self-drawn row editor + TXT/CSV upload) → results grid (filledCells>20 ready, ~60-90s) | up to 100 domains per run; 6 domains → 42/42 cells in ONE request (genuinely quota-friendly vs 6 separate /analytics/traffic/ reports); exportable | bulk visits / uniques / purchase conversion / pages-per-visit / duration / bounce across a candidate pool — the quota-friendly screen for rival/backlink prospects |
+]]></routes>
+
+Dead-route corrections, same run: the old feature-map's
+`/analytics/backlinks/bulk/` 302s to the `/analytics/backlinks/` landing form —
+**that route no longer exists**; the real bulk entry is .Trends' 行业与批量分析.
+`/trends/market-explorer/` is a 404 and `/market-explorer/` 302s to
+`/analytics/traffic/market-overview/` — Market Explorer has been folded into
+「流量与市场」.
+
+<lesson id="market-overview-async-is-computing-not-empty">
+**A newly created market list computes asynchronously and can sit on a skeleton
+for 40+ minutes — that state is "computing", never "empty" and never a
+paywall.** When done, filledCells 346 + svgText &gt; 10; the collector's ready
+criterion is filledCells &gt; 40 or svgText &gt; 10, and a short budget exits 2.
+Revisit later instead of writing a verdict. Two entry traps: (a) the bare
+`/analytics/traffic/market-overview/` path 302-remembers the LAST `lid` once
+any list exists — a **new** market must go through 「保存的列表 → 创建新列表」;
+(b) the form shell can fail to hydrate — reload once and the input appears
+within ~10s (same disease as keywordgap), then `el.focus()` +
+`execCommand('insertText')` + click 分析, and come back in 15-60 minutes. The
+「编辑」competitors dialog has a single-slot input — one domain per Enter, and
+a dialog opened by mistake is discarded with 取消 (read-only discipline).
+</lesson>
+
+<lesson id="trends-pages-are-ax-blind">
+**These .Trends pages defeat BOTH the AX tree (state shows only RootWebArea)
+and CSS `find` — only <ref file="scripts/lib-deep-dom.mjs"/> shadow-piercing
+reads them.** The iframe hypothesis is ruled out (deep iframe count 0). Do not
+conclude "blank page" from a blind AX read; go straight to the deep-DOM
+witness.
+</lesson>
+
+<lesson id="bulk-form-wants-a-file-not-keystrokes">
+**The bulk-analysis domain form is a self-drawn row editor ("N/100 of 100
+lines"), NOT a textarea — typed input silently loses every line after the
+first.** `insertText` with `\n` keeps the counter at 1/100; `insertParagraph`
+concatenates lines (`capcut.comcanva.com`). The working recipe (4 failures
+deep): synthesize the upload in-page —
+`new File([domains.join('\n')], 'domains.txt', {type:'text/plain'})` into a
+`DataTransfer`, assign to the deep-DOM `input[type=file]` (accept=.csv,.txt),
+dispatch `change` — counter flips to N/100 immediately ("文件已上传"), then
+click 分析 via deep button-text match and read the results grid.
+</lesson>
+
+<footnote>
+Parameter scope: `q=` / `db=` work on the `/analytics/adwords/` group only;
+market-overview ignores `q=` (identity is `lid=`). Adwords tab set observed:
+排名 / 排名变化 / 竞争对手 / 广告创意 / 页面 / 子域名 — the paid twin of the
+organic set; only 排名 and 广告创意 measured. Cross-check anchor: canva.com
+7.9亿 monthly visits agrees three ways (market participants table, bulk
+analysis, historical semrush-traffic run).
+</footnote>
+</semrush-ads-trends-capabilities>
+
 <similarweb-explore-capabilities date="2026-08-29">
 <summary>
 **Route capability map for Similarweb's "pick the racetrack" chain — Demand
@@ -2572,6 +2649,17 @@ node scripts/tools-share-node.mjs probe --tool semrush --nodes 1,2,3     # 逐�
 「API 今日配额 N%」与单份报表的「每日报告限额」是不是同一个配额口径没有验证过,同一次
 `probe --nodes 1,2` 实测两个节点读到的配额百分比完全相同，说明那读数很可能是账号维度、
 不是节点维度的,不要拿它当预测。真正会不会被限额，只有实际跑报表看有没有弹出那句提示才知道。
+
+**镜像补丁把 `document.referrer` 的 getter 换掉了（gmitm.env.js reverseUrl），
+referrer 为空时读它直接抛 `Cannot read properties of undefined (reading
+'charAt')`，整条 eval 报废。** 任何页内 eval 读 `document.referrer` 必须包
+try/catch —— opencli 的 `pressure.mjs` 配额探针就依赖这条读取，2026-08-30 实测
+中招。
+
+**平台方定性（2026-08-30，用户与客服确认）：面板公告里的自动化禁令针对的是攻击性
+脚本 / API 轰炸，正常的面板读取不在禁止之列。** 此前判决书里「需上报的风险」条目
+就此降级为已解决；但节制节奏保留 —— 单会话串行、请求间 30s 级间隔，这不再是风控
+避险，而是省配额的纪律。
 
 Everything else about cards, quota, and the traps is in
 <ref file="references/authorized-data-sources.md"/>.
