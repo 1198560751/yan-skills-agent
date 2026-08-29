@@ -453,3 +453,136 @@ eval 都超时**——表现和会话挂掉一模一样，脚本里的报错还�
   「今日配额」，那是唯一能直接区分两者的地方。
 - 因此批量脚本必须有**连续失败熔断**：会话一挂，后面每个域名都要付满一整个超时，
   实测连烧 48 个域名 60 秒才被人发现。连续 N 次失败就停下报错，不要跑完整张表。
+
+## The identity fields are the ones a campaign gets wrong, and nobody notices
+
+Two identity errors surfaced only because the owner read the reply, not because
+anything failed. Both had already reached third-party sites by then, and a
+directory submission has no retract button.
+
+**The contact email must come from the site's own published address, never from
+the person driving the run.** A campaign filled the operator's personal Gmail
+into every form for the first 156 attempts. It was caught after 6 submissions
+had actually fired, at least 3 of them confirmed sent. The site's real address
+was sitting in its own codebase the whole time — one grep found it appearing
+8 and 12 times respectively across the contact page and the JSON-LD.
+
+So: **before the first form, grep the site for its own contact address**, put it
+in the payload as the single source, and make every result row report the
+`emailUsed` it actually typed. A field that is never reported back is a field
+nobody can audit.
+
+```
+grep -rhoE "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}" <site-src> \
+  | grep -viE "@types|@tanstack|@cloudflare|@vite|@radix|@tailwind" \
+  | sort | uniq -c | sort -rn | head
+```
+
+**A non-English site must be described in its own language.** The same campaign
+wrote English blurbs for a Japanese-market site through several rounds. Nothing
+rejected them — English is accepted by English directory forms, so the failure
+is invisible from inside the run. The blurb is what a human reads before
+approving the listing, and in the target market's directories it is also what
+gets indexed.
+
+Encode it as a rule the filler cannot skip: carry **both** language variants in
+the payload, make the local language the default, permit the English one **only**
+when the form itself is English-only and rejects the local script, and require
+every row to record `langUsed` plus the reason when it is not the default.
+"Judgement call" is not enough — an agent optimising for "the form accepted it"
+will always pick the language it wrote the description in first.
+
+## Run the traffic screen BEFORE the form, not after — the cost is asymmetric
+
+This Skill already says so; a campaign skipped it anyway, and the bill was paid
+by a human. Measuring a domain costs one query. Filling its form costs two orders
+of magnitude more, and when the route is CAPTCHA-gated the last step costs a
+**person's attention**, which is the most expensive unit in the whole pipeline.
+
+Measured on one batch of 12 CAPTCHA routes a human solved by hand:
+
+| tier | count | traffic |
+|---|---|---|
+| worth it | 6 | 945k / 146k / 138k / 35k / 24k / 11k |
+| worthless | 6 | 176, 43, 245, and three not indexed by the traffic panel at all |
+
+**Half of that person's manual work went to sites with double-digit traffic.**
+A single batch query beforehand would have removed all six.
+
+The same run measured the effect directly: an unscreened batch converted at
+**1.1%** (attempts → confirmed placement); the next batch, gated on
+`monthlyVisits >= 100`, converted at **3.3%**. Same payloads, same scripts, same
+day. **Three times the yield for one cheap query per domain.**
+
+Corollary for reporting: a panel that rewrites the requested window (asking for
+28d and landing on 6m — the tool prints this) gives numbers that are **not**
+monthly. They still rank domains correctly, so the screen works, but never copy
+them into a ledger labelled "monthly visits".
+
+## `open` cohort labels rot, and they rot toward false positives
+
+A snapshot of "has an open form, no login" taken 10 days earlier was mostly
+wrong when re-walked. Across 336 attempts, 272 were skipped, and the two largest
+reasons were **the route is a homepage with no submission form at all** and
+**login required** — i.e. exactly the two properties the cohort claimed to
+exclude.
+
+The cheap repair is already in this Skill:
+`probe-submission-targets.mjs` is plain HTTP and costs nothing per target.
+Running it first turned a 194-target queue into 59 with a real `open-form` gate,
+**and separately recovered 7 real open forms out of a pool that had been filed
+as CAPTCHA-gated** — the rot runs in both directions.
+
+**So the order is: probe → traffic screen → fill.** Two cheap passes before the
+expensive one. A campaign that walks straight from a stored cohort into a
+browser is spending its most expensive resource on the least reliable data.
+
+## Staged CAPTCHA forms die with the process that filled them
+
+A sub-agent that fills a form and leaves the session open is **not** handing the
+human a form to finish. Measured twice: when the agent's process ended, its
+sessions went with it, and the tabs the human had been told to go click were
+gone. The first time this happened it cost 8 filled forms; the second time,
+another 18.
+
+Two things follow, and the second matters more:
+
+1. **The durable artifact is a replay record, not a session.** Store the final
+   URL, every field's selector / name / the exact value typed, and the submit
+   control's selector. Then any process can re-stage the form in one pass.
+2. **Whoever will still be alive when the human clicks should be the one that
+   opens the tab.** Staging from the orchestrator rather than from a worker is
+   the difference between a form that is waiting and a promise that is not.
+
+Re-staging from a replay record exposed two more traps worth naming:
+
+- **A generated fill script that goes through a shell is a quoting hazard, and
+  it fails silently.** Six of twelve re-stagings opened the page, executed, and
+  filled **nothing**, with no error anywhere — the page was up, the fields were
+  there, the values never arrived. Prefer the CLI's own per-field fill over
+  hand-built JS, or pass the script through a file rather than an argument.
+- **`fill` does not work on `<select>`; that needs `select`, with the option's
+  real `value`.** A replay record that stored the human-readable label
+  ("Computers > Software") cannot drive it. And the option list can be several
+  thousand entries long — one had 3,500 — so a lookup that reads the first
+  screenful of options finds nothing and reports "no match" on a page where the
+  match exists.
+
+## A fixed session name is a single point of failure across concurrent tasks
+
+Quota sites converge on one session name on purpose (see the browser-runtime
+laws) — that is what serialises concurrent callers into one tab. The cost is
+that **any task can close it, and every other task using it dies immediately.**
+
+Observed: a long batch traffic run crashed with `No active session "…-nav"`
+partway through, because an unrelated workflow on the same machine had closed
+that session during its own cleanup. Nothing was wrong with the batch.
+
+Two mitigations, both cheap:
+
+- **Make batch runs resumable and always pass the resume flag on restart.** The
+  run above lost nothing because its output was append-per-domain; restarting
+  with `--resume` picked up at the exact domain it died on.
+- **Never close a session you did not open**, and never run the blanket cleanup
+  while other tasks are live. The existing law says this; this is the failure it
+  prevents, written down.
