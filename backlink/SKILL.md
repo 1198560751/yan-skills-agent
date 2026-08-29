@@ -2186,6 +2186,60 @@ could catch. Scripts collect; the AI judges.
 </why>
 </law>
 
+<law id="one-collector-per-quota-tool" weight="load-bearing">
+<statement>
+**On any quota tool, at most one collector agent exists at any moment — and a
+run that spans multiple commands must hold the machine-wide tool lock for its
+whole duration.** The daemon's same-name-session queue serialises **single
+batches, not runs**: a whole-run collector like
+<ref file="scripts/ground-truth.mjs"/> spans dozens of commands, and in the gap
+between any two of them another workflow can `open` its own URL into the shared
+`semrush-nav` tab. That is not a theoretical risk: **four live takeovers were
+caught in one recheck session** (2026-08-29, judge's write-up in
+`evidence/ground-truth/recheck-VERDICTS.md`, kept local).
+
+(a) **One collector per tool at a time.** Queueing is not isolation. The
+    poster-child sample: the page-groups re-run was steered through `/home/`
+    and someone else's keywordoverview and parked on **sylviejewelry.com's
+    top-pages — 942 filled cells that, had nobody read the href, would have
+    been credited to canva.com**. The usa run was dragged to another agent's
+    referral verification; demographics and behavior were stolen by other
+    sessions' "december birthstone color" / "aries birthstone"
+    keywordoverview queries.
+(b) **A whole run holds the machine-wide tool lock**
+    (`acquireToolsShareBrowserLocks` in `scripts/lib-tools-share.mjs`,
+    `yan-tools-share-&lt;tool&gt;.lock`): acquired before the first command,
+    held across every poll, screenshot and scroll, released in `finally`.
+    <ref file="scripts/ground-truth.mjs"/> is the reference implementation —
+    it maps the URL's host to the tool key (non-quota hosts take no lock) and
+    records `lockHeld` / `lockWaitMs` in the manifest.
+(c) **Every census records its `href`, and that href is the last line of
+    defence against contamination.** The verdict admits only witness pairs
+    whose href stayed on the target route; the collector checks the path
+    prefix after every census and, on departure, writes `hijacked: true` plus
+    the offending href (scrubbed) into the manifest and exits 3 immediately —
+    it never keeps polling on someone else's page.
+(d) **The dispatcher's lesson: "it's queued, so it's safe" is a prediction the
+    mainline itself made and got wrong.** The scheduling error was not a
+    subagent's — the dispatcher reasoned from the daemon queue to whole-run
+    safety, and four takeovers happened inside runs it believed were
+    serialised. Dispatch collectors one per tool, with the lock, or not at all.
+</statement>
+<why>
+<law-ref id="tools-share-is-a-global-mutex"/> already made the lock machine-wide
+per tool — but it only binds scripts that go through `lib-tools-share.mjs`'s
+launcher, and `ground-truth.mjs` (which enters via a direct URL, not the panel)
+did not take it. The gap between "the daemon serialises each batch" and "the
+run is serialised" stayed invisible until the 2026-08-29 recheck, where 4 of 19
+live runs were taken over mid-flight by unrelated workflows on the same box.
+The failure mode is maximally quiet: exit codes look normal, cells fill, and
+the numbers are real — they are just **someone else's numbers**. Only the
+per-census href (witness discipline from
+<law-ref id="every-measurement-needs-two-witnesses"/>) exposed it, which is why
+(c) is a law and not an implementation detail.
+</why>
+</law>
+
 <semrush-traffic-route-capabilities date="2026-08-29">
 <summary>
 **Route capability map for Semrush Traffic Analytics — double-witness
@@ -2210,6 +2264,28 @@ checkout. This table is the durable summary.
 | `socioeconomics` | chart-only | summary cards + bar/stacked charts; every value present as DOM text — densest of the nine | Class A "no table" holds, but the page is the richest, not empty |
 | `daily-trends` | chart-only | daily visits 20M–35M, axis top 40M | historical "BLANK content area, exportBtns===12" did not reproduce — the same 12 export controls sit beside a full page of charts |
 | `top-pages` (control) | **table** | 850 filled cells | the known-good table route, included as the positive control |
+
+**Data-route recheck, same day.** The nine routes historically recorded as
+*having* data were re-measured with the same collector — **2026-08-29 双证人复核
+确认，计数与历史精确一致**, every route's filled-cell count matching its
+historical record exactly (judge's write-up:
+`backlink/evidence/ground-truth/recheck-VERDICTS.md`, kept local, gitignored):
+
+| route | filledCells (recheck = historical) | verdict |
+|---|---|---|
+| `subfolders-subdomains` | 900 | confirmed-data |
+| `usa` | 459 | confirmed-data |
+| `sources-destinations` | 272 | confirmed-data |
+| `audience-overlap` | 204 | confirmed-data |
+| `geographical-regions` | 198 | confirmed-data |
+| `business-regions` | 36 | confirmed-data |
+| `page-groups` | 20 | confirmed-data |
+| `demographics` | 20 | confirmed-data |
+| `behavior` | data-not-in-table — summary cards, social-media bars, interest bars, device donut; values live in DOM text, not grid cells | confirmed-data (chart-card shape upheld) |
+
+Attribution anchor, one line: **business-regions' four regions sum to ≈790M
+(2.8亿+1.9亿+1.6亿+1.6亿), matching canva.com's ~7.9 亿 monthly visits** — the
+counts above are anchored to the right domain, not to a hijacked page.
 
 **Collection guidance for the chart-only routes.** They need a chart reader:
 after piercing shadow DOM the axis labels, series names and data values are

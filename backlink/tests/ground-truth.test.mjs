@@ -15,6 +15,7 @@ import {
   censusFingerprint,
   detectEmptyState,
   isChartReady,
+  isHijacked,
   isReady,
   isStalled,
   isSuspectedEmptyState,
@@ -291,4 +292,57 @@ test('空态标记：命中已知空态文案返回标记，普通文本返回 n
   assert.equal(detectEmptyState('主页 39.47% 4.1亿'), null);
   assert.equal(detectEmptyState(''), null);
   assert.equal(detectEmptyState(undefined), null);
+});
+
+// ---------------------------------------------------------------------------
+// 落点自检（isHijacked）：2026-08-29 复核抓到 4 次现行接管，判据是 path 前缀
+// ---------------------------------------------------------------------------
+
+test('落点自检：href 离开目标路由 path → hijacked（4 次现行接管的真实形状）', () => {
+  // usa v1：被另一个 agent 的 referral 验证导走。
+  assert.equal(isHijacked('/analytics/traffic/usa/', '/analytics/traffic/referral/?q=canva.com'), true);
+  // page-groups v2：被导经 /home/ 后停在 sylviejewelry.com 的 toppages（942 格差点记到 canva 名下）。
+  assert.equal(isHijacked('/analytics/traffic/page-groups/', '/home/'), true);
+  assert.equal(isHijacked('/analytics/traffic/page-groups/', '/analytics/traffic/top-pages/?q=sylviejewelry.com'), true);
+  // demographics/behavior：被别的会话的 keywordoverview 抢走。
+  assert.equal(isHijacked('/analytics/traffic/demographics/', '/analytics/keywordoverview/?q=december+birthstone+color'), true);
+  assert.equal(isHijacked('/analytics/traffic/behavior/', '/analytics/keywordoverview/?q=aries+birthstone'), true);
+});
+
+test('落点自检：同路由的 query / 子路径 / 末尾斜杠差异都不算离开', () => {
+  assert.equal(isHijacked('/analytics/traffic/usa/', '/analytics/traffic/usa/?q=canva.com&searchType=domain'), false);
+  assert.equal(isHijacked('/analytics/traffic/usa/', '/analytics/traffic/usa'), false);
+  assert.equal(isHijacked('/analytics/traffic/usa', '/analytics/traffic/usa/'), false);
+  assert.equal(isHijacked('/analytics/traffic/usa/', '/analytics/traffic/usa/california/'), false);
+});
+
+test('落点自检：前缀必须按路径段对齐，/usa2/ 不是 /usa/ 的子路径', () => {
+  assert.equal(isHijacked('/analytics/traffic/usa/', '/analytics/traffic/usa2/'), true);
+});
+
+test('落点自检：目标 path 为根或空 → 判不了，不误报', () => {
+  assert.equal(isHijacked('/', '/anything/'), false);
+  assert.equal(isHijacked('', '/anything/'), false);
+});
+
+test('manifest：lockHeld / lockWaitMs / hijacked / hijackedHref 进 manifest，缺省 false/null', () => {
+  const base = {
+    url: 'https://sem.3ue.co/x', session: 'semrush-nav', startedAt: 'a', finishedAt: 'b',
+    readyAfterMs: 30_000, polls: [], steps: [], stopReason: 'stable', budgetSeconds: 240, maxScreens: 12,
+  };
+  const plain = buildManifest(base);
+  assert.equal(plain.lockHeld, false);
+  assert.equal(plain.lockWaitMs, null);
+  assert.equal(plain.hijacked, false);
+  assert.equal(plain.hijackedHref, null);
+  const locked = buildManifest({ ...base, lockHeld: true, lockWaitMs: 1234 });
+  assert.equal(locked.lockHeld, true);
+  assert.equal(locked.lockWaitMs, 1234);
+  const stolen = buildManifest({
+    ...base, stopReason: 'hijacked', hijacked: true,
+    hijackedHref: '/analytics/traffic/top-pages/?q=sylviejewelry.com',
+  });
+  assert.equal(stolen.hijacked, true);
+  assert.equal(stolen.hijackedHref, '/analytics/traffic/top-pages/?q=sylviejewelry.com');
+  assert.equal(stolen.stopReason, 'hijacked');
 });

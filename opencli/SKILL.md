@@ -157,6 +157,15 @@ tools-share 锁被谁拿着、那个 pid 还活着吗，然后给 `go` / `wait` 
 | **间隔用 `sleepStep()`，不要用 `wait time`** | `wait time 5` 在 1.8.7 是坏的：报 "Waited 5s"，实测 928ms 就返回。写错了整套节流静默失效 |
 | **撞上限的第一动作是 `close`，不是 `sleep`** | 释放标签页本身就是退避。当成「页面没加载好」去重试只会再开一个，越retry越糟 |
 
+**daemon 排队只串行化单条命令 / 单个 batch，保护不了跨多条命令的整轮采集。**
+同名会话排队意味着两条命令之间的间隙对别人是敞开的：一轮横跨几十条命令的采集
+（poll → 截图 → 滚动循环），任何 poll 间隙里别的工作流都能往同一个固定名标签页
+`open` 自己的 URL。实测 2026-08-29 一天抓到 4 次现行接管。所以整轮采集必须**另持
+机器级工具锁**（`yan-tools-share-<tool>.lock`，`pressure.mjs` 报告的就是它），
+整轮持有、结束释放——「排队所以安全」只对单条 batch 成立。完整法律与参考实现见
+backlink Skill 的 `one-collector-per-quota-tool`（`backlink/SKILL.md`，实现在
+`backlink/scripts/ground-truth.mjs`）。
+
 **分析阶段一律不碰配额站。** 采集落盘（`scripts/receiver.mjs`），N 个分析 agent 读文件，
 站点侧并发度是 0。这是唯一能让 agent 数量和站点压力彻底解耦的做法——今天那
 19 个 `tm-*` 标签页全开在同一个 Semrush 报表上，就是因为扇出的单位是 agent 而资源是页面。

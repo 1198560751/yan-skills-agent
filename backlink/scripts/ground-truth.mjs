@@ -31,11 +31,11 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  batchBrowser, closeSession, firstJson, opencli, parseFlags, required,
+  batchBrowser, closeSession, firstJson, opencli, parseFlags, quotaSiteOf, required,
   sessionForUrl, showHelpIfRequested, sleepStep,
 } from './opencli-core.mjs';
 import { DEEP_DOM_JS } from './lib-deep-dom.mjs';
-import { redactSecrets } from './lib-tools-share.mjs';
+import { acquireToolsShareBrowserLocks, redactSecrets } from './lib-tools-share.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -153,6 +153,32 @@ export function detectEmptyState(deepText) {
 }
 
 /**
+ * 逐轮落点自检（纯函数）：census 的 href path 是否已离开目标路由。
+ *
+ * 背景（2026-08-29 复核，见 evidence/ground-truth/recheck-VERDICTS.md）：
+ * 4 次现行抓到共享标签页被外部工作流接管——usa 被别人的 referral 验证导走、
+ * page-groups v2 被导经 /home/ 后停在 sylviejewelry.com 的 toppages（942 格，
+ * 不看 href 就会记到 canva.com 名下）、demographics/behavior 被别的会话的
+ * keywordoverview 抢走。daemon 只串行化单条 batch，本脚本一轮运行横跨几十条
+ * 命令，poll 间隙足够别人 open 自己的 URL。工具锁把窗口关上，这里是最后防线：
+ * 每次 census 后核对 href，path 不再以目标路由 path 开头 → hijacked，
+ * 立即终止（继续轮询只是在别人的页面上采证据）。
+ *
+ * 判据是**path 前缀**：同路由的 query 变化（?q=canva.com）、子路径、末尾斜杠
+ * 差异都不算离开；跨到别的路由（/analytics/overview/、/home/）才算。
+ */
+export function isHijacked(targetPath, href) {
+  const want = String(targetPath ?? '').replace(/\/+$/, '');
+  if (!want) return false;
+  let got;
+  try {
+    got = new URL(String(href ?? ''), 'https://placeholder.invalid').pathname;
+  } catch { return true; }
+  const gotNorm = got.replace(/\/+$/, '');
+  return !(gotNorm === want || gotNorm.startsWith(`${want}/`));
+}
+
+/**
  * 卡住（stall）判据：**停滞，不是耗时。** filledCells 仍为 0 且最近
  * `stallPolls`（默认 3）次轮询的 census **完全没有任何变化**（指纹逐字节相同，
  * deep/light 文本长度、单元格数、样本全在指纹里）→ 判定卡住，触发同会话刷新。
@@ -211,6 +237,7 @@ export function buildManifest({
   url, session, startedAt, finishedAt, readyAfterMs, polls, steps,
   stopReason, budgetSeconds, maxScreens, error = null, refreshes = [],
   readyBranch = null, suspectedEmptyState = false,
+  lockHeld = false, lockWaitMs = null, hijacked = false, hijackedHref = null,
 }) {
   return {
     schemaVersion: 1,
@@ -221,6 +248,14 @@ export function buildManifest({
     budgetSeconds,
     maxScreens,
     readyAfterMs,
+    // 整轮运行是否持有机器级工具锁（配额站 true，非配额站 false），
+    // 以及拿到锁前等了多少毫秒（未加锁为 null）。
+    lockHeld,
+    lockWaitMs,
+    // 落点自检：href 离开目标路由 path → true + 当轮 href（已剥敏），
+    // 采集立即终止、退出码 3——不在别人的页面上继续轮询。
+    hijacked,
+    hijackedHref,
     // 就绪走的是哪条分支："table"（filledCells>0）| "chart"（svgText>0 稳定）
     // | null（从未就绪）。
     readyBranch,
@@ -283,8 +318,24 @@ async function main() {
   const session = sessionForUrl(url, 'ground-truth');
   // hidden 出生的标签页永不水合（hidden-tabs-do-not-hydrate），所以 foreground 出生。
   const windowMode = 'foreground';
+
+  // 整轮持机器级工具锁（one-collector-per-quota-tool）：daemon 只串行化单条
+  // batch，本脚本一轮横跨几十条命令，poll 间隙别的工作流可以 open 自己的 URL
+  // ——2026-08-29 复核抓到 4 次现行接管。锁按 url 的 host 映射工具 key
+  // （sem.3ue.co→semrush、sim.3ue.co→similarweb），非配额站不加锁。
+  // 等锁超时沿用 lib-tools-share 的默认；锁等待不计入采集预算。
+  const quotaSite = quotaSiteOf(url);
+  let locks = null;
+  let lockWaitMs = null;
+  if (quotaSite) {
+    const lockStartMs = Date.now();
+    locks = await acquireToolsShareBrowserLocks(session, quotaSite.key);
+    lockWaitMs = Date.now() - lockStartMs;
+  }
+
   const startedAtMs = Date.now();
   const startedAt = new Date(startedAtMs).toISOString();
+  const targetPath = new URL(url).pathname;
 
   const evalPage = async (expression) => firstJson(
     (await opencli(['browser', session, 'eval', expression], { windowMode, timeoutMs: 90_000 })).stdout,
@@ -299,10 +350,23 @@ async function main() {
   let readyBranch = null;
   let suspectedEmptyState = false;
   let errorRecord = null;
+  let hijacked = false;
+  let hijackedHref = null;
+
+  /** 逐轮落点自检：href 离开目标路由 → 记下当轮 href，立即终止本轮采集。 */
+  function assertOnTarget(capture) {
+    if (!isHijacked(targetPath, capture.href)) return;
+    hijacked = true;
+    hijackedHref = capture.href; // readCensus 已剥敏
+    const error = new Error(`tab hijacked: href ${capture.href} left target route ${targetPath}`);
+    error.code = 'hijacked';
+    throw error;
+  }
 
   /** 同一停留位置的一对证人：census-sN.json 先落，紧接 shot-sN.png。 */
   async function capturePair(n) {
     const capture = await readCensus(evalPage);
+    assertOnTarget(capture);
     const censusFile = `census-s${n}.json`;
     const shotFile = `shot-s${n}.png`;
     writePayload(outDir, censusFile, capture);
@@ -355,6 +419,8 @@ async function main() {
         svgText: capture.census?.deep?.svgText ?? null,
       };
       polls.push(summary);
+      // 落点自检先于一切就绪判断：落在别人的页面上，「就绪」只会把污染当数据。
+      assertOnTarget(capture);
       // 就绪分支优先级：table（filledCells>0，立即）> chart（svgText>0 且 3 轮稳定）。
       if (isReady(capture.census)) {
         readyAfterMs = Date.now() - startedAtMs;
@@ -429,7 +495,7 @@ async function main() {
       }
     }
   } catch (error) {
-    stopReason = 'error';
+    stopReason = error?.code === 'hijacked' ? 'hijacked' : 'error';
     exitCode = 3;
     errorRecord = { code: error?.code || 'error', message: redactSecrets(error?.message || String(error)) };
     console.error(redactSecrets(error?.stack || error?.message || String(error)));
@@ -440,12 +506,15 @@ async function main() {
       readyAfterMs, polls, steps, stopReason,
       budgetSeconds: budgetMs / 1000, maxScreens,
       error: errorRecord, refreshes, readyBranch, suspectedEmptyState,
+      lockHeld: Boolean(locks), lockWaitMs, hijacked, hijackedHref,
     });
     try { writePayload(outDir, 'manifest.json', manifest); } catch (writeError) {
       console.error(redactSecrets(`manifest write failed: ${writeError?.message || writeError}`));
     }
     // 结束时 close 会话（配额站的固定名标签页不留）。绝不 cleanup。
     await closeSession(session).catch(() => {});
+    // 锁最后放：close 也是对配额站的操作，应当在锁内完成。
+    if (locks) await locks.release().catch(() => {});
   }
 
   console.error(redactSecrets(`[ground-truth] stopReason=${stopReason} readyBranch=${readyBranch} steps=${steps.length} polls=${polls.length} refreshes=${refreshes.length} exit=${exitCode}`));
