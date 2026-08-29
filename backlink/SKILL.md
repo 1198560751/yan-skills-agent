@@ -1143,6 +1143,61 @@ them.**
   *empty* verdicts stay void on instance 6's grounds. Dropping `vis` from the
   structural criterion rehabilitates **not one** `empty-silent` verdict.
 
+**CORRECTION 2026-08-29, later still — four unwritten assumptions inside this
+law's own criteria, two of them in its load-bearing conditions.** The criteria
+now live as executable, testable code in
+<ref file="scripts/lib-report-readiness.mjs"/>; the block below is the same code,
+and the tests in `tests/report-readiness.test.mjs` go red if either is repaired
+without the other.
+
+1. **`exportBtns >= 1` was never bound to this report section**, and neither was
+   **`chartHydrated >= 3`**. Both scan everything under `main`. That is
+   instances 1 and 2 in the load-bearing conditions of the criterion written to
+   prevent instances 1 and 2. The counter-example is in this Skill's own notes:
+   `daily-trends` renders **one 导出 control per channel name** in the body, so
+   an export button may belong to the global toolbar or to a neighbouring
+   section and carries no necessary claim about *this* section. And the axa.fr
+   widget is `42 / 758 / 15%` — **three digits, the whole threshold, from a
+   foreign tool** — if it happens to be drawn as svg.
+   **The repair is to bind both to the report region's own subtree, and where
+   that subtree's root is has never been measured.** So this round changes
+   nothing but the shape: the scope root is now a **parameter**, its default is
+   still `main`, and every probe output carries `scopeSelector`,
+   `scopeResolved` and **`scopeIsUnverifiedDefault`**. Read the last one as
+   *this verdict was taken under an assumption, not under a measurement*.
+   ⚠️ **`main` is a DOM convention, not a finding. Do not swap in a guessed
+   selector** — that is how the previous unverified debt was incurred. What to
+   collect on the live page is listed in `&lt;scope&gt;` below.
+2. **`spinnerGone` is retired as a gate.** `!root.querySelector('[class*="skeleton" i],
+   [class*="spinner" i]')` is a **negative criterion built on guessed vendor
+   class names**: rename the class and it is permanently true, so a page that
+   never began rendering reports "the loading indicator has gone away". That is
+   an **unfalsifiable positive signal** — precisely what this law forbids where
+   it demands a positive end-of-render signal — and it is the same shape as the
+   `vis === 'visible'` condition removed hours earlier: automatically true
+   wherever it lies, and capable of being false wherever it is honest (one
+   decorative `class="spinner-icon"` elsewhere on a finished page would block a
+   sound verdict forever). It is split: **`[aria-busy="true"]` is a standard
+   ARIA attribute — the page asserting about itself — and survives as a VETO
+   only** (busy ⇒ not finished; not-busy proves nothing). The two class-name
+   guesses become **recorded evidence that gates nothing**, alongside `vis`.
+3. **The negative half of `onTarget` was a Chinese string literal.** One shared
+   account, an English UI on some node, and `Create a new list` does not match
+   `创建新列表`: `ok` is `true` **on the empty-state landing page**, which is
+   instance 4 reproduced with no changes at all. Listing both languages is only
+   one fewer trip over the same wire, because the deeper fault is that **"marker
+   absent" was read as "not the empty state"** — an unfalsifiable negative, the
+   very disease. So markers are **declared per locale**, the page's own locale is
+   read from `&lt;html lang&gt;` or from the vendor's own path segment
+   (`dash.3ue.co/zh-Hans/` — both are page output, neither is a guessed
+   selector), and the verdict is three-valued: `yes` / `no` / **`unknown`**.
+   A locale we hold no markers for yields `unknown` and `ok: false`. The way
+   into a new locale is **to measure its empty-state page and add its marker**,
+   never to let the criterion pass by default.
+   **A purely structural empty-state marker would be better and does not yet
+   exist** — nobody has recorded the empty-state page's DOM. That, too, is in
+   the collection list below.
+
 ⚠️ **None of this softens <law-ref id="hidden-tabs-do-not-hydrate"/> by a word.**
 The two claims are about different objects:
 
@@ -1365,15 +1420,55 @@ foreground-attached. If someone builds a virgin-background pass for it, record
 the result here. Until then the argument is "conditions 2 and 3 screen out every
 degraded hidden state ever seen", not "they screen out all of them".
 
+**Unmeasured, and now the largest open item — where the report region's root
+is.** `chartHydrated` and `exportBtns` are scoped to `main` by an assumption
+nobody has tested. Until it is tested they are satisfiable by any neighbouring
+widget under `main`. **Do not guess a selector.** What a live pass must bring
+back, on at least two of the chart-only routes (`daily-trends` for the
+per-channel 导出 case, plus one of `organic-social` / `email`):
+
+- for **every** `svg text` node carrying a digit under `main`: its text, and the
+  `tagName` / `id` / `class` / `data-*` attributes of each ancestor up to
+  `main` — the shortest ancestor chain that separates report charts from any
+  foreign widget is the answer;
+- for **every** `button, a` under `main` whose text matches `/导出|export/i`:
+  its text, and the same ancestor chain. `daily-trends` should show one per
+  channel; whether they share a container with the charts is the whole question;
+- the report region's candidate roots as *the page itself names them*:
+  `main > *` with `tagName` + `role` + `data-testid` + `aria-label` + class
+  list, one level deep, then two — attributes the vendor authored, not ones we
+  invented;
+- whether any element under `main` carries `role="region"` / `role="main"` /
+  `aria-labelledby`, and what it labels;
+- the same dump on a route known to carry the axa.fr-style comparison widget, so
+  the widget's own chain is on record as the negative example;
+- `document.querySelectorAll('main').length` — the default silently takes the
+  first one.
+
+**Unmeasured — the empty-state landing page's structure.** The marker is still
+text. Bring back the empty-state page's `main` subtree: element roles,
+`data-testid`s, and the accessible name of the "create a new list" control, plus
+`&lt;html lang&gt;` and the URL. A structural marker (a role, an attribute, a control
+identity) would retire the locale table; a second locale's text marker is only a
+patch on it.
+
 **Unmeasured — how many routes need `presentationShape` at all.** `behavior` is
 the only one found so far whose data is not in a table, and it was found by
 accident. The other `pending` routes have not been re-read with anchors, so
 "only one such route exists" is an absence of looking, not a finding.
 </scope>
 <correct><![CDATA[
+// SCOPE_SELECTOR is a PARAMETER, and its default is an UNVERIFIED ASSUMPTION,
+// not a finding. Nobody has ever measured that the report region's root is
+// `main` on these routes. It stays the default only because changing behaviour
+// without measurement is forbidden; every probe output therefore carries
+// `scopeIsUnverifiedDefault` so a verdict taken under the default can be told
+// apart from one taken under a measured root. See the statement above.
+const SCOPE_SELECTOR = 'main';   // <- UNVERIFIED DEFAULT. Pass the measured root.
+
 // readiness: bound to THIS query's output. A cell, not a word.
 const ready = (() => {
-  const root = document.querySelector('main') || document.body;
+  const root = document.querySelector(SCOPE_SELECTOR) || document.body;
   const cells = [...root.querySelectorAll('table td, [role="cell"]')]
     .filter((c) => (c.innerText || '').trim().length > 0);
   return { filledCells: cells.length, ready: cells.length > 0 };
@@ -1388,7 +1483,7 @@ const ready = (() => {
 // scan the body for digits (that is instance 1, the axa.fr widget).
 const ANCHORS = { '/analytics/traffic/behavior/': ['社交媒体', '兴趣度', '设备'] };
 const anchored = (() => {
-  const root = document.querySelector('main') || document.body;
+  const root = document.querySelector(SCOPE_SELECTOR) || document.body;
   let n = 0;
   for (const label of ANCHORS[location.pathname] || []) {
     // the section that OWNS this label, not the page that happens to contain it
@@ -1407,32 +1502,66 @@ const anchored = (() => {
 //    structural criterion below, same as for tables.
 
 // target check: the positive AND the negative condition, in one read.
+// CORRECTED 2026-08-29: the negative half used to be the bare literal 创建新列表,
+// and "no match" was read as "not the empty state". Both halves of that were
+// wrong. Same account, English UI -> `Create a new list` misses -> `ok === true`
+// on the empty-state landing page, i.e. instance 4 reproduced verbatim. And
+// "marker absent" is itself an unfalsifiable negative - the disease this law
+// exists to name. So markers are declared PER LOCALE, and a locale we have no
+// markers for yields `unknown`, never `ok`.
+const EMPTY_STATE_MARKERS = [           // extend by MEASURING a new locale's page
+  { locale: 'zh', marker: '创建新列表' },
+  { locale: 'en', marker: 'Create a new list' },
+];
 const scope = (() => {
   const t = document.body.innerText || '';
-  const emptyStateMarker = t.includes('创建新列表');   // "create a new list"
+  const hit = EMPTY_STATE_MARKERS.find((m) => t.includes(m.marker)) || null;
+  // page-produced facts, not guesses: <html lang> and the locale segment this
+  // vendor puts in its own paths (dash.3ue.co/zh-Hans/).
+  const lang = document.documentElement.lang
+    || (location.pathname.split('/').find((seg) => /^[a-z]{2}(-[A-Za-z0-9]+)*$/.test(seg)) || '');
+  const covered = EMPTY_STATE_MARKERS.some((m) => m.locale === lang.toLowerCase().split(/[-_]/)[0]);
+  const emptyState = hit ? 'yes' : covered ? 'no' : 'unknown';
   return {
     hasTarget: t.includes('canva.com'),
-    listPickerVisible: emptyStateMarker,
+    emptyState, emptyStateMarkerLocale: hit?.locale ?? null, uiLocale: lang || null,
+    listPickerVisible: emptyState === 'yes',
     accountInitial: (document.querySelector('header [class*="avatar" i]')
                      ?.innerText || '').trim().slice(0, 1),
-    ok: t.includes('canva.com') && !emptyStateMarker,
+    ok: t.includes('canva.com') && emptyState === 'no',
   };
 })();
-// -> { hasTarget:true, listPickerVisible:true,  ok:false } landed on the empty state
-// -> { hasTarget:true, listPickerVisible:false, accountInitial:"B", ok:true }
+// -> { hasTarget:true, emptyState:'yes',     ok:false } landed on the empty state
+// -> { hasTarget:true, emptyState:'no',  accountInitial:"B", ok:true }
+// -> { hasTarget:true, emptyState:'unknown', ok:false } French UI, no markers for
+//    it: we cannot clear the empty state, so we do not pretend we did.
 
 // an EMPTY verdict binds to a POSITIVE end-of-render signal. These pages render
 // summary -> charts -> table (table last), so a zero-row table under a populated
 // summary is a mid-render state, and "stable at zero rows" proves nothing.
+// CORRECTED 2026-08-29: `spinnerGone` is gone as a gate. It was a NEGATIVE
+// criterion built on GUESSED VENDOR CLASS NAMES - rename the class and it is
+// permanently true, so a page that never began rendering reads "the loading
+// indicator has gone away". Unfalsifiable, and false-in-the-direction-that-
+// grants-authority: exactly the shape `vis === 'visible'` was removed for. It
+// is split in two:
+//   - `[aria-busy="true"]` is a STANDARD ARIA attribute - the page asserting
+//     about itself. Kept, and only as a VETO. Its absence proves nothing;
+//     completion is always supplied by the positive signals.
+//   - the two `[class*=...]` guesses are RECORDED ONLY and gate nothing. (They
+//     also cut the other way: one decorative `class="spinner-icon"` elsewhere
+//     on a finished page would have blocked the verdict forever.)
 const done = (() => {
-  const root = document.querySelector('main') || document.body;
+  const root = document.querySelector(SCOPE_SELECTOR) || document.body;
   return {
     paginator: !!root.querySelector('[class*="pagination" i], nav[aria-label*="page" i]'),
     rowCount: !!root.querySelector('[data-testid*="row-count" i], [class*="total-rows" i]'),
-    spinnerGone: !root.querySelector('[class*="skeleton" i], [class*="spinner" i], [aria-busy="true"]'),
+    ariaBusy: !!root.querySelector('[aria-busy="true"]'),                     // VETO
+    loadingClassPresent:                                                     // RECORDED
+      !!root.querySelector('[class*="skeleton" i], [class*="spinner" i]'),
   };
 })();
-const renderFinished = (done.paginator || done.rowCount) && done.spinnerGone;
+const renderFinished = (done.paginator || done.rowCount) && !done.ariaBusy;
 
 // the floor is a BACKSTOP on the round, never the reason for the verdict.
 const verdict = filledCells > 0 ? 'data'
@@ -1452,19 +1581,33 @@ const verdict = filledCells > 0 ? 'data'
 // page output, and after one foreground attach it is a pinned constant. See the
 // correction in the statement above.
 const structural = (() => {
-  const root = document.querySelector('main') || document.body;
+  const scoped = document.querySelector(SCOPE_SELECTOR);
+  const root = scoped || document.body;
   return {
+    scopeSelector: SCOPE_SELECTOR,
+    scopeResolved: !!scoped,
+    scopeIsUnverifiedDefault: SCOPE_SELECTOR === 'main',
     // 1. no table anywhere. ON ITS OWN THIS PROVES NOTHING - an unrendered page
     //    has no table element either.
     noTable: root.querySelectorAll('table, [role="grid"]').length === 0,
     // 2. THE SOUL OF THE CRITERION: the charts have finished hydrating. Text
     //    nodes inside svg that actually carry digits = axes and data labels drawn.
+    //    ⚠️ UNBOUND UNTIL SCOPE_SELECTOR IS MEASURED. Under the default root this
+    //    counts every svg digit under `main`, and the axa.fr widget of instance 1
+    //    is `42 / 758 / 15%` - three, on its own, if it is drawn as svg.
     chartHydrated: [...root.querySelectorAll('svg text')]
       .filter((t) => /\d/.test(t.textContent || '')).length,
     // 3. ALSO THE SOUL: the section's own export controls are mounted, i.e. the
     //    rest of the page is done being built.
+    //    ⚠️ SAME UNBOUND WARNING, and this Skill's own notes hold the counter-
+    //    example: `daily-trends` renders ONE 导出 PER CHANNEL NAME in the body.
+    //    So an 导出 button may belong to the global toolbar or to a different
+    //    section, and has no necessary relation to THIS section being rendered.
+    //    Record the labels, so a later reader can see whose buttons these were.
     exportBtns: [...root.querySelectorAll('button, a')]
       .filter((b) => /导出|export/i.test(b.innerText || '')).length,
+    exportControlLabels: [...root.querySelectorAll('button, a')]
+      .map((b) => (b.innerText || '').trim()).filter((l) => /导出|export/i.test(l)),
     // 4. and it is THIS query's page, being looked at right now. NOT droppable:
     //    the empty-state landing page is a PERFECT noTable===true (instance 4).
     onTarget: scope.ok,
