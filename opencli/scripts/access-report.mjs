@@ -93,7 +93,7 @@ const suspicious = data.filter((r) => {
 if (flags.suspicious) {
   for (const r of suspicious) {
     const why = !r.ok ? (/timed out/i.test(r.error || '') ? '超时' : '失败') : '配额站空响应';
-    console.log(`${r.ts}  ${why.padEnd(6)}  ${String(r.bytes ?? '-').padStart(6)}B  ${(r.tag || r.session || '-').padEnd(24)}  ${r.site || '-'}${r.route || ''}${r.error ? `\n        ${String(r.error).split('\n')[0].slice(0, 140)}` : ''}`);
+    console.log(`${r.ts}  ${why.padEnd(6)}  ${String(r.bytes ?? '-').padStart(6)}B  ${(r.tag || r.script || r.session || '-').padEnd(24)}  ${r.site || '-'}${r.route || ''}${r.error ? `\n        ${String(r.error).split('\n')[0].slice(0, 140)}` : ''}`);
   }
   console.log(`\n共 ${suspicious.length} 行可疑 / 总 ${data.length} 行`);
   process.exit(0);
@@ -108,9 +108,12 @@ for (const r of data) {
 }
 const routes = [...byRoute.entries()].sort((a, b) => b[1].n - a[1].n);
 
+// 顺序有讲究：显式 tag（人写的任务名）> script（入口脚本，自动）> 会话名。
+// 会话名排最后是因为配额站上它由站点决定——`semrush-nav` 答的是「哪个站」，
+// 不是「谁开的」，拿它当调用方会把所有脚本糊成一坨。
 const byWho = new Map();
 for (const r of data) {
-  const key = r.tag || r.session || '-';
+  const key = r.tag || r.script || r.session || '-';
   byWho.set(key, (byWho.get(key) || 0) + 1);
 }
 
@@ -129,7 +132,7 @@ console.log('   次数   失败    p50     p95  配额站  路由');
 for (const [key, g] of routes.slice(0, Number(flags.top || 20))) {
   console.log(`${String(g.n).padStart(7)}${String(g.fail).padStart(7)}${String(pct(g.ms, 0.5) ?? '-').padStart(7)}ms${String(pct(g.ms, 0.95) ?? '-').padStart(7)}ms${(g.quota ? '   是  ' : '   -   ').padStart(7)}  ${key}`);
 }
-console.log('\n按调用方（复盘「这串标签页是谁开的」）');
+console.log('\n按调用方（复盘「这串标签页是谁开的」；tag > 脚本名 > 会话名）');
 for (const [key, n] of [...byWho].sort((a, b) => b[1] - a[1]).slice(0, 15)) {
   console.log(`${String(n).padStart(7)}  ${key}`);
 }

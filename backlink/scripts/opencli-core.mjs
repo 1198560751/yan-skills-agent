@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { appendFileSync, mkdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 export function parseFlags(argv) {
   const flags = {};
@@ -219,6 +219,26 @@ export function logSiteAccess(entry) {
  * 一个会话一个文件，不需要锁：同一会话的调用本来就被守护进程的租约串行化。
  * OPENCLI_ACCESS_LOG=0 时连这份文件也不写，「关掉」就该是彻底不留痕。
  */
+/**
+ * 哪个脚本发起的这次调用。
+ *
+ * 为什么不能只靠会话名：配额站的会话名**由站点决定**（`quotaSession()` 把所有
+ * Semrush 调用收敛成 `semrush-nav`），所以「按调用方」分组时它答的是「哪个站」，
+ * 不是「谁开的」。而 `OPENCLI_ACCESS_TAG` 实测 4 小时 1292 条全是 null——
+ * 一个要每个调用方自觉去设的字段，等于没有。
+ *
+ * 入口脚本名是白捡的：`process.argv[1]` 一定在，不需要任何人配合，而且
+ * 正好是复盘时想知道的那个答案。显式的 tag 保留原义（任务级标注，比如
+ * 「这一轮悬赏调研」），两者分开记，免得看日志的人分不清哪个是人写的。
+ */
+let cachedEntryScript;
+function entryScript() {
+  if (cachedEntryScript !== undefined) return cachedEntryScript;
+  const entry = process.argv[1];
+  cachedEntryScript = entry ? basename(entry).replace(/\.(mjs|cjs|js)$/, '') : null;
+  return cachedEntryScript;
+}
+
 function lastUrlDir() {
   return join(homedir(), '.opencli', 'logs', 'last-url');
 }
@@ -234,6 +254,16 @@ function rememberUrl(session, url) {
     mkdirSync(lastUrlDir(), { recursive: true });
     writeFileSync(lastUrlFile(session), url);
   } catch { /* 记账绝不能把调用方搞挂 */ }
+}
+
+/**
+ * 标签页关了，记的那个 URL 就该跟着走：一是它已经不成立（同名会话下次可能
+ * 开在别的站上），二是不清理的话每个一次性会话名都留一个文件——
+ * `backlink-self-test-<时间戳>` 每跑一轮就多一个，永远不会有人回来收。
+ */
+function forgetUrl(session) {
+  lastUrlBySession.delete(session);
+  try { rmSync(lastUrlFile(session), { force: true }); } catch { /* 清理失败不值得打扰调用方 */ }
 }
 
 function recallUrl(session) {
@@ -285,11 +315,12 @@ export function accessEntry(args, { ms, ok, bytes, error }) {
     site, route, session, action, ms, ok,
     bytes: bytes ?? null,
     quota: site ? Boolean(quotaSiteOf(url)) : false,
-    // 复盘时最想知道的是「这一串标签页是谁开的」。会话名能答一半，
-    // 但同一轮对话里多个 sub agent 会各用各的名字，所以再记一层归属：
-    // OPENCLI_ACCESS_TAG 给调用方自己标（比如任务名），who 是对话 id，
+    // 复盘时最想知道的是「这一串标签页是谁开的」。会话名答不了——配额站上它
+    // 由站点决定。所以记四层归属：script 是入口脚本名（自动，永远有），
+    // OPENCLI_ACCESS_TAG 给调用方自己标任务名（可选），who 是对话 id，
     // pid 用来把同一个进程里的一串调用串起来。
     who: (process.env.CLAUDE_CODE_SESSION_ID || '').slice(0, 12) || null,
+    script: entryScript(),
     tag: process.env.OPENCLI_ACCESS_TAG || null,
     pid: process.pid,
     ...(error ? { error: String(error).slice(0, 200) } : {}),
@@ -415,6 +446,7 @@ export async function openAndEval(session, url, expression, options = {}) {
 
 export async function closeSession(session) {
   await opencli(['browser', session, 'close'], { allowFailure: true, timeoutMs: 20_000 });
+  forgetUrl(session);
 }
 
 /* ------------------------------------------------------------------ *

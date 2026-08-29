@@ -484,12 +484,16 @@ dialog accept ——唯一能清掉 alert 的命令——排在同一把锁后�
 |---|---|---|
 | 站点限流了吗 | **看不见**（Semrush 限流是 HTTP 200 + 页面里写着已达上限） | 留下 payload 大小和失败痕迹 |
 | 哪个路由访问最多（该封 adapter） | 看不见（只记超时，不记成功导航） | 有 |
-| 这一串标签页是谁开的 | 只有会话名 | 会话名 + `tag` + 对话 id + pid |
+| 这一串标签页是谁开的 | 只有会话名 | 入口脚本名 + `tag` + 对话 id + pid（会话名在配额站上由站点决定，答不了这个） |
 | 哪个报表慢、慢多少 | 看不见 | p50 / p95 |
 
 `scripts/opencli-core.mjs` 每次浏览器调用追一行 JSONL 到
 `~/.opencli/logs/site-access.jsonl`。**纯观测，不改行为**——不判限流、不退避、不重试，
-只留证据。关掉用 `OPENCLI_ACCESS_LOG=0`；标注调用方用 `OPENCLI_ACCESS_TAG=<任务名>`。
+只留证据。关掉用 `OPENCLI_ACCESS_LOG=0`。
+
+调用方归属自动记：`script` 字段取入口脚本名，不需要任何配合。`OPENCLI_ACCESS_TAG=<任务名>`
+是它上面一层，给**跨脚本的一轮任务**打标（比如一轮悬赏调研跑了五个脚本），
+报告里 tag 优先于脚本名。
 
 ```bash
 node <opencli-skill-dir>/scripts/access-report.mjs --since 2h

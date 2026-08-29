@@ -94,14 +94,35 @@ test('访问记账能从各种参数形状里认出 URL', () => {
 test('访问记账认得出动作名，短横线选项不冒充动作', () => {
   const meta = { ms: 1, ok: true, bytes: 0 };
   // 真实形状：opencli() 会在位置 2 插入 --window <mode>，子命令因此排在第 4 位。
-  assert.equal(accessEntry(['browser', 'semrush-nav', '--window', 'background', 'open', 'https://sem.3ue.co/x'], meta).action, 'open');
-  assert.equal(accessEntry(['browser', 'semrush-nav', '--window', 'background', 'eval', '1+1'], meta).action, 'eval');
+  assert.equal(accessEntry(['browser', 'access-entry-test', '--window', 'background', 'open', 'https://sem.3ue.co/x'], meta).action, 'open');
+  assert.equal(accessEntry(['browser', 'access-entry-test', '--window', 'background', 'eval', '1+1'], meta).action, 'eval');
   // 回归：`sessions` 是子命令而不是会话名，动作曾被记成 `-f`。
   const listing = accessEntry(['browser', 'sessions', '-f', 'json'], meta);
   assert.equal(listing.action, 'sessions');
   assert.equal(listing.session, null, 'sessions 不是会话名');
   assert.equal(accessEntry(['browser', 'cleanup'], meta).action, 'cleanup');
   assert.equal(accessEntry(['doctor'], meta).action, 'doctor', '非 browser 命令按 argv[0] 记');
+});
+
+test('调用方归属：入口脚本名自动记，显式 tag 压过它', () => {
+  const meta = { ms: 1, ok: true, bytes: 0 };
+  // 会话名故意不用真的 `semrush-nav`：accessEntry 会把 open 的 URL 按会话名
+  // 落到 ~/.opencli/logs/last-url/ 下，测试用真名就会覆盖线上会话的归属，
+  // 让之后每一条真实 eval 都记到测试造的假路由上。（本条注释是踩过之后写的。）
+  const call = ['browser', 'access-entry-test', '--window', 'background', 'eval', '1+1'];
+  // 会话名在配额站上由站点决定，所以它答不了「谁开的」——script 才能。
+  // 这里跑在 node --test 里，argv[1] 是测试文件本身。
+  assert.equal(accessEntry(call, meta).script, 'quota-sites.test');
+  const prev = process.env.OPENCLI_ACCESS_TAG;
+  process.env.OPENCLI_ACCESS_TAG = 'bounty-sweep';
+  try {
+    const tagged = accessEntry(call, meta);
+    assert.equal(tagged.tag, 'bounty-sweep');
+    assert.equal(tagged.script, 'quota-sites.test', '显式 tag 不该顶掉脚本名，两者分开记');
+  } finally {
+    if (prev === undefined) delete process.env.OPENCLI_ACCESS_TAG;
+    else process.env.OPENCLI_ACCESS_TAG = prev;
+  }
 });
 
 test('OPENCLI_ACCESS_LOG=0 时记账彻底闭嘴', () => {
