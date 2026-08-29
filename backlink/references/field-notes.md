@@ -580,6 +580,24 @@ Re-staging from a replay record exposed two more traps worth naming:
   screenful of options finds nothing and reports "no match" on a page where the
   match exists.
 
+## There is a hard cap on concurrent staged tabs, and exceeding it evicts silently
+
+Measured on one machine, reproduced repeatedly: **about 6 concurrent isolated
+sessions is the ceiling for non-quota sites.** Opening a 7th does not error —
+the least-recently-touched session is **evicted without a word**, and the tab it
+was holding is gone.
+
+This is lethal specifically for staged CAPTCHA work, because the whole value of
+a staged form is that it is still there when the human arrives. A batch that
+stages 8 forms hands the human 6, and the two that vanished were verified filled
+with complete evidence right up until they weren't.
+
+So: **cap a staging batch at 6, and re-verify the session list right before
+telling anyone which tabs are waiting.** `opencli browser <any> sessions` costs
+nothing and is the only thing that distinguishes "staged" from "was staged".
+Combined with the replay-record rule above: the record survives eviction, the
+session does not, so the record is what you promise on.
+
 ## A fixed session name is a single point of failure across concurrent tasks
 
 Quota sites converge on one session name on purpose (see the browser-runtime
