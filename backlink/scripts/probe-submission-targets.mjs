@@ -32,6 +32,7 @@
  */
 
 import fs from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import https from 'node:https';
 import { cohortOf, primaryGate } from './lib-cohort.mjs';
 import { helpGuard } from './opencli-core.mjs';
@@ -335,6 +336,11 @@ async function main() {
 
 // Only run the live probe when invoked directly (`node scripts/probe-submission-targets.mjs`),
 // not when imported by a test for classifyKind/AI_DIRECTORY_RE.
-if (import.meta.url === `file://${process.argv[1]}`) main();
+let isMain = false;
+try {
+  isMain = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href;
+} catch { /* argv[1] 缺失或不可解析 → 视为被 import */ }
+
+if (isMain) main();
 
 export { classifyKind, AI_DIRECTORY_RE };

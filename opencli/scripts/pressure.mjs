@@ -54,10 +54,11 @@
  *   0 = go   2 = wait   3 = stale-lock   4 = unknown（会话列表拿不到）
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   QUOTA_SITES, quotaSiteOf, defaultSession, opencli, firstJson, parseFlags, printJson,
 } from './opencli-core.mjs';
@@ -369,7 +370,12 @@ export async function main(argv = process.argv.slice(2)) {
   return EXIT_CODES[report.verdict] ?? 4;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+let isMain = false;
+try {
+  isMain = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+} catch { /* argv[1] 缺失或不可解析 → 视为被 import */ }
+
+if (isMain) {
   main().then((code) => { process.exitCode = code; }).catch((error) => {
     process.stderr.write(`${String(error?.message || error)}\n`);
     process.exitCode = 4;

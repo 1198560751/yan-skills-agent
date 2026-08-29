@@ -21,6 +21,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 // `--help` 是成功，不是用法错误。放在最前面：本文件在任何参数解析之前
@@ -169,7 +170,12 @@ export async function startReceiver({ root, outDir, runId, port, scripts = new M
 
 // 独立跑：node <opencli-skill-dir>/scripts/receiver.mjs --root . --out data/raw \
 //         [--port N] [--run 2026-08-23] [--script table-extractor=/abs/path/extractor.js]
-if (import.meta.url === `file://${process.argv[1]}`) {
+let isMain = false;
+try {
+  isMain = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href;
+} catch { /* argv[1] 缺失或不可解析 → 视为被 import */ }
+
+if (isMain) {
   const argv = process.argv.slice(2);
   const get = (name, fallback) => {
     const i = argv.indexOf(`--${name}`);

@@ -37,6 +37,7 @@
  */
 
 import fs from 'node:fs';
+import { pathToFileURL } from 'node:url';
 
 function parseArgs(argv) {
   const out = { input: [], known: [], blocklist: [], dropPattern: null, flagPattern: null, out: null, newOnly: false };
@@ -192,4 +193,9 @@ function main() {
   console.error(JSON.stringify(stats));
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+let isMain = false;
+try {
+  isMain = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href;
+} catch { /* argv[1] 缺失或不可解析 → 视为被 import */ }
+
+if (isMain) main();
