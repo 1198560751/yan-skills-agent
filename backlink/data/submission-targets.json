@@ -58,6 +58,14 @@
         "httpStatus": 200,
         "finalUrl": "https://10words.io/",
         "title": "Discover new apps and startups in 10 words or less"
+      },
+      "traffic": {
+        "monthlyVisits": 0,
+        "verdict": "fail",
+        "checkedAt": "2026-08-29T18:23:50.429Z",
+        "source": "semrush",
+        "db": null,
+        "globalRank": null
       }
     },
     {
@@ -111,10 +119,10 @@
         "title": "21st Tools - Discover the Best Developer Tools"
       },
       "traffic": {
-        "monthlyVisits": 1283,
-        "verdict": "pass",
-        "checkedAt": "2026-08-29T16:22:12.458Z",
-        "source": "similarweb",
+        "monthlyVisits": 4,
+        "verdict": "fail",
+        "checkedAt": "2026-08-29T18:24:40.930Z",
+        "source": "semrush",
         "db": null,
         "globalRank": null
       }
@@ -229,12 +237,12 @@
         "title": "4mark Social Bookmarking Tool"
       },
       "traffic": {
-        "monthlyVisits": 136824,
+        "monthlyVisits": 231,
         "verdict": "pass",
-        "checkedAt": "2026-08-29T16:22:33.218Z",
-        "source": "similarweb",
+        "checkedAt": "2026-08-29T18:25:28.556Z",
+        "source": "semrush",
         "db": null,
-        "globalRank": 875000
+        "globalRank": null
       }
     },
     {
@@ -332,10 +340,10 @@
         "title": "Just a moment..."
       },
       "traffic": {
-        "monthlyVisits": 51313,
+        "monthlyVisits": 127300,
         "verdict": "pass",
-        "checkedAt": "2026-08-29T16:22:54.727Z",
-        "source": "similarweb",
+        "checkedAt": "2026-08-29T18:26:14.701Z",
+        "source": "semrush",
         "db": null,
         "globalRank": null
       }
@@ -365,12 +373,12 @@
         "title": "Active Search Results Search Engine"
       },
       "traffic": {
-        "monthlyVisits": 119298,
-        "verdict": "pass",
-        "checkedAt": "2026-08-29T16:23:21.080Z",
-        "source": "similarweb",
+        "monthlyVisits": 82,
+        "verdict": "fail",
+        "checkedAt": "2026-08-29T18:27:04.541Z",
+        "source": "semrush",
         "db": null,
-        "globalRank": 800394
+        "globalRank": null
       }
     },
     {
@@ -607,12 +615,12 @@
         "title": "Grow your business with partners | Adtraction"
       },
       "traffic": {
-        "monthlyVisits": 4578000,
+        "monthlyVisits": 9700,
         "verdict": "pass",
-        "checkedAt": "2026-08-29T16:23:42.617Z",
-        "source": "similarweb",
+        "checkedAt": "2026-08-29T18:27:44.941Z",
+        "source": "semrush",
         "db": null,
-        "globalRank": 69992
+        "globalRank": null
       }
     },
     {
@@ -640,10 +648,10 @@
         "title": "KI-Beratung &amp; KI-Strategie für Unternehmen | Advanced Innovation"
       },
       "traffic": {
-        "monthlyVisits": 623,
-        "verdict": "pass",
-        "checkedAt": "2026-08-29T16:24:06.917Z",
-        "source": "similarweb",
+        "monthlyVisits": 9,
+        "verdict": "fail",
+        "checkedAt": "2026-08-29T18:28:32.676Z",
+        "source": "semrush",
         "db": null,
         "globalRank": null
       }
@@ -672,10 +680,10 @@
         "title": null
       },
       "traffic": {
-        "monthlyVisits": 20709,
+        "monthlyVisits": 15800,
         "verdict": "pass",
-        "checkedAt": "2026-08-29T16:24:23.771Z",
-        "source": "similarweb",
+        "checkedAt": "2026-08-29T18:29:10.741Z",
+        "source": "semrush",
         "db": null,
         "globalRank": null
       }
@@ -860,10 +868,10 @@
         "title": "ai-finder.net is for sale | HugeDomains"
       },
       "traffic": {
-        "monthlyVisits": 100,
+        "monthlyVisits": 321,
         "verdict": "pass",
-        "checkedAt": "2026-08-29T16:24:42.131Z",
-        "source": "similarweb",
+        "checkedAt": "2026-08-29T18:30:03.661Z",
+        "source": "semrush",
         "db": null,
         "globalRank": null
       }
@@ -893,10 +901,10 @@
         "title": "提交您的AI工具并获取流量 | AI Findr目录"
       },
       "traffic": {
-        "monthlyVisits": null,
-        "verdict": "below-floor",
-        "checkedAt": "2026-08-29T16:25:11.174Z",
-        "source": "similarweb",
+        "monthlyVisits": 0,
+        "verdict": "fail",
+        "checkedAt": "2026-08-29T18:30:46.815Z",
+        "source": "semrush",
         "db": null,
         "globalRank": null
       }
@@ -2456,10 +2464,10 @@
         "title": null
       },
       "traffic": {
-        "monthlyVisits": null,
-        "verdict": "below-floor",
-        "checkedAt": "2026-08-29T16:30:16.331Z",
-        "source": "similarweb",
+        "monthlyVisits": 1,
+        "verdict": "fail",
+        "checkedAt": "2026-08-29T18:33:30.122Z",
+        "source": "semrush",
         "db": null,
         "globalRank": null
       }
@@ -5899,6 +5907,14 @@
         "httpStatus": null,
         "finalUrl": "https://www.trustpilot.com/review/godaddy.com",
         "title": null
+      },
+      "traffic": {
+        "monthlyVisits": 171,
+        "verdict": "pass",
+        "checkedAt": "2026-08-29T18:34:17.074Z",
+        "source": "semrush",
+        "db": null,
+        "globalRank": null
       }
     },
     {
@@ -6755,6 +6771,14 @@
         "httpStatus": 200,
         "finalUrl": "https://www.directory-free.com/submit/submit.php",
         "title": "Submit a Site - Directory-Free.Com"
+      },
+      "traffic": {
+        "monthlyVisits": 121,
+        "verdict": "pass",
+        "checkedAt": "2026-08-29T18:34:56.133Z",
+        "source": "semrush",
+        "db": null,
+        "globalRank": null
       }
     },
     {
@@ -7373,10 +7397,11 @@
         "title": "Post New - elitesitesdirectory"
       },
       "traffic": {
-        "monthlyVisits": null,
-        "verdict": "below-floor",
-        "checkedAt": "2026-08-19T19:13:14.844Z",
-        "source": "similarweb-total",
+        "monthlyVisits": 0,
+        "verdict": "fail",
+        "checkedAt": "2026-08-29T18:35:44.633Z",
+        "source": "semrush",
+        "db": null,
         "globalRank": null
       }
     },
@@ -7559,6 +7584,14 @@
         "httpStatus": null,
         "finalUrl": "https://community.fandom.com/wiki/Adoption:Requests",
         "title": null
+      },
+      "traffic": {
+        "monthlyVisits": 554200000,
+        "verdict": "pass",
+        "checkedAt": "2026-08-29T18:36:35.531Z",
+        "source": "semrush",
+        "db": null,
+        "globalRank": null
       }
     },
     {
@@ -7633,6 +7666,14 @@
         "httpStatus": null,
         "finalUrl": "https://featured.com/signup?tab=signin",
         "title": null
+      },
+      "traffic": {
+        "monthlyVisits": 7500,
+        "verdict": "pass",
+        "checkedAt": "2026-08-29T18:37:24.476Z",
+        "source": "semrush",
+        "db": null,
+        "globalRank": null
       }
     },
     {
@@ -7772,6 +7813,14 @@
         "httpStatus": 200,
         "finalUrl": "http://finest4.com/submit.php",
         "title": "Submit URL"
+      },
+      "traffic": {
+        "monthlyVisits": 0,
+        "verdict": "fail",
+        "checkedAt": "2026-08-29T18:38:05.433Z",
+        "source": "semrush",
+        "db": null,
+        "globalRank": null
       }
     },
     {
@@ -8109,6 +8158,14 @@
         "httpStatus": null,
         "finalUrl": "https://bubble.io/community",
         "title": null
+      },
+      "traffic": {
+        "monthlyVisits": 267100,
+        "verdict": "pass",
+        "checkedAt": "2026-08-29T18:38:48.296Z",
+        "source": "semrush",
+        "db": null,
+        "globalRank": null
       }
     },
     {
@@ -8610,6 +8667,14 @@
         "httpStatus": null,
         "finalUrl": "https://frontendprompt.com/submit",
         "title": null
+      },
+      "traffic": {
+        "monthlyVisits": 38,
+        "verdict": "fail",
+        "checkedAt": "2026-08-29T18:39:36.251Z",
+        "source": "semrush",
+        "db": null,
+        "globalRank": null
       }
     },
     {
@@ -20366,6 +20431,14 @@
         "httpStatus": 200,
         "finalUrl": "https://www.zeleur.com/",
         "title": "Annuaire de sites zeleur.com, référencement gratuit de Sites Internet"
+      },
+      "traffic": {
+        "monthlyVisits": 1,
+        "verdict": "fail",
+        "checkedAt": "2026-08-29T18:41:11.012Z",
+        "source": "semrush",
+        "db": null,
+        "globalRank": null
       }
     },
     {
@@ -20417,10 +20490,12 @@
         "title": "October 2014 Giveaway: Fire Opal Earrings"
       },
       "traffic": {
-        "monthlyVisits": null,
-        "verdict": "below-floor",
-        "checkedAt": "2026-08-27T03:04:48.587+08:00",
-        "source": "Similarweb total visits via authenticated Tools Share browser session"
+        "monthlyVisits": 148,
+        "verdict": "pass",
+        "checkedAt": "2026-08-29T18:40:24.589Z",
+        "source": "semrush",
+        "db": null,
+        "globalRank": null
       },
       "authority": {
         "score": 14,
