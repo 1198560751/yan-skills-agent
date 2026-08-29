@@ -107,6 +107,11 @@ function sessionUsedBy(relScript, args) {
       ...process.env,
       PATH: `${path.join(root, 'bin')}${path.delimiter}${process.env.PATH}`,
       OPENCLI_STUB_LOG: log,
+      // 测试不许写进真实的访问日志。桩的 stderr 是 `opencli stub` + 退出码 3，
+      // 每跑一轮就往 ~/.opencli/logs/site-access.jsonl 里灌一批「失败」——
+      // 实测 4 小时的日志里 220 条失败有 182 条是这个桩，真实故障只有 2 条。
+      // access-report.mjs 为此专门写了一条噪声正则，但在源头不写显然更对。
+      OPENCLI_ACCESS_LOG: '0',
       OPENCLI_SESSION_SUFFIX: AGENT_SUFFIX,
       // 令牌在环境或 .env 里时会走「直连兜底」，那条路一样要用收敛后的会话名，
       // 但它的第一条命令是 open 而不是 eval。清空以让每台机器上的结果一致。

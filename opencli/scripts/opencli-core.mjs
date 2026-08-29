@@ -12,6 +12,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { appendFileSync, mkdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -74,6 +75,20 @@ export function defaultSession(base) {
  * explicit `--session` (or set OPENCLI_SESSION_SUFFIX per agent).
  */
 
+/**
+ * Node 的实验性警告会占住 stderr 的开头（`(node:123) [UNDICI-EHPA] Warning: …`
+ * 加一行 `(Use \`node --trace-warnings …`），真正的失败原因排在它们后面。
+ * 访问日志把 error 截到 200 字，于是那句 `✖ No active session …` 被挤掉了——
+ * 4 小时里 36 条失败长得一模一样，每条都在说一件与失败无关的事。
+ */
+function meaningfulStderr(stderr) {
+  return String(stderr)
+    .split('\n')
+    .filter((line) => !/^\(node:\d+\)/.test(line) && !/^\(Use `node --trace-warnings/.test(line))
+    .join('\n')
+    .trim();
+}
+
 export async function run(command, args, options = {}) {
   return await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -97,7 +112,7 @@ export async function run(command, args, options = {}) {
       clearTimeout(timeout);
       const result = { code, stdout: stdout.trim(), stderr: stderr.trim() };
       if (code === 0 || options.allowFailure) resolve(result);
-      else reject(new Error(stderr.trim() || stdout.trim() || `${command} exited ${code}.`));
+      else reject(new Error(meaningfulStderr(stderr) || stdout.trim() || `${command} exited ${code}.`));
     });
   });
 }
@@ -123,6 +138,13 @@ export async function run(command, args, options = {}) {
 const ACCESS_LOG_MAX_BYTES = 8 * 1024 * 1024;
 const lastUrlBySession = new Map();
 
+// `sessions` / `cleanup` 是子命令本身，不是会话名。三处都得认它：会话归属、
+// 动作归属，以及 opencli() 注入 --window 的时候。
+const BARE_BROWSER_SUBCOMMANDS = new Set(['sessions', 'cleanup']);
+// 带值的选项。动作扫描要跳过它们的值，否则 `--window background` 的
+// `background` 会被当成动作。
+const VALUE_FLAGS = new Set(['--window', '--source', '--commands', '-f', '--format']);
+
 function accessLogPath() {
   return join(homedir(), '.opencli', 'logs', 'site-access.jsonl');
 }
@@ -140,6 +162,41 @@ export function logSiteAccess(entry) {
   } catch { /* 记账绝不能把调用方搞挂 */ }
 }
 
+/**
+ * 会话最后一次导航到哪儿——**跨进程**记住。
+ *
+ * 进程内的 Map 只在 open 和 eval 发生在同一个进程里时有用。实测不是：
+ * 4 小时 1292 条调用来自 348 个进程，绝大多数脚本一次调用起一个进程，
+ * 于是 629 条（近一半）的 site 记成了 null——而「按路由看频次」正是这个
+ * 日志存在的理由，配额站的限流判据全挂在路由上。
+ *
+ * 一个会话一个文件，不需要锁：同一会话的调用本来就被守护进程的租约串行化。
+ * OPENCLI_ACCESS_LOG=0 时连这份文件也不写，「关掉」就该是彻底不留痕。
+ */
+function lastUrlDir() {
+  return join(homedir(), '.opencli', 'logs', 'last-url');
+}
+
+function lastUrlFile(session) {
+  return join(lastUrlDir(), `${session.replace(/[^a-zA-Z0-9-]/g, '_')}.txt`);
+}
+
+function rememberUrl(session, url) {
+  lastUrlBySession.set(session, url);
+  if (process.env.OPENCLI_ACCESS_LOG === '0') return;
+  try {
+    mkdirSync(lastUrlDir(), { recursive: true });
+    writeFileSync(lastUrlFile(session), url);
+  } catch { /* 记账绝不能把调用方搞挂 */ }
+}
+
+function recallUrl(session) {
+  const inProcess = lastUrlBySession.get(session);
+  if (inProcess) return inProcess;
+  if (process.env.OPENCLI_ACCESS_LOG === '0') return null;
+  try { return readFileSync(lastUrlFile(session), 'utf8').trim() || null; } catch { return null; }
+}
+
 /** 从一次调用的参数里认出目标 URL：open 的位置参数，或 batch 里第一个 open。 */
 export function urlFromArgs(args) {
   for (const arg of args) {
@@ -153,23 +210,29 @@ export function urlFromArgs(args) {
   return null;
 }
 
-function accessEntry(args, { ms, ok, bytes, error }) {
-  const session = args[0] === 'browser' && args[1] && !['sessions', 'cleanup'].includes(args[1])
+export function accessEntry(args, { ms, ok, bytes, error }) {
+  const session = args[0] === 'browser' && args[1] && !BARE_BROWSER_SUBCOMMANDS.has(args[1])
     ? args[1] : null;
   // eval 的参数里没有 URL——页面是上一次 open 留下的。所以按会话记住最后
   // 一次导航目标，让 eval 也能归到路由上；否则「访问频次」只数得到 open，
   // 而真正的取数几乎全发生在 eval 里。
   let url = urlFromArgs(args.slice(2));
-  if (url && session) lastUrlBySession.set(session, url);
-  else if (session) url = lastUrlBySession.get(session) || null;
+  if (url && session) rememberUrl(session, url);
+  else if (session) url = recallUrl(session);
 
   let site = null; let route = null;
   if (url) {
     try { const u = new URL(url); site = u.hostname; route = u.pathname; } catch { /* 不是合法 URL */ }
   }
+  // 动作名。两个坑，都是实测踩出来的：
+  //   1. `browser sessions -f json` 的动作是 sessions——它在位置 1，而扫描从 2
+  //      起步，于是第一个非 `--` 的词 `-f` 成了动作。4 小时的日志里 45 条会话
+  //      列表全记成了 `-f`，按动作分组时它们既不算 sessions 也不算别的。
+  //   2. 判据写的是 `--` 开头，短横线选项漏网。改成任何 `-` 开头都算选项。
   const action = args[0] === 'browser'
-    ? (args.find((a, i) => i >= 2 && !a.startsWith('--') && args[i - 1] !== '--window'
-        && args[i - 1] !== '--source' && args[i - 1] !== '--commands') || 'unknown')
+    ? (BARE_BROWSER_SUBCOMMANDS.has(args[1])
+        ? args[1]
+        : args.find((a, i) => i >= 2 && !a.startsWith('-') && !VALUE_FLAGS.has(args[i - 1])) || 'unknown')
     : args[0];
   return {
     ts: new Date().toISOString(),
@@ -208,8 +271,8 @@ export async function opencli(args, options = {}) {
   // `sessions` / `cleanup` 不是会话名，是子命令本身。给它们注入 --window 会让
   // CLI 把子命令当成会话名解析，命令整个失败——而调用方通常 allowFailure，
   // 于是失败被吞掉，snapshotSessions() 静默返回空数组，差集回收变成空操作。
-  const BARE = new Set(['sessions', 'cleanup']);
-  if (resolved[0] === 'browser' && resolved[1] && !BARE.has(resolved[1]) && !resolved.includes('--window')) {
+  if (resolved[0] === 'browser' && resolved[1] && !BARE_BROWSER_SUBCOMMANDS.has(resolved[1])
+      && !resolved.includes('--window')) {
     const requested = options.windowMode || options.env?.OPENCLI_WINDOW || 'background';
     const windowMode = requested === 'foreground' ? 'foreground' : 'background';
     resolved.splice(2, 0, '--window', windowMode);

@@ -75,6 +75,11 @@ const pct = (arr, p) => {
  *   2. 超时——页面没在时限内给出东西，配额站上尤其值得看
  *   3. 配额站上「成功但几乎没内容」——限流和降级渲染都长这样
  * 前两类是硬信号，第三类是软信号，所以只在配额站上算数。
+ *
+ * 噪音源本身也堵掉了两处，所以这条正则现在是兜底而不是主力：测试桩那条改成
+ * 在测试里设 OPENCLI_ACCESS_LOG=0（不再往真日志里写），Node 的 UNDICI 警告改成
+ * 在 opencli-core.mjs 的 run() 里剥掉（它曾把真正的失败原因挤出 200 字截断）。
+ * 老日志里的噪音还在，所以别删这条正则。
  */
 const NOISE = /opencli stub|UNDICI-EHPA|session_not_found|No active session/i;
 const suspicious = data.filter((r) => {

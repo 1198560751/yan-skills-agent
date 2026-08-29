@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import {
   quotaSession, quotaSiteOf, sessionForUrl, guardSessionName,
   sleepStep, buildExtractCommands, QUOTA_SITES, resolveSession, urlFromArgs, logSiteAccess, captureSample,
+  accessEntry,
 } from '../scripts/opencli-core.mjs';
 
 test('配额站收敛成固定会话名，普通站不受影响', () => {
@@ -88,6 +89,19 @@ test('访问记账能从各种参数形状里认出 URL', () => {
     JSON.stringify([{ cmd: 'open', args: { url: 'https://example.com/a' } }])]),
     'https://example.com/a');
   assert.equal(urlFromArgs(['state', '--source', 'ax']), null, '没有 URL 就是 null');
+});
+
+test('访问记账认得出动作名，短横线选项不冒充动作', () => {
+  const meta = { ms: 1, ok: true, bytes: 0 };
+  // 真实形状：opencli() 会在位置 2 插入 --window <mode>，子命令因此排在第 4 位。
+  assert.equal(accessEntry(['browser', 'semrush-nav', '--window', 'background', 'open', 'https://sem.3ue.co/x'], meta).action, 'open');
+  assert.equal(accessEntry(['browser', 'semrush-nav', '--window', 'background', 'eval', '1+1'], meta).action, 'eval');
+  // 回归：`sessions` 是子命令而不是会话名，动作曾被记成 `-f`。
+  const listing = accessEntry(['browser', 'sessions', '-f', 'json'], meta);
+  assert.equal(listing.action, 'sessions');
+  assert.equal(listing.session, null, 'sessions 不是会话名');
+  assert.equal(accessEntry(['browser', 'cleanup'], meta).action, 'cleanup');
+  assert.equal(accessEntry(['doctor'], meta).action, 'doctor', '非 browser 命令按 argv[0] 记');
 });
 
 test('OPENCLI_ACCESS_LOG=0 时记账彻底闭嘴', () => {

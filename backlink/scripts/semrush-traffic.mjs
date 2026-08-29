@@ -29,14 +29,35 @@
  *    `/analytics/traffic/overview/` —— 后者 302 到 Getting Started 落地页并把 query 丢掉，
  *    于是你会在一个空态页上「成功」解析出一堆 null。
  *
- * 2. **深链参数不管用。** `?q=<domain>` 不被这个页面识别，页面停在空态。
- *    所以必须在页面上填域名提交，不能靠拼 URL。
+ * 2. **目标从 query string 来，不从输入框来。**
+ *    `?q=<域名>&searchType=domain` —— **两个参数缺一不可**。
  *
- * 3. 输入框是 `input[aria-label="Input target"]`，在**普通 DOM** 里（不在 shadow DOM）。
- *    它水合很晚——实测至少 10–14 秒才出现，所以这里是轮询等待，不是一次性查询。
- *    提交方式（实测有效）：用 HTMLInputElement.prototype 的原生 value setter 赋值
- *    （React 受控组件不认直接 `el.value = x`），派发 input + change，focus，
- *    再依次派发 keydown / keypress / keyup 的 Enter。
+ *    ⚠️ 这一条在 2026-08-29 之前是写反的。旧注释写着「深链参数不管用，必须在页面上
+ *    填域名提交」，那次测试**漏了 `searchType=domain`**，只拼了 `?q=<domain>`，
+ *    看到页面停在空态就下了「深链不被识别」的结论。同一条错误记录也进了
+ *    `rankup/data/provider-capabilities.json`，已一并更正。
+ *
+ * 3. **这条路由上没有查询表单。** 2026-08-29 持锁实盘 3 次干净复现：裸导航
+ *    `TRAFFIC_PATH` 落地页标题是 `Dashboards`，整页**唯一的 input 是 13 个 checkbox**；
+ *    在确认 `visibilityState === 'visible'` 的前台标签页上轮询 36 秒，
+ *    从来没有出现过任何文本/搜索输入框。
+ *
+ *    所以旧驱动层里等 `input[aria-label="Input target"]` 的那段**永远不可能成功**，
+ *    它后面的提交函数在这个页面上是死代码。整条路径已删除，理由三条：
+ *      - 这条路由上没有表单可提交，留着就是留一段跑不到的代码；
+ *      - 旧的提交函数「只要元素存在就 `ok:true`」，从不校验提交是否落地——
+ *        第一次污染运行报的「37 次读取」就是它在读**另一个任务的 dashboard**；
+ *      - 无法离线测、也没有第二个调用方（本轮 grep 确认过），留着只会腐烂。
+ *    真要在别的路由上填表，用 `safe-fill.mjs` / `lib-submit-outcome.mjs`——
+ *    那两处本来就带「提交是否落地」的判据，别在这里重造一个更弱的。
+ *
+ * 3b. **不许把「读到了报表」建立在中文文案上。** 这个共享账号的 Semrush UI 是中文
+ *    （`输入网站或关键词` / `输入域名`），写死英文 `aria-label="Input target"` 的
+ *    选择器在它上面一次都匹配不上——这是独立于路由问题的另一个潜伏 bug。
+ *    现在导航是否落地用的是**结构信号**：落地 URL 里 `q` / `searchType` 还在不在
+ *    （见 `classifyDeepLink`），完全不看文案。文案只在**诊断失败原因**时用到，
+ *    并且走 `lib-report-readiness.mjs` 的 locale 表：locale 没覆盖就判 `unknown`，
+ *    不默认通过。
  *
  * 4. **就绪判据必须限定在「摘要」区内**，区间是 innerText 里 `摘要` 的下标到
  *    `流量趋势` 的下标之间。这里连续踩过三次坑，逐条写下来：
