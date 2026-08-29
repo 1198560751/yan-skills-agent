@@ -22,3 +22,6 @@ __pycache__/
 # 只忽略仓库根的这一份,不影响任何 skill 目录内同名的参考文件。
 /progress.md
 /progress-*.md
+
+# 登录面板截图与双证人证据,不入公开仓库
+backlink/evidence/
