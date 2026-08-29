@@ -513,21 +513,90 @@ tab in the same window does not change it either. The proof is in `&lt;why&gt;`
 (Experiment E): a single probe saw two tabs in **one** Chrome window both
 reporting `visible` at the same instant, which no real window can do.
 
-The consequence is the opposite of everything above: after any foreground
+~~The consequence is the opposite of everything above: after any foreground
 attach, **`vis === 'visible'` carries zero information about occlusion**. A tab
 that is genuinely hidden gets recorded as a visible read, and every degradation
-that hidden actually causes becomes **invisible to this protocol**. Note that
+that hidden actually causes becomes **invisible to this protocol**.~~
+⚠️ **The struck sentence above is the over-claim, corrected below on 2026-08-29
+by Experiment F. The pinning is real; "a genuinely hidden tab gets recorded as
+visible" is not.** Text kept, not deleted — the wrong inference is part of the
+record. What survives unchanged: after a foreground attach, `vis` stops being a
+*measurement* of occlusion, so it cannot be used to sample occlusion. Note that
 this runs *against* the two effects already on record (foreground cannot flip an
 already-hidden tab back; declared `windowMode` has diverged from actual state in
 both directions) — it is a third, separate failure of the same instrument.
 
-**The cure is measured and is now a hard rule of the protocol: a hidden pass
+**CORRECTION 2026-08-29 (later, Experiment F): the pinned tab is not lying about
+being visible — it really IS scheduled as visible.** Three neutral sessions in
+one Chrome window measured `requestAnimationFrame` frames over 1.5 seconds:
+
+| tab | `vis` | `hasFocus()` | rAF frames / 1.5s |
+|---|---|---|---|
+| born foreground, since parked behind another tab | `visible` | false | **181** |
+| born background | `hidden` | false | **0** |
+| the currently active tab | `visible` | true | **181** |
+
+So the pinned tab is animating at full rate. **Whatever it hydrated is real
+data, and reads taken on it must not be voided as "contaminated".** The
+frozen-looking content that suggested throttling was the *site* converging on
+`hasFocus()` / `blur`, not Chrome throttling the tab.
+
+**The criterion that makes both observations true — and it is NOT "is this
+session in the foreground right now":**
+
+> **Was this tab CREATED under `OPENCLI_WINDOW=foreground`?**
+
+- **born foreground** → `visible` is pinned for life, **and the tab really is
+  scheduled as visible** (181 frames). Its data is valid; only the *label*
+  "this was a hidden read" is wrong.
+- **born background** → honestly `hidden` for life (0 frames), and a later
+  foreground navigation **does not rescue it** — measured, and consistent with
+  the already-recorded "foreground cannot flip an already-hidden tab back".
+
+That is why two agents reached opposite conclusions and both were right: one was
+probing a tab that had itself been attached (hence two `visible` tabs in one
+window), the other was hunting a hidden→visible flip on a born-background tab,
+which is honest forever and so never pins. **They were measuring two different
+birth cohorts.**
+
+**METHODOLOGY, and it is this law's own principle applied to itself: do not read
+the state the page REPORTS, read the behaviour the page PRODUCES.**
+`visibilityState` is a **declaration**, and a declaration can be pinned.
+An rAF frame count is a **behavioural fact** — 0 frames versus 181 frames cannot
+be pinned by an attach. This is the same move as
+<law-ref id="readiness-must-bind-to-this-query"/>'s "bind the positive verdict
+to a cell the page actually produced": bind to the product, not to the label.
+Prefer a behavioural probe wherever a declared field carries the verdict.
+
+**INSTRUMENT CLEANLINESS, self-proving per read — not asserted afterwards.**
+This repo has already been burned by its own disguise patch overwriting
+`document.hasFocus`, so every visibility read must carry its own proof that the
+instrument was clean at that instant:
+
+- read `document.visibilityState` **and**, in the same eval, the native value via
+  `Object.getOwnPropertyDescriptor(Document.prototype, 'visibilityState').get.call(document)`
+  — this bypasses any instance-level override;
+- check there is no own-property override on `document` itself;
+- check `String(document.hasFocus)` still ends in `[native code]`.
+
+Emit `visOverridden`, `focusNative`, `nativeVis` on **every** read. A read whose
+`nativeVis !== vis`, or whose `focusNative` is false, is not a measurement.
+
+**The cure is measured and is still a hard rule of the protocol: a hidden pass
 must run on a session that has NEVER been foreground-attached. `closeSession`
 and rebuild before every hidden pass, pure background, no exceptions.** After a
-close-and-rebuild, `hidden` reads honestly again. The discoverer of this
-applied the rule to their own work first and **voided three of their own runs**
-— 150 reads labelled `hidden` that were in fact visible reads, reclassified as
-such rather than deleted.
+close-and-rebuild, `hidden` reads honestly again. **The reason is now the
+narrower one:** a born-foreground tab cannot supply a *hidden sample* because it
+is genuinely visible — not because its reads are corrupt.
+
+⚠️ **What this does and does not void.** The discoverer voided three of their own
+runs — 150 reads labelled `hidden` that were in fact visible reads. Under
+Experiment F those reads are **mislabelled, not invalid**: they were real reads
+off a really-visible tab, and **the data they collected stands**. They were
+reclassified as visible reads and kept, which was the right handling. Do **not**
+generalise this to the other voidings of the same week: the ones caused by
+**early-stopping** and by **a target that never took effect** are untouched and
+still stand. Only the "fake visible contamination" class narrows.
 
 **So the strategy is not "make it visible", it is "only believe the reads taken
 while it was visible".** The protocol that has been measured to work:
@@ -550,11 +619,19 @@ while it was visible".** The protocol that has been measured to work:
 - if `visible` never arrived in the whole budget, the verdict is
   **`inconclusive-hidden`** — **never** "empty";
 - record `visibilityState` on **every** read, not just the last one;
-- **a hidden pass runs on a virgin session.** Any session that has ever been
-  attached with `--window foreground` reports `visible` permanently and cannot
-  produce an admissible hidden read. `closeSession` first, rebuild pure
-  background, then measure. A hidden/visible comparison run inside one session
-  is not a comparison at all.
+- **a hidden pass runs on a virgin session.** Any tab **born** under
+  `--window foreground` reports `visible` permanently — and is genuinely
+  scheduled as visible (Experiment F) — so it cannot supply a hidden sample.
+  `closeSession` first, rebuild pure background, then measure. A hidden/visible
+  comparison run inside one session is not a comparison at all. **Classify by
+  birth window mode, never by "is this session in front right now".**
+- **when the verdict rests on visibility, take a behavioural reading too.**
+  Count `requestAnimationFrame` frames over ~1.5s in the same eval: **0 frames
+  = really throttled-hidden; ~180 frames = really scheduled as visible.** This
+  survives the pinning that `visibilityState` does not. And carry the
+  cleanliness fields (`nativeVis`, `visOverridden`, `focusNative`) on every
+  read, so each read proves its own instrument rather than relying on a claim
+  made after the fact.
 
 Three things still do not flip an already-hidden tab back: not the env, not
 `open --window foreground`, and least of all `tab select` (details below).
@@ -692,9 +769,62 @@ front:
 | #13–39 | **visible** | false | 27 reads / ~18s, content frozen at `mainLen=47027` |
 
 `hasFocus()` moved. `visibilityState` did not. It never moves again. So after a
-foreground attach the field is a constant, and **any degradation caused by
-being hidden is structurally invisible to a protocol that gates on it** — the
-degraded read is filed as a `visible` read and inherits its authority.
+foreground attach the field is a constant and stops being a measurement of
+occlusion. ~~**Any degradation caused by being hidden is structurally invisible
+to a protocol that gates on it** — the degraded read is filed as a `visible`
+read and inherits its authority.~~ ⚠️ **Struck: that inference was falsified by
+Experiment F below.** There was no degradation to hide — the pinned tab is
+scheduled as visible for real. The "frozen content" in the last row above is
+`example.com` sitting in front while the site itself converged on
+`hasFocus()`/`blur`; it is not Chrome throttling the tab.
+
+**Experiment F — the pinned tab is really visible, measured behaviourally
+(2026-08-29, three neutral sessions, one Chrome window, `example.com`).** Every
+read carried its own cleanliness proof rather than a claim made afterwards: it
+sampled `document.visibilityState`, **and in the same eval** the native value
+through
+`Object.getOwnPropertyDescriptor(Document.prototype, 'visibilityState').get.call(document)`
+(bypassing any instance-level override), checked `document` for an own-property
+override, and checked `String(document.hasFocus)` for `[native code]`. All reads
+came back `visOverridden:false`, `focusNative:true`, `nativeVis === vis`.
+
+The phenomenon reproduced exactly as Experiment E had it: two tabs in the same
+window both `visible`; the born-foreground tab held `visible` across **92
+seconds** after losing tab activation while `hasFocus()` honestly read `false`;
+Chrome's own tab metadata said `active:false` while the page said `visible`.
+
+Then the behavioural probe — `requestAnimationFrame` frames over 1.5s:
+
+| tab | vis | focus | rAF frames |
+|---|---|---|---|
+| born foreground, parked | visible | false | **181** |
+| born background | hidden | false | **0** |
+| currently active tab | visible | true | **181** |
+
+**181 frames is full-rate scheduling.** The pinned tab is not misreporting its
+class; it is in the visible class. The correction that follows is therefore not
+"the instrument lies harder" but "the instrument reports a *sticky* class, and
+the class it sticks to is the true one at birth":
+
+- **born under `foreground`** → pinned `visible`, genuinely scheduled visible;
+- **born under `background`** → honest `hidden`, 0 frames, and a later
+  foreground navigation does **not** rescue it (measured; consistent with the
+  three non-repairs listed further down).
+
+**Why two agents disagreed.** The session that reported the pinning
+(`sw-vis-parker`) had itself been foreground-attached, which is why it and
+`similarweb-nav` were both `visible`. The session that could not reproduce it
+was looking for a hidden→visible flip on a born-background tab, which never
+pins. Both observations were sound; they were taken on different birth cohorts.
+Two agents contradicting each other on an instrument question usually means an
+uncontrolled variable, not that one of them is careless — find the variable.
+
+**The transferable lesson: read behaviour, not self-report.** `visibilityState`
+is a **declaration** that an attach can pin. An rAF frame count is a
+**behavioural fact** that it cannot. This is the same principle
+<law-ref id="readiness-must-bind-to-this-query"/> states for readiness — bind the
+verdict to something the page actually **produced** (a non-empty cell, a frame),
+never to something it merely **says** about itself.
 
 Note how this sits against the two effects already recorded above: foreground
 **cannot** flip an already-hidden tab back to visible, and the declared
@@ -712,6 +842,14 @@ own runs on this basis — 150 reads labelled `hidden` that were really visible
 reads.** They were **reclassified as visible reads, not deleted**; a voided
 observation with its reason attached is evidence about the instrument, and
 erasing it would hide exactly the failure this entry exists to record.
+⚠️ **Narrowed 2026-08-29 by Experiment F: the reclassification was right, the
+word "void" was too strong.** Those 150 reads came off a tab that was really
+being scheduled as visible, so **the data they captured is valid**; only the
+`hidden` label on them was false. Re-label, keep the numbers, and do not re-run
+them as if they had measured nothing. This narrowing is **specific to the
+fake-visible class** — voidings caused by early-stopping
+(<law-ref id="readiness-must-bind-to-this-query"/>, instances 5 and 6) and by a
+target that never took effect are unaffected and still stand.
 
 **The mechanism, finally named.** Clicking a panel card is what raises Chrome to
 the foreground. `scripts/lib-tools-share.mjs` `launchTool` has a fast path that
@@ -888,6 +1026,16 @@ for as long as they have existed. So do **not** change the shared default in
 foreground window and steal the owner's active tab, which is exactly what
 <law-ref id="background-by-default"/> exists to prevent.
 
+**Confirmed NOT affected — page LOAD itself, on a tab measured at 0 rAF frames
+(2026-08-29, Experiment F).** A `-b` (pure background) launch **completed its
+page load** while the tab was scheduled at **zero animation frames**. That is an
+independent line of evidence for "hidden can hydrate", resting on nothing the
+Similarweb 5 pairs rest on: it is a behavioural measurement of the tab itself
+rather than a hidden/visible content comparison, so the two do not share a
+failure mode. It also sets the boundary from the other side — throttled-hidden
+still loads, so "0 frames" is a fact about scheduling, not a licence to write
+"the page never loaded".
+
 **Unmeasured:** whether visibility can be *made* deterministic at all from this
 side — the flip-flop of Experiment D was observed, not explained, and the
 occlusion mechanism is a guess. Also unmeasured: whether any *other* report shares the .Trends behaviour; and how
@@ -905,8 +1053,31 @@ result, and write the finding here rather than assuming either way.
 opencli browser "$S" eval '(() => JSON.stringify({
   visibility: document.visibilityState,
   len: (document.body.innerText || "").length,
+  // instrument cleanliness, proven PER READ, not asserted afterwards:
+  nativeVis: Object.getOwnPropertyDescriptor(Document.prototype, "visibilityState")
+               .get.call(document),
+  visOverridden: Object.prototype.hasOwnProperty.call(document, "visibilityState"),
+  focusNative: /\[native code\]/.test(String(document.hasFocus)),
+  focus: document.hasFocus(),
 }))()'
-# -> {"visibility":"hidden","len":549}
+# -> {"visibility":"hidden","len":549,"nativeVis":"hidden",
+#     "visOverridden":false,"focusNative":true,"focus":false}
+# nativeVis !== visibility, or focusNative false => NOT a measurement. Discard.
+
+# 1b. When the verdict hangs on visibility, add the BEHAVIOURAL probe. A
+#     foreground attach pins `visibilityState` for the life of the tab, so the
+#     field is a declaration; the frame rate is a fact.
+opencli browser "$S" eval '(async () => { let n = 0; const t0 = performance.now();
+  await new Promise(r => { const f = () => { n++;
+    performance.now() - t0 < 1500 ? requestAnimationFrame(f) : r(); };
+    requestAnimationFrame(f); setTimeout(r, 2500); });
+  return JSON.stringify({ frames: n, vis: document.visibilityState }); })()'
+# -> ~180 frames => genuinely scheduled visible (even if focus is false)
+# ->    0 frames => genuinely throttled-hidden
+# Classify by the tab's BIRTH window mode, never by "is this session in front
+# right now": born foreground => pinned visible AND really visible; born
+# background => honestly hidden forever, and a later foreground nav does not
+# rescue it.
 
 # 2. hidden AND empty -> you have NO verdict yet. Keep re-reading (<=3 nav
 #    rounds x 100s of polling) until either filled>0, or three consecutive
@@ -943,6 +1114,18 @@ const ready = /摘要|Summary/.test(bodyText) && document.querySelector('table')
 # and then the empty read gets written down as a fact about the domain
 { "visits": null, "status": "unavailable",
   "note": "canva.com has no .Trends data" }   # FALSE — the tab was hidden
+
+# throwing away good numbers because the tab's `visible` was pinned
+if (sessionWasForegroundAttached) discard(readings);   // FALSE
+# The tab was born foreground: it is pinned visible AND really scheduled visible
+# (181 rAF frames). The readings are valid; only the "hidden read" LABEL is
+# wrong. Re-label them, keep the data. (Voidings from early-stopping or from a
+# target that never took effect are a different class and still stand.)
+
+# deciding hidden-vs-visible from what the page SAYS instead of what it DOES
+const reallyHidden = (document.visibilityState === 'hidden');   // pinnable
+# and deciding it from the session's current foreground-ness, which is not the
+# variable either — the variable is the window mode the tab was BORN under.
 
 # treating a chart-only route as a hydration problem and retrying forever
 for (let i = 0; i < 20; i++) await relaunchForeground('/analytics/traffic/referral/');

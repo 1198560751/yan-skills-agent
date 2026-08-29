@@ -351,17 +351,23 @@ backlink Skill 里 id 为 `readiness-must-bind-to-this-query` 的那条 law 的 
 2. **有害。** 一次 foreground attach 会把 `visibilityState` **永久锁死在 `visible`**
    （铁证：同一个 Chrome 窗口里两个标签页同时报 `visible`）。于是这个条件
    **在被污染的会话上恒真**（形同虚设），**在诚实的纯后台会话上反而可能为假**（误杀一条成立的结构判定）。
-   一个「在它撒谎的地方自动为真、在它诚实的地方偶尔为假」的条件，比没有还差。
+   一个「在它恒真的地方不增加信息、在它诚实的地方偶尔为假」的条件，比没有还差。
+   ⚠️ **措辞收窄 2026-08-29（Experiment F）**：被钉住的会话不是在「撒谎」——
+   rAF 帧数证明它**真的按 visible 调度**（181 帧）。它只是把 `visibilityState`
+   变成了一个恒定值，因此**不再是一次测量**。去掉这一项的结论不变，理由更准确了。
 
 **保留「目标已生效」那半是必须的**：空态落地页是一个**完美的 `noTable === true`**。
 条件一被满足得最彻底的那个页面，恰恰是根本不是你那份报表的页面。
 
 **连带结论：4 条 `structural-confirmed` 的判定不受 `visible` 锁死污染影响**，
 因为它们靠的是图表数字和导出按钮，都是页面产出。
-`referral` / `organic-search` 那 98 / 96 次「visible 读」**作为可见性证据是作废的**
-（`semrush-traffic.mjs` 的 `DEFAULT_WINDOW = 'foreground'`），
-但它们从来不是可见性证据——是 98 / 96 次「0 个 table 元素」的 DOM 观测，这一点不受污染影响。
+`referral` / `organic-search` 那 98 / 96 次「visible 读」**作为可见性证据不成立**
+（`semrush-traffic.mjs` 的 `DEFAULT_WINDOW = 'foreground'`，那个字段在这些会话上是恒定值），
+但它们从来不是可见性证据——是 98 / 96 次「0 个 table 元素」的 DOM 观测，这一点不受影响。
 **所以那批读数的可信度既不提升也不下降。**
+⚠️ **收窄 2026-08-29（Experiment F）**：这里说的「作废」只是**作废它作为可见性证据的身份**，
+不是作废读数。这些标签页建时就是 foreground，**它们确实是 visible 的**，
+DOM 观测本身有效。**不要因为这条去重跑它们。**
 
 ⚠️ **这不动摇「可见性伪空」那条 law。** 两者说的是两件事：
 可见性管的是**表格里的行会不会水合**（`top-pages`：hidden 0 格 / visible 850 格，三次交叉验证），
@@ -800,14 +806,35 @@ id 为 `hidden-tabs-do-not-hydrate` 那条 law 的适用范围：
 
 #### 前提：这 160 次 hidden 读为什么敢叫「诚实」
 
-因为它们跑在**从未 foreground attach 过的会话**上。**一次 `--window foreground` attach
-会把该标签页的 `document.visibilityState` 永久锁死在 `visible`**，之后 hidden 造成的一切
-降级对协议完全隐形。**规则和铁证（同一窗口两个标签页同时 `visible`）的权威版本只写在
-backlink Skill 里 id 为 `hidden-tabs-do-not-hydrate` 的那条 law 里（协议条目 + Experiment E），
-本文件不复述，只指路。**
+因为它们跑在**从未 foreground attach 过（即建时就是 background）的会话**上。
+**一次 `--window foreground` attach 会把该标签页的 `document.visibilityState`
+永久锁死在 `visible`**，~~之后 hidden 造成的一切降级对协议完全隐形~~。
+**规则和铁证（同一窗口两个标签页同时 `visible`）的权威版本只写在
+backlink Skill 里 id 为 `hidden-tabs-do-not-hydrate` 的那条 law 里
+（协议条目 + Experiment E + Experiment F），本文件不复述，只指路。**
+
+⚠️ **2026-08-29 收窄（Experiment F）：划掉的那半句是过度断言。**
+钉死是真的，但**被钉住的标签页不是 hidden 冒充 visible——它真的按 visible 调度**。
+1.5 秒内的 `requestAnimationFrame` 帧数：建时 foreground、已停泊的标签页 **181 帧**
+（`vis=visible`、`focus=false`），建时 background 的 **0 帧**（`vis=hidden`），
+当前活动标签页 **181 帧**。所以它不能充当 hidden 样本，理由是「它确实是 visible」，
+**不是「它的读数被污染了」**。
+**判据是「这个标签页建时是哪种 window 模式」，不是「这个会话现在是不是前台」**：
+建时 foreground → 终身钉死 `visible` 且真的 visible；
+建时 background → 终身诚实 `hidden`，事后补一次 foreground 导航也救不回来。
+
+**方法学（这才是可迁移的那部分）：不要只读页面报告的状态，要读页面产出的行为。**
+`visibilityState` 是一个**可以被钉住的声明**，rAF 帧数是一个**行为事实**。
+仪器洁净度还要**每次读数自证**：同一次 eval 里用
+`Object.getOwnPropertyDescriptor(Document.prototype,'visibilityState').get.call(document)`
+取绕过实例覆写的原生值，并核 `String(document.hasFocus)` 是不是 `[native code]`。
 
 **被作废的观测保留在案**：发现者据此**作废了自己的三次运行**——150 次标着 hidden、
 实际读到 visible 的读数。它们被**重新归类为 visible 读，没有被抹掉**。
+⚠️ **收窄**：重新归类是对的，「作废」下重了——那 150 次读**采到的数据有效**，
+错的只是它们头上「这是一次 hidden 读」的标签。**改标签、留数据，不要当没测过重跑。**
+**这条收窄只适用于「假 visible 污染」这一类。** 同一周里因**早停判空**、
+**目标未生效**而作废的记录**不受影响，仍然成立**，不要一锅端撤销。
 
 #### 顺带验证：「表元素在、0 行」这个中间态确实存在且会自行解决
 
