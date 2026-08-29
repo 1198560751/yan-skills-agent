@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、rankup check、环节闸门、检查清单、checklist、"现在该做什么"、"到哪一步了"、"这个环节能不能过"、"本轮还差什么"、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、挖需求、找需求、需求挖掘、找方向、找选题、"最近有什么能做的"、"找几个关键词"、"挖个新词的工具站"、"看看有什么游戏站能做"、竞品调研、榜单调研、差评挖掘、反查谁在赚钱、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 哥飞、web.cafe、哥飞论坛、哥飞的朋友们、悬赏、悬赏问答、经验帖、"群里怎么说的"、"社群里有没有讲过"、"论坛里搜一下"、"哥飞说过什么"、哥飞.ai，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
 metadata:
-  version: "2.60.1"
+  version: "2.61.0"
 ---
 
 # Rankup 2.0
@@ -94,6 +94,8 @@ metadata:
   （`· 配额 VIP：已用 66/500，剩 434`），匿名档还会打印一整段提示。不用记，跑就行。
 - Similarweb / Semrush：档位与到期日在面板启动时打印一次；**会话复用会跳过启动，
   配额读数就不再刷新**，所以整场调研的规模要在开工时定死。
+  自从这两个站收敛到固定会话名（`semrush-nav` / `similarweb-nav`）之后，
+  **复用成了常态而不是例外**，所以这条更要紧了：开工时那一次读数往往是全程唯一的一次。
 
 ### 脚本没有登录态、而用户浏览器有：把请求发进浏览器，不要去抠 cookie
 
@@ -124,7 +126,9 @@ opencli browser "$S" eval '(async()=>{ /* fetch(..., {credentials:"include"}) */
 | 用通用 `chatbot-drive.browser.js` 问哥飞 AI（seo.web.cafe） | 有 Cookie 用 `seo-webcafe.mjs chat`；没有就用 `gefei-ask.mjs` | 两条专用路径都封装过配额与完成判定；通用驱动会重踩已解决的坑 |
 | 用 Claude in Chrome / 手动 OpenCLI 操作 Similarweb 面板 | `node similarweb-query.mjs` / `similarweb-batch.mjs` | 脚本已存在，手操浪费上下文且结果不可复现 |
 | 用 Claude in Chrome / 手动 OpenCLI 操作 Semrush 面板 | `node semrush-overview.mjs` / `semrush-keyword.mjs` 等 | 同上 |
-| OpenCLI 会话名用字面常量如 `work`、`backlink-panel` | `defaultSession('base')` 或会话名带 `$$` 后缀 | 多任务同时跑时撞名 → 拿到别人的页面，全程零报错 |
+| OpenCLI 会话名用**通用**字面常量如 `work`、`backlink-panel` | JS 用 `defaultSession('base')`；shell 用**描述性常量**（`bing-check-mysite`），或 `<opencli-skill>/scripts/session.sh` 的 `oc_session` | 多任务同时跑时撞名 → 拿到别人的页面，全程零报错 |
+| 在 Bash 里用 `$$` 做会话后缀 | 同上。`$$` 只在**单个 Node 进程**里安全 | Claude Code 的 Bash tool 每次调用都是新进程，`$$` 每次都变。实测 2026-08-28：一个探针产生了 14 个会话、14 个标签页，每条命令都遗弃上一条打开的页面，agent 只看到空白页于是不断重试 |
+| 对 Semrush / Similarweb 也传 `--session` 或每个 agent 一个会话名 | **不传**，让脚本收敛到固定名（`semrush-nav` / `similarweb-nav`） | 它们是配额站：同时加载会触发上限。会话名就是并发度，固定名让 daemon 把并发排成一队。传了会被忽略并打一行 stderr |
 | 用沙箱浏览器访问需要登录的数据面板 | 用户的浏览器（通过 OpenCLI 或 Claude in Chrome） | 沙箱没有 cookie，返回的数据是匿名态，看起来正常但内容不同 |
 | 手工去 GSC / Bing 后台点「提交站点地图」 | `node webmaster-sitemap.mjs <gsc\|bing> submit …` | 两个后台都有各自的坑（Bing 的输入框要先点开、GSC 的「提交」会和「提交反馈」撞词），手操每次重踩一遍 |
 | 在项目里维护一份「要推给 IndexNow 的 URL 数组」 | `indexnow-submit.mjs` 默认从线上 sitemap 取 | 硬编码数组必然与实际发布的页面漂移，且漂移方向永远是「新页面没推」 |

@@ -16,7 +16,7 @@ const usage = `Usage:
   rankup catalog [semrush|similarweb] [--json|--modules|--gaps]
   rankup capture <provider> <report> [evidence options]
   rankup run <provider> <report> [evidence options]
-  rankup audit <provider> --manifest <json> --out-dir <dir> --session <fixed> [--resume] [--accept-bounded] [--dry-run]`;
+  rankup audit <provider> --manifest <json> --out-dir <dir> [--resume] [--accept-bounded] [--dry-run]`;
 
 function fail(message) { throw new Error(message); }
 function provider(value) {
@@ -77,7 +77,11 @@ function safeCustom(entry, selectedProvider) {
   }
 }
 function entryArgs(entry, base) {
-  const args = ['--tool', base.provider, '--report', entry.report, '--out-dir', base.outDir, '--session', base.session];
+  // 不转发 --session。这个 CLI 只服务 semrush / similarweb 两个配额站，
+  // 而底层脚本会把它们收敛到固定会话名（semrush-nav / similarweb-nav）——
+  // 会话名就是并发度，同时加载会触发站点上限。转发只会让底层对**每一个 entry**
+  // 打一行「已忽略 --session」的 stderr，把真正的输出淹掉。
+  const args = ['--tool', base.provider, '--report', entry.report, '--out-dir', base.outDir];
   for (const key of ['domain', 'keyword', 'db', 'url', 'path']) if (entry[key] !== undefined) args.push(`--${key}`, String(entry[key]));
   if (entry.pageKind !== undefined) args.push('--page-kind', entry.pageKind);
   if (base.resume) args.push('--resume');
@@ -158,8 +162,13 @@ async function catalog(argv) {
 }
 async function audit(selectedProvider, argv) {
   const options = flags(argv, new Set(['--manifest', '--out-dir', '--session', '--resume', '--accept-bounded', '--dry-run']));
-  for (const key of ['manifest', 'out-dir', 'session']) if (!options[key]) fail(`--${key} is required.`);
-  if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,62}$/.test(options.session)) fail('--session must be fixed and contain only letters, numbers, and hyphens.');
+  for (const key of ['manifest', 'out-dir']) if (!options[key]) fail(`--${key} is required.`);
+  // --session 保留只为向后兼容：它一直要求「固定」，而现在固定是自动的。
+  if (options.session) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,62}$/.test(options.session)) fail('--session must contain only letters, numbers, and hyphens.');
+    console.error(`[rankup] --session ${options.session} 已忽略：${selectedProvider} 是配额站，`
+      + `会话名固定为 ${selectedProvider}-nav，这正是并发度的上限所在。`);
+  }
   const entries = validateManifest(JSON.parse(await readFile(options.manifest, 'utf8')), selectedProvider);
   await mkdir(options['out-dir'], { recursive: true });
   const results = [];

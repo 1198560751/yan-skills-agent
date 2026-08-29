@@ -12,7 +12,8 @@
  *   --report <r>            performance（默认）| channels | similar-sites | audience-geo | site-keywords
  *   --self-test             跑离线解析自检，不连浏览器，不需要 --domain
  *   --out <file>            落盘 JSON
- *   --session <name>        opencli 会话名，默认按项目派生（别写死）
+ *   --session <name>        忽略：similarweb 是配额站，会话名固定为 similarweb-nav
+ *                           （传了会打一行 stderr；--allow-parallel-session 才放行）
  *   --node <n> / --launch   面板节点与启动方式
  *   --timeout <s>           整体超时
  *   --stable-interval <s>   两次读数之间的间隔（默认 2.5 秒）

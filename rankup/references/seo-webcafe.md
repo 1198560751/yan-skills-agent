@@ -681,7 +681,8 @@ fetch("/serp/api/me",{credentials:"include"}).then(r=>r.json())
 不写进 `.env`、不进日志、不进 git。
 
 ```bash
-S="webcafe-serp-$$"                       # 唯一且描述性，绝不用 work 这种字面量
+S="webcafe-serp"                          # 描述性；绝不用 work 这种通用字面量，
+                                         # 也绝不用 $$——Bash tool 每次调用都是新进程
 opencli browser "$S" --window background open "https://seo.web.cafe/serp/"
 # 等 ~5 秒加载完，然后：
 opencli browser "$S" --window background eval '(async()=>{

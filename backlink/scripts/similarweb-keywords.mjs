@@ -24,7 +24,8 @@
  *   --country <code>       国家代码，留空 = 全球
  *   --out <file>           落盘；配 --jsonl 时一行一个词
  *   --jsonl                以 JSON Lines 输出词行，便于几万行的批量
- *   --session <name>       opencli 会话名，默认按项目派生
+ *   --session <name>       忽略：similarweb 是配额站，会话名固定为 similarweb-nav
+ *                          （传了会打一行 stderr；--allow-parallel-session 才放行）
  *   --settle <s>           首屏等待秒数（默认 18）
  *   --timeout <s>          单个种子词的整体超时（默认 120）
  *   --keep-open            跑完保留标签页

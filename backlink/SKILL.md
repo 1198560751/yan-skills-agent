@@ -344,8 +344,16 @@ opencli browser "$S" state      # same, plus title + elements (AX snapshot by de
 <law id="no-literal-session-name">
 <statement>
 Never write a literal session name as a default. In JS use
-`defaultSession(base)` from `scripts/opencli-core.mjs`; in shell use
-`SESSION="backlink-$$"`.
+`defaultSession(base)` from `scripts/opencli-core.mjs`; in shell use a
+**descriptive constant** (`backlink-probe-cn`, `bing-check-mysite`) — NOT
+`$$`. Measured 2026-08-28: in Claude Code's Bash tool every call is a new
+process, so `$$` differs each time; one probe produced 14 distinct sessions
+and 14 tabs, each abandoning the page the last one opened. `$$` is safe only
+inside a single Node process that runs start to finish.
+
+The one exception is a **quota site** (see the quota-site rule below): there
+the fixed literal IS the answer, because the session name is what caps
+concurrency. `resolveSession(flags, base, siteKey)` handles both cases.
 </statement>
 <why>
 "Another task stole my tab" is never the CLI round-robining — it is always two
@@ -374,9 +382,14 @@ On the stock Web Store extension the group title is still the fixed
 **A name needs two distinguishing parts, and it is easy to ship only one.** The
 suffix makes your task unique against *other* agents. It does nothing to
 separate your own pages from each other, and by
-<law-ref id="one-session-one-tab"/> a three-page job needs three names. So
-`backlink-probe-$$` used for all three pages obeys this law's letter and breaks
-Law 1. Vary both: `backlink-probe-p1-$$`, `-p2-$$`, `-p3-$$`.
+<law-ref id="one-session-one-tab"/> a three-page job needs three names. So one
+name reused for all three pages obeys this law's letter and breaks Law 1.
+Vary both: `backlink-probe-p1`, `-p2`, `-p3`, each carrying the same
+per-task suffix — from `defaultSession()` in JS, or from
+`oc_session <base>` in `<opencli-skill>/scripts/session.sh` in shell.
+Both refuse a name ending in 3-6 digits, because that is the shape `$$`
+expands to and the failure is otherwise silent: the agent just sees a blank
+page every time and retries.
 </naming>
 <help-text-bait>
 `opencli browser --help` opens with `opencli browser work open https://x.com`.
@@ -1466,7 +1479,8 @@ Ad-hoc looking is still scripted work. Use OpenCLI so the look is replayable.
 <cmd><![CDATA[
 # Name it after what you are looking at, per <law id="no-literal-session-name">:
 # a unique-but-meaningless name still cannot answer "whose tab is this".
-S="explore-pricing-$$"
+# Do NOT use $$ here — in Claude Code's Bash tool it changes every call.
+S="explore-pricing"
 opencli browser "$S" open "https://example.com/pricing"
 opencli browser "$S" get url     # confirm you landed
 opencli browser "$S" extract
@@ -1505,7 +1519,7 @@ node scripts/discovery-queue.mjs seed --file .backlink/discovery.json --domain c
 node scripts/discovery-queue.mjs import-refdomains --file .backlink/discovery.json \
   --source competitor.com --input .backlink/competitor-refdomains.csv
 
-node scripts/harvest-commenters.mjs --session "discovery-$$" --url https://example.com/article --out .backlink/commenters.json
+node scripts/harvest-commenters.mjs --session "discovery-commenters" --url https://example.com/article --out .backlink/commenters.json
 node scripts/discovery-queue.mjs import-commenters --file .backlink/discovery.json --input .backlink/commenters.json
 node scripts/discovery-queue.mjs next --file .backlink/discovery.json --limit 10
 ]]></cmd>
@@ -1517,11 +1531,13 @@ login, the report itself ~15s, and `semrush-report.mjs` skips the launch when
 the session is already parked on the tool origin (`sessionReused: true` says
 which happened).
 <cmd><![CDATA[
-S=semrush-recon-$$                       # descriptive + unique; never a bare constant
-node scripts/semrush-report.mjs --session $S --report keyword --keyword 'grid maker' --db us
-node scripts/semrush-report.mjs --session $S --report backlinks-overview --domain rival.com
-node scripts/semrush-report.mjs --session $S --report organic-positions --domain rival.com --db us
-opencli browser $S close
+# Semrush is a quota site: the script resolves the session to the fixed
+# `semrush-nav` itself, so do NOT pass --session. Passing one is ignored with a
+# warning; the fixed name is what serialises concurrent callers into one tab.
+node scripts/semrush-report.mjs --report keyword --keyword 'grid maker' --db us
+node scripts/semrush-report.mjs --report backlinks-overview --domain rival.com
+node scripts/semrush-report.mjs --report organic-positions --domain rival.com --db us
+opencli browser semrush-nav close
 ]]></cmd>
 <note>
 This is the one place a session legitimately handles several *reports* — it is
@@ -1592,7 +1608,7 @@ and no detected CAPTCHA/login wall. A CAPTCHA page may be staged only when the
 owner explicitly accepts normal human completion; never bypass or solve it by
 an external CAPTCHA service.
 <cmd><![CDATA[
-node scripts/inspect-page.mjs --session "inspect-$$" --mode comment \
+node scripts/inspect-page.mjs --session "inspect-comment-scan" --mode comment \
   --url https://example.com/article --out .backlink/scan.json
 ]]></cmd>
 Modes are `comment`, `directory`, or `auto`.
@@ -1611,7 +1627,7 @@ Create a reviewed JSON payload with truthful values. For comment mode,
 </payload>
 <fill>
 <cmd><![CDATA[
-node scripts/safe-fill.mjs --session "fill-$$" \
+node scripts/safe-fill.mjs --session "fill-submission" \
   --scan .backlink/scan.json --payload .backlink/payload.json
 ]]></cmd>
 It revalidates the URL, form identity, field semantics, login state, and CAPTCHA
