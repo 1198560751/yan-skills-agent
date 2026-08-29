@@ -11,15 +11,24 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  CENSUS_EXPR,
   buildManifest,
+  buildScrollExpr,
   censusFingerprint,
   detectEmptyState,
+  hashSegments,
+  isCensusStableShotUnstable,
   isChartReady,
   isHijacked,
   isReady,
   isStalled,
   isSuspectedEmptyState,
+  isTextReady,
   pairsIdentical,
+  parseAcceptRedirects,
+  pickScrollContainer,
+  resolveReadyText,
+  resolveScrollMode,
   sanitizeUrlString,
   scrubEvalPayload,
 } from '../scripts/ground-truth.mjs';
@@ -345,4 +354,183 @@ test('manifest：lockHeld / lockWaitMs / hijacked / hijackedHref 进 manifest，
   assert.equal(stolen.hijacked, true);
   assert.equal(stolen.hijackedHref, '/analytics/traffic/top-pages/?q=sylviejewelry.com');
   assert.equal(stolen.stopReason, 'hijacked');
+});
+
+// ---------------------------------------------------------------------------
+// hash 感知落点自检（2026-08-29 Similarweb 开荒：pathname 恒为 /，path 比对全盲）
+// ---------------------------------------------------------------------------
+
+test('hash 自检：目标含 # 时比 hash 前 3 段 —— 同报表树的国家/窗口段变化不算离开', () => {
+  const mapping = '#/digitalsuite/markets/webmarketanalysis/mapping/Computers~Graphics/999/1m';
+  // 换国（999→840）、换类目：前 3 段 digitalsuite/markets/webmarketanalysis 不变。
+  assert.equal(isHijacked(mapping, '/#/digitalsuite/markets/webmarketanalysis/mapping/Other~Cat/840/1m'), false);
+  assert.equal(isHijacked(mapping, '/?webSource=Total#/digitalsuite/markets/webmarketanalysis/home'), false);
+});
+
+test('hash 自检：跨到别的报表树 → hijacked（markets vs marketresearch）', () => {
+  const mapping = '#/digitalsuite/markets/webmarketanalysis/mapping/X/999/1m';
+  assert.equal(isHijacked(mapping, '/#/digitalsuite/marketresearch/keywordmarketresearch/home'), true);
+  // hash 消失（整文档被导走）也是离开。
+  assert.equal(isHijacked(mapping, '/home/'), true);
+});
+
+test('hash 自检：hashSegments 取 # 后前 3 段，空 hash 目标判不了不误报', () => {
+  assert.deepEqual(hashSegments('#/digitalsuite/markets/webmarketanalysis/mapping/X/999'), ['digitalsuite', 'markets', 'webmarketanalysis']);
+  assert.deepEqual(hashSegments('#/a/b'), ['a', 'b']);
+  assert.equal(isHijacked('#/', '/#/anything/else/here'), false);
+  assert.equal(isHijacked('#', '/#/anything'), false);
+});
+
+test('census 表达式带 location.hash —— hash 自检的输入端，掉了整条防线全盲', () => {
+  assert.ok(CENSUS_EXPR.includes('location.hash'), 'census 的 href 必须包含 location.hash');
+});
+
+// ---------------------------------------------------------------------------
+// --accept-redirect：合法重定向别名（Semrush /organic/pages/ → /toppages/ 的 302）
+// ---------------------------------------------------------------------------
+
+test('accept-redirect：命中声明的别名不算 hijack，未声明照旧算', () => {
+  const target = '/analytics/organic/pages/';
+  const landed = '/analytics/toppages/?db=us&q=canva.com&searchType=domain';
+  // 未声明别名：302 落点被当 hijack —— 这就是 2026-08-29 exit 3 的真实形状。
+  assert.equal(isHijacked(target, landed), true);
+  // 声明后：合法跳转形状。
+  assert.equal(isHijacked(target, landed, ['/analytics/toppages/']), false);
+  // 别名不豁免无关路由。
+  assert.equal(isHijacked(target, '/home/', ['/analytics/toppages/']), true);
+  assert.equal(isHijacked(target, '/analytics/keywordoverview/?q=x', ['/analytics/toppages/']), true);
+});
+
+test('accept-redirect：解析逗号分隔列表，未传/布尔为空数组', () => {
+  assert.deepEqual(parseAcceptRedirects('/analytics/toppages/, /analytics/comparedomains/'), ['/analytics/toppages/', '/analytics/comparedomains/']);
+  assert.deepEqual(parseAcceptRedirects(undefined), []);
+  assert.deepEqual(parseAcceptRedirects(true), []);
+  assert.deepEqual(parseAcceptRedirects(''), []);
+});
+
+// ---------------------------------------------------------------------------
+// text 分支就绪（--ready-text，默认不启用）
+// ---------------------------------------------------------------------------
+
+const textPoll = (readyTextHit, deepTextLength) => ({ readyTextHit, deepTextLength, filledCells: 0, svgText: 0, fingerprint: `t:${deepTextLength}` });
+
+test('text 分支：regex 命中且 2 轮 deepTextLength 稳定 → 就绪', () => {
+  assert.equal(isTextReady([textPoll(true, 500_000), textPoll(true, 500_000)]), true);
+  assert.equal(isTextReady([textPoll(false, 100), textPoll(true, 500_000), textPoll(true, 500_000)]), true);
+});
+
+test('text 分支：未命中 / 文本仍在变 / 不足 2 轮 都不就绪', () => {
+  assert.equal(isTextReady([textPoll(false, 500_000), textPoll(false, 500_000)]), false);
+  assert.equal(isTextReady([textPoll(true, 400_000), textPoll(true, 500_000)]), false);
+  assert.equal(isTextReady([textPoll(true, 500_000)]), false);
+  assert.equal(isTextReady([]), false);
+});
+
+test('text 分支红线：未传 --ready-text 时绝不生效', () => {
+  // 未启用时 resolveReadyText 必须是 null —— 主循环以 readyText && isTextReady 双重把关。
+  assert.equal(resolveReadyText({}), null);
+  assert.equal(resolveReadyText({ 'ready-text': true }), null);
+  assert.equal(resolveReadyText({ 'ready-text': '' }), null);
+  // 未启用的 poll 里 readyTextHit 是 null（不是 true）：isTextReady 也必须拒绝。
+  assert.equal(isTextReady([textPoll(null, 500_000), textPoll(null, 500_000)]), false);
+  assert.equal(isTextReady([textPoll(undefined, 500_000), textPoll(undefined, 500_000)]), false);
+  // 显式传参时才是 RegExp。
+  const re = resolveReadyText({ 'ready-text': '域\\s*\\(10,000\\)' });
+  assert.ok(re instanceof RegExp);
+  assert.ok(re.test('域 (10,000)'));
+});
+
+// ---------------------------------------------------------------------------
+// 内层滚动容器（--scroll-container，auto 优先内层最大者但要过文档滚动 sanity）
+// ---------------------------------------------------------------------------
+
+test('scroll-container 解析：缺省/auto → auto，window → window，其余当选择器', () => {
+  assert.deepEqual(resolveScrollMode(undefined), { mode: 'auto', selector: null });
+  assert.deepEqual(resolveScrollMode('auto'), { mode: 'auto', selector: null });
+  assert.deepEqual(resolveScrollMode('window'), { mode: 'window', selector: null });
+  assert.deepEqual(resolveScrollMode('.sw-layout-scrollable-element'), { mode: 'selector', selector: '.sw-layout-scrollable-element' });
+});
+
+test('auto 挑选：Similarweb 形状 —— window 滚不动、内层容器装得更多 → 选内层', () => {
+  // 实测形状：bodyScrollHeight === innerHeight（window 空操作），内层 scrollHeight 4363。
+  const choice = pickScrollContainer(
+    [{ tag: 'div', scrollHeight: 4363, clientHeight: 772 }],
+    { bodyScrollHeight: 772, innerHeight: 772 },
+  );
+  assert.deepEqual(choice, { kind: 'container', index: 0 });
+});
+
+test('auto 挑选：Semrush 形状 —— window 正常滚、内层只是小部件 → 选 window', () => {
+  // 500px 的下拉列表不许抢走一个 6000px 文档的滚动权。
+  const choice = pickScrollContainer(
+    [{ tag: 'div', scrollHeight: 500, clientHeight: 200 }],
+    { bodyScrollHeight: 6000, innerHeight: 772 },
+  );
+  assert.deepEqual(choice, { kind: 'window' });
+});
+
+test('auto 挑选：多个内层容器取 scrollHeight 最大者；两头都滚不动兜底 window', () => {
+  const choice = pickScrollContainer(
+    [
+      { tag: 'div', scrollHeight: 900, clientHeight: 300 },
+      { tag: 'div', scrollHeight: 4363, clientHeight: 772 },
+    ],
+    { bodyScrollHeight: 772, innerHeight: 772 },
+  );
+  assert.deepEqual(choice, { kind: 'container', index: 1 });
+  assert.deepEqual(pickScrollContainer([], { bodyScrollHeight: 772, innerHeight: 772 }), { kind: 'window' });
+});
+
+test('滚动表达式：window 用 scrollBy；selector 内嵌选择器；auto 内嵌同一份挑选源码', () => {
+  assert.ok(buildScrollExpr({ mode: 'window', amount: 700 }).includes('window.scrollBy(0, 700)'));
+  const sel = buildScrollExpr({ mode: 'selector', selector: '.sw-layout-scrollable-element', amount: 700 });
+  assert.ok(sel.includes('".sw-layout-scrollable-element"'));
+  assert.ok(sel.includes('scrollTop'));
+  const auto = buildScrollExpr({ mode: 'auto', amount: 700 });
+  assert.ok(auto.includes('pickScrollContainer'), 'auto 的页面内挑选必须是 pickScrollContainer 的同一份源码');
+});
+
+// ---------------------------------------------------------------------------
+// 假到底：census 恒定 + 截图 md5 恒变（图表动画）→ census-stable-shot-unstable
+// ---------------------------------------------------------------------------
+
+const shotPair = (fingerprint, md5) => ({ fingerprint, md5 });
+
+test('假到底：连续 3 步 census 指纹相同、相邻 md5 各不相同 → 命中', () => {
+  assert.equal(isCensusStableShotUnstable([shotPair('fp', 'a'), shotPair('fp', 'b'), shotPair('fp', 'c')]), true);
+  // 前面有变化不影响：看最近 3 步。
+  assert.equal(isCensusStableShotUnstable([shotPair('x', 'a'), shotPair('fp', 'b'), shotPair('fp', 'c'), shotPair('fp', 'd')]), true);
+});
+
+test('假到底：census 在变 / md5 有重复 / 不足 3 步 都不命中', () => {
+  assert.equal(isCensusStableShotUnstable([shotPair('a', 'a'), shotPair('b', 'b'), shotPair('c', 'c')]), false, 'census 在变是正常滚动');
+  assert.equal(isCensusStableShotUnstable([shotPair('fp', 'a'), shotPair('fp', 'a'), shotPair('fp', 'b')]), false, 'md5 重复该走 stable 判据');
+  assert.equal(isCensusStableShotUnstable([shotPair('fp', 'a'), shotPair('fp', 'b')]), false);
+  assert.equal(isCensusStableShotUnstable([]), false);
+});
+
+test('manifest：acceptRedirects / readyTextPattern / scrollMode / scrolls 进 manifest，缺省齐全', () => {
+  const base = {
+    url: 'https://sim.3ue.co/x', session: 'similarweb-nav', startedAt: 'a', finishedAt: 'b',
+    readyAfterMs: 23_000, polls: [], steps: [], stopReason: 'stable', budgetSeconds: 240, maxScreens: 12,
+  };
+  const plain = buildManifest(base);
+  assert.deepEqual(plain.acceptRedirects, []);
+  assert.equal(plain.readyTextPattern, null);
+  assert.equal(plain.scrollMode, 'auto');
+  assert.equal(plain.scrollSelector, null);
+  assert.deepEqual(plain.scrolls, []);
+  const full = buildManifest({
+    ...base, readyBranch: 'text', readyTextPattern: '域\\s*\\(10,000\\)',
+    acceptRedirects: ['/analytics/toppages/'], scrollMode: 'selector', scrollSelector: '.sw-layout-scrollable-element',
+    scrolls: [{ afterStep: 1, amount: 694, kind: 'container', tag: 'div', scrollTop: 694, scrollHeight: 4363, scrollY: 0 }],
+    stopReason: 'census-stable-shot-unstable',
+  });
+  assert.equal(full.readyBranch, 'text');
+  assert.equal(full.readyTextPattern, '域\\s*\\(10,000\\)');
+  assert.deepEqual(full.acceptRedirects, ['/analytics/toppages/']);
+  assert.equal(full.scrollMode, 'selector');
+  assert.equal(full.scrollSelector, '.sw-layout-scrollable-element');
+  assert.equal(full.scrolls.length, 1);
+  assert.equal(full.stopReason, 'census-stable-shot-unstable');
 });

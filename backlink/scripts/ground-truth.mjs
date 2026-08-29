@@ -4,7 +4,22 @@
  * 的读数（census）+ 一张视口截图，成对落盘，判断交给 AI 对质两个证人。
  *
  *   node scripts/ground-truth.mjs --url <url> --out <evidence-dir> \
- *     [--budget 180] [--max-screens 12]
+ *     [--budget 180] [--max-screens 12] \
+ *     [--accept-redirect <path,path>] [--scroll-container auto|window|<selector>] \
+ *     [--ready-text <regex>]
+ *
+ * 2026-08-29 两路开荒（Semrush organic / Similarweb explore）实测补的三个缺口：
+ *
+ *   - `--accept-redirect`：声明已知的合法重定向别名（如 /analytics/organic/pages/
+ *     → /analytics/toppages/ 的 302）。命中别名不算 hijack。
+ *   - hash 感知落点自检：目标 URL 含 `#` 时（Similarweb 等 SPA 的 pathname 恒为
+ *     `/`），自检改比 hash 的前 3 段。census 的 href 因此带上 location.hash。
+ *   - `--scroll-container`：主滚动条在内层 div（如 .sw-layout-scrollable-element）
+ *     时 window 滚动是空操作。auto（默认）优先内层最大可滚容器（其 scrollHeight
+ *     大于整页文档滚动时），否则滚 window；也可显式传 window 或一个选择器。
+ *   - `--ready-text`：非 cells 页型（列主序 DIV 大榜、水合看心情的表单页）的第三条
+ *     就绪分支：穿透文本命中 regex 且 2 轮稳定即就绪（readyBranch: "text"）。
+ *     默认不启用，仅显式传参时生效。
  *
  * 职责边界：**只采集，不判断。** 本脚本产出证据（census-*.json / shot-*.png /
  * manifest.json），「有数据 / 空 / 功能不存在」这类结论一律由 AI 拿着两个证人
@@ -166,16 +181,144 @@ export function detectEmptyState(deepText) {
  *
  * 判据是**path 前缀**：同路由的 query 变化（?q=canva.com）、子路径、末尾斜杠
  * 差异都不算离开；跨到别的路由（/analytics/overview/、/home/）才算。
+ *
+ * 两个扩展（2026-08-29 开荒实测）：
+ *
+ *   1. **hash 感知**：Similarweb 等 hash 路由 SPA 的 pathname 恒为 `/`，按 path
+ *      比对对 hash 级劫持全盲（不误报，但也全不设防）。target 含 `#` 时改比 hash
+ *      的前 `HASH_PREFIX_SEGMENTS`（3）段——同报表的国家段/窗口段变化不算离开，
+ *      跨到别的报表树（marketresearch vs markets）才算。
+ *   2. **合法重定向别名**：Semrush 的 /analytics/organic/pages/ 会 302 到
+ *      /analytics/toppages/，是合法跳转形状不是接管。`acceptRedirects` 里声明的
+ *      别名按同样的规则比对，命中任意一个就不算 hijack。
  */
-export function isHijacked(targetPath, href) {
-  const want = String(targetPath ?? '').replace(/\/+$/, '');
+export const HASH_PREFIX_SEGMENTS = 3;
+
+/** hash 的前 n 段：`#/digitalsuite/markets/webmarketanalysis/...` → 前 3 段。 */
+export function hashSegments(hash, n = HASH_PREFIX_SEGMENTS) {
+  return String(hash ?? '').replace(/^#/, '').split('/').filter(Boolean).slice(0, n);
+}
+
+/** `--accept-redirect` 的值：逗号分隔的已知别名 path/hash 列表。 */
+export function parseAcceptRedirects(value) {
+  if (value == null || value === true) return [];
+  return String(value).split(',').map((part) => part.trim()).filter(Boolean);
+}
+
+export function isHijacked(target, href, acceptRedirects = []) {
+  const targetStr = String(target ?? '');
+  const matchesAlias = () => Array.isArray(acceptRedirects)
+    && acceptRedirects.some((alias) => alias && !isHijacked(alias, href, []));
+  const hashIndex = targetStr.indexOf('#');
+  if (hashIndex >= 0) {
+    const want = hashSegments(targetStr.slice(hashIndex));
+    if (!want.length) return false;
+    let gotHash;
+    try {
+      gotHash = new URL(String(href ?? ''), 'https://placeholder.invalid').hash;
+    } catch { return true; }
+    const got = hashSegments(gotHash);
+    if (want.every((segment, index) => got[index] === segment)) return false;
+    return !matchesAlias();
+  }
+  const want = targetStr.replace(/\/+$/, '');
   if (!want) return false;
   let got;
   try {
     got = new URL(String(href ?? ''), 'https://placeholder.invalid').pathname;
   } catch { return true; }
   const gotNorm = got.replace(/\/+$/, '');
-  return !(gotNorm === want || gotNorm.startsWith(`${want}/`));
+  if (gotNorm === want || gotNorm.startsWith(`${want}/`)) return false;
+  return !matchesAlias();
+}
+
+/**
+ * 就绪判据（text 分支，**仅显式传 `--ready-text` 时生效**）：穿透文本命中给定
+ * regex 且连续 `TEXT_READY_POLLS`（2）轮 deepTextLength 稳定 → 就绪。
+ *
+ * 背景（2026-08-29 Similarweb 开荒）：列主序 DIV 大榜（Website Rankings 主榜）
+ * 不产 cells，Keyword Gap 有表格但水合看心情——table/chart 两分支都接不住。
+ * 未传参时 `resolveReadyText` 返回 null、poll 里的 readyTextHit 恒为 null，
+ * 本分支永不命中；「默认不启用」是红线，不是默认值巧合。
+ */
+export const TEXT_READY_POLLS = 2;
+
+export function resolveReadyText(flags) {
+  const raw = flags?.['ready-text'];
+  if (raw == null || raw === true || raw === '') return null;
+  return new RegExp(String(raw));
+}
+
+export function isTextReady(recent, stablePolls = TEXT_READY_POLLS) {
+  if (!Array.isArray(recent) || recent.length < stablePolls) return false;
+  const window = recent.slice(-stablePolls);
+  // readyTextHit 必须是显式 true：未启用（null/undefined）与未命中（false）都不就绪。
+  if (!window.every((poll) => poll?.readyTextHit === true)) return false;
+  const textLen = window[0]?.deepTextLength;
+  if (textLen == null) return false;
+  return window.every((poll) => poll?.deepTextLength === textLen);
+}
+
+/**
+ * 滚动容器选择（2026-08-29 Similarweb 开荒）：主滚动条在内层 div
+ * （.sw-layout-scrollable-element）时 window 滚动是空操作，且图表动画让截图
+ * md5 恒变、census 恒定 → 假到底。
+ *
+ * `--scroll-container auto|window|<selector>`，auto 为默认：优先内层最大可滚
+ * 容器——但仅当它的 scrollHeight 超过整页文档滚动（bodyScrollHeight）时才选它，
+ * 否则最大的「内层容器」可能只是一个 500px 的下拉列表，抢走 Semrush 这类
+ * window 正常滚动页面的滚动权。
+ */
+export function resolveScrollMode(value) {
+  if (value == null || value === true || value === '' || value === 'auto') return { mode: 'auto', selector: null };
+  if (value === 'window') return { mode: 'window', selector: null };
+  return { mode: 'selector', selector: String(value) };
+}
+
+/**
+ * auto 的挑选规则（纯函数，页面内 eval 里以同一份源码执行）：
+ *   1. 内层最大可滚容器的 scrollHeight > max(bodyScrollHeight, innerHeight)
+ *      → 选它（内层容器装的内容比整页文档还多，它才是真滚动条）；
+ *   2. 否则 window 能滚（bodyScrollHeight - innerHeight > 32）→ window；
+ *   3. 否则有内层容器就选内层最大者；再否则 window（空操作也比抛错好）。
+ */
+export function pickScrollContainer(containers, { bodyScrollHeight = 0, innerHeight = 0 } = {}) {
+  const list = Array.isArray(containers) ? containers : [];
+  let best = -1;
+  for (let index = 0; index < list.length; index += 1) {
+    const item = list[index];
+    const scrollHeight = Number(item?.scrollHeight || 0);
+    const clientHeight = Number(item?.clientHeight || 0);
+    if (clientHeight > 0 && scrollHeight - clientHeight > 32
+      && (best < 0 || scrollHeight > Number(list[best].scrollHeight || 0))) best = index;
+  }
+  const docScroll = Math.max(Number(bodyScrollHeight) || 0, Number(innerHeight) || 0);
+  if (best >= 0 && Number(list[best].scrollHeight || 0) > docScroll) return { kind: 'container', index: best };
+  if ((Number(bodyScrollHeight) || 0) - (Number(innerHeight) || 0) > 32) return { kind: 'window' };
+  if (best >= 0) return { kind: 'container', index: best };
+  return { kind: 'window' };
+}
+
+/**
+ * 假到底识别：**md5 恒变但 census 恒定**。图表动画让像素证人永不稳定，滚动又是
+ * 空操作（滚错了对象）时，双证人判据永远到不了「到底」，烧满 max-screens 还全是
+ * 同一视口。连续 `SHOT_UNSTABLE_PAIRS`（3）步 census 指纹逐字节相同而相邻截图
+ * md5 各不相同 → stopReason: census-stable-shot-unstable，绝不伪装成 stable，
+ * 也不再白烧剩余的 max-screens。
+ */
+export const SHOT_UNSTABLE_PAIRS = 3;
+export function isCensusStableShotUnstable(recentPairs, n = SHOT_UNSTABLE_PAIRS) {
+  if (!Array.isArray(recentPairs) || recentPairs.length < n) return false;
+  const window = recentPairs.slice(-n);
+  const fingerprint = window[0]?.fingerprint;
+  if (!fingerprint) return false;
+  if (!window.every((pair) => pair?.fingerprint === fingerprint)) return false;
+  for (let index = 1; index < window.length; index += 1) {
+    const prev = window[index - 1]?.md5;
+    const curr = window[index]?.md5;
+    if (!prev || !curr || prev === curr) return false;
+  }
+  return true;
 }
 
 /**
@@ -238,6 +381,8 @@ export function buildManifest({
   stopReason, budgetSeconds, maxScreens, error = null, refreshes = [],
   readyBranch = null, suspectedEmptyState = false,
   lockHeld = false, lockWaitMs = null, hijacked = false, hijackedHref = null,
+  acceptRedirects = [], readyTextPattern = null,
+  scrollMode = 'auto', scrollSelector = null, scrolls = [],
 }) {
   return {
     schemaVersion: 1,
@@ -252,13 +397,21 @@ export function buildManifest({
     // 以及拿到锁前等了多少毫秒（未加锁为 null）。
     lockHeld,
     lockWaitMs,
-    // 落点自检：href 离开目标路由 path → true + 当轮 href（已剥敏），
+    // 落点自检：href 离开目标路由 path/hash → true + 当轮 href（已剥敏），
     // 采集立即终止、退出码 3——不在别人的页面上继续轮询。
     hijacked,
     hijackedHref,
+    // `--accept-redirect` 声明的合法重定向别名（如 302 的落点），命中不算 hijack。
+    acceptRedirects,
     // 就绪走的是哪条分支："table"（filledCells>0）| "chart"（svgText>0 稳定）
-    // | null（从未就绪）。
+    // | "text"（--ready-text 命中且稳定）| null（从未就绪）。
     readyBranch,
+    // --ready-text 的 regex 源码；未启用为 null（text 分支默认不生效）。
+    readyTextPattern,
+    // 滚动容器策略与实际滚动记录（auto|window|selector；scrolls 记每次滚动的落点）。
+    scrollMode,
+    scrollSelector,
+    scrolls,
     // svgText===0 且 deepTextLength 稳定且无 filledCells 的疑似空态打标。
     // 只是打标——判断留给 AI 对质双证人。
     suspectedEmptyState,
@@ -279,13 +432,16 @@ export function buildManifest({
  * 采集
  * ------------------------------------------------------------------ */
 
-/** 页面侧读数：DEEP_DOM_JS 注入 + readDomCensus，包在 IIFE 里。 */
-const CENSUS_EXPR = `(() => {
+/**
+ * 页面侧读数：DEEP_DOM_JS 注入 + readDomCensus，包在 IIFE 里。
+ * href 带 location.hash：hash 路由 SPA 的 pathname 恒为 `/`，落点自检全靠 hash。
+ */
+export const CENSUS_EXPR = `(() => {
   ${DEEP_DOM_JS}
   const census = readDomCensus(document, { sampleChars: 20000 });
   return JSON.stringify({
     when: new Date().toISOString(),
-    href: location.pathname + location.search,
+    href: location.pathname + location.search + location.hash,
     title: document.title,
     scrollY: window.scrollY,
     innerHeight: window.innerHeight,
@@ -293,6 +449,53 @@ const CENSUS_EXPR = `(() => {
     census,
   });
 })()`;
+
+/**
+ * 一次滚动的页面侧表达式。window / selector / auto 三种模式；auto 在页面内
+ * 现场重算候选容器并以 pickScrollContainer 的**同一份源码**挑选——挑选逻辑
+ * 只有一处，离线测试测的就是页面里跑的那份。
+ */
+export function buildScrollExpr({ mode = 'auto', selector = null, amount = 700 } = {}) {
+  const amt = Math.max(1, Math.round(Number(amount) || 700));
+  if (mode === 'window') {
+    return `(() => { window.scrollBy(0, ${amt}); return JSON.stringify({ kind: 'window', scrollY: window.scrollY }); })()`;
+  }
+  if (mode === 'selector') {
+    return `(() => {
+  ${DEEP_DOM_JS}
+  const root = document.body || document.documentElement;
+  const el = deepQueryAll(root, ${JSON.stringify(String(selector ?? ''))})[0];
+  if (!el) { window.scrollBy(0, ${amt}); return JSON.stringify({ kind: 'window', missingSelector: true, scrollY: window.scrollY }); }
+  el.scrollTop += ${amt};
+  return JSON.stringify({ kind: 'container', tag: String(el.tagName || '').toLowerCase(), scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, scrollY: window.scrollY });
+})()`;
+  }
+  return `(() => {
+  ${DEEP_DOM_JS}
+  const pick = ${pickScrollContainer.toString()};
+  const root = document.body || document.documentElement;
+  const candidates = [];
+  for (const el of deepQueryAll(root, '*')) {
+    const scrollHeight = Number(el.scrollHeight || 0);
+    const clientHeight = Number(el.clientHeight || 0);
+    if (clientHeight > 0 && scrollHeight - clientHeight > 32) {
+      candidates.push({ el, tag: String(el.tagName || '').toLowerCase(), scrollHeight, clientHeight });
+    }
+  }
+  const bodyScrollHeight = Math.max(document.documentElement.scrollHeight, (document.body && document.body.scrollHeight) || 0);
+  const choice = pick(
+    candidates.map((c) => ({ tag: c.tag, scrollHeight: c.scrollHeight, clientHeight: c.clientHeight })),
+    { bodyScrollHeight, innerHeight: window.innerHeight },
+  );
+  if (choice.kind === 'container') {
+    const c = candidates[choice.index];
+    c.el.scrollTop += ${amt};
+    return JSON.stringify({ kind: 'container', tag: c.tag, scrollTop: c.el.scrollTop, scrollHeight: c.el.scrollHeight, scrollY: window.scrollY });
+  }
+  window.scrollBy(0, ${amt});
+  return JSON.stringify({ kind: 'window', scrollY: window.scrollY });
+})()`;
+}
 
 async function readCensus(evalPage) {
   const capture = await evalPage(CENSUS_EXPR);
@@ -312,6 +515,9 @@ async function main() {
   const outDir = path.resolve(required(flags, 'out'));
   const budgetMs = Math.max(1, Number(flags.budget) || 180) * 1000;
   const maxScreens = Math.max(1, Number(flags['max-screens']) || 12);
+  const acceptRedirects = parseAcceptRedirects(flags['accept-redirect']);
+  const readyText = resolveReadyText(flags);
+  const scroll = resolveScrollMode(flags['scroll-container']);
   mkdirSync(outDir, { recursive: true });
 
   // 配额站收敛：同一站点固定会话名（如 semrush-nav），daemon 把并发排成一队。
@@ -335,7 +541,9 @@ async function main() {
 
   const startedAtMs = Date.now();
   const startedAt = new Date(startedAtMs).toISOString();
-  const targetPath = new URL(url).pathname;
+  // hash 路由 SPA（pathname 恒为 `/`）以 hash 为落点身份，其余以 pathname。
+  const targetUrl = new URL(url);
+  const target = targetUrl.hash || targetUrl.pathname;
 
   const evalPage = async (expression) => firstJson(
     (await opencli(['browser', session, 'eval', expression], { windowMode, timeoutMs: 90_000 })).stdout,
@@ -344,6 +552,7 @@ async function main() {
   const polls = [];
   const steps = [];
   const refreshes = [];
+  const scrolls = [];
   let stopReason = 'error';
   let exitCode = 3;
   let readyAfterMs = null;
@@ -353,12 +562,12 @@ async function main() {
   let hijacked = false;
   let hijackedHref = null;
 
-  /** 逐轮落点自检：href 离开目标路由 → 记下当轮 href，立即终止本轮采集。 */
+  /** 逐轮落点自检：href 离开目标路由（path 或 hash 前 3 段，别名豁免）→ 立即终止。 */
   function assertOnTarget(capture) {
-    if (!isHijacked(targetPath, capture.href)) return;
+    if (!isHijacked(target, capture.href, acceptRedirects)) return;
     hijacked = true;
     hijackedHref = capture.href; // readCensus 已剥敏
-    const error = new Error(`tab hijacked: href ${capture.href} left target route ${targetPath}`);
+    const error = new Error(`tab hijacked: href ${capture.href} left target route ${target}`);
     error.code = 'hijacked';
     throw error;
   }
@@ -417,6 +626,8 @@ async function main() {
         deepTextLength: capture.census?.deep?.textLength ?? null,
         lightTextLength: capture.census?.lightDom?.textLength ?? null,
         svgText: capture.census?.deep?.svgText ?? null,
+        // --ready-text 未传时恒为 null：text 分支的「默认不启用」在这里落地。
+        readyTextHit: readyText ? readyText.test(String(capture.census?.deepText ?? '')) : null,
       };
       polls.push(summary);
       // 落点自检先于一切就绪判断：落在别人的页面上，「就绪」只会把污染当数据。
@@ -436,7 +647,15 @@ async function main() {
         filledCells: summary.filledCells,
         svgText: summary.svgText,
         deepTextLength: summary.deepTextLength,
+        readyTextHit: summary.readyTextHit,
       });
+      // text 分支（仅 --ready-text 时生效）先于 chart：显式判据比形状推断更强。
+      if (readyText && isTextReady(sinceRefresh)) {
+        readyAfterMs = Date.now() - startedAtMs;
+        readyBranch = 'text';
+        suspectedEmptyState = false;
+        break;
+      }
       // chart 就绪必须先于 stall 检查：svgText>0 的 3 轮稳定是就绪，不是卡住。
       if (isChartReady(sinceRefresh)) {
         readyAfterMs = Date.now() - startedAtMs;
@@ -480,17 +699,23 @@ async function main() {
     } else {
       // 3. 分屏循环：census + 截图成对落盘 → 滚一屏 → 真睡眠 → 再采。
       //    到底 = 与上一步双证人同时不变，连续 1 次。
+      //    假到底 = census 恒定而截图 md5 恒变（图表动画 + 滚错对象），连续
+      //    SHOT_UNSTABLE_PAIRS 步 → census-stable-shot-unstable，不伪装成 stable。
       let prev = null;
+      const recentPairs = [];
       for (let n = 1; n <= maxScreens; n += 1) {
         const pair = await capturePair(n);
         const same = pairsIdentical(prev, pair);
         pair.summary.sameAsPrevious = n === 1 ? null : same;
         steps.push(pair.summary);
+        recentPairs.push({ fingerprint: pair.fingerprint, md5: pair.md5 });
         if (same) { stopReason = 'stable'; exitCode = 0; break; }
+        if (isCensusStableShotUnstable(recentPairs)) { stopReason = 'census-stable-shot-unstable'; exitCode = 0; break; }
         prev = pair;
         if (n === maxScreens) { stopReason = 'max-screens'; exitCode = 0; break; }
         const amount = Math.min(2000, Math.max(200, Math.round((Number(pair.capture.innerHeight) || 772) * 0.9)));
-        await opencli(['browser', session, 'scroll', 'down', '--amount', String(amount)], { windowMode, timeoutMs: 60_000 });
+        const scrolled = await evalPage(buildScrollExpr({ mode: scroll.mode, selector: scroll.selector, amount }));
+        scrolls.push({ afterStep: n, amount, ...scrolled });
         await sleep(DWELL_MS);
       }
     }
@@ -507,6 +732,8 @@ async function main() {
       budgetSeconds: budgetMs / 1000, maxScreens,
       error: errorRecord, refreshes, readyBranch, suspectedEmptyState,
       lockHeld: Boolean(locks), lockWaitMs, hijacked, hijackedHref,
+      acceptRedirects, readyTextPattern: readyText ? readyText.source : null,
+      scrollMode: scroll.mode, scrollSelector: scroll.selector, scrolls,
     });
     try { writePayload(outDir, 'manifest.json', manifest); } catch (writeError) {
       console.error(redactSecrets(`manifest write failed: ${writeError?.message || writeError}`));

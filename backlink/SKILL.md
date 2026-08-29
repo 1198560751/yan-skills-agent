@@ -2198,7 +2198,13 @@ between any two of them another workflow can `open` its own URL into the shared
 caught in one recheck session** (2026-08-29, judge's write-up in
 `evidence/ground-truth/recheck-VERDICTS.md`, kept local).
 
-(a) **One collector per tool at a time.** Queueing is not isolation. The
+(a) **One collector per tool at a time — and "collector" includes a human-paced
+    manual exploration session.** Measured 2026-08-29 during the organic-routes
+    run: a hand-driven exploration that held no lock was **legitimately driven
+    off its tab by a lock-holding batch task** (`semrush-keyword.mjs`, the
+    game-review batch) — the lock holder was in the right, the explorer was
+    the intruder. Take the machine lock before any manual poking at a quota
+    tool, exactly as a scripted run would. Queueing is not isolation. The
     poster-child sample: the page-groups re-run was steered through `/home/`
     and someone else's keywordoverview and parked on **sylviejewelry.com's
     top-pages — 942 filled cells that, had nobody read the href, would have
@@ -2311,6 +2317,139 @@ route by route. Neither historical anomaly — "paid-search chart values never
 drew" and "daily-trends blank content area" — reproduced; both were
 un-rendered loading states filed as page truth.
 </semrush-traffic-route-capabilities>
+
+<semrush-organic-route-capabilities date="2026-08-29">
+<summary>
+**Route capability map for Semrush Organic Research + Keyword Gap — the
+"copy the competitor" chain, double-witness ground-truth run, 2026-08-29.**
+Collector: <ref file="scripts/ground-truth.mjs"/>, session `semrush-nav`,
+machine lock held for the whole run, strictly serial. Target domain canva.com
+(db=us). Judge's write-up: `backlink/evidence/ground-truth/semrush-organic-VERDICTS.md`
+— **kept local** (the evidence directory is gitignored). This block is the
+durable summary. Host is the authorized panel origin (`sem.3ue.co`); URL
+templates below are paths on it.
+</summary>
+
+<routes><![CDATA[
+| route | URL template | shape | scale (canva.com/us) | answers |
+|---|---|---|---|---|
+| positions | /analytics/organic/positions/?db=us&q=<domain>&searchType=domain | summary cards + distribution chart + table | 990 cells (~99 rows × 10 cols); totals 1,658,077 keywords / 16,581 pages | which keywords carry the domain's traffic (keyword / intent / position / SERP features / traffic / traffic% / volume / KD% / URL / last change) |
+| changes | /analytics/organic/changes/?db=us&q=<domain>&searchType=domain | trend chart + top-page-change cards + table | 1,230 cells; 45,382 total changes | what the competitor recently gained / improved / declined / lost (previous vs current position, delta, traffic change; "new" labels are plain DOM text, parseable) |
+| pages | /analytics/toppages/?db=us&q=<domain>&searchType=domain — /analytics/organic/pages/ 302s HERE; collect via the toppages URL directly, or pass --accept-redirect /analytics/toppages/ | summary cards + 3-line trend chart + table | 997 cells; 33,931 pages | which pages carry organic traffic (URL / traffic / change / traffic% / keyword count / **LLM prompts (大型语言模型提示) — new 2026 column** / referring domains / top keyword / intent) |
+| competitors | /analytics/organic/competitors/?db=us&q=<domain>&searchType=domain | competitive-position bubble chart + table | 700 cells (100 rows × 7 cols); 305,726 competitors | highest keyword-overlap rivals (domain / competition level / common keywords / SE keywords / traffic / cost / paid keywords); first row adobe.com, 17%, 328.5K common |
+| subdomains | /analytics/organic/subdomains/?db=us&q=<domain>&searchType=domain | single table | 60 cells (15 rows × 4 cols), all on first screen, no pagination | where the traffic sits by subdomain (canva.com: www = 100%, 37.25M) |
+| Keyword Gap (results) | /analytics/keywordgap/?q=<you>&searchType=domain&rankType=<bucket>&db=us&compareWith=<comp1>%3Adomain%3Aorganic%7C<comp2>%3Adomain%3Aorganic | best-opportunity cards + 3-circle Venn + bucketed table | 1,000 cells; buckets for canva vs figma vs express.adobe.com: common 45.4K / missing 24.9K / weak 8.2K / strong 24.6K / untapped 3.1M / unique 288.1K / all 3.9M | keywords rivals rank for and you don't (missing) or rank weakly for — the direct topic source |
+]]></routes>
+
+<keyword-gap-deep-link>
+The hardest-won finding of the run: **the Keyword Gap results page is directly
+addressable by URL** — no form walk needed. Verified reproducible template:
+<cmd><![CDATA[
+/analytics/keywordgap/?q=canva.com&searchType=domain&rankType=common&db=us&compareWith=figma.com%3Adomain%3Aorganic%7Cexpress.adobe.com%3Adomain%3Aorganic
+]]></cmd>
+- Each `compareWith` entry is `域名:searchType:关键词类型` (`domain:organic`,
+  URL-encoded `%3Adomain%3Aorganic`); **multiple competitors are separated by a
+  pipe `|` (`%7C`)** — never a comma.
+- `rankType` switches the bucket in the same parameter slot: `common` and
+  `missing` both verified by direct navigation; the bucket bar also offers
+  weak / strong / untapped / unique / all.
+- A subdomain (express.adobe.com) is accepted as a comparison column.
+- The **entry page** (`?db=us&q=&lt;domain&gt;&amp;searchType=domain` with no
+  `compareWith`) is a form with "you + up to 4 competitors" slots and **no
+  results — a single domain never reaches the results page**.
+</keyword-gap-deep-link>
+
+<lesson id="fake-paywall-is-a-url-encoding-error">
+**A "upgrade to Business" full-page blur modal can be a URL-encoding error, not
+a plan limit.** Joining two `compareWith` entries with a comma (`%2C`) swallows
+the second entry's `:domain:organic` suffix and stably reproduces the Business
+upgrade modal ("谷歌购物广告数据有限…升级到 Business", page blurred behind it).
+Switching the separator to `|` (`%7C`) made the same three domains return full
+data immediately. **When an upgrade modal appears, suspect your own URL encoding
+first, the subscription second.**
+</lesson>
+
+<lesson id="comparison-tools-need-full-inputs">
+**A comparison tool probed with a single input measures a degraded form state,
+not the feature.** The single-domain keywordgap entry renders only the empty
+form and was ruled INVALID as capability evidence. Any Gap / "X vs Y" style
+tool must be fed a full comparison set — 3 domains, or 3–5 keywords — before
+any verdict about what it can do is admissible.
+</lesson>
+
+<lesson id="semrush-shadow-form-recipe">
+**The Keyword Gap form (and its siblings) is a React controlled combobox buried
+in shadow DOM.** Measured interaction results, 2026-08-29:
+- opencli's AX layer (`find` / `click` / `state`) is completely blind to it;
+- a synthetic `value` setter **crashes the component** — after the re-render
+  even `deepQueryAll` no longer finds the input;
+- the working combination: `el.focus()` +
+  `document.execCommand("insertText")` to type, `opencli keys Enter` to
+  commit, plain `button.click()` to press 比较;
+- **do not use Escape to dismiss the dropdown** — it clears the uncommitted
+  text.
+Related read-out trap: the Venn diagram legend normalises subdomains to the
+root domain (express.adobe.com shows as "adobe.com 3.5M"); **read domains from
+the table column headers, never from the chart legend**.
+</lesson>
+
+<footnote>
+Organic Research tab set observed: 概览 / 排名 / 排名变化 / 竞争对手 / 主题 /
+子域名 — "主题 (topics)" not yet measured. Same nav group also holds 域名概览,
+比较域名 (`/analytics/comparedomains/`), 关键词差异, and 反向链接差异
+(`/analytics/gap/backlinks/`). The keyword-gap entry page's hydration is
+moody — same URL often parks at a 1.6M-char shell; the collector's
+stall-refresh handles it.
+</footnote>
+</semrush-organic-route-capabilities>
+
+<similarweb-explore-capabilities date="2026-08-29">
+<summary>
+**Route capability map for Similarweb's "pick the racetrack" chain — Demand
+Analysis + Website Rankings, double-witness run, 2026-08-29.** Session
+`similarweb-nav`, machine lock held throughout. Judge's write-up:
+`backlink/evidence/ground-truth/similarweb-explore-VERDICTS.md` — kept local.
+Everything here is **hash routing**: `location.pathname` is permanently `/`,
+so landing checks compare the first 3 hash segments and plain `open` of a deep
+link can load an empty shell — the collector's hash-aware self-check and
+`--scroll-container` / `--ready-text` flags (see
+<ref file="scripts/ground-truth.mjs"/>) exist precisely for this surface.
+</summary>
+
+<routes><![CDATA[
+| page | URL shape (hash on the panel origin) | shape | scale | answers |
+|---|---|---|---|---|
+| Demand Analysis home | #/digitalsuite/marketresearch/keywordmarketresearch/home | search box + topic cards + lists (no table, cells=0) | 4 trending-topic cards + 217-industry topic tree (in-page overlay) | topic radar entry: which topics' demand is rising |
+| Demand Analysis topic report | #/digitalsuite/marketresearch/keywordmarketanalysissearch/demand-search-trends?country=999&webSource=Total&duration=12m&id=AiTopic%3B<topic>%3B999 | cards + charts + 4 tables (table-ready in 23s, filledCells=180) | 74M total searches on 1,000 keywords; 12-month curve; countries table paginated /29 ≈ 145 countries | a topic's total demand, growth, keyword mix, geography — the core pick-a-keyword report. Deep-linkable: the id format is AiTopic;<topic>;999 |
+| Website Rankings selector | #/digitalsuite/markets/webmarketanalysis/home | industry tree only, no table | 217 industries (26 top-level + subcategories) | entry into a category board |
+| Website Rankings category board | #/digitalsuite/markets/webmarketanalysis/mapping/<Top_Level~Sub_Category>/<country>/1m?webSource=Total | 3 Top-movers tables + main board as a COLUMN-MAJOR DIV layout (produces no cells — census is blind to it) | 10,000 domains × 13 columns × 100 pages (100 rows/page); 9 channel tabs (all/search/social/display/referral/direct/email/generative AI/affiliates) | the god-view for site picking: category map, climbers/fallers, per-channel slices ("who is eating generative-AI traffic" is just a tab) |
+| AI traffic | #/digitalsuite/ai-traffic/overview/*/999/6m?webSource=Total | empty state awaiting a domain query | — | who gets AI referrals (not yet mined) |
+]]></routes>
+
+<rankings-mechanics>
+- **Industry slug is guessable**: readable, `~`-separated levels
+  (`Computers_Electronics_and_Technology~Graphics_Multimedia_and_Web_Design`);
+  a guessed slug deep-linked successfully with no hash drift.
+- **Page jump is direct**: the paginator ("N out of 100") is an `input` — type
+  a page number + Enter and it jumps (verified page 5 → rows 401–500 with real
+  long-tail data). Deep probes for `[class*=pagination]` find nothing; the
+  pixel witness located it first.
+- **Country change MUST go through the UI**: 999=worldwide, US=840 in the hash
+  segment, but editing the hash segment directly gets silently rewritten back
+  to 999. Use the header country dropdown (shadow DOM — semantic `find` fails,
+  deep `.click()` works); after the UI switch the URL contains /840/ and is
+  copyable.
+- On the industry tree, `click --text` lands on the first clickable item, not
+  the named one — deep-link the slug instead.
+- The main board produces **no cells** (column-major DIVs), so `cells &gt; 0`
+  is not a readiness criterion here — that is what the collector's
+  `--ready-text` branch is for; the main scrollbar lives in an inner div
+  (`.sw-layout-scrollable-element`, window scrollY stays 0), which is what
+  `--scroll-container auto` handles, and chart animation keeps screenshot md5
+  changing forever — a census-stable/shot-unstable stop is the honest outcome,
+  not `stable`.
+</rankings-mechanics>
+</similarweb-explore-capabilities>
 
 <other-drivers>
 <driver name="agent-browser" verdict="no logged-in identity, ever">
