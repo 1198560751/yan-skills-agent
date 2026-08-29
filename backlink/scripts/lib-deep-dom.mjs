@@ -180,7 +180,13 @@ export function readDomCensus(documentRef, options = {}) {
   const {
     scopeSelector = null,
     sampleChars = 60000,
-    tableSelector = 'table, [role="grid"]',
+    // 2026-08-29 试点发现的计数歧义：`'table, [role="grid"]'` 混在一个 `tables`
+    // 计数里，top-pages 页面 0 个 <table>、1 个 role=grid 的 DIV，读数报
+    // `tables: 1`——下游无法区分「真表格」和「grid 角色的 DIV」。所以拆成两个
+    // 字段分别数。**cells 的来源选择器不变**：单元格口径本来就同时收
+    // td / gridcell / cell，没有歧义。
+    tableSelector = 'table',
+    gridSelector = '[role="grid"]',
     cellSelector = 'td, [role="gridcell"], [role="cell"]',
   } = options;
 
@@ -216,6 +222,7 @@ export function readDomCensus(documentRef, options = {}) {
 
   const lightDom = {
     tables: root.querySelectorAll(tableSelector).length,
+    grids: root.querySelectorAll(gridSelector).length,
     cells: lightCells.total,
     filledCells: lightCells.filled,
     svgText: root.querySelectorAll('svg text').length,
@@ -224,6 +231,7 @@ export function readDomCensus(documentRef, options = {}) {
   };
   const deep = {
     tables: deepQueryAll(root, tableSelector).length,
+    grids: deepQueryAll(root, gridSelector).length,
     cells: deepCells.length,
     filledCells: deepFilled,
     svgText: deepQueryAll(root, 'svg text').length,
@@ -245,6 +253,7 @@ export function readDomCensus(documentRef, options = {}) {
     // 差值就是「这一页有多少东西藏在 shadow DOM 里」，本身是诊断信号，不是废话。
     hiddenBehindShadow: {
       tables: deep.tables - lightDom.tables,
+      grids: deep.grids - lightDom.grids,
       cells: deep.cells - lightDom.cells,
       filledCells: deep.filledCells - lightDom.filledCells,
       svgText: deep.svgText - lightDom.svgText,

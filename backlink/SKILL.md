@@ -2105,6 +2105,87 @@ if (noTable && chartHydrated >= 3 && exportBtns >= 1 && onTarget
 ]]></wrong>
 </law>
 
+<law id="every-measurement-needs-two-witnesses" weight="load-bearing">
+<statement>
+**Every measurement of a quota-site page needs two witnesses: the rendered
+pixels (a screenshot) and a shadow-DOM-piercing reading (a census). Any
+conclusion about the page must be able to produce both, taken at the same dwell
+position.** A single-witness reading is never sufficient grounds for a
+*negative* conclusion — "empty", "no data", "the feature does not exist" — and
+automation's job ends at collecting the witness pair. **The verdict belongs to
+the AI, cross-examining the two witnesses against each other**; a script that
+emits verdicts has crossed the line this law draws.
+
+| role | who | may do | may NOT do |
+|---|---|---|---|
+| collector | script (<ref file="scripts/ground-truth.mjs"/>) | poll, screenshot, census, pair them, write manifest | conclude anything |
+| judge | AI reading the evidence directory | compare pixels against DOM per dwell position | trust one witness alone for a negative |
+
+Each witness catches what the other misses, measured on the pilot page
+(2026-08-29, `top-pages` for canva.com — evidence in
+`evidence/ground-truth/semrush-top-pages-canva/`, kept local: screenshots of the
+logged-in panel do not enter this public repo):
+
+- **DOM has, screenshot cannot show**: 17 columns of which one viewport shows
+  ~6-7 (screenshot-only reading loses nearly 2/3 of the columns), 50 rows of
+  which one screen shows ~16, and 1.6M characters of deep text. A
+  screenshot-only pipeline under-reads massively.
+- **Screenshot has, DOM cannot prove**: which page is actually *rendered* — a
+  census of a hidden half-hydrated tab and a census of the real report can look
+  alike, and only the pixels settle whether the user-visible page is a report, a
+  sales page, or a skeleton. The trend-line curves' shapes exist only as pixels.
+
+**Readiness binds to `filledCells`, never to text length — text length is the
+shell, not the goods.** Pilot timeline, same page, same session: deep text hit
+**1,599,006 characters at ~9 seconds** with **0 non-empty cells**; the data
+landed at **~76 seconds** as **850 filled cells** (deep text then 1,605,808).
+Any "deep text is long, so the page is ready" criterion fires a full minute
+early on a pure shell. Corollary, in collection order: **poll the census until
+`filledCells > 0` first, and only then start screenshotting** — the reverse
+order archives a pile of loading-state screenshots as if they were evidence.
+
+**Bottom-of-page binds to both witnesses at once**: the census unchanged AND the
+screenshot md5 unchanged against the previous dwell. One witness frozen alone
+proves nothing — an unchanged census with moving pixels is an animation or
+virtual scroll; unchanged pixels with a changing census is data mutating below
+the fold, and "scrolled but `scrollY` never moved" may just mean the real
+scroller is not `window`.
+
+The collector is `node scripts/ground-truth.mjs --url &lt;url&gt; --out
+&lt;evidence-dir&gt;` — quota-site session convergence, foreground birth, poll →
+paired census+screenshot per screen → manifest, secrets scrubbed before
+anything touches disk or stderr. Its output directory *is* the witness bundle;
+the pilot bundle above is the reference for what a completed cross-examination
+looks like (`CARD.md` there is the judge's write-up).
+</statement>
+<why>
+Every prior instance of this Skill's blindness — the 59-character shell read as
+an empty page, `exportBtns: 12` counted off a blank content area, nine
+`no-table-structural` verdicts manufactured from shallow counts, a sales page
+scanned as "no table, has svg" — shared one shape: **one witness, trusted
+alone, with no second witness able to contradict it.** The pilot run closed the
+loop the other way: every number spot-checked in the pixels (39.47%, 5853.7万,
+2.2亿, 934.4万, 6742, 6220, 5218, "Page 1 of 1,430") was found in the DOM
+sample, and every DOM claim was confirmed on screen — that agreement, checked
+per dwell position, is what a conclusion is allowed to stand on.
+
+Anti-example, the readiness trap in its exact pilot numbers: at 9 seconds the
+census read `deepTextLength: 1,599,006 / filledCells: 0`. A text-length
+criterion says "ready" — and the paired screenshot at that instant shows a
+skeleton. At 76 seconds the census read `filledCells: 850`, and the screenshot
+shows the table. **Two witnesses disagreeing is itself the signal**: it means
+"shell up, goods not yet" — a state no single witness can name.
+
+Anti-example, the judging script: a collector that also classifies ("empty",
+"ready", "no such feature") re-creates every verdict bug this file documents,
+one layer down, where no law reviews it. The pilot's census counted
+`tables: 1` off a page with zero `table` elements (a `role=grid` DIV) — a
+mechanical reading with a built-in ambiguity that only a reader comparing both
+witnesses (and the split `tables` / `grids` fields that fix followed from)
+could catch. Scripts collect; the AI judges.
+</why>
+</law>
+
 <other-drivers>
 <driver name="agent-browser" verdict="no logged-in identity, ever">
 It attaches over CDP, and CDP cannot reach the owner's Chrome: Chrome 136+
