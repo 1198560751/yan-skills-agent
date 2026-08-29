@@ -973,6 +973,10 @@ the visibility-induced fake empty is proven: 0 non-empty cells while `hidden`,
 850 while `visible`, three crossing measurements. Treat an empty read there as
 `inconclusive-hidden` until a `visible` read confirms it.
 
+**Confirmed affected — 第 N 次复现, 2026-08-30 (backlinks overview+indexed
+组合采集)。** 脚本首跑忘传 foreground,background 出生后 **12 轮 census
+纹丝不动**;改 foreground 出生立即正常。与既有结论逐字一致,只补案例行。
+
 **Provisionally NOT affected — the Class A routes, re-measure pending.**
 `referral`, `organic-search`, `paid-search`, `organic-social` returned **zero
 table elements under `visible`, three reads running**, byte-for-byte the same
@@ -2157,6 +2161,22 @@ paired census+screenshot per screen → manifest, secrets scrubbed before
 anything touches disk or stderr. Its output directory *is* the witness bundle;
 the pilot bundle above is the reference for what a completed cross-examination
 looks like (`CARD.md` there is the judge's write-up).
+
+**⚠️ DOM 全盲页型存在 — 本法则至今最极端的实证 (2026-08-30,竞争对手监控页
+`/analytics/traffic/competitor-monitoring`)。** 那一页 census 全 0
+(tables/grids/cells/svgText/canvas 全 0)、iframe=0、开放 shadow root 无空宿主、
+deepText 恒 1.599–1.607M 纯壳,**深穿透全文 grep 不到屏上任何数字**
+(「2572/时间轴/谷歌搜索广告」一个都搜不到;机制未定,疑 closed shadow root)——
+而**像素证人两个停留位皆满页真数据**(2572 条广告、创意时间轴、1656 新页面)。
+**单 DOM 证人会把满页数据判成空壳**;在这种页型上,像素不是"第二证人",
+是唯一可用证人,DOM 只剩「壳基线」价值,身份改由 302 落点 + 侧栏高亮互证。
+
+**由此给 <ref file="scripts/ground-truth.mjs"/> 记一条已知局限(记录在案,
+不改代码):对 DOM 全盲页型,它的三条就绪分支(cells/svg/text)全部失明,
+budget 退出码 2 不可信 —— exit 2 在这种页上不是"没就绪",是"仪器看不见";
+`--ready-text` 也救不了它,regex 会被左栏同名导航词在 spinner 上提前误触发
+(census-stable-shot-unstable 实录)。此页型的正确姿势:foreground 开页 →
+固定等待(实测 90–120s)→ 截图为准,必须人/AI 看图下判,绝不采信机器判定。**
 </statement>
 <why>
 Every prior instance of this Skill's blindness — the 59-character shell read as
@@ -2479,6 +2499,57 @@ organic set; only 排名 and 广告创意 measured. Cross-check anchor: canva.co
 analysis, historical semrush-traffic run).
 </footnote>
 </semrush-ads-trends-capabilities>
+
+<semrush-backlinks-monitoring-capabilities date="2026-08-30">
+<summary>
+**Route capability map for Semrush 外链四件套 + Backlink Gap + 竞争对手监控
+(EyeOn 后继) — double-witness ground-truth run, 2026-08-30.** Collector:
+<ref file="scripts/ground-truth.mjs"/> (machine-wide semrush lock held per
+command for the whole run), session `semrush-nav`, target domain canva.com;
+Gap comparison canva.com vs figma.com vs adobe.com. Judge's write-up:
+`backlink/evidence/ground-truth/semrush-backlinks-audience-VERDICTS.md` —
+**kept local** (the evidence directory is gitignored). Host is the authorized
+panel origin; URL templates below are paths on it.
+</summary>
+
+<routes><![CDATA[
+| page | URL template | shape | scale (canva.com) | answers |
+|---|---|---|---|---|
+| 反向链接明细 | /analytics/backlinks/backlinks/?q=<domain>&searchType=domain | grid 表 (readyBranch=table, ~73s, 320 cells/屏) | ~127,977,174 条, 100 行/页 | 逐条外链画像: 源页 AS/标题/URL/语言/内外链数/锚文本+目标 URL/链接类型(文本图片)/位置(内容)/Follow 属性/首末发现日期; 丢失行带「丢失:链接已移除」灰字行内注释, 不是新行 |
+| 引荐域名 | /analytics/refdomains/report/?q=<domain>&searchType=domain — 不在 /backlinks/ 下; /analytics/backlinks/refdomains/ 是死路由, 302 回 /analytics/backlinks/overview/(hijack 自检 exit 3 留档)。引荐域名是左栏「外链建设」组的独立工具, 不是 backlinks 的 tab | grid 表 (~40s, 600 cells/屏); 表头中英混排, 别按中文列名解析 | ~628,658 域, 100 行/页 | 谁在链我(outreach 名单原料): AS/Root Domain+Category/Backlinks/Country IP/First Seen/Last Seen; 顶部「新增和丢失」图表区自己的空态不代表下方表空 |
+| 锚链接 | /analytics/backlinks/anchors/?q=<domain>&searchType=domain | grid 表 (~40s, 500 cells/屏) | 100 行/页, 总数不显示 | 锚文本分布: 锚文本/反向链接/域名/首末发现。站群模板链样例: edit image 32,105,651 条却仅 3 域, 与 canva 4,132,305 条 142,440 域相差 7 个数量级 — 读分布必须反链数+域名数双列一起读 |
+| 编入索引页面 | /analytics/backlinks/pages/?q=<domain>&searchType=domain — tab 中文名「编入索引页面」slug 却是 pages; /analytics/backlinks/indexed-pages/ 是死路由 302 回 overview; tab 行是 JS router 不是 <a href>, 扒不到 href, 深点 tab 后读 location 才拿到 slug | grid 表 (600 cells/屏) | ~89,284,236 页, 100 行/页 | 竞品哪些页面吃到最多外链(linkable asset 排行): 标题 URL/反链/域名/外内链/上次发现; 大量标题是「Unsupported client – Canva」(爬虫被前端拒), 以 URL 为准 |
+| Backlink Gap (反向链接差异) | /analytics/gap/backlinks/?q=<you>&searchType=domain&compareWith=<d2>%3Adomain%7C<d3>%3Adomain → 302 到 /analytics/gap/backlinks/report/?… 且表格直接出数 — URL 直达可重现, 无需走表单。compareWith 与 Keyword Gap 同构但少 :organic 段: <domain>:domain, 竞品间用竖线 %7C 分隔(绝不是逗号), 槽位 You+最多 4 竞品 | 真 <table> 元素 (tables=1, 本批唯一; 其余全是 role=grid DIV), 700 cells, filledCells 就绪 | 潜在机会 506,817 引荐域 (canva vs figma vs adobe) | 谁链竞品没链我: 分桶 最佳/弱/强/共享/唯一/所有 (Keyword Gap 是 缺失/弱/强/共享/未开发 — 结构同构桶名不同) + AS 下拉 + 高级筛选器; 列: 引荐域名+类别/AS/每月访问量/匹配 n\/3/逐域反链数。默认「最佳」桶已是"竞品有我没有" |
+| One2Target | ~~/trends/one2target/~~ 404「我们迷路了」 | 独立工具不存在 — 负结论入册, 别再找入口 | — | .Trends 左栏 28 项实扒无此条; 其四个 tab = 流量与市场「受众」组四条路由, 均有既有双证人判决: demographics (20 cells) / audience-overlap (204) / socioeconomics (chart-only) / behavior (data-not-in-table)。找受众画像走 /analytics/traffic/{demographics, socioeconomics, behavior, audience-overlap}/?q=<domain>&searchType=domain |
+| 竞争对手监控 (= EyeOn 后继) | /eyeon/ → 302 /analytics/traffic/competitor-monitoring?lid=<listId>; 直达带 lid 可重现 (lid = .Trends 列表身份, 与市场概览共用) | **DOM 全盲页 — 本批新页型** (census 全 0: tables/grids/cells/svgText/canvas/iframe=0, deepText 恒 1.6M 纯壳; 唯一可用证人=像素, 见 every-measurement-needs-two-witnesses 的极端案例) | 零配置出数 (直接吃 .Trends lid, 不用建监控): canva.com 近月 谷歌搜索广告 2572 (创意带日期/国旗/文案/落地 URL 时间轴) / 博文 0 / 新页面 1656; 仅社交媒体维度需点「设置」 | 盯竞品动态: 新广告创意时间轴/新博文/新页面/社交帖与参与度 |
+]]></routes>
+
+<lesson id="unknown-backlinks-subpath-302s-to-overview">
+**未知 backlinks 子路径统一 302 回落 overview(与 adwords 组回落 positions
+同模式)。302 回落是「路由不存在」的形状,不是「无数据」** — hijack 自检 exit 3
+是正确留档,别把回落页当目标页的空态读。本轮两条死路由实测:
+`/analytics/backlinks/refdomains/` 与 `/analytics/backlinks/indexed-pages/`。
+旧 app 路径(`/trends/one2target/` 型)在本镜像一律 404。
+</lesson>
+
+<lesson id="backlinks-overview-zero-is-component-failure">
+**反链 overview 摘要卡的 0 是组件故障,不是域名事实。**
+`/analytics/backlinks/overview/` 实测渲染「引荐域名 0 / 反向链接 0」+
+Authority Score 两卡「Data is unavailable · Reload」,而**同一时刻**明细页有
+628K 域 / 1.28 亿条(自然流量与网络图表卡正常渲染,census 与像素一致——
+坏的是那几张卡自己)。**任何以 overview 摘要卡为准的判空作废**;判一个域名
+有没有外链,永远去明细路由数行。
+</lesson>
+
+<lesson id="competitor-monitoring-pixel-only-collection">
+**竞争对手监控页只能像素采集**:foreground 开页 → 固定等待(实测约 90-120s)→
+截图为准;census 仅作「壳基线」记录,读数靠 AI 读图。三条就绪分支
+(cells/svg/text)对它全部失明;`--ready-text` 的 regex 必须避开左栏导航词,
+否则会在 spinner 上提前触发(本轮踩过:census-stable-shot-unstable 停在
+加载态)。时间轴广告创意多语种(pt/es/…),像素抽查用整句文案。
+详见 <law-ref id="every-measurement-needs-two-witnesses"/> 的 DOM 全盲页补条。
+</lesson>
+</semrush-backlinks-monitoring-capabilities>
 
 <similarweb-explore-capabilities date="2026-08-29">
 <summary>
