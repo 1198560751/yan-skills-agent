@@ -32,7 +32,7 @@ URL 基式：`/analytics/traffic/<路由>/?q=<domain>&searchType=domain`（host:
 | `paid-social` | chart-only | 140K–170K（轴顶 200K） | ✅ [`paid-social/PAGE.md`](paid-social/PAGE.md) |
 | `display-ads` | chart-only | 45K–170K | ✅ [`display-ads/PAGE.md`](display-ads/PAGE.md) |
 | `daily-trends` | chart-only | 日访问 20M–35M（轴顶 40M） | ✅ [`daily-trends/PAGE.md`](daily-trends/PAGE.md) |
-| `email` | **时变**：2026-08-29 空态（svgText=0）→ 2026-08-30 同域有图（svgText=31） | 轴顶 1000万（有图轮） | ✅ [`email/PAGE.md`](email/PAGE.md) |
+| `email` | **时变**：2026-08-29 空态（svgText=0）→ 2026-08-30 同域有图（svgText=31）；nytimes.com（lid=1234971）也 svgText=31、月度 600–950万——空态是域/水合相关，非路由恒空 | 轴顶 1000万（有图轮） | ✅ [`email/PAGE.md`](email/PAGE.md) |
 
 ## 板块级要点
 
@@ -44,9 +44,20 @@ URL 基式：`/analytics/traffic/<路由>/?q=<domain>&searchType=domain`（host:
   渲染出真图（svgText=31）——判决降级为「时变/水合相关」**：svgText=0 只能判
   「本轮空」，判不了「该路由恒空」；详见 `email/PAGE.md`。
 - **平台坑：全树 `q=` 被 `lid` 覆盖（2026-08-30 round4 实锤）**。面板会自动附加
-  `lid=<未命名列表>`，此后**所有** `/analytics/traffic/*` 子路由渲染的都是列表域的
-  数据，href 里的 `q=` 是摆设（`?q=nytimes.com` 落点仍渲染 canva.com）。换域必须先
-  换共享「未命名列表」的域名 chip 或建新列表——而现存列表被历史证据引用、只读纪律下
-  不动，**换域采集是待裁决事项，不是 bug**。判决书：`semrush-round4-VERDICTS.md` 页卡 7。
+  `lid=<列表>`，此后**所有** `/analytics/traffic/*` 子路由渲染的都是列表域的
+  数据，href 里的 `q=` 是摆设。判决书：`semrush-round4-VERDICTS.md` 页卡 7。
+- **换域配方（2026-08-30 已解决，判决书 `semrush-lid-switch-VERDICTS.md`）**：
+  为目标域**新建一个列表**（历史列表照旧不动），之后任意子路由带
+  `lid=<新lid>` 直达：`/analytics/traffic/<路由>/?q=<domain>&searchType=domain&lid=<lid>`。
+  已知 lid：`1234565`=canva.com（历史，只读）、`1234971`=nytimes.com（probe）。
+  建列表：页头列表按钮 → 下拉底部「+ 创建新列表」→ 编辑器右侧域名输入
+  （`input[data-testid="input-target-input"]`）用 `focus()+execCommand('insertText')`
+  填域，**提交 chip 必须在 input 上 dispatch 合成 KeyboardEvent Enter 三连
+  （keyCode:13，bubbles:true）——CDP 真键与点 ✓ 图标都不生效**，成功判据是计数
+  0/100→1/100；再点「保存更改」，落点 URL 里就是新 lid。三个坑：①新列表刚建成
+  全页骨架数分钟（服务端算数据，「正在收集洞察」），骨架≠空态，等几分钟重采即
+  10 秒级就绪；②创建编辑器里填的列表名不落库，新列表仍叫「未命名列表」，靠 lid
+  区分即可（改名入口未找到）；③每列表上限 100 个域（编辑器计数 X/100），列表总数
+  未见限额提示，也未见消耗其他配额。
 - **骨架屏 + 分页计 0 + 导出置灰 ≠ 空态**：sources-destinations 目标 tab 实测两轮
   ~4 分钟全骨架、第三轮出数——判空必须等到非骨架行或明确空文案。

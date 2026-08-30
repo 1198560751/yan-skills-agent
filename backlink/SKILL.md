@@ -2624,10 +2624,25 @@ requires switching the shared list's domain chip (or building a new list) —
 the sub-routes' `q=` is decoration.** That shared list (`lid=1234565`) is
 referenced by this round's and prior rounds' evidence; changing it would
 poison shared state and historical reproducibility, so under read-only
-discipline it was NOT touched. **Cross-domain Traffic Analytics collection is
-an open item awaiting a mainline ruling** (option: let the form create a NEW
-lid without touching the old one — needs a human call on whether list
-creation burns account assets). It is a platform trap, not a bug.
+discipline it was NOT touched. It is a platform trap, not a bug.
+
+**RESOLVED 2026-08-30 (user-authorised): create a NEW list for the target
+domain and address every sub-route by `lid=&lt;new lid&gt;`; the old list stays
+untouched.** Verified end to end (`semrush-lid-switch-VERDICTS.md`): new
+lid 1234971 → nytimes.com, top-pages readyBranch=table filledCells=850 and
+email svgText=31 both double-witness HITs, old lid 1234565 still renders
+canva.com. Recipe: header list button → dropdown "+ 创建新列表" → editor's
+domain input (`input[data-testid="input-target-input"]`), fill via
+`focus()+execCommand('insertText')`, then **commit the chip by dispatching a
+synthetic KeyboardEvent Enter (keyCode 13, bubbles) ON the input — a real
+CDP `keys Enter` and clicking the ✓ icon both do nothing**; success = the
+0/100 counter ticking to 1/100; then click 保存更改 and read the new lid off
+the landing URL. Traps: a fresh list renders full-page skeleton for minutes
+while the server computes (skeleton ≠ empty — wait and re-collect, then it
+hydrates in ~10s); the list name typed in the editor does not persist (lists
+stay "未命名列表", identity is the lid); each list caps at 100 domains
+(X/100 counter), and no list-count quota or asset cost surfaced anywhere in
+the flow.
 </lesson>
 
 <lesson id="ads-history-standin-verdict">
