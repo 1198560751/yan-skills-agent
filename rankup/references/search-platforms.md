@@ -302,7 +302,7 @@ node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs bing   submit --site https
 node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs yandex submit --site https://example.com --sitemap https://example.com/sitemap.xml
 ```
 
-**脚本采集留证，判读归 AI（2026-08-30 双证人化，截图链路待实盘验证）**：
+**脚本采集留证，判读归 AI（2026-08-30 双证人化，截图链路已实盘验证）**：
 `webmaster-sitemap.mjs` 的每次点击前后都会截图并保存页面文本到
 `.rankup/evidence/webmaster-sitemap-<ts>/`（含 manifest.json 的 stopReason）。
 submit 结束时它只报告事实——「解析出 N 行，其中含/不含目标地址（suggested:

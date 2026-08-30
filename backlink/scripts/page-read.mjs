@@ -20,7 +20,7 @@
  * 已改为 `paywallSignals`——每类给出**命中的原文片段 + 前后文**（matched spans），
  * 没命中是空数组；「这家到底是买断还是订阅」由 AI 拿片段 + 截图判。
  * 读完 captureScene（穿透 census + 截图）落进 --evidence-dir，输出带 evidence；
- * 读取失败也先取证再抛。截图链路待实盘验证。
+ * 读取失败也先取证再抛。截图链路已实盘验证。
  */
 import { writeFile } from 'node:fs/promises';
 import { defaultSession, openAndEval, parseFlags, printJson, required, validateSession, showHelpIfRequested} from './opencli-core.mjs';

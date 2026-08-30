@@ -42,7 +42,7 @@
  * 2026-08-30 双证人化：所有失败路径（never rendered / never settled / 任何异常）
  * 在退出前 captureScene（穿透 census + 截图）落进 --evidence-dir（默认
  * `<out>.evidence/` 或 `.backlink/evidence/semrush-report/…`）；
- * `status:'unavailable'` 的输出带 evidence 字段（现场路径）。截图链路待实盘验证。
+ * `status:'unavailable'` 的输出带 evidence 字段（现场路径）。截图链路已实盘验证。
  */
 import { resolveSession, opencli, firstJson, parseFlags, showHelpIfRequested, printJson, validateSession } from './opencli-core.mjs';
 import { captureStable, expiryWarning, launchTool, redactSecrets } from './lib-tools-share.mjs';

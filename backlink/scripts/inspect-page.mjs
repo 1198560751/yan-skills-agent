@@ -7,7 +7,7 @@
  * （visible: false）；随后 captureScene 落一对现场（穿透 census + 截图）进
  * --evidence-dir。`fillable` / `blocker` / `reason` / `selectedForm` 是**启发式
  * 建议（见 suggested 字段），不是判决**：判断由 AI 基于 forms 普查 + 截图做，
- * 可推翻。safe-fill.mjs 只把 fillable 当机械前置条件用。截图链路待实盘验证。
+ * 可推翻。safe-fill.mjs 只把 fillable 当机械前置条件用。截图链路已实盘验证。
  *
  * 用法：
  *   node inspect-page.mjs --url https://x/submit [--mode auto|directory|comment]

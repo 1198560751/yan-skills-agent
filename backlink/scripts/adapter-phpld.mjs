@@ -21,7 +21,7 @@
  * staged-captcha / filled-no-captcha / error）在写行前 captureScene（穿透
  * census + 截图）落进 `<out>.evidence/`，行内带 evidence；浏览器调用改走
  * opencli-core 的 opencli()（带访问记账），不再 execFileSync 裸调。
- * 截图链路待实盘验证。
+ * 截图链路已实盘验证。
  */
 
 import fs from 'node:fs';

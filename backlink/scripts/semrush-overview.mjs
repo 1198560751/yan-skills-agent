@@ -26,7 +26,7 @@
  *
  * 2026-08-30 双证人化：never-rendered / churning / 任何异常在退出前 captureScene
  * （穿透 census + 截图）落进 --evidence-dir；inconclusive（渲染信号缺失）也补拍
- * 一对——稳定的占位值和稳定的真值只有截图能对质。截图链路待实盘验证。
+ * 一对——稳定的占位值和稳定的真值只有截图能对质。截图链路已实盘验证。
  */
 import { resolveSession, parseFlags, showHelpIfRequested, printJson, required, validateSession } from './opencli-core.mjs';
 import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';

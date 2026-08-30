@@ -69,7 +69,7 @@
  *     要正文得 `topic <uid>` 逐条取。对它套用列表降级判据会每页白开一次浏览器。
  */
 
-// 双证人化改造 2026-08-30（截图链路待实盘验证）：正文可见性输出
+// 双证人化改造 2026-08-30（截图链路已实盘验证）：正文可见性输出
 // access_evidence + suggested_access；取数失败 die 前 dump 现场到 .rankup/evidence/。
 import { writeFileSync, mkdirSync, appendFileSync, existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
@@ -125,7 +125,7 @@ const die = (m) => {
 };
 
 /**
- * 取数失败的退出出口（双证人化 2026-08-30，截图链路待实盘验证）：
+ * 取数失败的退出出口（双证人化 2026-08-30，截图链路已实盘验证）：
  * die 之前把手里最后的证据 dump 进 `.rankup/evidence/webcafe-forum-<ts>/`——
  * 响应状态、props/HTML/原文片段进 extra.json；ctx.session 存在（走过浏览器
  * transport）时再补一张截图。旧版只留一句结论文案，「没拿到」到底是 401、

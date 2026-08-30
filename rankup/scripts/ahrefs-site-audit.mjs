@@ -3,7 +3,7 @@
  * ahrefs-site-audit.mjs —— 读取 Ahrefs Site Audit 已有的抓取结果，
  * 驱动用户已登录的浏览器。与 ahrefs-setup.mjs 互补：那个负责建项目和验证，这个负责取数。
  *
- * 状态：双证人化改造 2026-08-30（截图链路待实盘验证）。
+ * 状态：双证人化改造 2026-08-30（截图链路已实盘验证）。
  * 失败分支不再只留一句结论文案：退出前把「截图 + 页面文本 + manifest(stopReason)」
  * 落进 `.rankup/evidence/ahrefs-site-audit-<ts>/`，会话关闭发生在取证**之后**；
  * `--keep-session` 可以连现场标签页一起留下。

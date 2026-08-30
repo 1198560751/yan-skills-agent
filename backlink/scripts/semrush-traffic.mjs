@@ -11,7 +11,7 @@
  * semrush-report.mjs 的 `note` 字段早就把读者指向这个路由了，但一直没有脚本实现它——
  * 本文件把那句注释兑现，别再写第二个。
  *
- * 2026-08-30 双证人化：失败路径退出前 captureScene 落现场，截图链路待实盘验证。
+ * 2026-08-30 双证人化：失败路径退出前 captureScene 落现场，截图链路已实盘验证。
  *
  * 用法：
  *   node semrush-traffic.mjs --domain canva.com
@@ -101,7 +101,7 @@ import { parseNumber } from './lib-similarweb.mjs';
 import { classifyTargetScope } from './lib-report-readiness.mjs';
 import { DEEP_DOM_JS, scrollThroughSegments } from './lib-deep-dom.mjs';
 // 2026-08-30 双证人化：失败路径在退出前 captureScene（穿透 census + 截图）成对
-// 落盘，unavailable 输出带 evidence 字段。截图链路待实盘验证。
+// 落盘，unavailable 输出带 evidence 字段。截图链路已实盘验证。
 import { captureScene, defaultSceneDir } from './lib-evidence-scene.mjs';
 import { writeFile } from 'node:fs/promises';
 

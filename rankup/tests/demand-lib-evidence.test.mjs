@@ -86,7 +86,7 @@ test('空结果输出：源失败与源成功长得不一样；die() 先落 mani
 // ── 2026-08-30 重构第二波：浏览器失败现场的双证人 captureBrowserScene ──────────
 // 契约：页面文本（DOM 证人）+ 截图（视觉证人）成对落进证据目录；
 // 任何一步取证失败都不抛——取证失败不许掩盖原始错误。
-// 这里用假 opencli 验证调用形态与落盘；真 Chrome 上的截图链路待实盘验证。
+// 这里用假 opencli 验证调用形态与落盘；真 Chrome 上的截图链路已实盘验证。
 
 import { mkdtempSync as mkdtemp2, writeFileSync, chmodSync, existsSync } from 'node:fs';
 
@@ -126,9 +126,27 @@ test('captureBrowserScene：opencli 调不起来也不抛，证人记 null/错�
   let out;
   assert.doesNotThrow(() => { out = lib.captureBrowserScene('sess-x', 'boom', { bin: '/nonexistent-opencli-xyz' }); });
   assert.equal(out.shot, null);
+  // 拍不到的原因必须留下：静默 null 会让「这次没拍成」和「压根没拍」长得一样
+  assert.ok(out.shotError, '截图拿不到时应记下原因');
   // 文本证人退化为错误现场文件（或 null），但绝不抛出去掩盖原始错误
   if (out.text) {
     const page = JSON.parse(readFileSync(out.text, 'utf8'));
     assert.ok(page.error, '退化文件里应记下拿不到证人的原因');
   }
+});
+
+test('captureBrowserScene：opencli 在场但截图子命令失败时也记 shotError', () => {
+  const dir = mkdtemp2(path.join(os.tmpdir(), 'demand-lib-scene-'));
+  const binDir = mkdtemp2(path.join(os.tmpdir(), 'demand-lib-bin-'));
+  const bin = fakeOpencli(binDir, [
+    'case "$*" in',
+    '  *" eval "*) echo \'{"url":"https://example.test/x","title":"T","readyState":"complete","text":"hi"}\';;',
+    '  *" screenshot "*) echo "no active session" 1>&2; exit 4;;',
+    'esac',
+  ].join('\n'));
+  lib.initEvidence('unit-test-scene-shotfail', { dir, argv: [] });
+  const out = lib.captureBrowserScene('sess-x', 'shotfail', { bin });
+  assert.ok(out.text, '文本证人照常落盘——一个证人失败不该拖垮另一个');
+  assert.equal(out.shot, null);
+  assert.match(out.shotError, /no active session|exit 4/);
 });

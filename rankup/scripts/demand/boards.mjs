@@ -39,7 +39,7 @@
  *     自助申请见 https://api.producthunt.com/v2/docs）。缺失时自动降级到浏览器路径。
  *     **不要把真实 token 写进脚本或文档。**
  *
- * 失败留现场（2026-08-30 重构第二波，截图链路待实盘验证）：
+ * 失败留现场（2026-08-30 重构第二波，截图链路已实盘验证）：
  *   - 浏览器源（producthunt / toolify / taaft）单页失败：先把**截图+页面全文**落进
  *     证据目录、状态记进 manifest，再继续/收尾——不再 die 全局，也不再让 finally
  *     的 browserClose 先毁现场（--keep-open 连关都不关）。
@@ -264,7 +264,7 @@ function browserClose(session) {
 /**
  * 浏览器源失败：**先取证后关**。截图+页面全文成对落进证据目录，状态记进 manifest，
  * 然后由调用方决定继续跑其它页/其它步骤（单页失败不 die 全局）。
- * 截图链路待实盘验证（2026-08-30 重构第二波）。
+ * 截图链路已实盘验证（2026-08-30 重构第二波）。
  */
 function leaveSceneAndRecord(session, source, tag, error) {
   const scene = captureBrowserScene(session, tag);

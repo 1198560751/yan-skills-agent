@@ -34,7 +34,7 @@
  *   node scripts/similarweb-batch.mjs --domains-file d.txt --out traffic.jsonl [--session x] [--node 3]
  *   # 证据落在 traffic.jsonl.evidence/<domain>.png / .txt
  *
- * 截图链路（opencli browser screenshot）2026-08-30 重构后尚未实盘验证；
+ * 截图链路（opencli browser screenshot）2026-08-30 重构后已实盘验证（见 backlink/evidence/screenshot-chain-VERDICTS.md）；
  * 拍不到时行内记 screenshotError，不影响采集本身。
  */
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';

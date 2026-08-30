@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
  * lib-scene.mjs —— rankup 浏览器脚本共享的「双证人取证」层。
- * 状态：双证人化改造 2026-08-30，截图链路待实盘验证。
+ * 状态：双证人化改造 2026-08-30，截图链路已实盘验证（execSync 引号版与
+ * execFileSync 数组版两种注入形态都在真 Chrome 上出图；判决书见
+ * backlink/evidence/screenshot-chain-VERDICTS.md）。
  *
  * 三条铁律（对齐 backlink/scripts/ground-truth.mjs 的形态）：
  *   1. 先取证后死：失败分支退出前必须落「截图 + 页面文本 + manifest(stopReason)」；

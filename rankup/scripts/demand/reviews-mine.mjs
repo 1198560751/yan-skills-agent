@@ -308,7 +308,7 @@ function browserSource() {
       if (!raw || raw.error) {
         const f = saveEvidence(`${opt.source}-${encodeURIComponent(u).slice(0, 80)}.json`, { url: u, error: raw?.error ?? "eval 无返回", raw })
         // 双证人：第一波记了状态（DOM 侧），本波补视觉证人——截图+页面全文在关 tab
-        // 之前落盘（截图链路待实盘验证）。是 WAF 拦截页还是真没有评论，AI 看图判。
+        // 之前落盘（截图链路已实盘验证）。是 WAF 拦截页还是真没有评论，AI 看图判。
         const scene = captureBrowserScene(s, `${opt.source}-${encodeURIComponent(u).slice(0, 60)}`)
         recordSource({ source: `${opt.source}:${u}`, status: "extract_failed", rawCount: 0, error: `${raw?.error ?? "eval 无返回"}（现场已留 ${f}）`, scene })
         process.stderr.write(`[warn] ${u}: ${raw?.error ?? "eval 无返回"}（截图 ${scene.shot ?? "未取到"}）\n`)

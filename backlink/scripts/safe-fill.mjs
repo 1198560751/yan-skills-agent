@@ -5,7 +5,7 @@
  * 2026-08-30 双证人化：拒绝路径（page_changed / form_changed / field_changed /
  * captcha / login / no_values）在 exit 2 之前 captureScene（穿透 census + 截图）
  * 落进 --evidence-dir，输出带 evidence——拒绝理由本来就精确，现在配上现场，
- * AI 能直接对质「页面到底变成了什么样」。截图链路待实盘验证。
+ * AI 能直接对质「页面到底变成了什么样」。截图链路已实盘验证。
  */
 import { readFile } from 'node:fs/promises';
 import { firstJson, makeSubmitGuard, opencli, parseFlags, printJson, required, validateSession, showHelpIfRequested} from './opencli-core.mjs';

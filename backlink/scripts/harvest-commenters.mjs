@@ -10,7 +10,7 @@
  *   - 落点自检：提取到的 sourceUrl 的 host 与请求 host 不一致时记
  *     `hijackSuspected: true`（事实字段，共享标签页被别的工作流接管的形态，
  *     判断交给 AI 对质现场）；
- *   - 失败也先取证再抛，错误消息带证据路径。截图链路待实盘验证。
+ *   - 失败也先取证再抛，错误消息带证据路径。截图链路已实盘验证。
  */
 import { defaultSession, openAndEval, parseFlags, printJson, required, validateSession, showHelpIfRequested } from './opencli-core.mjs';
 import { captureScene, defaultSceneDir, sceneSummaryLine } from './lib-evidence-scene.mjs';

@@ -59,7 +59,7 @@
  *
  * 已验证：2026-08-23（GSC status/submit、Bing status/submit 中文界面；Yandex status/submit 英文界面）
  *
- * ── 双证人化（2026-08-30，截图链路待实盘验证）────────────────
+ * ── 双证人化（2026-08-30，截图链路已实盘验证）────────────────
  * submit 的每次点击前后都落「截图 + 页面文本」进 `.rankup/evidence/webmaster-sitemap-<ts>/`，
  * 失败分支退出前必落现场并在 manifest.json 里写 stopReason。
  * 「提交后这条 sitemap 在不在列表里」只作为**解析出来的事实**输出（suggested 字段），

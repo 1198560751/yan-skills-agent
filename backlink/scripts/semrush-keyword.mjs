@@ -36,7 +36,7 @@
  * 2026-08-30 双证人化：geoHop 只报事实（第一大国家、份额、两边的量），旧版
  * 「份额 >=35% 或当前库量 <500 才追查」的阈值判断已移出脚本——显著与否由 AI
  * 拿事实判。单词模式的失败关键词在落行前 captureScene（穿透 census + 截图）
- * 进 --evidence-dir，行内带证据路径。截图链路待实盘验证。
+ * 进 --evidence-dir，行内带证据路径。截图链路已实盘验证。
  */
 import { resolveSession, parseFlags, printJson, validateSession, showHelpIfRequested} from './opencli-core.mjs';
 import { assertToolsShareAvailable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';

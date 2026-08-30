@@ -1,6 +1,7 @@
 /**
  * lib-evidence-scene.mjs — 失败/落点现场的双证人一次落盘（2026-08-30 双证人化，
- * 截图链路待实盘验证）。
+ * 截图链路已实盘验证：真 Chrome 上 census+png 成对落盘，判决书见
+ * backlink/evidence/screenshot-chain-VERDICTS.md）。
  *
  * 契约对齐 ground-truth.mjs：一个停留位置 = 一份穿透 shadow DOM 的 census
  * （含 href/title/scroll，已剥敏）+ 一张视口截图，成对落盘。任何浏览器脚本的

@@ -15,7 +15,7 @@
  * 2026-08-30 双证人化：每行 state 落点在写行前 captureScene（穿透 census + 截图）
  * 落进 `<out>.evidence/`，行内带 evidence；提交后的定长 `sleep 3` 换成条件等待
  * （连续两次读数一致才继续）；浏览器调用改走 opencli-core 的 opencli()。
- * 截图链路待实盘验证。
+ * 截图链路已实盘验证。
  */
 import fs from 'node:fs';
 import { helpGuard, opencli } from './opencli-core.mjs';

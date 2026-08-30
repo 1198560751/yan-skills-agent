@@ -38,7 +38,7 @@
  * 2026-08-30 双证人化：任何失败路径（never settled / timed out / launch 失败）在
  * close 之前先 captureScene（穿透 census + 截图）落进 --evidence-dir（默认
  * `<out>.evidence/` 或 `.backlink/evidence/similarweb-query/…`），错误输出带证据
- * 路径。截图链路待实盘验证。
+ * 路径。截图链路已实盘验证。
  */
 import { writeFile } from 'node:fs/promises';
 import {

@@ -156,7 +156,7 @@ similarweb 选项:
 
 通用: --json  --out <file>  --evidence-dir <d>  --help
 
-失败留现场（2026-08-30 重构第二波，截图链路待实盘验证）：
+失败留现场（2026-08-30 重构第二波，截图链路已实盘验证）：
   serp 逐 query 记状态进 manifest（查询失败 ≠ 没人引用）；similarweb 白屏时
   截图+页面文本先落证据目录再退出，标签页留在原地供人工排查。`;
 
@@ -347,7 +347,7 @@ async function cmdSimilarweb(args) {
     if (!cap?.ready) {
       // 先取证后死：截图 + 轮询到的页面文本落进证据目录，白屏还是半渲染由 AI 看图判。
       // （die 用 process.exit 跳过 finally，标签页因此留在原地——现场也就保住了；
-      //   排查完自己 close。截图链路待实盘验证。）
+      //   排查完自己 close。截图链路已实盘验证。）
       const scene = openedSession ? captureBrowserScene(openedSession, `similarweb-${domain}-blank`) : null;
       saveEvidence(`similarweb-${domain}-last-poll.json`, { url: cap?.url ?? null, textLength: cap?.text?.length ?? 0, text: cap?.text ?? null, timeWindow });
       recordSource({ source: `similarweb:${domain}:${tab}`, status: 'render_timeout', rawCount: 0, scene });

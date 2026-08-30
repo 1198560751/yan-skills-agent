@@ -31,7 +31,7 @@
  * （穿透 census + 截图）落进 --evidence-dir，result.scenes 带全部现场路径；
  * `catch → state:'error'` 必须带现场。提交后的定长 `sleep 4` 换成条件等待
  * （页面变化或连续两次读数一致才继续）。浏览器调用改走 opencli-core 的
- * opencli()（带访问记账），不再 execFileSync 裸调。截图链路待实盘验证。
+ * opencli()（带访问记账），不再 execFileSync 裸调。截图链路已实盘验证。
  */
 
 import fs from 'node:fs';

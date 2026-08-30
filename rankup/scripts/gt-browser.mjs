@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * gt-browser — Google Trends 的 OpenCLI 路由
- * 状态：双证人化改造 2026-08-30（截图链路待实盘验证）——每次运行落
+ * 状态：双证人化改造 2026-08-30（截图链路已实盘验证）——每次运行落
  * trends-<kw>.json + 截图 + manifest(stopReason/attempt/emptyResultCount)
  * 进 `.rankup/evidence/gt-browser-<ts>/`；空结果不再被叙述成「太冷门」。
  *
@@ -281,7 +281,7 @@ function closeSession(session) {
 }
 
 /**
- * 每次运行都落证据（双证人化 2026-08-30，截图链路待实盘验证）：
+ * 每次运行都落证据（双证人化 2026-08-30，截图链路已实盘验证）：
  * `.rankup/evidence/gt-browser-<ts>/` 里有 trends-<kw>.json（原始 widget 数据）、
  * final.png / final.txt（页面双证人）、manifest.json（stopReason / attempt /
  * emptyResultCount）。取证发生在 finally 里、**关会话之前**——失败时现场不毁。

@@ -40,7 +40,7 @@
  *
  * 2026-08-30 双证人化：table_never_settled 与整体失败在退出前 captureScene
  * （穿透 census + 截图）落进 --evidence-dir，行内/输出带证据路径——
- * 「表没稳定」和「这个词没有扩展词」必须能对着现场分辨。截图链路待实盘验证。
+ * 「表没稳定」和「这个词没有扩展词」必须能对着现场分辨。截图链路已实盘验证。
  */
 import { writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';

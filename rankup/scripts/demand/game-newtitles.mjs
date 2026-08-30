@@ -509,7 +509,7 @@ async function sourceSteamdb(o) {
   initEvidence('game-newtitles', { dir: o.evidenceDir ?? null });
 
   // 先取证后关：失败路径先把截图+页面全文落证据目录，再关标签页（--keep-open 不关）。
-  // 截图链路待实盘验证（2026-08-30 重构第二波）。
+  // 截图链路已实盘验证（2026-08-30 重构第二波）。
   const closeTab = async () => {
     if (o.keepOpen) return;
     try { await run(['browser', o.session, 'close']); } catch { /* 已关 */ }

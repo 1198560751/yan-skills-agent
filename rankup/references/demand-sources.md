@@ -215,7 +215,7 @@ node scripts/demand/boards.mjs traffic-cv --json \
   脚本在数量不等时**直接放弃配对并打出说明**——错位的份额比没有份额更危险。
 - Brave 搜索通道对这类指纹查询基本无效；`opencli google` 报 `Navigation rejected`。
   能用的只有 seo.web.cafe 的 Google 通道那一条。
-- 失败留现场（2026-08-30，截图链路待实盘验证）：serp 逐 query 在 manifest 里记状态
+- 失败留现场（2026-08-30，截图链路已实盘验证）：serp 逐 query 在 manifest 里记状态
   （查询失败 ≠ 没人引用这个网关）；similarweb 白屏/超时会先把**截图+页面文本**落进
   证据目录再退出，标签页留在原地供人工排查。
 
@@ -302,7 +302,7 @@ Wish it could…       I love this extension, but…   ← 最值钱的一句
 `chrome-stats.mjs --list obsolete` 给已下架扩展。**折扣要记住**：默认不按用户数排序，
 前排全是几十用户的小扩展，且只有 25 条——**大产品下架不保证当天捞得到**，
 要覆盖得自己维护一份关注 ID 名单定期探活。
-失败留现场（2026-08-30，截图链路待实盘验证）：任何浏览器路径失败或 0 张卡片时，
+失败留现场（2026-08-30，截图链路已实盘验证）：任何浏览器路径失败或 0 张卡片时，
 脚本会先把**截图 + 页面全文**落进证据目录再关标签页（`--keep-open` 保住活现场）。
 「0 张卡片」是留证陈述——CF 没过完、改版、还是真空榜，对着双证人判，别直接当空榜读。
 
@@ -313,7 +313,7 @@ Wish it could…       I love this extension, but…   ← 最值钱的一句
 - Trustpilot / G2 / Capterra 三家 **curl 一律 403 但都不需要登录**——
   这是「必须真实浏览器」和「必须登录态」两件事的分界线，别混为一谈。
 - Capterra 的星级过滤**没有 URL 参数**，只能点按钮。
-- 浏览器源提取失败时（2026-08-30，截图链路待实盘验证）：每个失败 URL 会留下
+- 浏览器源提取失败时（2026-08-30，截图链路已实盘验证）：每个失败 URL 会留下
   **截图 + 页面全文**双证人加 manifest 状态——是挑战页、改版还是真没有 1-2 星评论，
   对着证据目录判，别把 extract_failed 读成「没有差评」。
 
@@ -375,7 +375,7 @@ node scripts/demand/boards.mjs producthunt --date 2026-08-22 --resolve-urls --js
 | **GitHub code search 限流 10 次/分** | 且 `sort=indexed` 已废弃并被**静默忽略**——带与不带前 5 条 repo+path 逐条相同，不报错也不 422。走不通的替代都试过了：GraphQL **没有 CODE 这个枚举值**、`/search/code` 没有开排序的参数或 header、Events API 的 PushEvent payload **只有 commit message 没有文件路径**。能用的是 `--mode recent` |
 | **HN 不要用 Firebase API** | 它只回 id 数组，不能按关键词/时间过滤，捞最近 N 天要几百次请求。用 Algolia |
 | **Toolify `/new` 没有提交日期字段** | 想按「最近新增」筛只能靠列表顺序 |
-| **boards.mjs 的失败留现场（2026-08-30，截图链路待实盘验证）** | 浏览器源单页失败先落**截图+页面全文**再继续（不 die 全局，`--keep-open` 保住活现场）；HTTP 源失败响应体进证据目录；空结果先开 manifest——「0 条 + 源失败」不是「今天没有新品」 |
+| **boards.mjs 的失败留现场（2026-08-30，截图链路已实盘验证）** | 浏览器源单页失败先落**截图+页面全文**再继续（不 die 全局，`--keep-open` 保住活现场）；HTTP 源失败响应体进证据目录；空结果先开 manifest——「0 条 + 源失败」不是「今天没有新品」 |
 
 ---
 
@@ -407,7 +407,7 @@ Hugging Face 的新 task tag 领先 Google 搜索 2–6 个月——这是游戏
   只有 `filters=price_overview` 还支持多 ID。
 - **Poki 的 class 名是构建哈希**，没有 `__NEXT_DATA__`，只能靠 `data-tile-*` 属性定位——
   改版就会坏，坏了修脚本。
-- **steamdb 分支的失败留现场（2026-08-30，截图链路待实盘验证）**：打不开 / eval 不回 /
+- **steamdb 分支的失败留现场（2026-08-30，截图链路已实盘验证）**：打不开 / eval 不回 /
   0 行表格都会先落**截图+页面全文**再关标签页（`--keep-open` 不关）；HTTP 源（steam/itch/
   poki 等）非 2xx 时响应体进证据目录。「没解析到表格」是留证陈述，不是「没有新游」。
 

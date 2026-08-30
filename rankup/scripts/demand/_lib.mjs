@@ -163,13 +163,16 @@ export function sourceStatusSummary() {
 /**
  * 浏览器失败现场的双证人：页面文本（DOM 证人）+ 视口截图（视觉证人），
  * 成对落进证据目录。**先取证后关**：调用方必须在 close 标签页之前调它。
- * 任何一步失败都不抛——取证失败不该掩盖原始错误——拿不到的证人记 null。
- * 截图链路待实盘验证（2026-08-30 重构第二波，代码按 ground-truth.mjs 的
- * `opencli browser <session> screenshot <path>` 形态写）。
+ * 任何一步失败都不抛——取证失败不该掩盖原始错误——拿不到的证人记 null，
+ * 拍不到的原因记 shotError（2026-08-30 实盘验证时补：静默 null 会让
+ * 「这次没拍成」和「压根没拍」长得一样）。
+ * 截图链路已实盘验证（2026-08-30 重构第二波，代码按 ground-truth.mjs 的
+ * `opencli browser <session> screenshot <path>` 形态写；判决书见
+ * backlink/evidence/screenshot-chain-VERDICTS.md）。
  */
 export function captureBrowserScene(session, tag, { bin = 'opencli', windowMode = 'background' } = {}) {
   const safe = String(tag).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 60) || 'scene';
-  const out = { text: null, shot: null };
+  const out = { text: null, shot: null, shotError: null };
   try {
     const r = spawnSync(bin, ['browser', session, '--window', windowMode, 'eval',
       '(()=>({url:location.href,title:document.title,readyState:document.readyState,' +
@@ -188,7 +191,11 @@ export function captureBrowserScene(session, tag, { bin = 'opencli', windowMode 
     const r = spawnSync(bin, ['browser', session, '--window', windowMode, 'screenshot', file],
       { encoding: 'utf8', timeout: 90000 });
     if (r.status === 0 && fs.existsSync(file)) out.shot = file;
-  } catch { /* 截图失败不抛：文本证人可能已经在了 */ }
+    // 拍不到也是事实：静默 null 会让「这次没拍成」和「没想过要拍」长得一模一样。
+    else out.shotError = String(r.error?.message || r.stderr || `exit ${r.status}`).replace(/\s+/g, ' ').slice(0, 300);
+  } catch (e) {
+    out.shotError = String(e?.message ?? e).replace(/\s+/g, ' ').slice(0, 300);
+  }
   return out;
 }
 
