@@ -2,6 +2,8 @@
 /**
  * gefei-ask.mjs —— 问哥飞 SEO Agent（seo.web.cafe/chat/）一个问题并把答案落盘。
  * 一条命令走完「注入 → 提问 → 反复轮询 → 取回 → 截断检查 → 落盘」全流程。
+ * 状态：双证人化改造 2026-08-30（截图链路待实盘验证）——超时/自检失败退出前
+ * 把截图+页面文本+最后轮询态落进 `.rankup/evidence/gefei-ask-<ts>/`。
  *
  * 移植自来源项目 `.rankup/scripts/gefei-ask.mjs`（原文件已验证：2026-08-21），
  * 2026-08-22 移植进 Skill 时做了两处泛化：
@@ -79,11 +81,12 @@
  *   两种做法都是为了同一件事：绝不让你以为刷新了数据、实际磁盘上还是旧的那份，
  *   只是移植后改成了「显式报错」而不是「响应体里说了实话但状态码骗人」。
  */
-import { execFile } from "node:child_process"
+import { execFile, execFileSync } from "node:child_process"
 import { promisify } from "node:util"
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { newEvidenceDir, captureScene, writeManifest } from "./lib-scene.mjs"
 
 const run = promisify(execFile)
 const HELP = `gefei-ask.mjs —— 问哥飞 SEO Agent 一个问题并把答案落盘
@@ -120,6 +123,33 @@ const arg = (k, d) => {
 const die = (m) => {
   console.error(m)
   process.exit(1)
+}
+
+/**
+ * 取证退出（双证人化 2026-08-30，截图链路待实盘验证）：超时/自检失败不再
+ * 只留一句结论。die 之前把「截图 + 页面文本 + 最后轮询态」落进
+ * `.rankup/evidence/gefei-ask-<ts>/`——「按钮还是停止」「额度到底读没读到」
+ * 这类问题，事后只有截图能回答。会话**不关**（本脚本从不关会话，回答可能
+ * 还在生成，--resume 还要用它）。
+ */
+const dieWithScene = (stopReason, m, extra) => {
+  try {
+    const dir = newEvidenceDir("gefei-ask")
+    captureScene({
+      dir,
+      tag: `fail-${stopReason}`,
+      screenshot: (p) => execFileSync("opencli", ["browser", session, "screenshot", p], { stdio: ["ignore", "pipe", "pipe"], timeout: 90_000 }),
+      pageText: () => execFileSync("opencli", ["browser", session, "--window", "background", "eval",
+        "(()=>{try{return document.body?document.body.innerText.slice(0,20000):''}catch(e){return 'PAGE_TEXT_FAILED:'+e}})()"],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 60_000 }),
+      extra,
+    })
+    writeManifest(dir, { script: "gefei-ask", session, slice, stopReason, finishedAt: new Date().toISOString() })
+    console.error(`现场已落盘：${dir}（截图 + 页面文本 + 最后状态，判读以它们为准）`)
+  } catch (e) {
+    console.error(`（取证失败：${String(e?.message || e).slice(0, 200)}）`)
+  }
+  die(m)
 }
 
 const session = arg("session") || die("必须给 --session（描述性且唯一，开工前先 tab list 确认没被占用）。--help 看用法")
@@ -177,19 +207,19 @@ const browserScript = readFileSync(browserScriptPath, "utf8")
 const injected = await ev(
   `(() => { (0, eval)(${JSON.stringify(browserScript)}); return JSON.stringify({ 注入: !!window.__gf }); })()`,
 )
-if (!injected?.注入) die(`注入失败：${JSON.stringify(injected)}\n先确认会话停在 seo.web.cafe/chat/ 且已加载完成`)
+if (!injected?.注入) dieWithScene("inject-failed", `注入失败：${JSON.stringify(injected)}\n先确认会话停在 seo.web.cafe/chat/ 且已加载完成——会话停在哪一页，看截图。`, { injected })
 
 // 2. 自检：是不是登录态。不是登录态就停，别浪费一次提问。
 const check = await ev(`(() => JSON.stringify(window.__gf.check()))()`)
 console.log("自检：", JSON.stringify(check))
-if (!check?.已登录) die("页面不是登录态（读不到额度）。请在这个浏览器里登录 seo.web.cafe 之后重跑。")
+if (!check?.已登录) dieWithScene("login-check-failed", "自检读不到额度（判据：页面上的「今日已用 N/M」）。「没登录」与「页面改版让判据失配」在此不可分辨——看截图。", { check })
 
 // 3. 提问。到这一步才开始扣积分。--resume 直接跳过，接着轮询上一轮的回答。
 if (resume) {
   console.log("--resume：跳过提问，接着轮询同一个会话的上一条回答")
 } else {
   const asked = await ev(`(() => JSON.stringify(window.__gf.ask(${JSON.stringify(question)})))()`)
-  if (asked?.错误) die(`提问失败：${asked.错误}`)
+  if (asked?.错误) dieWithScene("ask-failed", `提问失败：${asked.错误}`, { asked })
   console.log(`已发送 ${asked.已发送} 字，开始轮询…`)
 }
 
@@ -206,18 +236,19 @@ while (Date.now() < deadline) {
   }
   if (st?.done) break
 }
-if (!last?.done) die(
+if (!last?.done) dieWithScene("poll-timeout",
   `${maxMinutes} 分钟内没等到回答结束。最后状态：${JSON.stringify(last)}\n` +
   `答案可能还在生成（按钮仍是「停止」= 它在跑调研，长度会先缩后涨，属正常）。\n` +
   `**不要重新提问**，会再扣一次积分。接着轮询同一个会话：\n` +
-  `  node gefei-ask.mjs --session ${session} --slice ${slice} --resume --out-dir ${outDir} --timeout 20`)
+  `  node gefei-ask.mjs --session ${session} --slice ${slice} --resume --out-dir ${outDir} --timeout 20`,
+  { lastPoll: last })
 
 // 5. 取回。走「复制本段」按钮拿原始 Markdown，不用 innerText——
 //    回答含表格时 innerText 会把表格压成制表符，和页面自己的 Markdown 不是一份东西。
 //    grab() 现在直接把全文放进返回值（见 gefei-chat.browser.js 头注释），
 //    本脚本自己用 fs 落盘，不再经过任何本机接收进程。
 const got = await ev(`(async () => JSON.stringify(await window.__gf.grab()))()`)
-if (got?.错误) die(`取回失败：${JSON.stringify(got)}`)
+if (got?.错误) dieWithScene("grab-failed", `取回失败：${JSON.stringify(got)}`, { got, lastPoll: last })
 
 // 6. 截断检查。服务端拦腰截断时按钮照样回到「发送」，poll 也照样 done。
 const tail = String(got.结尾 || "")

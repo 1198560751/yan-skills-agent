@@ -43,8 +43,15 @@
  * - 设置：https://searchadvisor.naver.com/console/site/option?site=<编码URL>
  *
  * 已验证：2026-08-23（Nuxt.js/Vue SPA）
+ *
+ * ── 双证人化（2026-08-30，截图链路待实盘验证）────────────────
+ * 每步（打开/点击后）截图落 `.rankup/evidence/naver-setup-<ts>/`；
+ * `execSync("sleep")` 全部革除，换页内条件等待；**删除了
+ * `resultText === ""` ⇒ 成功 那条断言**——eval 超时读不到页面 ≠ 提交成功，
+ * submit-sitemap 现在只报事实 + suggested，判读以截图为准。
  */
 import { execSync } from "node:child_process"
+import { newEvidenceDir, captureScene, writeManifest } from "./lib-scene.mjs"
 
 // ── 参数 ──────────────────────────────────────────────────
 const argv = process.argv.slice(2)
@@ -110,23 +117,66 @@ function open(url) { cli(`open "${url}"`) }
 function pageText(max = 4000) {
   return evalJs(`return (document.querySelector('main')||document.body).innerText.replace(/\\n{2,}/g,'\\n').slice(0,${max})`)
 }
-function sleep(ms) { execSync(`sleep ${ms / 1000}`) }
+/** 页内定时器，替换 execSync("sleep")。 */
+function settle(ms) {
+  cli(`eval '(async()=>{await new Promise(r=>setTimeout(r,${ms}));return true})()'`, { timeout: ms + 30000 })
+}
+/** 条件轮询：js 返回真值或超时；导航期间 eval 失败按未就绪继续等。 */
+function waitFor(js, seconds = 15) {
+  const deadline = Date.now() + seconds * 1000
+  while (Date.now() < deadline) {
+    try { if (String(evalJs(js)).includes("true")) return true } catch { /* 导航中 */ }
+    settle(500)
+  }
+  return false
+}
+function waitPageReady(seconds = 20) {
+  return waitFor(`return document.readyState==='complete' && ((document.body&&document.body.innerText)||'').length>50`, seconds)
+}
+
+/* ── 取证 ─────────────────────────────────────────────────── */
+let evidence = null
+function evidenceDir() {
+  if (!evidence) evidence = newEvidenceDir("naver-setup")
+  return evidence
+}
+let sceneN = 0
+function scene(tag, extra) {
+  sceneN++
+  return captureScene({
+    dir: evidenceDir(),
+    tag: `${String(sceneN).padStart(2, "0")}-${tag}`,
+    screenshot: (p) => cli(`screenshot "${p}"`, { timeout: 90000 }),
+    pageText: () => { try { return pageText(20000) } catch (e) { return `PAGE_TEXT_FAILED:${e.message}` } },
+    extra,
+  })
+}
+function bail(stopReason, msg, extra) {
+  try {
+    scene(`fail-${stopReason}`, extra)
+    writeManifest(evidenceDir(), { script: "naver-setup", action, site, stopReason, finishedAt: new Date().toISOString() })
+    console.error(`现场已落盘：${evidenceDir()}`)
+  } catch (e) { console.error(`（取证失败：${String(e?.message || e).slice(0, 200)}）`) }
+  console.error(msg)
+  if (!keepSession) { try { cli("close") } catch { /* ignore */ } }
+  process.exit(1)
+}
 
 function stampAndClick(js, label) {
   evalJs(`const el=${js};if(!el)throw new Error('找不到: ${label}');el.setAttribute('data-rankup-target','1')`)
   cli('click "[data-rankup-target=\\"1\\"]"')
   evalJs(`document.querySelector('[data-rankup-target]')?.removeAttribute('data-rankup-target')`)
+  scene(`clicked-${label.replace(/[^\w가-힣一-鿿-]/g, "_")}`)
 }
 
 // ── status：检查站点注册状态 ─────────────────────────────
 async function doStatus() {
   open("https://searchadvisor.naver.com/console/board")
-  sleep(6000)
+  waitPageReady(20)
 
   const text = pageText(8000)
   if (text.includes("로그인") || text.includes("Log in") || text.includes("Sign in")) {
-    console.error("❌ 未登录 Naver。请先在浏览器中登录 searchadvisor.naver.com")
-    return process.exit(1)
+    bail("login-text-seen", "页面文本命中 로그인/Log in——多半未登录 Naver（也可能是撞词，看截图）。请先在浏览器中登录 searchadvisor.naver.com")
   }
 
   console.log("── Naver Search Advisor 站点列表 ──")
@@ -183,12 +233,11 @@ async function doStatus() {
 // ── register：注册新站点 ─────────────────────────────────
 async function doRegister() {
   open("https://searchadvisor.naver.com/console/board")
-  sleep(6000)
+  waitPageReady(20)
 
   const text = pageText(8000)
   if (text.includes("로그인") || text.includes("Log in") || text.includes("Sign in")) {
-    console.error("❌ 未登录 Naver。请先在浏览器中登录 searchadvisor.naver.com")
-    return process.exit(1)
+    bail("login-text-seen", "页面文本命中 로그인/Log in——多半未登录 Naver（也可能是撞词，看截图）。请先在浏览器中登录 searchadvisor.naver.com")
   }
 
   // 检查是否已注册
@@ -209,17 +258,16 @@ async function doRegister() {
     // 也可能是输入框直接在页面上
     const hasInput = evalJs(`return !!document.querySelector('input[type="url"],input[type="text"][placeholder*="http"],input[placeholder*="사이트"],input[placeholder*="site"]')`)
     if (hasInput !== "true") {
-      console.error("❌ 找不到添加站点的入口。页面可能需要登录或结构已变化。")
-      return process.exit(1)
+      bail("add-site-entry-not-found", "找不到添加站点的入口（按钮和输入框都没匹配到）。需要登录还是结构变了，看截图。")
     }
   }
-  sleep(2000)
+  settle(2000)
 
   // 填写站点 URL —— 先尝试 https://example.com
   const inputSelector = `document.querySelector('input[type="url"],input[type="text"][placeholder*="http"],input[placeholder*="사이트"],input[placeholder*="site"],input[placeholder*="URL"],input[placeholder*="url"]')`
   evalJs(`const el=${inputSelector};if(!el)throw new Error('找不到 URL 输入框');el.focus();el.value='';`)
   cli(`type "${siteUrl}"`)
-  sleep(1000)
+  settle(1000)
 
   // 点击确认/提交按钮
   try {
@@ -234,7 +282,7 @@ async function doRegister() {
       "提交按钮"
     )
   }
-  sleep(5000)
+  settle(5000)
 
   // 检查是否出现「호스트 단위」错误（需要不带协议的域名）
   const afterText = pageText(4000)
@@ -243,14 +291,14 @@ async function doRegister() {
     // 清空重填
     evalJs(`const el=${inputSelector};if(el){el.focus();el.value='';}`)
     cli(`type "${site}"`)
-    sleep(1000)
+    settle(1000)
     try {
       stampAndClick(
         `[...document.querySelectorAll('button')].find(b=>/확인|추가|등록|OK|Add|Submit/i.test(b.textContent.trim()))`,
         "확인 按钮（重试）"
       )
     } catch { /* ignore */ }
-    sleep(5000)
+    settle(5000)
   }
 
   // 尝试获取验证 meta 标签
@@ -297,7 +345,7 @@ async function tryGetVerificationMeta() {
   if (!metaContent) {
     // 导航到站点设置页面查看验证选项
     open(`https://searchadvisor.naver.com/console/site/option?site=${encodedSiteUrl}`)
-    sleep(5000)
+    waitPageReady(20)
     const optionText = pageText(6000)
 
     // 尝试从页面中找到 naver-site-verification 的值
@@ -344,19 +392,16 @@ async function tryGetVerificationMeta() {
 async function doSubmitSitemap() {
   // 直接导航到 sitemap 提交页面（参数是 ?site= 不是 ?url=）
   open(`https://searchadvisor.naver.com/console/site/request/sitemap?site=${encodedSiteUrl}`)
-  sleep(6000)
+  waitPageReady(20)
 
   const text = pageText(4000)
   if (text.includes("로그인") || text.includes("Log in") || text.includes("Sign in")) {
-    console.error("❌ 未登录 Naver。请先在浏览器中登录 searchadvisor.naver.com")
-    return process.exit(1)
+    bail("login-text-seen", "页面文本命中 로그인/Log in——多半未登录 Naver（也可能是撞词，看截图）。请先在浏览器中登录 searchadvisor.naver.com")
   }
 
   // 检查是否到达了正确的页面（是否有 sitemap 输入框）
   if (text.includes("소유확인") || text.includes("소유 확인") || text.includes("ownership")) {
-    console.error("❌ 站点尚未完成所有权验证。请先完成验证再提交 sitemap。")
-    console.error("   运行: node naver-setup.mjs register --site " + site)
-    return process.exit(1)
+    bail("ownership-text-seen", "页面文本命中 소유확인/ownership——站点可能尚未完成所有权验证（看截图确认）。先运行: node naver-setup.mjs register --site " + site)
   }
 
   // 找到 sitemap URL 输入框并填写
@@ -377,7 +422,7 @@ async function doSubmitSitemap() {
     `)
   }
   cli(`type "${sitemapUrl}"`)
-  sleep(1000)
+  settle(1000)
 
   // 点击「확인」（确认）按钮
   try {
@@ -392,38 +437,37 @@ async function doSubmitSitemap() {
       "提交按钮"
     )
   }
-  sleep(5000)
+  settle(5000)
 
-  // 检查结果
-  // 注意：Naver SPA 在点击확인后 eval 可能会超时，这是已知行为
+  // 检查结果。旧版有一条最危险的断言：`resultText === ""`（eval 超时读不到页面）
+  // 也被当成功——「读不到」被叙述成「提交成了」。现在只报事实 + suggested，
+  // 判读以截图为准。
   let resultText
+  let evalTimedOut = false
   try {
     resultText = pageText(4000)
   } catch {
-    // eval 超时是预期行为，不代表失败
+    // Naver SPA 在点击확인后 eval 可能超时（已知行为）——那只说明「读不到页面」，
+    // 不说明提交成没成功。
     resultText = ""
+    evalTimedOut = true
   }
 
-  if (resultText.includes("등록") || resultText.includes("완료") || resultText.includes("success") || resultText === "") {
-    console.log(`✅ Sitemap 提交请求已发送`)
-    console.log(`   站点:    ${site}`)
-    console.log(`   Sitemap: ${sitemapUrl}`)
-    console.log(`\n注意:`)
-    console.log(`  - 「已提交」不等于「已处理」，Naver 处理 sitemap 需要时间`)
-    console.log(`  - 可在 Search Advisor 后台查看 sitemap 处理状态`)
-    console.log(`  - 如果页面显示错误，请在浏览器中手动确认`)
-  } else if (resultText.includes("오류") || resultText.includes("error") || resultText.includes("실패")) {
-    console.error(`❌ Sitemap 提交可能失败`)
-    console.error(`   页面内容: ${resultText.slice(0, 500)}`)
-    console.error(`\n请在浏览器中手动确认:`)
-    console.error(`   https://searchadvisor.naver.com/console/site/request/sitemap?site=${encodedSiteUrl}`)
-  } else {
-    console.log(`⚠️ 无法确认提交结果（页面可能已跳转）`)
-    console.log(`   站点:    ${site}`)
-    console.log(`   Sitemap: ${sitemapUrl}`)
-    console.log(`\n请在浏览器中确认:`)
-    console.log(`   https://searchadvisor.naver.com/console/site/request/sitemap?site=${encodedSiteUrl}`)
-  }
+  const okHit = ["등록", "완료", "success"].filter((w) => resultText.includes(w))
+  const errHit = ["오류", "error", "실패"].filter((w) => resultText.includes(w))
+  const suggested = evalTimedOut ? "unknown-eval-timeout" : errHit.length ? "error-text-seen" : okHit.length ? "success-text-seen" : "unknown"
+  const finalScene = scene("submit-sitemap-final", { sitemapUrl, evalTimedOut, okHit, errHit, textHead: resultText.slice(0, 500) })
+  writeManifest(evidenceDir(), { script: "naver-setup", action, site, sitemapUrl, suggested, stopReason: "flow-completed", finishedAt: new Date().toISOString() })
+  console.log(`已填入 sitemap 并点击提交按钮。`)
+  console.log(`   站点:    ${site}`)
+  console.log(`   Sitemap: ${sitemapUrl}`)
+  console.log(`   页面回读: ${evalTimedOut ? "eval 超时（读不到页面——这不是成功的证据）" : okHit.length || errHit.length ? `命中文案 ${[...okHit, ...errHit].join("/")}` : "没命中任何已知文案"}`)
+  console.log(`   suggested: ${suggested}（判读以 ${evidenceDir()} 里 ${finalScene.tag} 的截图为准）`)
+  console.log(`\n注意:`)
+  console.log(`  - 「已提交」不等于「已处理」，Naver 处理 sitemap 需要时间`)
+  console.log(`  - 可在 Search Advisor 后台查看 sitemap 处理状态:`)
+  console.log(`    https://searchadvisor.naver.com/console/site/request/sitemap?site=${encodedSiteUrl}`)
+  if (suggested !== "success-text-seen") process.exitCode = 1
 }
 
 // ── 执行 ──────────────────────────────────────────────────

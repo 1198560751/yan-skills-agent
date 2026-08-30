@@ -16,11 +16,17 @@
  * Usage:
  *   node scripts/adapter-phpld.mjs --session S --profile p.json \
  *     --urls urls.txt [--limit 12] [--out staged.json]
+ *
+ * 2026-08-30 双证人化：每行 state 落点（eval-failed / not-this-family /
+ * staged-captcha / filled-no-captcha / error）在写行前 captureScene（穿透
+ * census + 截图）落进 `<out>.evidence/`，行内带 evidence；浏览器调用改走
+ * opencli-core 的 opencli()（带访问记账），不再 execFileSync 裸调。
+ * 截图链路待实盘验证。
  */
 
 import fs from 'node:fs';
-import { execFileSync } from 'node:child_process';
-import { helpGuard } from './opencli-core.mjs';
+import { helpGuard, opencli } from './opencli-core.mjs';
+import { captureScene, defaultSceneDir } from './lib-evidence-scene.mjs';
 helpGuard(import.meta.url);
 
 const a = {};
@@ -40,10 +46,9 @@ const urls = fs.readFileSync(a.urls, 'utf8').split(/\r?\n/).filter(Boolean).slic
 // concurrent sessions each keep their own tab; three `tab new` calls inside one
 // session leave exactly one.
 const sessionFor = (url) => `${a.session}-${new URL(url).hostname.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 40)}`;
-const ocliIn = (session, ...argv) => execFileSync('opencli', ['browser', session, '--window', 'background', ...argv],
-  { encoding: 'utf8', timeout: 90_000, maxBuffer: 16 * 1024 * 1024 })
-  .split('\n').filter((l) => !/UNDICI|trace-warnings/.test(l)).join('\n').trim();
-const evalIn = (session, js) => { try { return JSON.parse(ocliIn(session, 'eval', js)); } catch { return null; } };
+const ocliIn = async (session, ...argv) => (await opencli(['browser', session, ...argv], { windowMode: 'background', timeoutMs: 90_000 })).stdout;
+const evalIn = async (session, js) => { try { return JSON.parse(await ocliIn(session, 'eval', js)); } catch { return null; } };
+const evidenceDir = defaultSceneDir({ out: a.out || null, script: 'adapter-phpld' });
 
 // Category preference, best first. These directories are general-purpose and
 // their taxonomies are near-identical, so one ordered list covers the family.
@@ -98,19 +103,27 @@ for (const url of urls) {
   const session = sessionFor(url);
   row.session = session;
   try {
-    ocliIn(session, 'open', url);
-    const page = evalIn(session, 'JSON.stringify({url:location.href,title:document.title})');
+    await ocliIn(session, 'open', url);
+    const page = await evalIn(session, 'JSON.stringify({url:location.href,title:document.title})');
     row.page = page;
-    const r = evalIn(session, FILL(payload));
+    const r = await evalIn(session, FILL(payload));
     row.result = r;
     row.state = !r ? 'eval-failed'
       : !r.ok ? 'not-this-family'
       : r.captcha ? 'staged-captcha'
       : 'filled-no-captcha';
   } catch (e) {
+    // catch → state:'error' 必须带现场（下面统一 captureScene）。标签页留着——
+    // 本脚本本来就不 close，失败后人还能回到现场。
     row.state = 'error';
     row.error = String(e.message).slice(0, 200);
   }
+  // 每行 state 落点一对现场（穿透 census + 截图），行内带路径。永不 throw。
+  row.evidence = await captureScene({
+    session, outDir: evidenceDir, windowMode: 'background',
+    tag: `${new URL(url).hostname.replace(/[^a-z0-9.-]/gi, '_')}-${row.state}`,
+    note: `adapter-phpld ${url} → ${row.state}${row.error ? `: ${row.error}` : ''}`,
+  });
   staged.push(row);
   process.stderr.write(`${row.state.padEnd(18)} ${url}\n`);
   if (a.out) fs.writeFileSync(a.out, JSON.stringify({ generatedAt: new Date().toISOString(), staged }, null, 2) + '\n');

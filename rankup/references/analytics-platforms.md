@@ -13,6 +13,14 @@
 | 3 | **Ahrefs 创建项目 + 所有权验证** | Ahrefs 账号 | 半自动（`ahrefs-setup.mjs create` → `verify` 通过 GSC 自动验证） |
 | 4 | **Ahrefs Web Analytics 启用 + 埋追踪脚本** | 步骤 3 完成 | 半自动（`ahrefs-setup.mjs enable-wa` 拿 data-key → 手动把脚本写进 `<head>`） |
 
+**脚本采集留证，判读归 AI（2026-08-30 双证人化，截图链路待实盘验证）**：
+`clarity-setup.mjs` 与 `ahrefs-setup.mjs` 的向导每一步都截图落
+`.rankup/evidence/<script>-<ts>/`，失败退出前现场（截图+页面文本+manifest 的
+stopReason）必已落盘。它们**不再宣布「✅ 创建成功」**：create 只报告「流程走完、
+从 URL/页面提取到 ID/data-key」这些事实——URL 命中 ≠ 创建成功，最终以
+create-final / enable-wa-final 那张截图为准。空结果或报错先看 manifest，
+不要读成「项目不存在」。
+
 ## 1. Microsoft Clarity
 
 ### 它是什么

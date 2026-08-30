@@ -25,11 +25,18 @@
  * which is this Skill's default. With --submit it will advance through steps
  * that are not gated, and still stops dead at a CAPTCHA, login, payment or
  * terms checkbox.
+ *
+ * 2026-08-30 双证人化：每个 state 落点（blocked-by-antibot / no-form /
+ * staged-* / filled-stopped / submitted* / error）在写结果前 captureScene
+ * （穿透 census + 截图）落进 --evidence-dir，result.scenes 带全部现场路径；
+ * `catch → state:'error'` 必须带现场。提交后的定长 `sleep 4` 换成条件等待
+ * （页面变化或连续两次读数一致才继续）。浏览器调用改走 opencli-core 的
+ * opencli()（带访问记账），不再 execFileSync 裸调。截图链路待实盘验证。
  */
 
 import fs from 'node:fs';
-import { execFileSync } from 'node:child_process';
-import { helpGuard } from './opencli-core.mjs';
+import { helpGuard, opencli } from './opencli-core.mjs';
+import { captureScene, defaultSceneDir } from './lib-evidence-scene.mjs';
 import { classifySubmitOutcome, submitOutcomeProbeSource } from './lib-submit-outcome.mjs';
 helpGuard(import.meta.url);
 
@@ -60,16 +67,27 @@ const session = args.newTab
   : args.session;
 
 const windowMode = args.window || 'background';
-function ocli(...argv) {
-  const out = execFileSync('opencli', ['browser', session, '--window', windowMode, ...argv], {
-    encoding: 'utf8', timeout: 90_000, maxBuffer: 32 * 1024 * 1024,
-  });
-  return out.split('\n').filter((l) => !/UNDICI|trace-warnings/.test(l)).join('\n').trim();
+// 浏览器调用走 opencli-core 的 opencli()：带访问记账（限流只在取数结果里现形，
+// 记账点必须在拿得到 body 的这一层），也共享同一套 stderr 降噪。
+async function ocli(...argv) {
+  const out = await opencli(['browser', session, ...argv], { windowMode, timeoutMs: 90_000 });
+  return out.stdout;
 }
-const evalJs = (js) => {
-  const raw = ocli('eval', js);
+const evalJs = async (js) => {
+  const raw = await ocli('eval', js);
   try { return JSON.parse(raw); } catch { return raw; }
 };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// 每个 state 落点一对现场（穿透 census + 截图）。永不 throw，失败原因记在场景记录里。
+const evidenceDir = args.evidenceDir
+  || defaultSceneDir({ out: args.out || null, script: 'submit-directory', runTag: new URL(args.url).hostname.replace(/[^a-z0-9.-]/gi, '_') });
+const scenes = [];
+async function scene(tag, note = null) {
+  const record = await captureScene({ session, outDir: evidenceDir, windowMode, tag, note });
+  scenes.push(record);
+  return record;
+}
 
 // Field mapping is fuzzy on purpose: directory scripts name the same field
 // `url`, `vurl`, `site_url`, `LINK_URL`, `website`. Matching on a canonical
@@ -172,32 +190,36 @@ try {
   // screen. The queue is only useful if every staged form is still sitting
   // there when the person sits down; reusing one session overwrites the
   // previous form and the queue silently becomes a queue of one.
-  ocli('open', args.url);
+  await ocli('open', args.url);
   if (args.newTab) result.session = session;
-  const page = evalJs('JSON.stringify({url:location.href,title:document.title,len:document.body.innerText.length})');
+  const page = await evalJs('JSON.stringify({url:location.href,title:document.title,len:document.body.innerText.length})');
   result.page = page;
   if (typeof page === 'object' && /just a moment|attention required|bot challenge/i.test(page.title || '')) {
     result.state = 'blocked-by-antibot';
+    await scene('blocked-by-antibot', `antibot title: ${String(page.title || '').slice(0, 120)}`);
   } else {
-    const fill = evalJs(FILL_JS(payload));
+    const fill = await evalJs(FILL_JS(payload));
     result.fill = fill;
-    if (!fill.ok) result.state = /account/.test(fill.reason || '') ? 'gated-account' : 'no-form';
+    if (!fill.ok) {
+      result.state = /account/.test(fill.reason || '') ? 'gated-account' : 'no-form';
+      await scene(result.state, `fill refused: ${fill.reason || 'unknown'}`);
+    }
     // Two lanes, and the CAPTCHA lane is not a failure lane. Everything the
     // driver may legitimately fill is filled and left on screen, so the person
     // clearing the queue types a code and clicks — seconds per site instead of
     // re-entering a whole listing.
-    else if (fill.captcha) result.state = 'staged-captcha';
-    else if (fill.termsCheckbox) result.state = 'staged-terms';
-    else if (!args.submit) result.state = 'filled-stopped';
+    else if (fill.captcha) { result.state = 'staged-captcha'; await scene(result.state); }
+    else if (fill.termsCheckbox) { result.state = 'staged-terms'; await scene(result.state); }
+    else if (!args.submit) { result.state = 'filled-stopped'; await scene(result.state); }
     else {
       // The state-changing click. Everything above refuses to reach here when a
       // human must decide: CAPTCHA, account, or a terms checkbox.
-      const before = evalJs('JSON.stringify({url:location.href,title:document.title,len:document.body.innerText.length})');
+      const before = await evalJs('JSON.stringify({url:location.href,title:document.title,len:document.body.innerText.length})');
       // Click the real control. requestSubmit()/form.submit() bypass a handler
       // bound to the BUTTON's click, which is how AJAX forms are wired — the
       // network capture then shows no request at all while the page looks
       // unchanged, i.e. a silent no-op that reads exactly like a silent success.
-      const sel = evalJs(`(()=>{const f=[...document.forms].sort((a,b)=>[...b.elements].length-[...a.elements].length)[0];
+      const sel = await evalJs(`(()=>{const f=[...document.forms].sort((a,b)=>[...b.elements].length-[...a.elements].length)[0];
         const b=f.querySelector('input[type=submit],button[type=submit],button');
         if(!b) return JSON.stringify({sel:null});
         b.setAttribute('data-bl-submit','1');
@@ -208,16 +230,34 @@ try {
       // scorer had found page buttons, not the form's own action.
       const label = (sel && sel.label || '').toLowerCase();
       const plausible = !label || /submit|send|add|post|save|continue|next|go|提交|发送|投稿/.test(label);
-      if (!plausible) { result.state = 'no-submit-control'; result.refusedControl = sel.label; }
-      else if (sel && sel.sel) { try { ocli('click', sel.sel); } catch (e) { result.clickError = String(e.message).slice(0, 200); } }
-      execFileSync('sleep', ['4']);
+      if (!plausible) { result.state = 'no-submit-control'; result.refusedControl = sel.label; await scene(result.state, `refused control label: ${sel.label}`); }
+      else if (sel && sel.sel) { try { await ocli('click', sel.sel); } catch (e) { result.clickError = String(e.message).slice(0, 200); } }
+      // 条件等待，不是定长 sleep：每秒读一次 {url,title,len}，连续两次读数完全
+      // 一致（页面已安定——不管是跳转完成还是 AJAX 重画结束）才继续，最多 10s。
+      // 定长 4 秒对慢站不够、对快站白等，而且读不出「到底等到了什么」。
+      // 读数记进 result.postClickSettle，等待本身也是证据。
+      {
+        let prevRead = null;
+        let settled = false;
+        const reads = [];
+        const settleDeadline = Date.now() + 10_000;
+        while (Date.now() < settleDeadline) {
+          await sleep(1_000);
+          const now = await evalJs('JSON.stringify({url:location.href,title:document.title,len:document.body.innerText.length})');
+          const key = JSON.stringify(now);
+          reads.push(typeof now === 'object' ? now : { raw: String(now).slice(0, 200) });
+          if (prevRead === key) { settled = true; break; }
+          prevRead = key;
+        }
+        result.postClickSettle = { settled, reads: reads.length };
+      }
       // 判据成对，见 lib-submit-outcome.mjs 头部注释和
       // <law-ref id="readiness-must-bind-to-this-query"/>。旧版在整页文本里扫
       // thank/success/confirm 就判 `submitted`——一张**静默重画自己、把刚提交的值
       // 原样回填进 input** 的表单会满足它，而什么都没被接受。现在正向证据只从
       // 「任何表单之外」的区域里取，并且必须没有否定信号（表单还在、值被回显、
       // 表单区里有校验错误、URL 和标题都没变）。
-      const probe = evalJs(submitOutcomeProbeSource(targetUrl));
+      const probe = await evalJs(submitOutcomeProbeSource(targetUrl));
       const after = typeof probe === 'object' && probe
         ? { url: probe.afterUrl, title: probe.title, text: probe.confirmationText }
         : { url: null, title: null, text: '' };
@@ -244,12 +284,21 @@ try {
         positive: verdict.positive,
         negative: verdict.negative,
       };
+      // 提交后的落点也要一对现场：classifySubmitOutcome 的判据成对，但截图能让
+      // AI 复核「thank-you 页 / 重画的表单 / 校验错误」到底长什么样。
+      await scene(`outcome-${result.state}`, `submit outcome: ${result.state}`);
     }
   }
 } catch (e) {
+  // **catch → state:'error' 必须带现场**：整页状态坍缩成一个串、error 吞一切
+  // 正是 refactor-audit 点名的形态。captureScene 永不 throw；标签页留着
+  // （本脚本从不主动 close），失败后人还能回到现场。
   result.state = 'error';
   result.error = String(e.message).slice(0, 300);
+  await scene('state-error', `caught: ${String(e.message).slice(0, 200)}`);
 }
 
+result.evidenceDir = evidenceDir;
+result.scenes = scenes;
 if (args.out) fs.writeFileSync(args.out, JSON.stringify(result, null, 2) + '\n');
 console.log(JSON.stringify(result, null, 2));

@@ -32,7 +32,7 @@
  *   - Search API 未认证时 10 次/分，跑 --issues 很容易撞限流，建议带 token。
  */
 
-import { parseArgs, getText, getJson, get, emit, die, sleep, readToken } from './_lib.mjs';
+import { parseArgs, getText, getJson, get, emit, die, sleep, readToken, initEvidence, recordSource } from './_lib.mjs';
 
 const HELP = `
 github-trending.mjs — GitHub 升温方向 + issue 里的产品化机会
@@ -194,15 +194,22 @@ async function main() {
 
   const token = readToken('GITHUB_TOKEN', 'GH_TOKEN');
   const source = String(args.source ?? 'trending');
+  initEvidence('github-trending', { dir: args['evidence-dir'] ?? null });
   let rows;
   if (source === 'trending') rows = await fromTrending(args);
   else if (source === 'search') rows = await fromSearch(args, token);
   else die('--source 只能是 trending 或 search');
+  // 取数失败会在 _lib.get* 里落证据并抛出（走 die → manifest stopReason=died），
+  // 走到这里的都是采集动作本身成功。
+  recordSource({ source: `github:${source}`, status: 'ok', rawCount: rows.length });
 
   const nIssues = Number(args.issues ?? 0);
   if (nIssues > 0) {
     if (!token) console.error('提示：未找到 GITHUB_TOKEN，拉 issue 会很慢且容易撞 60 次/小时限流');
     await attachIssues(rows, nIssues, args['issue-labels'] ? String(args['issue-labels']) : '', token);
+    const failed = rows.filter((r) => r.issuesError);
+    for (const r of failed) recordSource({ source: `issues:${r.repo}`, status: 'fetch_failed', rawCount: 0, error: r.issuesError });
+    if (failed.length) console.error(`注意：${failed.length}/${rows.length} 个仓库的 issue 拉取失败（issuesError 字段）——空 issues 不等于「没有抱怨」。`);
   }
 
   emit(rows, args, source === 'trending'

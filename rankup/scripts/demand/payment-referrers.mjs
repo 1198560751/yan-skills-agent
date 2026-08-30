@@ -59,7 +59,10 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { parseArgs, emit, die, sleep, printTable, requireBrowserBridge } from './_lib.mjs';
+import {
+  parseArgs, emit, die, sleep, printTable, requireBrowserBridge, sessionName,
+  initEvidence, saveEvidence, recordSource, writeManifest, captureBrowserScene, evidenceDir,
+} from './_lib.mjs';
 import { BASE, UA, toolAuth } from '../seo-webcafe.mjs';
 
 const execFileP = promisify(execFile);
@@ -151,7 +154,11 @@ similarweb 选项:
   --sw-session <name>         面板会话名，默认 demand-payment-sw
   --settle <秒>               SPA 渲染等待，默认 20；白屏就调大
 
-通用: --json  --out <file>  --help`;
+通用: --json  --out <file>  --evidence-dir <d>  --help
+
+失败留现场（2026-08-30 重构第二波，截图链路待实盘验证）：
+  serp 逐 query 记状态进 manifest（查询失败 ≠ 没人引用）；similarweb 白屏时
+  截图+页面文本先落证据目录再退出，标签页留在原地供人工排查。`;
 
 // 开发者噪音源：这些站几乎必然出现在任何「支付 SDK」检索里，
 // 但它们不是商户，留着会把结果淹掉。--keep-docs 可以关掉这层过滤。
@@ -226,14 +233,22 @@ async function cmdSerp(args) {
   const own = [...(gw?.own || []), ...(args.exclude ? [].concat(args.exclude) : [])];
   const engine = args.engine === 'brave' ? 'brave' : 'webcafe';
   const via = args.via === 'browser' ? 'browser' : 'http';
-  const session = args.session || 'demand-payment-referrers';
+  // 会话名不许是字面常量（纪律见 _lib.sessionName）：两个并行任务撞名就共用标签页。
+  const session = args.session || sessionName('demand-payment-referrers');
+  initEvidence('payment-referrers', { dir: args['evidence-dir'] ?? null });
   if (engine === 'webcafe') console.error(`· 将消耗 ${queries.length} 次 seo.web.cafe 配额（通道 ${via}）`);
 
   const byHost = new Map();
   for (const q of queries) {
     const res = engine === 'brave' ? await searchBrave(q) : await searchWebcafe(q, { via, session });
-    if (res.error) { console.error(`✗ ${q} → ${res.error}`); continue; }
+    if (res.error) {
+      // 逐 query 记状态：查询失败/无结果和「没人引用这个网关」在 manifest 里分得开。
+      recordSource({ source: `serp:${engine}:${q}`, status: 'query_failed', rawCount: 0, error: res.error });
+      console.error(`✗ ${q} → ${res.error}`);
+      continue;
+    }
     const hits = res.organic || [];
+    recordSource({ source: `serp:${engine}:${q}`, status: 'ok', rawCount: hits.length });
     console.error(`✓ ${q} → ${hits.length} 条`);
     for (const h of hits) {
       const host = hostOf(h.link);
@@ -272,6 +287,7 @@ async function cmdSimilarweb(args) {
   // similarweb-nav。原来这里写死 'demand-payment-sw'，等于每次都在跟那条收敛较劲。
   const session = args['sw-session'];
   const settle = Number(args.settle || 20);
+  initEvidence('payment-referrers', { dir: args['evidence-dir'] ?? null });
 
   // 跨 Skill 引用：启动器只有 backlink 那一份是对的（四个必须踩对的细节都在里面）。
   // 自己再抄一份简化版正是那边文档点名的历史事故，所以宁可跨目录 import。
@@ -329,11 +345,16 @@ async function cmdSimilarweb(args) {
     const timeWindow = (capWindow?.landed ? capWindow : refLanded.routeWindow) ?? null;
 
     if (!cap?.ready) {
-      // 区分白屏和窗口改写：窗口被改写的页面**是渲染出来的**，不该被当成白屏重跑。
+      // 先取证后死：截图 + 轮询到的页面文本落进证据目录，白屏还是半渲染由 AI 看图判。
+      // （die 用 process.exit 跳过 finally，标签页因此留在原地——现场也就保住了；
+      //   排查完自己 close。截图链路待实盘验证。）
+      const scene = openedSession ? captureBrowserScene(openedSession, `similarweb-${domain}-blank`) : null;
+      saveEvidence(`similarweb-${domain}-last-poll.json`, { url: cap?.url ?? null, textLength: cap?.text?.length ?? 0, text: cap?.text ?? null, timeWindow });
+      recordSource({ source: `similarweb:${domain}:${tab}`, status: 'render_timeout', rawCount: 0, scene });
       const rewritten = timeWindow?.rewritten ? `落地窗口是 ${timeWindow.landed}（请求的是 ${timeWindow.requested}）；` : '';
       die(`Similarweb 的引荐流量页没渲染出来（白屏或超时）。${rewritten}` +
         `页面正文 ${cap?.text?.length ?? 0} 字符、未出现份额百分比，属于白屏/未水合，不是窗口问题。` +
-        `加大 --settle 后重跑；这是 SPA 行为，不是脚本坏了。`);
+        `截图+页面文本已留 ${evidenceDir()}。加大 --settle 后重跑；这是 SPA 行为，不是脚本坏了。`);
     }
 
     // 表格在文本里是「一列域名，然后一列分类，然后一列排名，然后一列份额」这种竖排。
@@ -377,6 +398,8 @@ async function cmdSimilarweb(args) {
       note: paired ? null
         : `域名 ${domains.length} 个、份额 ${shares.length} 个，数量对不上，已放弃配对——错位的份额比没有份额更危险。份额请在面板里人工核对。`,
     };
+    recordSource({ source: `similarweb:${domain}:${tab}`, status: 'ok', rawCount: out.referrers.length, window: out.window });
+    console.error(`manifest：${writeManifest('completed')}`);
   } finally {
     // 只关自己开的那一个会话。**绝不调用 cleanup**——它会把机主别的标签页一起端掉。
     if (openedSession) {

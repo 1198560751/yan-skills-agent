@@ -160,6 +160,38 @@ export function sourceStatusSummary() {
   return { lines, total: src.length, ok: src.length - failed.length, failed: failed.length };
 }
 
+/**
+ * 浏览器失败现场的双证人：页面文本（DOM 证人）+ 视口截图（视觉证人），
+ * 成对落进证据目录。**先取证后关**：调用方必须在 close 标签页之前调它。
+ * 任何一步失败都不抛——取证失败不该掩盖原始错误——拿不到的证人记 null。
+ * 截图链路待实盘验证（2026-08-30 重构第二波，代码按 ground-truth.mjs 的
+ * `opencli browser <session> screenshot <path>` 形态写）。
+ */
+export function captureBrowserScene(session, tag, { bin = 'opencli', windowMode = 'background' } = {}) {
+  const safe = String(tag).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 60) || 'scene';
+  const out = { text: null, shot: null };
+  try {
+    const r = spawnSync(bin, ['browser', session, '--window', windowMode, 'eval',
+      '(()=>({url:location.href,title:document.title,readyState:document.readyState,' +
+      'text:document.body?document.body.innerText.slice(0,30000):null}))()'],
+      { encoding: 'utf8', timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
+    const stdout = r.stdout || '';
+    const i = stdout.indexOf('{');
+    out.text = saveEvidence(`${safe}-page.json`, i >= 0 ? stdout.slice(i)
+      : { error: 'eval 未返回 JSON', stdout: stdout.slice(0, 400), stderr: (r.stderr || '').slice(0, 400) });
+  } catch (e) {
+    try { out.text = saveEvidence(`${safe}-page.json`, { error: String(e?.message ?? e) }); } catch { /* 证人拿不到就记 null */ }
+  }
+  try {
+    const ev = evEnsure();
+    const file = path.join(ev.dir, `${safe}-shot.png`);
+    const r = spawnSync(bin, ['browser', session, '--window', windowMode, 'screenshot', file],
+      { encoding: 'utf8', timeout: 90000 });
+    if (r.status === 0 && fs.existsSync(file)) out.shot = file;
+  } catch { /* 截图失败不抛：文本证人可能已经在了 */ }
+  return out;
+}
+
 /** fetch 响应头摘要：只留诊断相关的几个，绝不落 cookie。 */
 function headerSummary(res) {
   const keep = ['content-type', 'retry-after', 'server', 'cf-ray', 'cf-mitigated',

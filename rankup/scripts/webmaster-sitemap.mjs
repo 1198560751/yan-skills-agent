@@ -19,7 +19,7 @@
  *   --property <id>   GSC 资源 ID（`sc-domain:example.com` 或 `https://example.com/`）
  *   --site <url>      Bing / Yandex 站点（协议 + 主机，例如 https://example.com）
  *   --sitemap <值>    GSC 要相对路径（`sitemap.xml`）；Bing / Yandex 要完整 URL
- *   --session <名>    opencli 会话名（默认 wms-<pid>，见「会话名不能写死」）
+ *   --session <名>    opencli 会话名（默认 webmaster-sitemap-<每对话唯一后缀>，不用 pid）
  *   --keep-session    完成后不关闭会话
  *   --lang <zh|en>    界面语言，默认 auto（两套文案都试）
  *
@@ -58,8 +58,16 @@
  *    任何一条已知文案；此时只能由用户自己去浏览器里重新登录，脚本不代填密码。
  *
  * 已验证：2026-08-23（GSC status/submit、Bing status/submit 中文界面；Yandex status/submit 英文界面）
+ *
+ * ── 双证人化（2026-08-30，截图链路待实盘验证）────────────────
+ * submit 的每次点击前后都落「截图 + 页面文本」进 `.rankup/evidence/webmaster-sitemap-<ts>/`，
+ * 失败分支退出前必落现场并在 manifest.json 里写 stopReason。
+ * 「提交后这条 sitemap 在不在列表里」只作为**解析出来的事实**输出（suggested 字段），
+ * 结论由判读者拿着截图与文本对质——解析器对着改版页面报「找不到」时，
+ * 截图是唯一能翻案的证人。
  */
 import { execSync } from "node:child_process"
+import { newEvidenceDir, captureScene, writeManifest, sessionSuffix } from "./lib-scene.mjs"
 
 // ── 参数 ──────────────────────────────────────────────────
 const argv = process.argv.slice(2)
@@ -69,7 +77,9 @@ const action = argv[1]
 let property = null
 let site = null
 let sitemap = null
-let session = `wms-${process.pid}`
+// 会话名：描述性 + 每对话唯一后缀。**不用 pid**——Bash tool 里每次调用都是新进程，
+// pid 每次都变，上一条命令打开的标签页会被遗弃成孤儿。
+let session = `webmaster-sitemap-${sessionSuffix()}`
 let keepSession = false
 let lang = "auto"
 
@@ -203,6 +213,34 @@ function findLabel(candidates) {
   return candidates.find((c) => text.includes(c)) ?? null
 }
 
+/* ── 取证：先取证后死、先取证后关 ─────────────────────────── */
+let evidence = null
+function evidenceDir() {
+  if (!evidence) evidence = newEvidenceDir("webmaster-sitemap")
+  return evidence
+}
+/** 一幕现场 = 截图 + 页面文本，各自失败都不抛（错误进 manifest）。 */
+function scene(tag, extra) {
+  return captureScene({
+    dir: evidenceDir(),
+    tag,
+    screenshot: (p) => cli(`screenshot "${p}"`, { timeout: 90000 }),
+    pageText: () => pageText(20000),
+    extra,
+  })
+}
+/** 失败退出的唯一出口：现场 → manifest(stopReason) → 关会话 → exit 1。 */
+function bail(stopReason, msg, extra) {
+  try {
+    scene(`fail-${stopReason}`, extra)
+    writeManifest(evidenceDir(), { script: "webmaster-sitemap", platform, action, stopReason, finishedAt: new Date().toISOString() })
+  } catch (e) { console.error(`（取证失败：${String(e?.message || e).slice(0, 200)}）`) }
+  console.error(msg)
+  console.error(`现场已落盘：${evidenceDir()}（判读以截图与页面文本为准；--keep-session 可留标签页）`)
+  if (!keepSession) { try { cli("close") } catch { /* ignore */ } }
+  process.exit(1)
+}
+
 // ── 平台地址（坑 2：属性由 URL 参数决定，不点选择器） ────────
 // Yandex 的站点嵌在路径里，格式 `/site/https:<domain>:443/`。
 function yandexSitePath() {
@@ -227,12 +265,12 @@ open(urls[platform])
 // 坑 4：登录态失效表现为找不到任何已知文案，而不是一个登录页。
 const anchor = findLabel(wanted("anchor"))
 if (!anchor) {
-  console.error(`页面里找不到任何已知文案，多半是登录态失效或属性 ID 不对。
+  bail("anchor-not-found", `页面里找不到任何已知文案（试过：${(wanted("anchor") || []).join(" / ")}）。
+  「登录态失效」「属性 ID 不对」「界面语言不在 LABELS 表里」「页面没加载完」在文本层不可分辨——看证据目录里的截图。
   1. 在浏览器里手动打开 ${urls[platform]} 确认能看到站点地图列表
-  2. 属性 ID / 站点源是否与后台里的完全一致（核对 ID，不要核对名字）`)
-  if (!keepSession) { try { cli("close") } catch { /* ignore */ } }
-  process.exit(1)
+  2. 属性 ID / 站点源是否与后台里的完全一致（核对 ID，不要核对名字）`, { url: urls[platform] })
 }
+scene("01-opened", { url: urls[platform], anchor })
 
 /**
  * 点一个按钮：先在页面里**精确**认出它、打一个一次性属性，再让驱动按 CSS 选择器点。
@@ -275,7 +313,8 @@ function stampAndClick(texts, { viaJs = false } = {}) {
     return 'OK:'+norm(el);`
   const r = evalJs(js)
   if (r.includes("NOT_FOUND")) {
-    throw new Error(`页面上找不到按钮（试过：${texts.join(" / ")}）。界面语言可能不是 zh/en，改 LABELS 表。`)
+    // 先取证后死：按钮找不到时页面到底长什么样，只有截图能回答。
+    bail("button-not-found", `页面上找不到按钮（试过：${texts.join(" / ")}）。界面语言可能不是 zh/en，改 LABELS 表——是不是这个成因，看截图。`)
   }
   if (!viaJs) cli(`click '[data-rankup-target="1"]'`)
   return r
@@ -341,7 +380,9 @@ if (action === "status") {
   // Bing：先点开表单，输入框才存在。GSC：openForm 为 null，跳过。
   const openForm = wanted("openForm")
   if (openForm) {
+    scene("02-before-open-form", { openForm })
     stampAndClick(openForm, { viaJs: true })
+    scene("03-after-open-form")
     // **等对话框里的输入框真的出现，不要按固定秒数赌。**
     // 原来是 settle(2)：Bing 的提交对话框实测要 2–4 秒才渲染出 input，
     // 2 秒经常不够，于是下一步报「找不到 sitemap 输入框」，
@@ -357,12 +398,11 @@ if (action === "status") {
       'const t=((e.getAttribute("aria-label")||"")+" "+(e.placeholder||"")).toLowerCase();' +
       'return t.includes("sitemap")})'
     if (!waitFor(SITEMAP_INPUT, 15)) {
-      console.error(
+      bail("sitemap-input-not-found",
         "点开了提交表单，但 15 秒内没等到 sitemap 输入框出现。\n" +
           "  1. 确认该站点在 Bing 后台有「Submit sitemap」权限（只读账号点不开对话框）\n" +
-          "  2. 若界面语言既不是 zh 也不是 en，改 LABELS 表的 openForm"
-      )
-      process.exit(1)
+          "  2. 若界面语言既不是 zh 也不是 en，改 LABELS 表的 openForm\n" +
+          "  两种成因在文本层不可分辨——对话框到底开没开，看截图。")
     }
   }
 
@@ -383,32 +423,42 @@ if (action === "status") {
     return 'OK:'+el.value;`
   const r = evalJs(setJs)
   if (r.includes("NO_INPUT")) {
-    console.error(`找不到 sitemap 输入框。${platform === "bing" ? "Bing 的输入框藏在「提交站点地图」按钮后面，先点开它。" : ""}`)
-    if (!keepSession) { try { cli("close") } catch { /* ignore */ } }
-    process.exit(1)
+    bail("no-input", `找不到 sitemap 输入框。${platform === "bing" ? "Bing 的输入框藏在「提交站点地图」按钮后面，先点开它。" : ""}`)
   }
   console.log(`已填入: ${sitemap}`)
+  scene("04-filled", { sitemap, evalResult: r.slice(0, 200) })
 
   const clicked = stampAndClick(wanted("submit"))
   console.log(`已点击提交按钮 ${clicked.replace(/^OK:/, "")}`)
   settle(3)
+  scene("05-after-submit-click", { clicked })
   console.log()
   const rows = printTable()
 
-  // 唯一能当场断言的事实：这条 sitemap 现在出现在列表里。
-  // GSC 用相对路径提交、表里显示绝对地址，所以按后缀匹配。
+  // 当场能拿到的**事实**只有一条：这条 sitemap 的地址现在有没有出现在解析出来的
+  // 列表行里。GSC 用相对路径提交、表里显示绝对地址，所以按后缀匹配。
+  // 这不是成功/失败的判决：解析器认不出改版后的表格时 listed 会是 false 而页面
+  // 其实提交成功了；反过来提交前它就已在列表里（幂等）时 listed 恒 true。
+  // 所以按 suggested 输出事实，判读交给拿着截图的人。
   const tail = sitemap.replace(/^https?:\/\/[^/]+/, "").replace(/^\//, "")
   const listed = rows.some((r) => r.includes(tail))
   console.log()
+  console.log(`解析出的列表行数：${rows.length}；其中包含「${tail}」的行：${listed ? "有" : "没有"}（suggested: ${listed ? "listed" : "not-listed"}）`)
+  writeManifest(evidenceDir(), {
+    script: "webmaster-sitemap", platform, action, sitemap,
+    parsedRows: rows.length, sitemapTail: tail, suggested: listed ? "listed" : "not-listed",
+    stopReason: "completed", finishedAt: new Date().toISOString(),
+  })
   if (!listed) {
-    console.error(`⚠︎ 提交后列表里找不到 ${tail}。多半是输入框填错了地方，或按钮点在了别的控件上。`)
+    console.error(`「解析不到」有两个不可分辨的成因：真的没提交上（填错框/点错按钮），或表格改版让解析器失配。`)
+    console.error(`以 ${evidenceDir()} 里 05-after-submit-click 的截图为准。`)
     if (!keepSession) { try { cli("close") } catch { /* ignore */ } }
     process.exit(1)
   }
-  console.log(`✓ ${tail} 已在列表中。`)
   console.log(`**在列表里 ≠ 已被抓取**：平台对同一地址的重复提交是幂等的，`)
   console.log(`所以「它在列表里」这件事在提交前后长得一模一样。真正的证据是`)
   console.log(`过一天再跑一次 status，看「上次读取」的日期和状态有没有前进。`)
+  console.log(`本次提交的截图与页面文本在 ${evidenceDir()}。`)
 }
 
 if (!keepSession) { try { cli("close") } catch { /* ignore */ } }

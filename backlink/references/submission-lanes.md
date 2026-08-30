@@ -118,3 +118,12 @@ node scripts/targets-select.mjs --cohort open --free-only
 Step 2 is anonymous HTTP, so it is honest only about what **is** present. Rows it
 cannot resolve come out `unverified` and need a browser or a human before they
 mean anything; the merge drops them rather than letting them pad a count.
+
+Since 2026-08-30 step 2 is split in two layers: the probe itself only fetches
+and **dumps each domain's raw HTML into `<out>.evidence/<domain>.html`**; the
+`status`/`gate`/`cohort`/`kind` on every row come from
+`scripts/lib-probe-classifier.mjs` and are **suggestions** (`suggestedBy` on the
+row, `suggested: true` inside the classifier output). When a row looks wrong —
+a "usable" that gates on step 2, an "unknown" that is obviously a directory —
+read the dumped HTML and overrule the suggestion; do not re-run the probe
+hoping for a different regex outcome.

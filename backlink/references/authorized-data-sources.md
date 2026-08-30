@@ -194,11 +194,13 @@ Semrush 网页版本身是否提供一档「Worldwide」数据库供域名概览
 `globalVolume` 和 `byCountry`，随后对主要国家与项目目标市场分别跑对应 `--db`。这样美国库的零值
 不会覆盖其他国家的真实需求。
 
-单词模式会自动做一次 **geo-hop**：`byCountry` 第一大国家不是当前 `db`，且它占
-`globalVolume >=35%`，或当前库 `volume <500` 时，脚本在**同一个 session**里追加该国
-复查并写进 `geoHop.result`；只追一层，不递归，也不回 dashboard。用
-`--no-follow-top-country` 才会明确关闭。这样 US 低量但印度等市场占绝对多数的词不会被误判为
-“没有需求”，同时避免每个小差异都多查一次。
+单词模式会自动做一次 **geo-hop**（2026-08-30 起只报事实）：`byCountry` 第一大国家
+不是当前 `db` 时，脚本在**同一个 session**里追加该国复查并写进 `geoHop.result`，
+同时给出 `share`（第一大国家占 `globalVolume` 的百分比）与两边的量；只追一层，
+不递归，也不回 dashboard。用 `--no-follow-top-country` 才会明确关闭。旧版
+「份额 >=35% 或当前库量 <500 才追查」的阈值已从脚本移出——**显著与否由 AI 拿
+share/volume 判**。这样 US 低量但印度等市场占绝对多数的词不会被误判为
+“没有需求”，判断也不再被写死的阈值遮住。
 
 跟别的面板对比时（尤其是 Similarweb），三件事都要对齐，缺一个都能吵出一个假的倍数差：
 1. **地理范围**——Semrush 的数字是一个国家库，Similarweb 默认是全球，先把两边扳到同一个地理范围（乘目标国占比，或用 Semrush 关键词维度的 `globalVolume`）再比；

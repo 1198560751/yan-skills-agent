@@ -31,11 +31,14 @@
  *   - `num` 超过 10 时**一次查询扣 2 个额度**（11–100 都算 2）。默认 10 是省钱的。
  *   - relatedSearches / peopleAlsoAsk / answerBox / knowledgeGraph **不保证出现**，
  *     谷歌该词的 SERP 没有这些模块时字段直接缺失，不是空数组。全部按可缺处理。
- *   - 「主域名命中」是启发式，不是事实：它只看域名主标签里有没有关键词的实义词素，
- *     命中不等于对方真的专营这个词，反过来漏判也常见（品牌名站）。当信号看，别当判据。
+ *   - 「主域名命中」是启发式，不是事实：它只看域名主标签里有没有关键词的实义词素。
+ *     怎么判读（连同首页/内页构成）移进了 demand-sources.md「SERP 盘面怎么读」——
+ *     脚本只出计数，结论归 AI（2026-08-30 重构第二波）。
+ *   - 原始 serper 响应**每次运行都会**原样落进证据目录（成功也落），
+ *     解析或派生字段哪天错了，raw JSON 还能对质。
  */
 
-import { parseArgs, readToken, writeOut, printTable, die } from './_lib.mjs';
+import { parseArgs, readToken, writeOut, printTable, die, initEvidence, saveEvidence, writeManifest, recordSource } from './_lib.mjs';
 
 const ENDPOINT = 'https://google.serper.dev/search';
 const KEY_NAME = 'SERPER_API_KEY';
@@ -67,9 +70,12 @@ const HELP = `serp-query.mjs —— serper.dev Google SERP 查询 + 挖词派生
   环境变量 ${KEY_NAME}，或写进 rankup/.env 的一行 \`${KEY_NAME}=...\`。
   自助领 key：https://serper.dev/ （免费额度 2500 次查询，无需信用卡）。
 
-派生判断（表格底部会打印）:
+派生计数（表格底部会打印，只是计数不是结论）:
   · 精确域名命中 / 部分域名命中：前十里有几个站把这个词做进了主域名
-  · 首页 vs 内页：首页多说明是大站拿主页硬顶，内页多说明有靠单页切进去的缝
+  · 首页数 / 内页数
+  这些数怎么读（domainMatch 是启发式、首页/内页构成意味着什么），
+  见 rankup/references/demand-sources.md「SERP 盘面怎么读」。
+  原始 serper 响应每次都会落进证据目录（--evidence-dir 可指定落点）。
 `;
 
 /** 从 URL 取「主标签」：www.foo-bar.co.uk → foobar（去掉 www / 公共后缀 / 非字母数字） */
@@ -121,6 +127,9 @@ async function query(key, body) {
     body: JSON.stringify(body),
   });
   const txt = await res.text();
+  // 恒 dump 原始响应（成功也 dump）：解析/字段派生哪天错了，原始 JSON 还在。
+  const rawFile = saveEvidence(`serper-raw-${Date.now()}-${res.status}.json`, txt);
+  recordSource({ source: `serper:${body.q}`, status: res.ok ? 'ok' : `http_${res.status}`, raw: rawFile });
   let data = null;
   try { data = JSON.parse(txt); } catch { /* 保持 null，下面统一报 */ }
   if (res.status === 403) {
@@ -144,6 +153,7 @@ async function main() {
   const keyword = args._.join(' ').trim();
   const num = Number(args.num ?? 10);
   if (!Number.isFinite(num) || num < 1 || num > 100) die('--num 必须是 1–100 的整数');
+  initEvidence('serp-query', { dir: args['evidence-dir'] ?? null });
 
   const key = readToken(KEY_NAME);
   if (!key) {
@@ -214,6 +224,8 @@ async function main() {
     const p = writeOut(args.out, args.out.endsWith('.jsonl') ? [result] : result);
     if (!args.json && !args.expand) console.error(`已写入 ${p}`);
   }
+
+  console.error(`manifest：${writeManifest('completed')}`);
 
   if (args.expand) {
     // 纯词表，方便 `| xargs -I{} node seo-webcafe.mjs kd --keyword {}` 直接串起来

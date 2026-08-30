@@ -20,7 +20,7 @@
  *   --site <域名>     要追踪的域名（不带协议，例如 example.com）
  *   --name <名称>     项目显示名，默认取 --site 的二级域名
  *   --project-id <ID> 直接指定 Ahrefs 项目 ID，跳过 Dashboard 自动查找
- *   --session <名>    opencli 会话名（默认 ahs-<pid>）
+ *   --session <名>    opencli 会话名（默认 ahrefs-setup-<每对话唯一后缀>，不用 pid）
  *   --keep-session    完成后不关闭会话
  *
  * 依赖：opencli，且用户浏览器已登录 app.ahrefs.com。
@@ -48,8 +48,15 @@
  * 需要在 RootDocument 的 JSX <head> 中直接写 <script> 标签。
  *
  * 已验证：2026-08-23（中文界面）
+ *
+ * ── 双证人化（2026-08-30，截图链路待实盘验证）────────────────
+ * 向导每一步（打开 / 每次点击后）都截图落 `.rankup/evidence/ahrefs-setup-<ts>/`；
+ * `execSync("sleep")` 全部革除，换页内条件等待；**删除了无条件的「✅ 创建成功」**
+ * ——create 只报告「流程分支走完了」这个事实，成没成以最后一张截图为准。
+ * 会话名不再用 pid（Bash tool 里每次调用都是新进程）。
  */
 import { execSync } from "node:child_process"
+import { newEvidenceDir, captureScene, writeManifest, sessionSuffix } from "./lib-scene.mjs"
 
 // ── 参数 ──────────────────────────────────────────────────
 const argv = process.argv.slice(2)
@@ -58,7 +65,7 @@ const action = argv[0]
 let site = null
 let name = null
 let projectId = null
-let session = `ahs-${process.pid}`
+let session = `ahrefs-setup-${sessionSuffix()}`
 let keepSession = false
 
 for (let i = 1; i < argv.length; i++) {
@@ -99,23 +106,68 @@ function open(url) { cli(`open "${url}"`) }
 function pageText(max = 4000) {
   return evalJs(`return (document.querySelector('main')||document.body).innerText.replace(/\\n{2,}/g,'\\n').slice(0,${max})`)
 }
-function sleep(ms) { execSync(`sleep ${ms / 1000}`) }
+/** 页内定时器，替换 execSync("sleep")：那是壳层硬睡，页面快时白等、慢时不够。 */
+function settle(ms) {
+  cli(`eval '(async()=>{await new Promise(r=>setTimeout(r,${ms}));return true})()'`, { timeout: ms + 30000 })
+}
+/** 条件轮询：js 返回真值或超时。页面导航期间 eval 失败按「还没就绪」继续等。 */
+function waitFor(js, seconds = 15) {
+  const deadline = Date.now() + seconds * 1000
+  while (Date.now() < deadline) {
+    try { if (String(evalJs(js)).includes("true")) return true } catch { /* 导航中 */ }
+    settle(500)
+  }
+  return false
+}
+/** 打开后等页面真的可读，代替原来的 settle(5000/8000) 赌秒数。 */
+function waitPageReady(seconds = 20) {
+  return waitFor(`return document.readyState==='complete' && ((document.body&&document.body.innerText)||'').length>50`, seconds)
+}
+
+/* ── 取证 ─────────────────────────────────────────────────── */
+let evidence = null
+function evidenceDir() {
+  if (!evidence) evidence = newEvidenceDir("ahrefs-setup")
+  return evidence
+}
+let sceneN = 0
+function scene(tag, extra) {
+  sceneN++
+  return captureScene({
+    dir: evidenceDir(),
+    tag: `${String(sceneN).padStart(2, "0")}-${tag}`,
+    screenshot: (p) => cli(`screenshot "${p}"`, { timeout: 90000 }),
+    pageText: () => pageText(20000),
+    extra,
+  })
+}
+/** 失败退出：现场 → manifest(stopReason) → 关会话 → exit 1。 */
+function bail(stopReason, msg, extra) {
+  try {
+    scene(`fail-${stopReason}`, extra)
+    writeManifest(evidenceDir(), { script: "ahrefs-setup", action, site, stopReason, finishedAt: new Date().toISOString() })
+    console.error(`现场已落盘：${evidenceDir()}`)
+  } catch (e) { console.error(`（取证失败：${String(e?.message || e).slice(0, 200)}）`) }
+  console.error(msg)
+  if (!keepSession) { try { cli("close") } catch { /* ignore */ } }
+  process.exit(1)
+}
 
 function stampAndClick(js, label) {
   evalJs(`const el=${js};if(!el)throw new Error('找不到: ${label}');el.setAttribute('data-rankup-target','1')`)
   cli('click "[data-rankup-target=\\"1\\"]"')
   evalJs(`document.querySelector('[data-rankup-target]')?.removeAttribute('data-rankup-target')`)
+  scene(`clicked-${label.replace(/[^\w一-鿿-]/g, "_")}`)
 }
 
 // ── status：列出所有项目 ──────────────────────────────────
 async function doStatus() {
   open("https://app.ahrefs.com/dashboard")
-  sleep(8000)
+  waitPageReady(25)
 
   const text = pageText(8000)
   if (text.includes("Log in") || text.includes("Sign in")) {
-    console.error("❌ 未登录 Ahrefs。请先在浏览器中登录 app.ahrefs.com")
-    return process.exit(1)
+    bail("login-text-seen", "页面文本命中 Log in/Sign in——多半未登录 Ahrefs（也可能是页面自身内容撞词，看截图）。请先在浏览器中登录 app.ahrefs.com")
   }
 
   console.log("── Ahrefs 项目列表 ──")
@@ -137,12 +189,11 @@ async function doStatus() {
 async function doCreate() {
   // 直接导航到手动添加项目页面
   open("https://app.ahrefs.com/add-project/scope")
-  sleep(5000)
+  waitPageReady(20)
 
   const text = pageText()
   if (text.includes("Log in") || text.includes("Sign in")) {
-    console.error("❌ 未登录 Ahrefs。请先在浏览器中登录 app.ahrefs.com")
-    return process.exit(1)
+    bail("login-text-seen", "页面文本命中 Log in/Sign in——多半未登录 Ahrefs（也可能是页面自身内容撞词，看截图）。请先在浏览器中登录 app.ahrefs.com")
   }
 
   // 如果到了选择页面（导入/手动），点"手动添加"
@@ -151,14 +202,14 @@ async function doCreate() {
       `[...document.querySelectorAll('button,a')].find(b=>/手动添加|Add manually/i.test(b.textContent))`,
       "手动添加按钮"
     )
-    sleep(3000)
+    settle(3000)
   }
 
   // 填写域名
   const domainInput = `document.querySelector('input[placeholder*="域" i],input[placeholder*="domain" i],input[placeholder*="路径" i],input[placeholder*="path" i]')`
   evalJs(`const el=${domainInput};if(!el)throw new Error('找不到域名输入框');el.focus();el.value='';`)
   cli(`type "${site}"`)
-  sleep(1000)
+  settle(1000)
 
   // 填写项目名称（如果输入框已自动填充则跳过）
   const nameInput = `document.querySelector('input[id*="name" i],input[placeholder*="name" i]')`
@@ -166,19 +217,19 @@ async function doCreate() {
   if (!currentName || currentName === "") {
     evalJs(`const el=${nameInput};if(el){el.focus();el.value='';}`)
     cli(`type "${name}"`)
-    sleep(500)
+    settle(500)
   }
 
   // 等待域名可访问性检查
   console.log("等待域名可访问性检查...")
-  sleep(8000)
+  settle(8000)
 
   // 点击"继续"
   stampAndClick(
     `[...document.querySelectorAll('button')].find(b=>/继续|continue|next/i.test(b.textContent))`,
     "继续按钮"
   )
-  sleep(3000)
+  settle(3000)
 
   // 第 2 步：Web Analytics（跳过）
   const text2 = pageText()
@@ -187,7 +238,7 @@ async function doCreate() {
       `[...document.querySelectorAll('button,a')].find(b=>/不使用.*继续|skip|跳过/i.test(b.textContent))`,
       "跳过分析按钮"
     )
-    sleep(3000)
+    settle(3000)
   }
 
   // 第 3 步：所有权验证（跳过）
@@ -197,7 +248,7 @@ async function doCreate() {
       `[...document.querySelectorAll('button,a')].find(b=>/继续而不验证|skip.*verif|without.*verif/i.test(b.textContent))`,
       "跳过验证按钮"
     )
-    sleep(2000)
+    settle(2000)
     // 确认弹窗
     const confirm = pageText()
     if (confirm.includes("跳过验证") || confirm.includes("skip verification")) {
@@ -205,7 +256,7 @@ async function doCreate() {
         `[...document.querySelectorAll('button')].find(b=>/是的|yes|skip/i.test(b.textContent))`,
         "确认跳过按钮"
       )
-      sleep(3000)
+      settle(3000)
     }
   }
 
@@ -216,13 +267,17 @@ async function doCreate() {
       `[...document.querySelectorAll('button')].find(b=>/完成|finish|done/i.test(b.textContent))`,
       "完成按钮"
     )
-    sleep(5000)
+    settle(5000)
   }
 
-  console.log(`✅ Ahrefs 项目创建成功`)
+  // 不再无条件宣布「创建成功」：上面每个分支都是「文案命中才点」，全都没命中时
+  // 流程一样会走到这里。只报告事实，成没成以最后一张截图与页面文本为准。
+  const finalScene = scene("create-final")
+  writeManifest(evidenceDir(), { script: "ahrefs-setup", action, site, name, stopReason: "flow-completed", finishedAt: new Date().toISOString() })
+  console.log(`create 流程已走完（走没走到最后一步、项目建没建起来，以 ${evidenceDir()} 里 create-final 的截图与文本为准）`)
   console.log(`   项目名: ${name}`)
   console.log(`   域名:   ${site}`)
-  console.log(`   状态:   冻结（需验证所有权后激活 Site Audit）`)
+  console.log(`   （新建项目通常处于「冻结」状态，需验证所有权后激活 Site Audit）`)
   console.log(`\n验证方式推荐:`)
   console.log(`  - DNS TXT 记录（可通过 Cloudflare API 自动添加）`)
   console.log(`  - HTML 标签（写入站点 <head>）`)
@@ -237,12 +292,11 @@ function findProjectId() {
   }
 
   open("https://app.ahrefs.com/dashboard")
-  sleep(8000)
+  waitPageReady(25)
 
   const text = pageText(8000)
   if (text.includes("Log in") || text.includes("Sign in")) {
-    console.error("❌ 未登录 Ahrefs。请先在浏览器中登录 app.ahrefs.com")
-    process.exit(1)
+    bail("login-text-seen", "页面文本命中 Log in/Sign in——多半未登录 Ahrefs（也可能是页面自身内容撞词，看截图）。请先在浏览器中登录 app.ahrefs.com")
   }
 
   let foundId = evalJs(`
@@ -274,10 +328,8 @@ function findProjectId() {
   `)
 
   if (!foundId) {
-    console.error(`❌ 找不到域名 ${site} 对应的 Ahrefs 项目。`)
-    console.error(`   请使用 --project-id <ID> 手动指定，或先用 create 创建。`)
-    console.error(`   项目 ID 可在 Ahrefs 项目设置页 URL 中找到。`)
-    process.exit(1)
+    bail("project-id-not-found", `Dashboard 上没解析到域名 ${site} 对应的项目链接（「没有这个项目」与「页面没渲染完/改版」看截图分辨）。
+   请使用 --project-id <ID> 手动指定，或先用 create 创建。项目 ID 可在项目设置页 URL 中找到。`)
   }
 
   return foundId
@@ -294,7 +346,7 @@ async function doVerifyWithId(projectId) {
 
   // 1. 导航到所有权验证设置页
   open(`https://app.ahrefs.com/project-settings/${projectId}/ownership`)
-  sleep(5000)
+  settle(5000)
 
   // 2. 展开「谷歌搜索控制台（建议）」折叠区域
   const alreadyExpanded = evalJs(`
@@ -312,10 +364,9 @@ async function doVerifyWithId(projectId) {
       `[...document.querySelectorAll('button,[role="button"],summary,h3,h4,div[class*="header"]')].find(el=>/谷歌搜索控制台|Google Search Console/i.test(el.textContent))`,
       "GSC 折叠标题"
     )
-    sleep(2000)
+    settle(2000)
   } else if (alreadyExpanded === 'not_found') {
-    console.error("❌ 找不到 GSC 验证区域。页面结构可能已变化。")
-    return process.exit(1)
+    bail("gsc-section-not-found", "找不到 GSC 验证区域。页面结构可能已变化——现在长什么样，看截图。")
   }
 
   // 3. 检查是否已验证
@@ -330,14 +381,14 @@ async function doVerifyWithId(projectId) {
     `[...document.querySelectorAll('button,[role="button"],[role="listbox"],[class*="select"],[class*="Select"],[class*="dropdown"],[class*="Dropdown"]')].find(el=>/选择谷歌账号|Select.*Google.*account|选择帐号/i.test(el.textContent))`,
     "选择谷歌账号下拉框"
   )
-  sleep(3000)
+  settle(3000)
 
   // 5. 从下拉选项中选择第一个 Google 账号
   stampAndClick(
     `[...document.querySelectorAll('[role="option"],li[class*="option"],div[class*="option"],button[class*="option"]')].find(el => el.textContent.includes('@'))`,
     "Google 账号选项"
   )
-  sleep(8000)
+  settle(8000)
 
   // 6. 等待验证完成（绿色横幅出现）
   let attempts = 0
@@ -348,13 +399,12 @@ async function doVerifyWithId(projectId) {
       isVerified = true
       break
     }
-    sleep(5000)
+    settle(5000)
     attempts++
   }
 
   if (!isVerified) {
-    console.log("⚠️ 验证可能需要 Google 授权弹窗，请在浏览器中手动完成授权后重新运行。")
-    return process.exit(1)
+    bail("verify-banner-not-seen", "等了 6 轮没见到「所有权已验证」横幅。可能在等 Google 授权弹窗（需要用户手动同意）——当前卡在哪一步，看截图；手动完成授权后重新运行。")
   }
 
   // 7. 点击「保存」按钮
@@ -362,9 +412,12 @@ async function doVerifyWithId(projectId) {
     `[...document.querySelectorAll('button')].find(b=>/^保存$|^Save$/i.test(b.textContent.trim()))`,
     "保存按钮"
   )
-  sleep(3000)
+  settle(3000)
 
-  console.log(`✅ ${site} 所有权验证完成并已保存`)
+  // 「已验证」横幅是页面自己说的（上面轮询到才走到这），「已保存」是我们点了保存按钮——
+  // 保存有没有生效以截图为准。
+  scene("verify-final")
+  console.log(`${site}：页面出现「所有权已验证」横幅，已点击保存（保存结果以 ${evidenceDir()} 的 verify-final 截图为准）`)
 }
 
 // ── enable-wa：启用 Web Analytics 并获取追踪脚本 ────────────
@@ -374,7 +427,7 @@ async function doEnableWa() {
 
   // 1. 导航到 Web Analytics 设置页
   open(`https://app.ahrefs.com/project-settings/${projectId}/web-analytics`)
-  sleep(5000)
+  settle(5000)
 
   // 2. 提取 data-key
   const dataKey = evalJs(`
@@ -391,8 +444,7 @@ async function doEnableWa() {
   `)
 
   if (!dataKey) {
-    console.error("⚠️ 无法提取 data-key，页面结构可能已变化。请手动查看浏览器。")
-    return process.exit(1)
+    bail("data-key-not-found", "无法从页面提取 data-key，页面结构可能已变化——页面现在长什么样，看截图。")
   }
 
   console.log(`   data-key: ${dataKey}`)
@@ -402,9 +454,10 @@ async function doEnableWa() {
     `[...document.querySelectorAll('button')].find(b=>/^保存$|^Save$/i.test(b.textContent.trim()))`,
     "保存按钮"
   )
-  sleep(5000)
+  settle(5000)
 
-  console.log(`\n✅ Web Analytics 已启用`)
+  scene("enable-wa-final")
+  console.log(`\nWeb Analytics 设置页已提取到 data-key 并点击了保存（是否真的启用，以 ${evidenceDir()} 的 enable-wa-final 截图为准）`)
   console.log(`   项目 ID: ${projectId}`)
   console.log(`   域名:    ${site}`)
   console.log(`   data-key: ${dataKey}`)

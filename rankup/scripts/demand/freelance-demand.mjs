@@ -64,7 +64,7 @@
  */
 import { execFileSync } from "node:child_process"
 import { writeFileSync } from "node:fs"
-import { requireBrowserBridge, initEvidence, recordSource, writeManifest, saveEvidence, sourceStatusSummary } from "./_lib.mjs"
+import { requireBrowserBridge, initEvidence, recordSource, writeManifest, saveEvidence, sourceStatusSummary, captureBrowserScene } from "./_lib.mjs"
 
 const SOURCES = ["freelancer", "fiverr", "upwork", "xianyu"]
 const UA =
@@ -176,8 +176,11 @@ function browserSource() {
       const raw = ocliEval(s, extractor(), 6)
       if (!raw || raw.error) {
         const f = saveEvidence(`${opt.source}-page${p}.json`, { url: u, error: raw?.error ?? "eval 无返回", raw })
-        recordSource({ source: `${opt.source}:page${p}`, status: "extract_failed", rawCount: 0, error: `${raw?.error ?? "eval 无返回"}（现场已留 ${f}）` })
-        process.stderr.write(`[warn] ${u}: ${raw?.error ?? "无返回"}\n`)
+        // 双证人：第一波记了状态（DOM 侧），本波补视觉证人——截图+页面全文在关 tab
+        // 之前落盘（截图链路待实盘验证）。是 CF 挑战页/登录墙还是真没有供给，AI 看图判。
+        const scene = captureBrowserScene(s, `${opt.source}-page${p}`)
+        recordSource({ source: `${opt.source}:page${p}`, status: "extract_failed", rawCount: 0, error: `${raw?.error ?? "eval 无返回"}（现场已留 ${f}）`, scene })
+        process.stderr.write(`[warn] ${u}: ${raw?.error ?? "无返回"}（截图 ${scene.shot ?? "未取到"}）\n`)
         continue
       }
       if (raw.note) process.stderr.write(`[note] ${raw.note}\n`)

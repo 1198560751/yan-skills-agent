@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /**
  * probe-submission-targets.mjs — first-pass screen over a lead list.
+ * （2026-08-30 双证人化：fetch 层与分类层拆开。本文件只负责取回并**落盘原始
+ * HTML**（`<out>.evidence/<domain>.html`）；status/gate/cohort/kind 全部来自
+ * lib-probe-classifier.mjs，是**启发式建议（suggested），不是判决**——AI 拿着
+ * 落盘的 HTML 现场可以推翻任何一条。）
  *
  * Answers, per domain, only what plain HTTP can honestly answer:
  *   does it resolve · where does it end up after redirects · what does the page
@@ -32,9 +36,10 @@
  */
 
 import fs from 'node:fs';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import https from 'node:https';
-import { cohortOf, primaryGate } from './lib-cohort.mjs';
+import { AI_DIRECTORY_RE, classifyKind, decide } from './lib-probe-classifier.mjs';
 import { helpGuard } from './opencli-core.mjs';
 helpGuard(import.meta.url);
 
@@ -180,79 +185,28 @@ function analyse(html) {
   };
 }
 
-// The old test was English-only and required a literal "ai tools"/"ai
-// directory" phrase. Chinese-language AI-nav sites — a whole class of them,
-// not a handful of stragglers — carry no such English string anywhere on the
-// page (e.g. "AI工具集官网", "AI工具导航站", "提交AI产品 | AI导航网站") and
-// classified as 'unknown', which is how ai-bot.cn, ai138.com, ai-nav.net and
-// aiheron.com survived a downstream filter that excludes by
-// kind === 'ai-directory'. Fix the class: match "ai" immediately fused to a
-// Chinese AI-directory noun (工具/导航/产品/软件/应用/网站/平台), plus
-// "人工智能" on its own, alongside the broadened English set. \b already
-// keeps this off false positives like chain/email/domain/maintainer/retail/
-// air/paid/said/available — none of them has a word boundary immediately
-// before "ai", and none is followed by a Chinese character. The Chinese
-// branch also needs its OWN leading \b: without it, "ai" embedded inside a
-// longer Latin word right before a Chinese noun still matched — e.g.
-// "Shanghai网站导航" (a city), "Chennai应用市场" (a city), "Kai软件下载站"
-// (a brand), "外卖waimai导航网" (pinyin brand + 导航) all false-positived as
-// ai-directory. \b is defined on \w (ASCII alnum + underscore) and Chinese
-// characters are not \w, so the boundary on the *trailing* side (between
-// "ai" and the following Chinese character) already existed for free; the
-// bug was the missing boundary on the *leading* side.
-const AI_DIRECTORY_RE = /\bai[\s-]?(?:tools?|directory|software|apps?|websites?|platforms?)\b|\bartificial intelligence\b|\bai-powered\b|\bai(?:工具|导航|产品|软件|应用|网站|平台)|人工智能/;
+// classifyKind / gatesFrom / decide 全部住在 lib-probe-classifier.mjs——
+// 分类层独立可单测，输出带 `suggested: true`，AI 对着落盘 HTML 可推翻。
 
-function classifyKind(title, html) {
-  const t = `${title || ''} ${stripScripts(html).slice(0, 4000)}`.toLowerCase();
-  if (AI_DIRECTORY_RE.test(t)) return 'ai-directory';
-  if (/startup|indie hacker|product launch|launch your/.test(t)) return 'startup-launch';
-  if (/saas|software (?:reviews?|alternatives)/.test(t)) return 'saas-review';
-  if (/business directory|local business|company directory/.test(t)) return 'business-directory';
-  if (/web directory|link directory|site directory/.test(t)) return 'web-directory';
-  if (/search engine|submit your url to/.test(t)) return 'search-engine';
-  if (/forum|community|developers?/.test(t)) return 'dev-community';
-  if (/directory|submit your (?:tool|product|site)/.test(t)) return 'product-directory';
-  return 'unknown';
-}
-
-// Collect EVERY gate, not just the first. A site can want an account and a
-// CAPTCHA and an email confirmation; recording only one of the three hides two
-// thirds of what the submission actually costs, and cost is what decides which
-// batch it can go in.
-function gatesFrom(a) {
-  const g = [];
-  if (a.captchaModern || a.captchaLegacy) g.push('captcha-interactive');
-  if (a.hasPassword || a.loginWall) g.push('account');
-  if (a.reciprocal) g.push('reciprocal');
-  if (a.personalContact) g.push('personal-contact');
-  if (a.emailVerify) g.push('email-verify');
-  if (a.forms && !g.length) g.push('open-form');
-  if (!a.forms && !g.length) g.push('none-found');
-  return g;
-}
-
-function decide(probe, a) {
-  const bail = (gates, why) => ({ status: 'unverified', gates, gate: primaryGate(gates), cohort: cohortOf(gates), why });
-  if (probe.status === null) return bail(['unknown'], `unreachable over plain HTTP (${probe.error}); needs a browser before any claim`);
-  if (probe.status >= 500) return bail(['unknown'], `server error ${probe.status}`);
-  if (probe.status === 404 || probe.status === 410) return bail(['none-found'], `route answered ${probe.status}`);
-
-  const gates = gatesFrom(a);
-  const gate = primaryGate(gates);
-  const cohort = cohortOf(gates);
-
-  if (gates.includes('none-found')) {
-    return bail(['none-found'], a.submitLinks.length
-      ? 'no form on this page, but a submission-looking link exists; follow it in a browser'
-      : 'no form and no submission link found over plain HTTP; absence is not provable this way');
+/**
+ * 原始 HTML 落盘：`<out>.evidence/<domain>.html`。这是分类建议的唯一现场——
+ * 「usable」被推翻、「unknown」被认出，都要靠它。写不进去只警告，不阻断采集。
+ */
+function writeRawHtml(outPath, domain, body) {
+  if (!outPath) return null;
+  try {
+    const dir = `${outPath}.evidence`;
+    fs.mkdirSync(dir, { recursive: true });
+    const file = `${String(domain || '').toLowerCase().replace(/[^a-z0-9.-]/g, '_')}.html`;
+    fs.writeFileSync(path.join(dir, file), String(body ?? ''), 'utf8');
+    return path.join(path.basename(dir), file);
+  } catch (e) {
+    process.stderr.write(`[evidence] raw HTML dump failed for ${domain}: ${String(e.message).slice(0, 160)}\n`);
+    return null;
   }
-  if (cohort === 'open') {
-    return { status: 'usable', gates, gate, cohort, why: `reachable ${probe.status}, ${a.forms} form(s), no CAPTCHA/login/reciprocal signal in raw HTML` };
-  }
-  return { status: 'gated', gates, gate, cohort, why: `reachable ${probe.status}, gates observed: ${gates.join(' + ')}` };
 }
 
-async function probeDomain(lead) {
+async function probeDomain(lead, outPath) {
   const candidates = [];
   for (const u of lead.urls || []) candidates.push(u);
   candidates.push(`https://${lead.domain}/`);
@@ -269,12 +223,15 @@ async function probeDomain(lead) {
   const title = titleOf(best.body || '');
   const d = decide(best, a);
   const today = new Date().toISOString().slice(0, 10);
+  const rawHtml = writeRawHtml(outPath, lead.domain, best.body || '');
 
   const price = a.priceHits.length ? a.priceHits.join(' / ') : null;
   return {
     domain: lead.domain,
     route: best.finalUrl || best.tried,
     name: title,
+    // ↓ kind / gate / gates / cohort / status 是 lib-probe-classifier 的启发式
+    //   建议（suggested），不是判决——AI 对着 evidence.rawHtml 可推翻。
     kind: classifyKind(title, best.body || ''),
     gate: d.gate,
     gates: d.gates,
@@ -283,6 +240,7 @@ async function probeDomain(lead) {
     price,
     priceCheckedAt: price ? today : null,
     status: d.status,
+    suggestedBy: 'lib-probe-classifier',
     sourceList: lead.sourceList || null,
     notes: lead.notes ? lead.notes.slice(0, 300) : null,
     lastProbedAt: today,
@@ -292,6 +250,7 @@ async function probeDomain(lead) {
       httpStatus: best.status,
       finalUrl: best.finalUrl,
       title,
+      rawHtml,
     },
     _signals: { forms: a.forms, captchaModern: a.captchaModern, captchaLegacy: a.captchaLegacy, submitLinks: a.submitLinks, fieldNames: a.fieldNames.slice(0, 12), priceHitsUnscoped: a.priceHitsUnscoped },
   };
@@ -313,7 +272,7 @@ async function main() {
   const write = () => fs.writeFileSync(args.out, JSON.stringify({
     version: 1,
     updatedAt: new Date().toISOString(),
-    note: 'Anonymous-HTTP first pass. usable/gated mean a route was OBSERVED; unverified means plain HTTP could not tell and a browser is required. No row here claims a published link.',
+    note: 'Anonymous-HTTP first pass. status/gate/cohort/kind are SUGGESTIONS from lib-probe-classifier (regex over raw HTML) — the AI may overrule any of them against evidence.rawHtml in the .evidence/ dir. usable/gated mean a route was OBSERVED; unverified means plain HTTP could not tell and a browser is required. No row here claims a published link.',
     targets: results,
   }, null, 2) + '\n');
 
@@ -323,7 +282,7 @@ async function main() {
     for (;;) {
       const lead = queue.shift();
       if (!lead) return;
-      results.push(await probeDomain(lead));
+      results.push(await probeDomain(lead, args.out));
       if (++n % 20 === 0) { write(); process.stderr.write(`  ${n}/${leads.length}\n`); }
     }
   };

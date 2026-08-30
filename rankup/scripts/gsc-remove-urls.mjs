@@ -32,9 +32,17 @@
  *   - 同一 URL 重复提交不会报错，GSC 会显示已有的请求。
  *
  * 已验证：2026-08-23
+ *
+ * ── 双证人化（2026-08-30，截图链路待实盘验证）────────────────
+ * 写操作脚本，证据义务最重：每条 URL 提交后截图；results.json **逐条落盘**
+ * 到 `.rankup/evidence/gsc-remove-urls-<ts>/`——中途被打断（超时/Ctrl-C 之外的
+ * 崩溃）时已提交的部分也有案可查，不会「提交了 7 条、账面上一条都没有」。
+ * 页面打不开等失败分支退出前同样落现场（截图 + 页面文本 + manifest）。
  */
 import { execSync } from "node:child_process"
-import { readFileSync, existsSync } from "node:fs"
+import { readFileSync, existsSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
+import { newEvidenceDir, captureScene, writeManifest, sessionSuffix } from "./lib-scene.mjs"
 
 // ── 按钮文案（中文 GSC） ──────────────────────────────────
 // GSC 页面语言跟 Google 账号语言走。如需其他语言，改这里。
@@ -53,7 +61,8 @@ const L = {
 const argv = process.argv.slice(2)
 let property = null // 必填。**不给默认值**：默认成某个具体站点既是项目泄漏，
 // 也会让忘记传 --property 的调用静默操作到错误的资源上。
-let session = `gsc-remove-${process.pid}`
+// 会话名：描述性 + 每对话唯一后缀。**不用 pid**——Bash tool 里每次调用都是新进程。
+let session = `gsc-remove-${sessionSuffix()}`
 let urlFile = null
 let keepSession = false
 let dryRun = false
@@ -128,6 +137,28 @@ function click(text) {
   cli(`click --text "${text}"`)
 }
 
+/* ── 取证 ─────────────────────────────────────────────────── */
+let evidence = null
+function evidenceDir() {
+  if (!evidence) evidence = newEvidenceDir("gsc-remove-urls")
+  return evidence
+}
+function scene(tag, extra) {
+  return captureScene({
+    dir: evidenceDir(),
+    tag,
+    screenshot: (p) => cli(`screenshot "${p}"`, { timeout: 90000 }),
+    pageText: () => cli(`eval '(()=>{try{return document.body?document.body.innerText.slice(0,20000):""}catch(e){return "PAGE_TEXT_FAILED:"+e}})()'`),
+    extra,
+  })
+}
+/** results.json 逐条落盘：每处理完一条 URL 就写一次，中止也有账。 */
+function persistResults(results, done) {
+  try {
+    writeFileSync(join(evidenceDir(), "results.json"), JSON.stringify({ property, urls: urls.length, done, results }, null, 2) + "\n")
+  } catch (e) { console.error(`（results.json 落盘失败：${String(e?.message || e).slice(0, 200)}）`) }
+}
+
 function clickRole(role, name) {
   cli(`click --role "${role}" --name "${name}"`)
 }
@@ -153,10 +184,14 @@ cli(`open "${gscUrl}" --window background`)
 try {
   waitText(L.submittedList, 20000)
 } catch {
-  console.error(`无法打开 GSC 移除页面。请确认：
-  1. 浏览器已登录 Google 账号
-  2. 该账号有 ${property} 的 GSC 权限
-  3. 网络可达 search.google.com`)
+  // 先取证后死：页面到底停在哪（登录页 / 无权限提示 / 白屏没加载完），截图才分得清。
+  scene("open-failed", { url: gscUrl })
+  writeManifest(evidenceDir(), { script: "gsc-remove-urls", property, stopReason: "open-failed", finishedAt: new Date().toISOString() })
+  console.error(`20 秒内没等到「${L.submittedList}」文案。可能成因（文本层不可分辨，看 ${evidenceDir()} 的截图）：
+  1. 浏览器未登录 Google 账号
+  2. 该账号没有 ${property} 的 GSC 权限
+  3. 页面没加载完 / 界面语言不是中文（改 L 文案表）`)
+  if (!keepSession) { try { cli("close") } catch { /* ignore */ } }
   process.exit(1)
 }
 console.log("  页面已加载\n")
@@ -220,27 +255,41 @@ for (let i = 0; i < urls.length; i++) {
       waitText(L.submittedList, 15000)
     }
 
-    console.log(`  ✓ 已提交`)
-    results.push({ url, status: "submitted" })
+    // 每条提交后截图：submitted 记录的是「走完了点击流程且面板回到列表」，
+    // 这条请求有没有真的进「已提交的申请」，以这张截图为准。
+    const s = scene(`url-${String(i + 1).padStart(2, "0")}-submitted`, { url })
+    console.log(`  ✓ 流程走完（截图 ${s.files[0] ?? "失败：" + s.errors.join("; ")}）`)
+    results.push({ url, status: "submitted", scene: s.files, sceneErrors: s.errors })
   } catch (e) {
     console.error(`  ✗ 失败: ${e.message}`)
-    results.push({ url, status: "failed", error: e.message })
+    const s = scene(`url-${String(i + 1).padStart(2, "0")}-failed`, { url, error: e.message })
+    results.push({ url, status: "failed", error: e.message, scene: s.files, sceneErrors: s.errors })
 
     // 尝试关闭可能残留的 dialog
     try { click("取消") } catch { /* ignore */ }
     waitTime(1)
   }
+  // 逐条落盘：中止时已处理的部分也有案可查。
+  persistResults(results, i + 1)
 }
 
 // 3. 收尾
 console.log(`\n─── 结果 ───`)
 const ok = results.filter(r => r.status === "submitted").length
 const fail = results.filter(r => r.status === "failed").length
-console.log(`提交成功: ${ok}/${urls.length}`)
+console.log(`流程走完: ${ok}/${urls.length}（是否真的进了「已提交的申请」，以每条的截图为准）`)
 if (fail > 0) {
-  console.log(`提交失败: ${fail}`)
+  console.log(`流程失败: ${fail}`)
   results.filter(r => r.status === "failed").forEach(r => console.log(`  ${r.url}: ${r.error}`))
 }
+writeManifest(evidenceDir(), {
+  script: "gsc-remove-urls", property,
+  submitted: ok, failed: fail, total: urls.length,
+  stopReason: fail > 0 ? "completed-with-failures" : "completed",
+  finishedAt: new Date().toISOString(),
+})
+persistResults(results, urls.length)
+console.log(`results.json 与每条截图在 ${evidenceDir()}`)
 
 if (!keepSession) {
   try { cli("close") } catch { /* ignore */ }

@@ -27,14 +27,20 @@
  *   node semrush-keyword.mjs --kw-file words.txt --db us --bulk --out us.jsonl
  *   node semrush-keyword.mjs --bulk-plan countries.json --out countries.jsonl
  *   # 想要全球规模：读输出里的 globalVolume 字段，不要重算 --db 或加总 byCountry
- *   # 单词模式默认自动复查显著的第一大国家；明确不要时传 --no-follow-top-country
+ *   # 单词模式默认自动复查第一大国家（只要它 ≠ --db）；明确不要时传 --no-follow-top-country
  *
  * 已验证 2026-08-26：冻结/登录失效页立即停止；同机 Semrush 查询跨进程串行；
- * 批量关键词之间默认等待 12–25 秒；第一大国家份额 >=35% 或当前库量 <500 时，
- * 同一 session 内自动 geo-hop 一次，不回 dashboard、不递归查询。
+ * 批量关键词之间默认等待 12–25 秒；第一大国家 ≠ 当前库时，同一 session 内自动
+ * geo-hop 一次拿事实，不回 dashboard、不递归查询。
+ *
+ * 2026-08-30 双证人化：geoHop 只报事实（第一大国家、份额、两边的量），旧版
+ * 「份额 >=35% 或当前库量 <500 才追查」的阈值判断已移出脚本——显著与否由 AI
+ * 拿事实判。单词模式的失败关键词在落行前 captureScene（穿透 census + 截图）
+ * 进 --evidence-dir，行内带证据路径。截图链路待实盘验证。
  */
 import { resolveSession, parseFlags, printJson, validateSession, showHelpIfRequested} from './opencli-core.mjs';
 import { assertToolsShareAvailable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
+import { captureScene, defaultSceneDir } from './lib-evidence-scene.mjs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { randomInt } from 'node:crypto';
 import assert from 'node:assert/strict';
@@ -54,6 +60,10 @@ if (!dbGiven && !bulkPlanFile && !flags['self-test']) {
 }
 const session = resolveSession(flags, 'semrush-keyword', 'semrush');
 const appOrigin = (process.env.TOOLS_SHARE_APP_ORIGIN_SEMRUSH || 'https://sem.3ue.co').replace(/\/+$/, '');
+// 失败现场的落点。默认贴着 --out（`x.jsonl.evidence/`），没有 --out 进 .backlink/。
+const evidenceDir = typeof flags['evidence-dir'] === 'string'
+  ? flags['evidence-dir']
+  : defaultSceneDir({ out: typeof flags.out === 'string' ? flags.out : null, script: 'semrush-keyword' });
 
 let keywords = [];
 if (typeof flags.kw === 'string') keywords = String(flags.kw).split(',').map((s) => s.trim()).filter(Boolean);
@@ -185,21 +195,22 @@ function pickCountries(lines) {
   return Object.keys(out).length ? out : null;
 }
 
-function geoHopDecision(row, currentDb) {
+/**
+ * geo-hop 只报**事实**：第一大国家是谁、占全球多少份额、两边的量各是多少。
+ * 旧版的「份额 >=35% 或当前库量 <500 才追查」是 AI 级判断写死在脚本里
+ * （refactor-audit P1 点名），已移出——`followed: true` 只表示「第一大国家
+ * 不是当前库，值得把它的数一并采回来」，显著与否由 AI 拿 share/volume 判。
+ */
+function geoHopFacts(row, currentDb) {
   const countries = Object.entries(row?.byCountry || {}).sort((a, b) => b[1] - a[1]);
-  if (!countries.length) return { triggered: false, reason: 'no byCountry data' };
+  if (!countries.length) return { followed: false, reason: 'no byCountry data' };
   const [code, topCountryVolume] = countries[0];
   const country = code.toLowerCase();
   const share = row.globalVolume > 0 ? Math.round(topCountryVolume / row.globalVolume * 1000) / 10 : null;
-  if (country === currentDb) return { triggered: false, reason: 'top country is current db', country, share, topCountryVolume };
-  if (!(share >= 35 || Number(row.volume) < 500)) {
-    return { triggered: false, reason: 'top share below 35% and current volume >=500', country, share, topCountryVolume };
+  if (country === currentDb) {
+    return { followed: false, reason: 'top country is current db', country, share, topCountryVolume };
   }
-  return {
-    triggered: true,
-    reason: share >= 35 ? 'top country share >=35%' : 'current db volume <500',
-    country, share, topCountryVolume,
-  };
+  return { followed: true, reason: 'top country differs from current db', country, share, topCountryVolume, currentDbVolume: row.volume ?? null };
 }
 
 if (flags['self-test']) {
@@ -213,11 +224,14 @@ if (flags['self-test']) {
     noData: false, status: 'ok',
   });
   assert.equal(sample[1].status, 'absent');
-  assert.deepEqual(geoHopDecision({ volume: 100, globalVolume: 1000, byCountry: { IN: 600, US: 100 } }, 'us'), {
-    triggered: true, reason: 'top country share >=35%', country: 'in', share: 60, topCountryVolume: 600,
+  assert.deepEqual(geoHopFacts({ volume: 100, globalVolume: 1000, byCountry: { IN: 600, US: 100 } }, 'us'), {
+    followed: true, reason: 'top country differs from current db', country: 'in', share: 60, topCountryVolume: 600, currentDbVolume: 100,
   });
-  assert.equal(geoHopDecision({ volume: 5000, globalVolume: 10000, byCountry: { IN: 2000, US: 1000 } }, 'us').triggered, false);
-  assert.equal(geoHopDecision({ volume: 100, globalVolume: 1000, byCountry: { US: 600 } }, 'us').triggered, false);
+  // 阈值判断已移出：份额只有 20%、当前库量充足，也照样报事实并追查——显著与否归 AI。
+  assert.equal(geoHopFacts({ volume: 5000, globalVolume: 10000, byCountry: { IN: 2000, US: 1000 } }, 'us').followed, true);
+  assert.equal(geoHopFacts({ volume: 5000, globalVolume: 10000, byCountry: { IN: 2000, US: 1000 } }, 'us').share, 20);
+  assert.equal(geoHopFacts({ volume: 100, globalVolume: 1000, byCountry: { US: 600 } }, 'us').followed, false);
+  assert.equal(geoHopFacts({ volume: 100, globalVolume: 1000, byCountry: {} }, 'us').followed, false);
   console.log('semrush-keyword bulk self-test passed');
   process.exit(0);
 }
@@ -338,21 +352,28 @@ for (const kw of keywords) {
     // 拿到的就是 opencli 的 stderr 原文。同仓库的 semrush-report.mjs 早就把这条
     // 写在注释里了，但注释拦不住第二个脚本重犯——所以另配了一条会红的检查
     // （backlink/tests/redaction-guard.test.mjs）。
-    row = { keyword: kw, db, status: 'error', error: redactSecrets(error.message) };
+    // **先取证后落行**：超时/never-rendered 的那一刻页面长什么样，只有此刻拍得到。
+    // captureScene 永不 throw；行内带证据路径，AI 复核「超时」还是「真没数据」。
+    const scene = await captureScene({
+      session, outDir: evidenceDir, evalPage: launched.evalPage, tag: `kw-${results.length + 1}-error`,
+      note: `semrush-keyword "${kw}" (db=${db}): ${redactSecrets(String(error?.message || error)).slice(0, 200)}`,
+    });
+    row = { keyword: kw, db, status: 'error', error: redactSecrets(error.message), evidence: scene };
   }
   if (row.status === 'ok') {
-    const decision = geoHopDecision(row, db);
-    row.geoHop = decision;
-    if (decision.triggered && !flags['no-follow-top-country']) {
+    // 只报事实 + 采数据，不做显著性判断（阈值已移出，见 geoHopFacts 注释）。
+    const facts = geoHopFacts(row, db);
+    row.geoHop = facts;
+    if (facts.followed && !flags['no-follow-top-country']) {
       try {
-        const [followed] = await fetchBulk(decision.country, [kw]);
-        row.geoHop = { ...decision, result: followed };
+        const [followed] = await fetchBulk(facts.country, [kw]);
+        row.geoHop = { ...facts, result: followed };
       } catch (error) {
         if (error?.code === 'TOOLS_SHARE_BLOCKED') throw error;
-        row.geoHop = { ...decision, status: 'error', error: redactSecrets(error.message) };
+        row.geoHop = { ...facts, status: 'error', error: redactSecrets(error.message) };
       }
-    } else if (decision.triggered) {
-      row.geoHop = { ...decision, triggered: false, reason: 'disabled by --no-follow-top-country' };
+    } else if (facts.followed) {
+      row.geoHop = { ...facts, followed: false, reason: 'disabled by --no-follow-top-country' };
     }
   }
   results.push(row);
@@ -369,7 +390,7 @@ printJson({
   source: `Semrush keyword overview${flags.bulk || bulkPlan ? ' bulk' : ''} via authenticated Tools Share browser session`,
   note: flags.bulk || bulkPlan
     ? `bulk volume/KD/CPC 是每行 db 对应国家库的数据；对筛出的候选先用单词模式读取 globalVolume 与 byCountry。`
-    : `volume 是 db=${db} 这一个国家库的月搜量，globalVolume 是全球合计，byCountry 是页面列出的 Top-N（不穷举，加总不等于 globalVolume）——三者不可互相替代。geoHop 在第一大国家不同且份额 >=35% 或当前库量 <500 时，用同一 session 自动复查一次。`,
+    : `volume 是 db=${db} 这一个国家库的月搜量，globalVolume 是全球合计，byCountry 是页面列出的 Top-N（不穷举，加总不等于 globalVolume）——三者不可互相替代。geoHop 只报事实：第一大国家 ≠ 当前库时用同一 session 复查一次并附 result；显著与否（旧阈值 35%/<500 已移出脚本）由 AI 拿 share/volume 判。`,
   retrievedAt: new Date().toISOString(),
   db,
   session,

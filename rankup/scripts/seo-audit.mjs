@@ -2,6 +2,12 @@
 /**
  * seo-audit.mjs — AITDK-equivalent SEO audit (zero deps, Node 20+)
  *
+ * 双证人化第二波（2026-08-30）：本脚本降级为**纯机械工具**——只输出事实
+ * （标签存在与否、长度、计数、密度），不再给 error/warning/info 分级，也不给
+ * 修复建议。分级与阈值判读表迁到 references/seo-box.md「seo-audit 判读指引」，
+ * 由拿着上下文的判读者决定哪条算致命。每页抓取失败也进输出
+ * （`{url, fetchError}`），不再只在 stderr 里喊一声就丢掉。
+ *
  * Usage:
  *   node seo-audit.mjs https://example.com/
  *   node seo-audit.mjs --sitemap https://example.com/sitemap.xml
@@ -178,17 +184,19 @@ function analyzeOverview(html, url) {
 // ─── Analysis: Issues ───────────────────────────────────────────────────────
 function analyzeIssues(html, url, overview) {
   const issues = [];
-  const push = (severity, code, message, fix) =>
-    issues.push({ severity, code, message, fix });
+  // 只记录 {code, observed}。第 1 参（旧 severity）与第 4 参（旧修复建议）
+  // 被有意丢弃：分级与建议是判读，已迁 references/seo-box.md，脚本只留事实。
+  const push = (_severityMovedToReferences, code, observed) =>
+    issues.push({ code, observed });
 
   // Title
   if (!overview.title) {
     push('error', 'NO_TITLE', 'ページにtitleタグがありません', 'titleタグを追加してください');
   } else {
     if (overview.title.length < 10)
-      push('warning', 'SHORT_TITLE', `titleが短すぎます (${overview.title.length}文字)`, '30〜60文字を目安にしてください');
+      push('warning', 'TITLE_LEN', `title ${overview.title.length}文字（典型范围外，判读见 references/seo-box.md）`);
     if (overview.title.length > 60)
-      push('warning', 'LONG_TITLE', `titleが長すぎます (${overview.title.length}文字, 推奨60以下)`, '60文字以内に収めてください');
+      push('warning', 'TITLE_LEN', `title ${overview.title.length}文字（典型范围外，判读见 references/seo-box.md）`);
   }
 
   // Description
@@ -196,9 +204,9 @@ function analyzeIssues(html, url, overview) {
     push('error', 'NO_DESCRIPTION', 'meta descriptionがありません', 'meta descriptionを追加してください');
   } else {
     if (overview.description.length < 50)
-      push('warning', 'SHORT_DESC', `descriptionが短すぎます (${overview.description.length}文字)`, '80〜160文字を目安にしてください');
+      push('warning', 'DESC_LEN', `description ${overview.description.length}文字（典型范围外，判读见 references/seo-box.md）`);
     if (overview.description.length > 160)
-      push('warning', 'LONG_DESC', `descriptionが長すぎます (${overview.description.length}文字, 推奨160以下)`, '160文字以内に収めてください');
+      push('warning', 'DESC_LEN', `description ${overview.description.length}文字（典型范围外，判读见 references/seo-box.md）`);
   }
 
   // Keywords
@@ -513,35 +521,26 @@ function printReport(result) {
   // Overview
   console.log('\n┌─ Overview ────────────────────────────────────────────────');
   if (overview.title) {
-    const len = overview.title.length;
-    const badge = len <= 60 ? '✓' : '!';
-    console.log(`│ Title [${len}/60] ${badge}  ${overview.title.text}`);
+    console.log(`│ Title [${overview.title.length}文字]  ${overview.title.text}`);
   } else {
-    console.log('│ Title: ✗ MISSING');
+    console.log('│ Title: (なし)');
   }
   if (overview.description) {
-    const len = overview.description.length;
-    const badge = len <= 160 ? '✓' : '!';
-    console.log(`│ Desc  [${len}/160] ${badge}  ${overview.description.text.substring(0, 100)}…`);
+    console.log(`│ Desc  [${overview.description.length}文字]  ${overview.description.text.substring(0, 100)}…`);
   } else {
-    console.log('│ Desc:  ✗ MISSING');
+    console.log('│ Desc:  (なし)');
   }
   console.log(`│ Keywords: ${overview.keywords || 'N/A'}`);
   console.log(`│ Canonical: ${overview.canonical || 'N/A'}`);
   console.log(`│ Lang: ${overview.lang || 'N/A'}  Charset: ${overview.charset || 'N/A'}  Robots: ${overview.robots || 'N/A'}`);
   console.log('└───────────────────────────────────────────────────────────');
 
-  // Issues
-  const errors = issues.filter(i => i.severity === 'error');
-  const warnings = issues.filter(i => i.severity === 'warning');
-  const infos = issues.filter(i => i.severity === 'info');
-  console.log(`\n┌─ Issues (${errors.length} errors, ${warnings.length} warnings, ${infos.length} info) ─`);
+  // Observations：事实清单，无分级。哪条算致命见 references/seo-box.md。
+  console.log(`\n┌─ Observations (${issues.length} 条，分级判读见 references/seo-box.md) ─`);
   for (const i of issues) {
-    const icon = i.severity === 'error' ? '✗' : i.severity === 'warning' ? '!' : '·';
-    console.log(`│ ${icon} [${i.code}] ${i.message}`);
-    if (i.fix) console.log(`│   → ${i.fix}`);
+    console.log(`│ [${i.code}] ${i.observed}`);
   }
-  if (issues.length === 0) console.log('│ すべてのチェックに合格しました');
+  if (issues.length === 0) console.log('│ （无记录项）');
   console.log('└───────────────────────────────────────────────────────────');
 
   // Density
@@ -658,34 +657,33 @@ function printSummary(results) {
   console.log('  SUMMARY');
   console.log('═'.repeat(78));
 
-  let totalErrors = 0, totalWarnings = 0, totalInfos = 0;
+  const audited = results.filter(r => !r.fetchError);
+  const failed = results.filter(r => r.fetchError);
   const issueCounts = new Map();
-
-  for (const r of results) {
-    for (const i of r.issues) {
-      if (i.severity === 'error') totalErrors++;
-      else if (i.severity === 'warning') totalWarnings++;
-      else totalInfos++;
-      issueCounts.set(i.code, (issueCounts.get(i.code) || 0) + 1);
-    }
+  for (const r of audited) {
+    for (const i of r.issues) issueCounts.set(i.code, (issueCounts.get(i.code) || 0) + 1);
   }
 
-  console.log(`\nPages audited: ${results.length}`);
-  console.log(`Total issues:  ${totalErrors} errors, ${totalWarnings} warnings, ${totalInfos} info\n`);
+  console.log(`\nPages audited: ${audited.length}${failed.length ? `（另有 ${failed.length} 页抓取失败，见下）` : ''}`);
+  console.log(`Total observations: ${audited.reduce((n, r) => n + r.issues.length, 0)}（分级判读见 references/seo-box.md）\n`);
 
   if (issueCounts.size > 0) {
-    console.log('Most common issues:');
+    console.log('Most common observations:');
     const sorted = [...issueCounts.entries()].sort((a, b) => b[1] - a[1]);
     for (const [code, count] of sorted) {
       console.log(`  ${code.padEnd(22)} ${count} pages`);
     }
+  }
+  if (failed.length) {
+    console.log('\nFetch failures（抓取失败 ≠ 页面没问题——这些页这次根本没看到）:');
+    for (const r of failed) console.log(`  ${r.url}: ${r.fetchError}`);
   }
 
   // Keyword density across all pages
   console.log('\n┌─ Site-wide keyword distribution ─────────────────────────');
   const siteFreq = new Map();
   let siteTotalWords = 0;
-  for (const r of results) {
+  for (const r of audited) {
     siteTotalWords += r.density.totalWords;
     for (const u of r.density.unigrams) {
       siteFreq.set(u.word, (siteFreq.get(u.word) || 0) + u.count);
@@ -736,7 +734,10 @@ async function main() {
         printReport(result);
       }
     } catch (e) {
+      // 抓取失败必须进输出：只在 stderr 喊一声就丢掉，--json 的读者会把
+      // 「没审到」当成「没问题」。
       console.error(`\n✗ Error auditing ${url}: ${e.message}`);
+      results.push({ url, fetchError: e.message, issues: [] });
     }
   }
 
@@ -750,6 +751,7 @@ async function main() {
   if (flags.fixReport) {
     console.log('\n\n=== FIX REPORT (machine-readable) ===');
     for (const r of results) {
+      if (r.fetchError) { console.log(JSON.stringify({ url: r.url, fetchError: r.fetchError })); continue; }
       for (const i of r.issues) {
         console.log(JSON.stringify({ url: r.url, ...i }));
       }

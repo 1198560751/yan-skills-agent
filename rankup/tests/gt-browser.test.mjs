@@ -55,9 +55,14 @@ try {
   const second = run(["compare", "demo", "--time", "7d", "--session", "gt-browser-test", "--keep-session"]);
   assert.equal(second.status, 0, second.stderr);
 
+  // 双证人化之后每次运行还会有 screenshot / eval 取证调用混在日志里，
+  // 批量取数调用按 --commands 过滤出来，位置不再靠日志行号对齐。
   const calls = (await readFile(log, "utf8")).trim().split("\n").map(JSON.parse);
-  const firstBatch = JSON.parse(calls[1][calls[1].indexOf("--commands") + 1]);
-  const secondBatch = JSON.parse(calls[2][calls[2].indexOf("--commands") + 1]);
+  // batchCalls[0] 是首次「无 open」的试探（fake 会报 session_not_found），
+  // [1] 是带 open 的重试，[2] 是第二次运行的复用调用——和改造前的行号语义一致。
+  const batchCalls = calls.filter((call) => call.includes("--commands"));
+  const firstBatch = JSON.parse(batchCalls[1][batchCalls[1].indexOf("--commands") + 1]);
+  const secondBatch = JSON.parse(batchCalls[2][batchCalls[2].indexOf("--commands") + 1]);
   assert.match(firstBatch.at(-1).args.js, /today 1-m/, "1m 应映射到 Trends 时间范围");
   assert.deepEqual(secondBatch.map((command) => command.cmd), ["eval"], "复用会话时不应重新 open");
   assert.match(secondBatch[0].args.js, /now 7-d/, "7d 应映射到 Trends 时间范围");

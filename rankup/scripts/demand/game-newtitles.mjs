@@ -75,7 +75,10 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { sessionName, requireBrowserBridge } from './_lib.mjs';
+import {
+  sessionName, requireBrowserBridge, initEvidence, saveEvidence, recordSource,
+  writeManifest, captureBrowserScene, evidenceDir,
+} from './_lib.mjs';
 
 const execFileP = promisify(execFile);
 
@@ -133,8 +136,9 @@ igdb:
 steamdb (需要 OpenCLI 真浏览器，Cloudflare 挡纯 HTTP):
   --sdb-path <p>     SteamDB 列表路径     (默认 /upcoming/)
   --session <s>      OpenCLI 会话名，带你自己前缀的字面常量 (默认 demand-steamdb)
-  --keep-open        跑完不关标签页
-  --timeout <ms>     页面加载等待         (默认 9000)
+  --keep-open        跑完/失败都不关标签页（排查时保住活现场）
+  --timeout <ms>     页面就绪轮询预算     (默认 9000)
+  --evidence-dir <d> 失败现场与 manifest 落点
 
 输出字段: {source, name, url, domain, users, rating, ratingCount, date, extra}
 `;
@@ -193,6 +197,7 @@ function parseArgs(argv) {
       case '--session': o.session = next(); break;
       case '--keep-open': o.keepOpen = true; break;
       case '--timeout': o.timeout = Number(next()); break;
+      case '--evidence-dir': o.evidenceDir = next(); break;
       default:
         if (a.startsWith('-')) { console.error(`未知参数: ${a}\n${HELP}`); process.exit(2); }
     }
@@ -210,7 +215,12 @@ const domainOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, '')
 
 async function get(url, headers = {}) {
   const res = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'en-US,en;q=0.9', ...headers } });
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
+  if (!res.ok) {
+    // HTTP 源失败先存响应体：403 挑战页/429 配额页和「端点变了」在响应体里长得不一样。
+    const body = await res.text().catch(() => null);
+    const f = saveEvidence(`http-${Date.now()}-${res.status}.json`, { url, status: res.status, body });
+    throw new Error(`HTTP ${res.status} ${url}（响应体已留 ${f}）`);
+  }
   return res;
 }
 
@@ -496,22 +506,52 @@ async function sourceSteamdb(o) {
   // `opencli doctor` 桥没连上也退出码 0，只是文案带 [FAIL]——单纯 catch 从来没生效过。
   // 真正判据在 requireBrowserBridge()：认 `[OK] Connectivity`，探测本身失败/超时就放行。
   requireBrowserBridge();
+  initEvidence('game-newtitles', { dir: o.evidenceDir ?? null });
 
-  let payload;
+  // 先取证后关：失败路径先把截图+页面全文落证据目录，再关标签页（--keep-open 不关）。
+  // 截图链路待实盘验证（2026-08-30 重构第二波）。
+  const closeTab = async () => {
+    if (o.keepOpen) return;
+    try { await run(['browser', o.session, 'close']); } catch { /* 已关 */ }
+  };
+  const bail = async (tag, err, extra = null) => {
+    const scene = captureBrowserScene(o.session, tag);
+    if (extra != null) saveEvidence(`${tag}.json`, extra);
+    recordSource({ source: `steamdb:${o.sdbPath}`, status: 'browser_error', rawCount: 0, error: String(err), scene });
+    writeManifest(`died: ${String(err).slice(0, 200)}`);
+    await closeTab();
+    throw new Error(`${err}\n现场已留（截图+页面文本）：${evidenceDir()}${o.keepOpen ? '，标签页保持打开' : ''}`);
+  };
+
+  let payload = null;
   try {
     await run(['browser', o.session, '--window', 'background', 'open', url]);
-    await sleep(o.timeout);
-    const out = await run(['browser', o.session, 'eval', SDB_EXTRACTOR]);
-    const i = out.indexOf('{'), j = out.lastIndexOf('}');
-    if (i < 0) throw new Error(`OpenCLI 未返回 JSON:\n${out.slice(0, 300)}`);
-    payload = JSON.parse(out.slice(i, j + 1));
-  } finally {
-    if (!o.keepOpen) { try { await run(['browser', o.session, 'close']); } catch { /* 已关 */ } }
+  } catch (e) {
+    await bail('steamdb-open-failed', `打开 ${url} 失败：${e.message}`);
+  }
+  // waitFor 不 sleep：在 --timeout 预算内轮询提取器，出表格就走，不傻等整个预算。
+  const deadline = Date.now() + Math.max(o.timeout, 3000);
+  do {
+    await sleep(1200);
+    try {
+      const out = await run(['browser', o.session, 'eval', SDB_EXTRACTOR]);
+      const i = out.indexOf('{'), j = out.lastIndexOf('}');
+      payload = i < 0 ? null : JSON.parse(out.slice(i, j + 1));
+    } catch { payload = null; /* CF 挑战期间 eval 可能不回，继续轮询 */ }
+    if (payload?.count) break;
+  } while (Date.now() < deadline);
+
+  if (!payload) {
+    await bail('steamdb-eval-failed', '轮询预算内 OpenCLI eval 一直没有返回 JSON（页面可能没打开/挑战没过）');
   }
   if (!payload.count) {
-    throw new Error('SteamDB 页面没解析到表格。可能 Cloudflare 挑战没过完（加大 --timeout）或站点改版。\n'
-      + (payload.text || ''));
+    // 留证陈述，不是结论：0 行表格可能是 Cloudflare 挑战没过完（加大 --timeout）、
+    // 站点改版、或该列表真为空——哪一种由 AI 对着截图+全文判。
+    await bail('steamdb-zero-rows', 'SteamDB 页面没解析到表格——这是「这次没取到」，不是「没有新游」。', payload);
   }
+  recordSource({ source: `steamdb:${o.sdbPath}`, status: 'ok', rawCount: payload.count });
+  writeManifest('completed');
+  await closeTab();
   const num = (v) => { if (v == null) return null; const n = Number(String(v).replace(/[^0-9.-]/g, '')); return Number.isFinite(n) ? n : null; };
   return payload.rows.slice(0, o.count).map((r) => {
     const rel = r['Release'];

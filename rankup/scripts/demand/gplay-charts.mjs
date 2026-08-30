@@ -56,7 +56,7 @@
  *      详情页 HTML 里有安装量区间字符串，见下。
  */
 
-import { parseArgs, getText, emit, die, sleep } from './_lib.mjs';
+import { parseArgs, getText, emit, die, sleep, initEvidence, recordSource, saveEvidence } from './_lib.mjs';
 
 const HELP = `
 gplay-charts.mjs — Google Play 商店页 App 清单（HTML 解析，非真榜单）
@@ -188,6 +188,7 @@ function parseRanking(html, limit) {
 async function main() {
   const args = parseArgs();
   if (args.help || args.h) { console.log(HELP); return; }
+  initEvidence('gplay-charts', { dir: args['evidence-dir'] ?? null });
 
   const country = String(args.country ?? 'US').toUpperCase();
   const lang = String(args.lang ?? 'en');
@@ -204,14 +205,17 @@ async function main() {
     const html = await getText(url, opts);
     rows = parseRanking(html, limit).map((r) => ({ ...r, chart, rankCategory: cat, country }));
     if (!rows.length) {
+      const f = saveEvidence(`appbrain-${chart}-${cat}-0rows.html`, html);
+      recordSource({ source: `appbrain:${chart}:${cat}`, status: 'parse_failed', rawCount: 0, evidence: f });
       die([
-        `从 ${url} 一条名次都没解析出来。`,
+        `从 ${url} 一条名次都没解析出来（原始 HTML 已留 ${f}）。`,
         '常见原因：(a) 连着请求太快被限流 —— 实测约 7 次连续请求后开始回 HTTP 429，',
         '    等几十秒再跑，或用 --sleep 拉开；',
         '(b) --rank-category 名字不对（用 all / productivity / game / tools ... 小写）；',
         '(c) AppBrain 改了表格结构（本脚本是 HTML 解析）。',
       ].join('\n'));
     }
+    recordSource({ source: `appbrain:${chart}:${cat}`, status: 'ok', rawCount: rows.length });
     cols = [
       { key: 'rank', label: '名次', max: 5 },
       { key: 'change', label: '涨跌', max: 5 },
@@ -226,6 +230,7 @@ async function main() {
     const html = await getText(
       `https://play.google.com/store/apps/details?id=${encodeURIComponent(id)}&hl=${lang}&gl=${country}`, opts);
     rows = parseDetail(html, id);
+    recordSource({ source: `gplay:detail:${id}`, status: 'ok', rawCount: rows.length });
     cols = [
       { key: 'name', label: 'App', max: 34 },
       { key: 'installs', label: '安装量', max: 12 },
@@ -240,14 +245,17 @@ async function main() {
     const html = await getText(url, opts);
     rows = parseCards(html, limit, minRating);
     if (!rows.length) {
+      const f = saveEvidence(`gplay-list-0rows.html`, html);
+      recordSource({ source: `gplay:${args.search ? `search:${args.search}` : `category:${args.category ?? 'APPLICATION'}`}`, status: 'parse_failed', rawCount: 0, evidence: f });
       die([
-        `从 ${url} 一条 App 都没解析出来。`,
+        `从 ${url} 一条 App 都没解析出来（原始 HTML 已留 ${f}）。`,
         '两种可能：(a) Google 又改了页面结构（本脚本是 HTML 解析，会失效）；',
         '(b) 这个 URL 的内容是前端 RPC 后填的，静态 HTML 里本来就没有 App',
         '（老的 /store/apps/collection/topselling_* 榜单 URL 就属于这种，回 200 但正文没数据）。',
         '退路：改用 --search，或走 appstore-charts.mjs 从 Apple 侧看同一品类。',
       ].join('\n'));
     }
+    recordSource({ source: `gplay:${args.search ? `search:${args.search}` : `category:${args.category ?? 'APPLICATION'}`}`, status: 'ok', rawCount: rows.length });
     cols = [
       { key: 'position', label: '位', max: 4 },
       { key: 'rating', label: '评分', max: 5 },

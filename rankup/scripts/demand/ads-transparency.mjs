@@ -63,6 +63,7 @@
  */
 import { execFileSync } from "node:child_process"
 import { writeFileSync } from "node:fs"
+import { initEvidence, saveEvidence, recordSource, writeManifest, evidenceDir } from "./_lib.mjs"
 
 const RPC = "https://adstransparency.google.com/anji/_/rpc/SearchService"
 const UA =
@@ -102,6 +103,7 @@ for (let i = 1; i < argv.length; i++) {
   if (a === "--limit" && argv[i + 1]) { opt.limit = Math.min(100, Number(argv[++i])); continue }
   if (a === "--json") { opt.json = true; continue }
   if (a === "--out" && argv[i + 1]) { opt.out = argv[++i]; continue }
+  if (a === "--evidence-dir" && argv[i + 1]) { opt.evidenceDir = argv[++i]; continue }
   if (!a.startsWith("--") && !opt.query) { opt.query = a; continue }
   fail(`未知参数：${a}`)
 }
@@ -109,6 +111,7 @@ for (let i = 1; i < argv.length; i++) {
 const regionCode = opt.regionCode ?? (ISO_NUM[opt.region] ? 2000 + ISO_NUM[opt.region] : null)
 if (!regionCode) fail(`不认识地区 ${opt.region}，请用 --region-code <数字>（= 2000 + ISO-3166 数字码）`)
 
+initEvidence("ads-transparency", { dir: opt.evidenceDir ?? null })
 const { rows, meta } = cmd === "advertisers" ? await advertisers() : await creatives()
 
 if (opt.out) {
@@ -119,9 +122,17 @@ if (opt.out) {
   process.stderr.write(`已写入 ${opt.out}（${rows.length} 条）\n`)
 }
 if (meta) process.stderr.write(`[meta] ${JSON.stringify(meta)}\n`)
+const manifestPath = writeManifest("completed")
 if (opt.json) console.log(JSON.stringify(rows, null, 2))
 else printTable(rows)
-if (!rows.length) process.stderr.write("没有取到条目：换个关键词/域名，或换 --region；也可能是 RPC 协议变了（见文件头「已知坑」）\n")
+if (!rows.length) {
+  // 0 advertisers/creatives 必须可审计：请求形状（f.req）和响应体都在证据目录里，
+  // 是「这个地区真没人投」还是「RPC 协议变了/形状被拒」，对着原始现场判。
+  process.stderr.write("没有取到条目——请求形状与原始响应已落证据目录，先看现场再下结论：\n")
+  process.stderr.write(`  ${evidenceDir()}\n`)
+  process.stderr.write("可能是：换个关键词/域名、换 --region，或 RPC 协议变了（见文件头「已知坑」）\n")
+}
+if (manifestPath) process.stderr.write(`manifest：${manifestPath}\n`)
 
 // ── advertisers ──────────────────────────────────────────
 async function advertisers() {
@@ -220,11 +231,21 @@ async function rpc(method, payload) {
       { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
     )
   }
+  // 恒久化原始 RPC 现场：请求形状（f.req 原文）+ 响应体，成功也落——
+  // 这是逆向端点，哪天字段位移了，唯一能对质的就是这份原始记录。
+  const rawFile = saveEvidence(`rpc-${method}-${Date.now()}.json`, {
+    at: new Date().toISOString(), url, fReq: payload, response: text,
+  })
   let j
-  try { j = JSON.parse(text) } catch { fail(`${method} 返回的不是 JSON：${text.slice(0, 200)}`) }
-  if (typeof j?.["2"] === "string" && j["2"].includes("Exception")) {
-    fail(`${method} 请求形状被拒（协议可能变了，见文件头「已知坑」）：\n  ${j["2"].slice(0, 200)}`)
+  try { j = JSON.parse(text) } catch {
+    recordSource({ source: `rpc:${method}`, status: "not_json", raw: rawFile })
+    fail(`${method} 返回的不是 JSON（原始现场已留 ${rawFile}）：${text.slice(0, 200)}`)
   }
+  if (typeof j?.["2"] === "string" && j["2"].includes("Exception")) {
+    recordSource({ source: `rpc:${method}`, status: "shape_rejected", raw: rawFile })
+    fail(`${method} 请求形状被拒（协议可能变了，见文件头「已知坑」；原始现场已留 ${rawFile}）：\n  ${j["2"].slice(0, 200)}`)
+  }
+  recordSource({ source: `rpc:${method}`, status: "ok", rawCount: Array.isArray(j?.["1"]) ? j["1"].length : null, raw: rawFile })
   return j
 }
 
@@ -248,7 +269,14 @@ function printTable(rows) {
   console.log(`\n共 ${rows.length} 条 · region=${opt.region}(${regionCode})`)
 }
 
-function fail(msg) { process.stderr.write(`错误：${msg}\n\n`); usage(); process.exit(1) }
+function fail(msg) {
+  // 先落 manifest 再退出（initEvidence 之前的参数错误不会建目录）。
+  try {
+    const f = writeManifest(`died: ${String(msg).replace(/\s+/g, " ").slice(0, 300)}`)
+    if (f) process.stderr.write(`现场已留：${f}\n`)
+  } catch { /* manifest 写不进去也要把错误打出来 */ }
+  process.stderr.write(`错误：${msg}\n\n`); usage(); process.exit(1)
+}
 
 function usage() {
   process.stdout.write(`ads-transparency.mjs —— 从 Google 广告透明度中心看「谁在持续掏钱买这块流量」
@@ -265,7 +293,10 @@ function usage() {
   --limit <n>           默认 40，上限 100
   --json                输出 JSON
   --out <file>          落盘（.jsonl 为 JSON Lines）
+  --evidence-dir <d>    原始 RPC 现场与 manifest 落点
 
 不需要 token，不需要登录。
+每次 RPC 的请求形状（f.req）与响应体都会原样落进证据目录（成功也落）——
+0 条结果时先看现场再下结论：是真没人投，还是协议变了。
 `)
 }

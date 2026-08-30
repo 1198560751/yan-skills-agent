@@ -98,6 +98,19 @@ node scripts/demand/boards.mjs traffic-cv --json \
 | **广告几条、谁在投** | 有人持续买这个词 = 这个需求能变现（但不证明他在盈利） |
 | **有没有独立站的空位** | 最终裁决：这盘面是「有空位没人争」，还是「没人打算把它交给独立站」 |
 
+### SERP 盘面怎么读（`serp-query.mjs` 的派生计数）
+
+`scripts/demand/serp-query.mjs` 输出的是**计数不是结论**（原始 serper 响应每次
+都会落进证据目录，字段哪天解析错了拿 raw 对质）。判读归这里：
+
+- **domainMatch 是启发式，不是事实。** 它只看域名主标签里有没有关键词的实义词素：
+  命中不等于对方真的专营这个词，品牌名站漏判也常见。当信号看，别当判据。
+- **精确域名命中多**（前十里好几个站把词做进主域名）→ 成熟小生态，垂直老站扎堆，
+  难度分往往低估；**一个都没有** → 要么没人专门做，要么这个词根本不构成一个站的定位。
+- **首页多** → 大站拿主页硬顶，新站单页难以插入；**内页多** → 有靠单页切进去的缝。
+- **有答案框/知识图谱** → 零点击比例高，先估一眼自然结果还剩多少屏。
+- 这些计数只看前十；第二页之后的盘面对「这个词好不好切」没有解释力。
+
 ### 引擎之间不一致，本身就是结论
 
 不要急着把差异当噪声抹平：
@@ -146,6 +159,9 @@ node scripts/demand/boards.mjs traffic-cv --json \
 ```
 
 `stripe-referring.mjs --enrich` 已内建这两个计算（支付成功率与客单价作为参数）。
+读表时注意（2026-08-30）：「月总访问」一列的 `—` 只表示**没请求过**（没开 `--enrich`
+也不在 `--visits` 映射里）；`失败(http_429)` 之类才是请求了没取到——配额耗尽的行
+不许被读成「这个站没有总访问量数据」。
 
 **【实测】一个必须知道的代数事实：月营收公式里的总访问量会自己约掉。**
 
@@ -199,6 +215,9 @@ node scripts/demand/boards.mjs traffic-cv --json \
   脚本在数量不等时**直接放弃配对并打出说明**——错位的份额比没有份额更危险。
 - Brave 搜索通道对这类指纹查询基本无效；`opencli google` 报 `Navigation rejected`。
   能用的只有 seo.web.cafe 的 Google 通道那一条。
+- 失败留现场（2026-08-30，截图链路待实盘验证）：serp 逐 query 在 manifest 里记状态
+  （查询失败 ≠ 没人引用这个网关）；similarweb 白屏/超时会先把**截图+页面文本**落进
+  证据目录再退出，标签页留在原地供人工排查。
 
 ---
 
@@ -214,6 +233,9 @@ node scripts/demand/boards.mjs traffic-cv --json \
 拿到落地域名后回到第十节验证它的词。
 
 已知边界：单次上限 100 条；**翻页 token 不可复用**。
+现场恒久化（2026-08-30）：每次 RPC 的请求形状（`f.req` 原文）与响应体都会原样落进
+证据目录（成功也落）——这是逆向端点，0 条结果时先开现场：是真没人投这个词，
+还是协议变了/请求形状被拒，raw JSON 里分得清。
 
 > 国内投放侧（内容平台的素材库、短视频投放平台）没有可自动化的公开入口，属人工动作。
 
@@ -262,6 +284,10 @@ node scripts/demand/chrome-ext-gap.mjs \
 ```
 
 这条命令直接落地经验层 4.4 节那个筛选形状：**用户量大 + 评分低 = Validated Market + Bad Execution**。
+门槛数字（100 万 / 4.1）是**这里的判读指引，不是脚本默认值**——脚本默认不过滤
+（`--min-users` 默认 0，2026-08-30 起），每次按赛道自己给门槛。跑完先看结尾的
+「采集状态：N 路成功 / M 路失败」行和 manifest：失败那几路的原始 HTML 在证据目录里，
+「结果少」可能只是「有几路没取到」。
 
 ### 差评里的高价值关键句（当过滤词用）
 
@@ -276,6 +302,9 @@ Wish it could…       I love this extension, but…   ← 最值钱的一句
 `chrome-stats.mjs --list obsolete` 给已下架扩展。**折扣要记住**：默认不按用户数排序，
 前排全是几十用户的小扩展，且只有 25 条——**大产品下架不保证当天捞得到**，
 要覆盖得自己维护一份关注 ID 名单定期探活。
+失败留现场（2026-08-30，截图链路待实盘验证）：任何浏览器路径失败或 0 张卡片时，
+脚本会先把**截图 + 页面全文**落进证据目录再关标签页（`--keep-open` 保住活现场）。
+「0 张卡片」是留证陈述——CF 没过完、改版、还是真空榜，对着双证人判，别直接当空榜读。
 
 ### 已验证的坑
 
@@ -284,6 +313,9 @@ Wish it could…       I love this extension, but…   ← 最值钱的一句
 - Trustpilot / G2 / Capterra 三家 **curl 一律 403 但都不需要登录**——
   这是「必须真实浏览器」和「必须登录态」两件事的分界线，别混为一谈。
 - Capterra 的星级过滤**没有 URL 参数**，只能点按钮。
+- 浏览器源提取失败时（2026-08-30，截图链路待实盘验证）：每个失败 URL 会留下
+  **截图 + 页面全文**双证人加 manifest 状态——是挑战页、改版还是真没有 1-2 星评论，
+  对着证据目录判，别把 extract_failed 读成「没有差评」。
 
 ---
 
@@ -343,6 +375,7 @@ node scripts/demand/boards.mjs producthunt --date 2026-08-22 --resolve-urls --js
 | **GitHub code search 限流 10 次/分** | 且 `sort=indexed` 已废弃并被**静默忽略**——带与不带前 5 条 repo+path 逐条相同，不报错也不 422。走不通的替代都试过了：GraphQL **没有 CODE 这个枚举值**、`/search/code` 没有开排序的参数或 header、Events API 的 PushEvent payload **只有 commit message 没有文件路径**。能用的是 `--mode recent` |
 | **HN 不要用 Firebase API** | 它只回 id 数组，不能按关键词/时间过滤，捞最近 N 天要几百次请求。用 Algolia |
 | **Toolify `/new` 没有提交日期字段** | 想按「最近新增」筛只能靠列表顺序 |
+| **boards.mjs 的失败留现场（2026-08-30，截图链路待实盘验证）** | 浏览器源单页失败先落**截图+页面全文**再继续（不 die 全局，`--keep-open` 保住活现场）；HTTP 源失败响应体进证据目录；空结果先开 manifest——「0 条 + 源失败」不是「今天没有新品」 |
 
 ---
 
@@ -374,6 +407,9 @@ Hugging Face 的新 task tag 领先 Google 搜索 2–6 个月——这是游戏
   只有 `filters=price_overview` 还支持多 ID。
 - **Poki 的 class 名是构建哈希**，没有 `__NEXT_DATA__`，只能靠 `data-tile-*` 属性定位——
   改版就会坏，坏了修脚本。
+- **steamdb 分支的失败留现场（2026-08-30，截图链路待实盘验证）**：打不开 / eval 不回 /
+  0 行表格都会先落**截图+页面全文**再关标签页（`--keep-open` 不关）；HTTP 源（steam/itch/
+  poki 等）非 2xx 时响应体进证据目录。「没解析到表格」是留证陈述，不是「没有新游」。
 
 > 这条线的通则：**换一个行业就换一批「持续上新」的平台**。
 > 拿到一个好源之后，直接问 AI「推荐几个类似 X 的站」比自己想关键词去搜高效得多。
@@ -414,7 +450,9 @@ Hugging Face 的新 task tag 领先 Google 搜索 2–6 个月——这是游戏
 **Reddit 的 `.json` 端点已彻底失效**：任何 UA 一律 403 并返回 189KB HTML。
 现在能用的三条路依次是——RSS（**必须带浏览器 UA**，自定义 UA 一律 429，且限流极紧）、
 OAuth（要自建 script app，CI 首选）、pullpush 第三方镜像（能出数但连着两次就 429）。
-脚本已做三路自动降级。
+脚本已做三路自动降级。manifest 里逐 (句式, 子版) 组合记 `{status, rawCount, kept}`
+（2026-08-30）：某个组合 fetch_failed 是被限流/被挡，不是「这个句式没帖子」；
+本地句式二次过滤和跨查询去重各丢了多少条也会在 stderr 报出来。
 
 > 中文内容平台（内容社区的搜索下拉与笔记数、短视频的播放量与评论）没有稳定的免登录入口，
 > 属人工探测动作。判据在 [`experiences/demand-discovery.md`](experiences/demand-discovery.md) 第五节。
@@ -435,6 +473,8 @@ OAuth（要自建 script app，CI 首选）、pullpush 第三方镜像（能出�
 ```bash
 node scripts/demand/sitemap-diff.mjs --domain <域名> --slug-words
 node scripts/demand/game-platform-monitor.mjs --language de,pl,ja,ar,ru
+# monitor 逐平台把子进程 stdout/stderr 落进证据目录（2026-08-30）；
+# 「候选 0｜失败 N」读法：失败的平台根本没被看过，不是「无新游」。
 # → 「对比 <时间>：新增 24 / 消失 0（当前共 1724 条）」+ slug 词频
 ```
 
@@ -451,11 +491,15 @@ node scripts/demand/game-platform-monitor.mjs --language de,pl,ja,ar,ru
 
 | 源 | 拿什么 | 取数方式 | 需登录 | 脚本 |
 |---|---|---|---|---|
-| 站群反查 | 同一主体运营的其它域名 + 证据等级（共享埋点 ID / 同一 utm_source / 仅外链） | 纯 HTTP 读首页 HTML | 否 | `scripts/demand/site-network.mjs --domain <域名> --confirm` |
+| 站群反查 | 同一主体运营的其它候选域名 + 事实字段（共同指纹 / 发现路径 / 回访状态） | 纯 HTTP 读首页 HTML | 否 | `scripts/demand/site-network.mjs --domain <域名> --confirm` |
 
 ```bash
 node scripts/demand/site-network.mjs --domain <种子域名> --confirm --max 10
 ```
+
+脚本只采集不裁定（2026-08-30 起不再输出 strength/confirmed，也不默认过滤弱行）：
+每行给出发现路径、共同指纹、回访状态（`revisit=fetch_failed` 是「这次没看到」，
+不是「不共享指纹」）。下面这张表是**AI 的判读指引**，不是脚本输出。
 
 **三类指纹的证据等级不一样，别当成一回事**：
 
@@ -467,10 +511,10 @@ node scripts/demand/site-network.mjs --domain <种子域名> --confirm --max 10
 
 **已验证的坑（2026-08-24）**：
 
-- **`confirmed=false` 是站群的常态，不是失败。** 成规模的操盘手会给每个站单独建 GA4
+- **「无共同指纹」是站群的常态，不是失败。** 成规模的操盘手会给每个站单独建 GA4
   属性（好分开看数据），所以兄弟站之间**根本不共享埋点 ID**。实测某组 10 个兄弟站
   没有一个共享指纹，真正把它们绑在一起的是同一个 `utm_source`。
-  拿这个脚本时不要只看 `confirmed` 那一列。
+  判读时别只盯「共同指纹」一列——发现路径里的 utm 同样是证据。
 - **没有指纹不等于不是站群。** 服务端埋点、或把 GA 装进 GTM 容器的站，
   首页 HTML 里什么都看不到。空结果的正确读法是「这条路没找到」，不是「它没有兄弟站」。
 - CF 挡纯 HTTP 客户端的站取不到，需要时改走 opencli 的真实浏览器把 HTML 喂进去。

@@ -29,7 +29,7 @@
  *     tag，所以 --mode ask 会同时用 tag 和标题前缀两路取并去重。
  */
 
-import { parseArgs, getJson, emit, die } from './_lib.mjs';
+import { parseArgs, getJson, emit, die, initEvidence, recordSource } from './_lib.mjs';
 
 const API = 'https://hn.algolia.com/api/v1';
 
@@ -104,8 +104,10 @@ function normStory(h) {
 async function collect(opts) {
   const seen = new Map();
   for (const tags of opts.tagSets) {
+    let raw = 0;
     for (let page = 0; page < opts.maxPages; page++) {
       const data = await searchPage({ ...opts, tags, page });
+      raw += (data.hits ?? []).length;
       for (const h of data.hits ?? []) {
         const s = normStory(h);
         if (!s.title) continue;
@@ -113,6 +115,8 @@ async function collect(opts) {
       }
       if (page + 1 >= (data.nbPages ?? 1)) break;
     }
+    // 逐 tag 记状态：失败会在 getJson 里落证据并抛出（走 die → manifest stopReason=died）。
+    recordSource({ source: `algolia:${tags}${opts.query ? `:${opts.query}` : ''}`, status: 'ok', rawCount: raw });
   }
   return [...seen.values()];
 }
@@ -142,12 +146,14 @@ async function fetchComments(storyId, max) {
 async function main() {
   const args = parseArgs();
   if (args.help || args.h) { console.log(HELP); return; }
+  initEvidence('hn-signals', { dir: args['evidence-dir'] ?? null });
 
   if (args.comments) {
     const id = String(args.comments);
     if (!/^\d+$/.test(id)) die('--comments 需要一个数字 story id');
     const max = Number(args['max-comments'] ?? 100);
     const { root, comments } = await fetchComments(id, max);
+    recordSource({ source: `algolia:item:${id}`, status: 'ok', rawCount: comments.length });
     if (!args.json) console.error(`# ${root.title}\n# ${root.hnUrl}\n`);
     emit(comments, args, [
       { key: 'author', label: '作者', max: 16 },

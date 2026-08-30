@@ -185,6 +185,25 @@ grep -oiE '(gtag|googletagmanager|clarity\.ms|cloudflareinsights|plausible|umami
 还有一个已经在 rankup 里的更强工具：`scripts/demand/site-network.mjs`
 按 GA/GTM/AdSense ID 反查同一批人的站群。技术栈指纹是它的单站版本。
 
+## seo-audit 判读指引（分级表从脚本迁来）
+
+2026-08-30 起 `scripts/seo-audit.mjs` 降级为纯机械工具：只输出观察记录
+`{code, observed}`（存在与否、长度、计数、密度）和每页抓取结果（失败页带
+`fetchError`），**不再自带 error/warning/info 分级与修复建议**。原分级表在此，
+判读时按站点上下文取舍（例如营销站缺 og:image 比工具站严重；单页应用多 h1
+可能是组件库习惯而非事故）：
+
+| code | 原分级 | 观察内容 | 常用判读 |
+|---|---|---|---|
+| NO_TITLE / NO_DESCRIPTION / NO_VIEWPORT / NO_H1 / NOINDEX | error | 标签缺失；robots 含 noindex | 一般视为必修；NOINDEX 若非灰度页面即上线事故 |
+| TITLE_LEN / DESC_LEN | warning | 长度在典型范围外（title 目安 10–60、desc 目安 50–160，字符数口径） | 超长会被截断展示、过短浪费位；按 SERP 实际展示判断 |
+| NO_CANONICAL / NO_LANG / NO_CHARSET / MULTIPLE_H1 / HEADING_SKIP / IMG_NO_ALT / NO_OG_TITLE / NO_OG_DESC / NO_OG_IMAGE | warning | 缺失或计数异常 | 多数应修；OG 三件套影响分享卡片而非排名 |
+| NO_KEYWORDS / CANONICAL_MISMATCH / IMG_EMPTY_ALT / IMG_NO_DIMENSIONS / NO_TWITTER_CARD / NO_STRUCTURED | info | 存在性事实 | keywords 可忽略；CANONICAL_MISMATCH 要人工确认是否有意；IMG_NO_DIMENSIONS 关 CLS |
+| fetchError | —— | 该页这次**根本没看到** | **抓取失败 ≠ 页面没问题**，修通抓取或换环境重跑，不许当成通过 |
+
+密度（unigrams/bigrams/trigrams）没有「正确值」：它是给判读者看「这页在向搜索引擎
+强调什么」的证据，不做阈值判定。
+
 ## 什么时候回来读这一篇
 
 | 环节 | 用它的哪一条 |

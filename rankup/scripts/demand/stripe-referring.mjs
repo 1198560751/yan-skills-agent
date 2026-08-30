@@ -41,7 +41,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'node:fs';
-import { parseArgs, emit, die, sleep, requireBrowserBridge } from './_lib.mjs';
+import { parseArgs, emit, die, sleep, requireBrowserBridge, sessionName } from './_lib.mjs';
 import { BASE, UA, toolAuth } from '../seo-webcafe.mjs';
 
 const execFileP = promisify(execFile);
@@ -63,7 +63,8 @@ top 的选项:
   --enrich               补每个域名的月总访问量，用来算到达付费页比例（吃配额！）
   --visits <file>        用本地 JSON 映射 {"域名": 月访问量} 代替 --enrich，不花配额
   --via browser          --enrich 时把请求发进已登录的 Chrome（拿高档配额）
-  --session <name>       --via browser 的会话名，默认 demand-stripe-referring
+  --session <name>       --via browser 的会话名，默认 demand-stripe-referring-<会话后缀>
+                         （后缀取并发单位，见 _lib.sessionName——字面常量会撞标签页）
   --pay-rate <0~1>       支付成功率（无默认值，必须自己给）
   --aov <number>         客单价（美元，无默认值，必须自己给）
 
@@ -123,10 +124,16 @@ const MINE_EXPR = (domain) => `(async()=>{
   return { status: r.status, data: await r.json().catch(()=>null) };
 })()`;
 
+/**
+ * 返回 {visits, status}，绝不把「取数失败」折叠成 null：
+ * 配额 4xx/解析失败和「没请求过」在输出里必须长得不一样，
+ * 否则 --enrich 撞配额的那一列会被读成「这些站没有总访问量数据」。
+ */
 async function totalVisits(domain, { via, session }) {
   if (via === 'browser') {
     const res = await opencliEval(session, MINE_EXPR(domain));
-    return res?.data?.visits ?? null;
+    if (res?.status !== 200 || !res.data) return { visits: null, status: `http_${res?.status ?? 'noresp'}` };
+    return { visits: res.data.visits ?? null, status: 'ok' };
   }
   const auth = await toolAuth('mine');
   const r = await fetch(`${BASE}/mine/api/domain`, {
@@ -134,9 +141,10 @@ async function totalVisits(domain, { via, session }) {
     headers: { ...auth, 'user-agent': UA, 'content-type': 'application/json' },
     body: JSON.stringify({ domain }),
   });
-  if (!r.ok) return null;
+  if (!r.ok) return { visits: null, status: `http_${r.status}` };
   const d = await r.json().catch(() => null);
-  return d?.visits ?? null;
+  if (!d) return { visits: null, status: 'parse_error' };
+  return { visits: d.visits ?? null, status: 'ok' };
 }
 
 // ── 派生指标 ────────────────────────────────────────────────────────────────
@@ -192,32 +200,46 @@ async function cmdTop(args) {
   let visitsMap = {};
   if (args.visits) visitsMap = JSON.parse(fs.readFileSync(args.visits, 'utf8'));
 
-  const session = args.session || 'demand-stripe-referring';
+  // 会话名不许是字面常量（纪律见 _lib.sessionName）：两个并行任务撞名就共用标签页。
+  const session = args.session || sessionName('demand-stripe-referring');
   const via = args.via === 'browser' ? 'browser' : 'http';
   if (args.enrich) console.error(`· --enrich 会消耗 ${rows.length} 次 seo.web.cafe 配额（通道 ${via}）`);
 
   const out = [];
+  let enrichFailed = 0;
   for (const r of rows) {
     let mv = visitsMap[r.domain] ?? null;
+    // 三种状态分开：not_requested（没开 --enrich 也不在 --visits 里）/ ok / 具体失败码。
+    let mvStatus = mv != null ? 'ok' : 'not_requested';
     if (mv == null && args.enrich) {
-      mv = await totalVisits(r.domain, { via, session });
+      const t = await totalVisits(r.domain, { via, session });
+      mv = t.visits;
+      mvStatus = t.status;
+      if (t.status !== 'ok') enrichFailed += 1;
       await sleep(800);
     }
     const d = derive(r, mv, payRate, aov);
     out.push({
       月份: m, 名次: r.pos, 域名: r.domain,
       Stripe引荐: num(d.stripeVisits),
-      月总访问: num(d.monthlyVisits),
+      // `—` 只表示「没请求过」；请求了但失败要把失败码亮出来，
+      // 配额耗尽的一列不许和「无数据」长得一样。
+      月总访问: mvStatus === 'ok' ? num(d.monthlyVisits)
+        : mvStatus === 'not_requested' ? '—' : `失败(${mvStatus})`,
       到达付费页比例: pct(d.reachRatio),
       月营收估算: d.revenueEstimate == null ? '—' : `$${num(d.revenueEstimate)}`,
       榜内份额: `${r.share}%`,
       环比: r.change == null ? '—' : `${r.change > 0 ? '+' : ''}${r.change}%`,
       新进: r.isNew ? '新' : r.isReturn ? '回' : '',
       全球排名: r.globalRank ?? '—',
-      _raw: { ...r, ...d },
+      _raw: { ...r, ...d, monthlyVisitsStatus: mvStatus },
     });
   }
   if (args.enrich && via === 'browser') await closeBrowser(session);
+  if (enrichFailed) {
+    console.error(`注意：--enrich 有 ${enrichFailed}/${rows.length} 个域名取数失败（多半是配额）——` +
+      '那些行缺的是「没取到」，不是「无总访问量」。');
+  }
 
   emit(out, args, [
     { key: '名次', label: '#' }, { key: '域名', label: '域名', max: 32 },

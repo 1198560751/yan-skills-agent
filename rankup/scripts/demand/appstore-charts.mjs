@@ -46,7 +46,7 @@
  *   - country 用两位小写 ISO 码（us / gb / de / jp / cn ...）。
  */
 
-import { parseArgs, getJson, emit, die, sleep } from './_lib.mjs';
+import { parseArgs, getJson, emit, die, sleep, initEvidence, recordSource } from './_lib.mjs';
 
 const HELP = `
 appstore-charts.mjs — Apple App Store 榜单（付费/免费/畅销，多国家）
@@ -193,6 +193,7 @@ async function lookup(rows) {
 async function main() {
   const args = parseArgs();
   if (args.help || args.h) { console.log(HELP); return; }
+  initEvidence('appstore-charts', { dir: args['evidence-dir'] ?? null });
 
   if (args['list-genres']) {
     const country = String(args.country ?? 'us').split(',')[0].trim().toLowerCase();
@@ -222,13 +223,17 @@ async function main() {
   const rows = [];
   for (const c of countries) {
     try {
-      rows.push(...(api === 'legacy' ? await legacyChart(c, chart, limit, genre) : await v2Chart(c, chart, limit)));
+      const batch = api === 'legacy' ? await legacyChart(c, chart, limit, genre) : await v2Chart(c, chart, limit);
+      // 逐国家/榜单记状态：失败国家的原始响应已由 _lib.getJson 落证据目录。
+      recordSource({ source: `${c}/${chart}`, status: 'ok', rawCount: batch.length });
+      rows.push(...batch);
     } catch (e) {
+      recordSource({ source: `${c}/${chart}`, status: 'fetch_failed', rawCount: 0, error: String(e.message) });
       console.error(`${c}/${chart} 取数失败：${e.message}`);
     }
     if (countries.length > 1) await sleep(800);
   }
-  if (!rows.length) die('一条都没取到 —— 检查 --country 是不是有效的两位国家码，或稍后重试（Apple 边缘偶发 504）');
+  if (!rows.length) die('一条都没取到——是采集失败不是「榜单为空」。检查 --country 是不是有效的两位国家码，或稍后重试（Apple 边缘偶发 504）；原始响应见证据目录。');
 
   if (args.lookup) await lookup(rows);
 

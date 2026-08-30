@@ -37,6 +37,10 @@
  *    提取器和解析器都在 lib 里，理由写在那边。
  * 2. **本脚本只读当前页**（100 行）。页面自报的总量写进 `shownTotal`，
  *    `complete` 明确告诉你读全了没有——不做静默截断。
+ *
+ * 2026-08-30 双证人化：table_never_settled 与整体失败在退出前 captureScene
+ * （穿透 census + 截图）落进 --evidence-dir，行内/输出带证据路径——
+ * 「表没稳定」和「这个词没有扩展词」必须能对着现场分辨。截图链路待实盘验证。
  */
 import { writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
@@ -45,6 +49,7 @@ import {
   showHelpIfRequested, validateSession,
 } from './opencli-core.mjs';
 import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
+import { captureScene, defaultSceneDir } from './lib-evidence-scene.mjs';
 import { SW_KEYWORD_TABLE_CELLS, deriveKeywordRows, parseNumber } from './lib-similarweb.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
@@ -113,6 +118,10 @@ if (!seeds.length) {
 }
 
 const session = resolveSession(flags, 'similarweb-keywords', 'similarweb');
+// 失败现场的落点。默认贴着 --out（`x.json.evidence/`），没有 --out 进 .backlink/。
+const evidenceDir = typeof flags['evidence-dir'] === 'string'
+  ? flags['evidence-dir']
+  : defaultSceneDir({ out: typeof flags.out === 'string' ? flags.out : null, script: 'similarweb-keywords' });
 const results = [];
 let launched;
 try {
@@ -138,7 +147,13 @@ try {
     });
 
     if (!settled.stable) {
-      results.push({ seed, tab, country, status: 'unavailable', error: { code: 'table_never_settled', message: `等了 ${timeoutMs / 1000}s 表体没有稳定下来——不是「这个词没有扩展词」` } });
+      // **先取证后落行**：表没稳定的那一刻页面长什么样（骨架？空态句？限流页？），
+      // 只有此刻拍得到。captureScene 永不 throw；行内带证据路径。
+      const scene = await captureScene({
+        session, outDir: evidenceDir, evalPage: evaluate, tag: `seed-${results.length + 1}-never-settled`,
+        note: `similarweb-keywords "${seed}" (tab=${tab}): table never settled in ${timeoutMs / 1000}s`,
+      });
+      results.push({ seed, tab, country, status: 'unavailable', evidence: scene, error: { code: 'table_never_settled', message: `等了 ${timeoutMs / 1000}s 表体没有稳定下来——不是「这个词没有扩展词」` } });
       continue;
     }
     const parsed = JSON.parse(settled.fingerprint);
@@ -163,7 +178,14 @@ try {
     }
   }
 } catch (error) {
-  results.push({ status: 'unavailable', error: { code: 'query_failed', message: redactSecrets(error.message) } });
+  // **先取证后关**：finally 会 closeSession 销毁唯一证人，现场必须在这里落。
+  const scene = launched
+    ? await captureScene({
+      session, outDir: evidenceDir, evalPage: launched.evalPage, tag: 'query-failed',
+      note: `similarweb-keywords: ${redactSecrets(String(error?.message || error)).slice(0, 200)}`,
+    })
+    : null;
+  results.push({ status: 'unavailable', evidence: scene, error: { code: 'query_failed', message: redactSecrets(error.message) } });
 } finally {
   await launched?.releaseBrowserLocks?.();
   if (!flags['keep-open']) await closeSession(session);

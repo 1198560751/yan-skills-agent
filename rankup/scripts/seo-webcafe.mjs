@@ -16,6 +16,8 @@
  * 它不推导、不伪造令牌的生成算法——那属于绕过访问控制，不做。
  *
  * 已验证：2026-08-07（匿名与登录 VIP 两种身份都实测通过）
+ * 双证人化改造 2026-08-30：本地命令只出数值（评级/命名迁 references/seo-webcafe.md）；
+ * 非 200 / 解析失败的响应原文恒久化到 --out 目录或 .rankup/evidence/。
  * 验证过的端点见 ../references/seo-webcafe.md 的「补录」一节。
  *
  * 已知坑（都踩过，别再踩）：
@@ -39,6 +41,7 @@
 import { writeFileSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { newEvidenceDir, writeManifest } from "./lib-scene.mjs";
 
 const BASE = "https://seo.web.cafe";
 /**
@@ -692,36 +695,34 @@ const LOCAL = {
       if (kd < 0 || kd > 100) die("--kd 必须在 0-100 之间");
 
       const kgr = intitle / volume;
-      const kgrVerdict = kgr < 0.25 ? "黄金词（低竞争）" : kgr <= 1.0 ? "中等竞争" : "高竞争";
 
       const kdFactor = 1 + kd / 100;
       const ekgr = (intitle * kdFactor) / volume;
-      const ekgrVerdict =
-        ekgr < 0.25 && kd < 30 ? "优先级最高" : ekgr <= 1.0 && kd <= 50 ? "中等，需评估资源" : "高竞争或高难度，新站慎入";
 
       const domains = requiredDomains(kd);
       const invest = totalLinkCost(domains);
       // $0.1/次点击、日均按月搜索量/30 估，来自 /kgr/ 页面同一段公式。
       const revenue = (volume / 30) * 0.1 * 365;
       const roi = invest > 0 ? ((revenue - invest) / invest) * 100 : Infinity;
-      const roiVerdict =
-        invest === 0 ? "KD=0，理论上不需要外链投入" : roi > 500 ? "极佳" : roi > 300 ? "不错" : roi > 100 ? "偏低" : "回报覆盖不了成本，放弃";
 
+      // 只出数值，不出判决。「黄金词/中等竞争/高竞争」「极佳/放弃」这类评级
+      // 是阈值判读，已迁到 references/seo-webcafe.md「本地命令数值判读指引」——
+      // 阈值该不该信、对这个市场适不适用，由拿着上下文的判读者决定。
       return {
-        kgr: { value: Number(kgr.toFixed(3)), verdict: kgrVerdict },
-        ekgr: { value: Number(ekgr.toFixed(3)), kdFactor: Number(kdFactor.toFixed(2)), verdict: ekgrVerdict },
+        kgr: { value: Number(kgr.toFixed(3)) },
+        ekgr: { value: Number(ekgr.toFixed(3)), kdFactor: Number(kdFactor.toFixed(2)) },
         kdroi: {
           requiredDomains: domains,
           invest: Number(invest.toFixed(2)),
           yearRevenueCap: Number(revenue.toFixed(2)),
           roiPct: invest > 0 ? Number(roi.toFixed(1)) : null,
-          verdict: roiVerdict,
         },
       };
     },
     summarize: (d) =>
-      `KGR ${d.kgr.value}（${d.kgr.verdict}） · EKGR ${d.ekgr.value}（${d.ekgr.verdict}） · ` +
-      `KDROI 需 ${d.kdroi.requiredDomains} 条外链/$${d.kdroi.invest}，ROI ${d.kdroi.roiPct ?? "∞"}%（${d.kdroi.verdict}）`,
+      `KGR ${d.kgr.value} · EKGR ${d.ekgr.value}（kdFactor ${d.ekgr.kdFactor}） · ` +
+      `KDROI 需 ${d.kdroi.requiredDomains} 条外链/$${d.kdroi.invest}，ROI ${d.kdroi.roiPct ?? "∞"}%` +
+      `（数值判读见 references/seo-webcafe.md）`,
   },
 
   string: {
@@ -801,12 +802,9 @@ const LOCAL = {
       const cost = sites * totalLinkCost(domains);
       const roi = cost > 0 ? yearly / cost : Infinity;
 
-      const risks = [];
-      if (kwVol > 10000) risks.push(`每词日搜索量需 ${Math.round(kwVol)}，竞争极烈，建议加词或加站分摊`);
-      if (cost > 0 && roi < 1) risks.push(`ROI 不足 1：年收入 $${Math.round(yearly)} 覆盖不了外链投入 $${Math.round(cost)}`);
-      if (cost > income * 6) risks.push("外链投入超过 6 个月目标收入，前期现金流压力大");
-      if (kd >= 30 && kwVol > 0 && kwVol < 1000) risks.push(`KD ${kd} 只换来每词 ${Math.round(kwVol)} 的日搜索量需求，难度产出不匹配`);
-
+      // 风险判读（每词日搜索量过万、ROI<1、投入超 6 个月收入、难度产出不匹配……）
+      // 已迁到 references/seo-webcafe.md「本地命令数值判读指引」：那些是阈值判决，
+      // 不是计算结果。脚本只出数，判读者拿数对照指引。
       return {
         params: { income, sites, kws, rankpos, ctrPct: CTR[rankpos], rpm, saas, pvuv, kd },
         dailyIncome: Number(daily.toFixed(2)),
@@ -819,12 +817,11 @@ const LOCAL = {
         totalLinkCost: Math.round(cost),
         yearlyRevenue: Math.round(yearly),
         roi: cost > 0 ? Number(roi.toFixed(2)) : null,
-        risks,
       };
     },
     summarize: (d) =>
       `每站需日 UV ${d.siteDailyUv}（${d.siteDailyPv} PV） · 每词日搜索量 ${d.keywordDailyVolume} · ` +
-      `外链投入 $${d.totalLinkCost} · ROI ${d.roi ?? "∞"}x${d.risks.length ? ` · ⚠ ${d.risks.length} 项风险` : ""}`,
+      `外链投入 $${d.totalLinkCost} · ROI ${d.roi ?? "∞"}x（数值判读见 references/seo-webcafe.md）`,
   },
 
   email: {
@@ -1028,6 +1025,7 @@ async function main() {
 
   const spacing = Number(a.spacingMs ?? spec.spacingMs ?? 0);
   const results = [];
+  let failDir = null;
   for (let i = 0; i < rows.length; i++) {
     const args = { ...a, ...rows[i] };
     const res = spec.official ? await callOfficial(spec, args) : await callSession(spec, args);
@@ -1040,11 +1038,23 @@ async function main() {
     if (res.status !== 200 || parseFailed) {
       const reason = parseFailed ? res.data.error : res.raw.slice(0, 120);
       console.error(`✗ ${label} → ${res.status !== 200 ? `HTTP ${res.status} ` : ""}${reason}`);
+      // 失败的响应**原文**必须留下：`HTTP 500` 和「配额横幅 HTML 藏在 200 里」
+      // 是完全不同的故障，只有原文分得出来。--out 会带上（results 里有 raw），
+      // 没给 --out 也落 .rankup/evidence/seo-webcafe-<ts>/。
+      try {
+        if (!failDir) failDir = newEvidenceDir("seo-webcafe");
+        const fn = `${String(i + 1).padStart(2, "0")}-${String(label).replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 60)}.raw.txt`;
+        writeFileSync(join(failDir, fn), `HTTP ${res.status}\n\n${res.raw ?? ""}`);
+        writeManifest(failDir, { script: "seo-webcafe", cmd, stopReason: "request-failures", finishedAt: new Date().toISOString() });
+        console.error(`  响应原文已落盘：${join(failDir, fn)}`);
+      } catch (e) {
+        console.error(`  （原文落盘失败：${String(e?.message || e).slice(0, 200)}）`);
+      }
       process.exitCode = 1;
     } else {
       console.log(`✓ ${label} → ${summarize(cmd, res.data)}`);
     }
-    results.push({ args: rows[i], status: res.status, data: res.data });
+    results.push({ args: rows[i], status: res.status, data: res.data, ...(res.status !== 200 || parseFailed ? { raw: String(res.raw ?? "").slice(0, 20000) } : {}) });
     if (spacing && i < rows.length - 1) await new Promise((r) => setTimeout(r, spacing));
   }
 

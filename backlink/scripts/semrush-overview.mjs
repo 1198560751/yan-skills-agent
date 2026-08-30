@@ -23,9 +23,14 @@
  * 用法：
  *   node semrush-overview.mjs --domain example.com [--db jp] [--subdomain] [--node 5]
  *   # 不传 --db 会走 Semrush 自己的默认库（未必是你想要的那个国家），脚本会警告一次
+ *
+ * 2026-08-30 双证人化：never-rendered / churning / 任何异常在退出前 captureScene
+ * （穿透 census + 截图）落进 --evidence-dir；inconclusive（渲染信号缺失）也补拍
+ * 一对——稳定的占位值和稳定的真值只有截图能对质。截图链路待实盘验证。
  */
 import { resolveSession, parseFlags, showHelpIfRequested, printJson, required, validateSession } from './opencli-core.mjs';
 import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
+import { captureScene, defaultSceneDir } from './lib-evidence-scene.mjs';
 import { writeFile } from 'node:fs/promises';
 
 const flags = parseFlags(process.argv.slice(2));
@@ -295,6 +300,10 @@ function settleVerdict(settled) {
 
 let output;
 let launched;
+// 失败/存疑现场的落点。默认贴着 --out，没有 --out 进 .backlink/。
+const evidenceDir = typeof flags['evidence-dir'] === 'string'
+  ? flags['evidence-dir']
+  : defaultSceneDir({ out: typeof flags.out === 'string' ? flags.out : null, script: 'semrush-overview', runTag: domain });
 try {
   launched = await launchTool({
     session,
@@ -358,6 +367,15 @@ try {
 
   const metrics = readMetrics(captured.bodyText);
 
+  // inconclusive（数值稳定但渲染信号缺失）也要留一对证人：稳定的占位值和稳定的
+  // 真值在读数上一模一样，唯一能对质的是截图。confirmed 不拍，别给成功路径加秒。
+  const inconclusiveScene = verdict === 'confirmed'
+    ? null
+    : await captureScene({
+      session, outDir: evidenceDir, evalPage: launched.evalPage, env: launched.env,
+      tag: 'inconclusive', note: `semrush-overview ${domain}: render signal missing after ${settled.reads} reads`,
+    });
+
   output = {
     version: 1,
     source: 'Semrush domain overview via authenticated Tools Share browser session',
@@ -386,6 +404,8 @@ try {
       ? { metrics: Object.fromEntries(Object.entries(metrics).filter(([, v]) => v !== null && v !== undefined)) }
       : {
         status: 'inconclusive',
+        // 存疑时刻的现场（census + 截图路径），AI 对质用。
+        evidence: inconclusiveScene,
         unconfirmedMetrics: Object.fromEntries(Object.entries(metrics).filter(([, v]) => v !== null && v !== undefined)),
         inconclusive: {
           code: 'render_signal_missing',
@@ -421,6 +441,15 @@ try {
       }),
   };
 } catch (error) {
+  // **先取证后死**：never-rendered / churning 的 throw 都落到这里；释放锁之前
+  // 把此刻的穿透 census + 截图成对落盘。captureScene 永不 throw。
+  const scene = launched
+    ? await captureScene({
+      session, outDir: evidenceDir, evalPage: launched.evalPage, env: launched.env,
+      tag: 'unavailable',
+      note: `semrush-overview ${domain}: ${redactSecrets(String(error?.message || error)).slice(0, 200)}`,
+    })
+    : null;
   output = {
     version: 1,
     source: 'Semrush domain overview via authenticated Tools Share browser session',
@@ -429,6 +458,8 @@ try {
     db: db || null,
     session,
     status: 'unavailable',
+    // 失败输出带现场：census + 截图的落盘路径（拍不到时是错误说明）。
+    evidence: scene,
     // opencli 的报错里可能带着 __gmitm 令牌（它会打印活动会话的完整 URL）。
     error: { code: 'overview_failed', message: redactSecrets(error.message) },
   };

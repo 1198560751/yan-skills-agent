@@ -18,7 +18,7 @@
  *
  * 用法：
  *   node site-network.mjs --domain flux-ai.com
- *   node site-network.mjs --domain flux-ai.com --confirm          # 回访候选，只留有共同指纹的
+ *   node site-network.mjs --domain flux-ai.com --confirm          # 回访候选，标注共同指纹与回访状态
  *   node site-network.mjs --domain flux-ai.com --confirm --json --out out.json
  *
  * 选项：
@@ -35,27 +35,30 @@
  *   - **没有指纹不等于不是站群。** 用服务端埋点、或把 GA 装在 GTM 容器里的站，
  *     首页 HTML 里什么都看不到。返回空只说明「这条路没找到」，不是「它没有兄弟站」。
  *   - 反过来，**共享 GTM 容器 ID 的强度弱于共享 GA4 ID**：代理商会给多个客户配同一个容器。
- *     所以输出里保留了指纹类型，别把三类当成同一个证据等级。
- *   - **`confirmed=false` 是站群的常态，不是失败。** 成规模的操盘手会给每个站单独建
+ *     所以输出里保留了指纹类型；强弱怎么判是 AI 的事，判读指引见
+ *     references/demand-sources.md「站群反查」一节（2026-08-30 起脚本不再输出
+ *     strength/confirmed 判定，也不再默认过滤弱行——过滤发生在判断层，不在采集层）。
+ *   - **「无共同指纹」是站群的常态，不是失败。** 成规模的操盘手会给每个站单独建
  *     GA4 属性（好分开看数据），所以兄弟站之间根本不共享埋点 ID。
  *     实测 videoweb.ai 那一组：10 个兄弟站没有一个共享指纹，
- *     真正把它们绑在一起的是同一个 `utm_source`。**别把 confirmed=false 当成「不是站群」。**
+ *     真正把它们绑在一起的是同一个 `utm_source`。
  *   - `--confirm` 会对每个候选发一次请求，站点多时很慢，且可能触发对方限流。
+ *     回访失败的行 revisit=fetch_failed——那是「这次没看到」，不是「无共同指纹」。
  *   - CF 挡纯 HTTP 客户端的站（如 producthunt.com）这条路取不到，
  *     需要时改走 opencli 的真实浏览器再把 HTML 喂进 extractFingerprints()。
  */
 import { parseArgs, get, emit, sleep, die } from './_lib.mjs';
 
 const FINGERPRINTS = [
-  // [类型, 正则, 强度]。强度只用于排序与提示，不做自动裁定——裁定是人的事。
-  ['ga4',       /\bG-[A-Z0-9]{6,12}\b/g,            'strong'],
-  ['ua',        /\bUA-\d{4,10}-\d{1,4}\b/g,         'strong'],
-  ['adsense',   /\bca-pub-\d{10,20}\b/g,            'strong'],
-  ['clarity',   /clarity\.ms\/tag\/([a-z0-9]{8,12})/g, 'strong'],
-  ['gtm',       /\bGTM-[A-Z0-9]{5,9}\b/g,           'medium'],
-  ['plausible', /plausible\.io\/js\/[^"']*?data-domain="([^"]+)"/g, 'medium'],
-  ['umami',     /data-website-id="([0-9a-f-]{30,40})"/g, 'strong'],
-  ['hotjar',    /hjid\s*[:=]\s*(\d{6,9})/g,         'strong'],
+  // [类型, 正则]。类型原样透出，强弱判读归 AI（见 demand-sources.md「站群反查」）。
+  ['ga4',       /\bG-[A-Z0-9]{6,12}\b/g],
+  ['ua',        /\bUA-\d{4,10}-\d{1,4}\b/g],
+  ['adsense',   /\bca-pub-\d{10,20}\b/g],
+  ['clarity',   /clarity\.ms\/tag\/([a-z0-9]{8,12})/g],
+  ['gtm',       /\bGTM-[A-Z0-9]{5,9}\b/g],
+  ['plausible', /plausible\.io\/js\/[^"']*?data-domain="([^"]+)"/g],
+  ['umami',     /data-website-id="([0-9a-f-]{30,40})"/g],
+  ['hotjar',    /hjid\s*[:=]\s*(\d{6,9})/g],
 ];
 
 const IGNORE_HOSTS = new Set([
@@ -79,10 +82,10 @@ const apexOf = (host) => {
 
 export function extractFingerprints(html) {
   const out = [];
-  for (const [kind, re, strength] of FINGERPRINTS) {
+  for (const [kind, re] of FINGERPRINTS) {
     for (const m of html.matchAll(re)) {
       const value = m[1] ?? m[0];
-      if (value) out.push({ kind, value, strength });
+      if (value) out.push({ kind, value });
     }
   }
   // 同一个 ID 在页面里会出现很多次，去重。
@@ -150,44 +153,40 @@ async function main() {
     const via = [];
     if (rec.utm.size) via.push(`utm:${[...rec.utm].join('/')}`);
     via.push(`outlink×${rec.count}`);
-    const row = {
-      seed: seedApex, domain: apex, via: via.join(' '),
-      shared: '', strength: rec.utm.size ? 'medium' : 'weak', confirmed: false,
-    };
+    // 只记事实：发现路径、共同指纹、回访状态。强弱与「算不算同一主体」的裁定归 AI，
+    // 判读指引见 references/demand-sources.md「站群反查」一节。
+    const row = { seed: seedApex, domain: apex, via: via.join(' '), shared: '', revisit: 'not_visited' };
 
     if (args.confirm && visited < max) {
       visited += 1;
       await sleep(Number(args.sleep ?? 400));
       const h = await fetchHtml(apex);
       if (h) {
+        row.revisit = 'ok';
         const shared = extractFingerprints(h).filter((f) => seedKeys.has(`${f.kind}:${f.value}`));
-        if (shared.length) {
-          row.shared = shared.map((f) => `${f.kind}=${f.value}`).join(',');
-          row.strength = shared.some((f) => f.strength === 'strong') ? 'strong' : 'medium';
-          row.confirmed = true;
-        }
+        if (shared.length) row.shared = shared.map((f) => `${f.kind}=${f.value}`).join(',');
       } else {
-        row.via += ' (回访失败)';
+        // 回访失败 ≠ 无共同指纹：这次根本没看到对方首页。
+        row.revisit = 'fetch_failed';
       }
     }
     rows.push(row);
   }
 
-  const kept = args.confirm && !args.all ? rows.filter((r) => r.confirmed || r.strength !== 'weak') : rows;
-
   if (seedPrints.length) {
     console.error(`种子指纹：${seedPrints.map((f) => `${f.kind}=${f.value}`).join(', ')}\n`);
   }
-  emit(kept, args, [
+  // 弱行不再默认过滤：全量输出，取舍在判断层做。
+  emit(rows, args, [
     { key: 'domain', label: '域名', max: 32 },
-    { key: 'strength', label: '证据', max: 8 },
-    { key: 'confirmed', label: '已确认', max: 7 },
+    { key: 'revisit', label: '回访', max: 12 },
     { key: 'shared', label: '共同指纹', max: 34 },
     { key: 'via', label: '发现路径', max: 30 },
   ]);
   if (args.confirm) {
-    console.error('注意：strength=weak 只有一条外链作证据，不足以断定同一主体；' +
-      'strong 表示共享了要登录后台才配得出来的埋点 ID。');
+    const failed = rows.filter((r) => r.revisit === 'fetch_failed').length;
+    if (failed) console.error(`注意：${failed} 个候选回访失败——那些行的空「共同指纹」是「没看到」，不是「不共享」。`);
+    console.error('指纹类型的证据强弱判读见 rankup/references/demand-sources.md「站群反查」。');
   }
 }
 
@@ -196,13 +195,12 @@ const HELP = `site-network.mjs —— 站群反查：给一个域名，找出同
 用法：
   node site-network.mjs --domain <域名> [--confirm] [--max 25] [--json] [--out f]
 
-  --confirm   回访每个候选，验证是否共享埋点指纹（慢，但结论可信得多）
-  --all       配合 --confirm 时保留未确认的弱候选
+  --confirm   回访每个候选，看是否共享埋点指纹（慢；回访失败会标 fetch_failed）
   --max <n>   最多回访几个        (默认 25)
   --sleep <ms> 回访间隔           (默认 400)
 
-证据等级：strong=共享 GA4/AdSense/Clarity 等需登录后台配置的 ID；
-         medium=共享 GTM 容器或同一 utm_source；weak=只有一条外链。
+输出只记事实（发现路径 / 共同指纹 / 回访状态），不做强弱裁定与过滤；
+指纹类型怎么读、哪类算硬证据，见 rankup/references/demand-sources.md「站群反查」。
 `;
 
 main().catch((e) => die(e.message));

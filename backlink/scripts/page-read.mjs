@@ -15,9 +15,16 @@
  *
  * 用法：
  *   node page-read.mjs --url https://example.com/pricing [--wait 6] [--links /plan] [--out x.json]
+ *
+ * 2026-08-30 双证人化：旧的 `paywallShape` 四个布尔是脚本结论（正则命中与否），
+ * 已改为 `paywallSignals`——每类给出**命中的原文片段 + 前后文**（matched spans），
+ * 没命中是空数组；「这家到底是买断还是订阅」由 AI 拿片段 + 截图判。
+ * 读完 captureScene（穿透 census + 截图）落进 --evidence-dir，输出带 evidence；
+ * 读取失败也先取证再抛。截图链路待实盘验证。
  */
 import { writeFile } from 'node:fs/promises';
 import { defaultSession, openAndEval, parseFlags, printJson, required, validateSession, showHelpIfRequested} from './opencli-core.mjs';
+import { captureScene, defaultSceneDir, sceneSummaryLine } from './lib-evidence-scene.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
@@ -54,11 +61,27 @@ const evalExpression = `(() => {
     });
   })()`;
 
-const evalResult = await openAndEval(session, url.href, evalExpression, {
-  wait: waitSeconds,
-  windowMode: env.OPENCLI_WINDOW,
-  timeoutMs: 120_000,
-});
+const evidenceDir = typeof flags['evidence-dir'] === 'string'
+  ? flags['evidence-dir']
+  : defaultSceneDir({ out: typeof flags.out === 'string' ? flags.out : null, script: 'page-read' });
+
+let evalResult;
+try {
+  evalResult = await openAndEval(session, url.href, evalExpression, {
+    wait: waitSeconds,
+    windowMode: env.OPENCLI_WINDOW,
+    timeoutMs: 120_000,
+  });
+} catch (error) {
+  // **先取证后死**：读不出来的那一刻页面长什么样（403 页？CAPTCHA 页？白屏？），
+  // 只有此刻拍得到。captureScene 永不 throw。
+  const scene = await captureScene({
+    session, outDir: evidenceDir, windowMode: env.OPENCLI_WINDOW, tag: 'read-failed',
+    note: `page-read ${url.href}: ${String(error?.message || error).slice(0, 200)}`,
+  });
+  error.message = `${error.message} ${sceneSummaryLine(scene)}`;
+  throw error;
+}
 const captured = typeof evalResult === 'string' ? JSON.parse(evalResult) : evalResult;
 
 const prices = {};
@@ -67,14 +90,33 @@ for (const [currency, pattern] of PRICE_PATTERNS) {
   if (hits.length) prices[currency] = hits.slice(0, 30);
 }
 
-// 付费墙形态：一次性买断 / 订阅 / 两者并存。这决定了对手的收入模型，
-// 也决定了我们要不要跟。三种语言的说法都收进来。
-const shape = {
-  oneTime: /都度購入|買い切り|一次性|단건|단품|one[- ]time|single purchase/i.test(captured.text),
-  subscription: /サブスクリプション|定期購読|月額|年額|구독|정기결제|subscription|per month|\/mo\b/i.test(captured.text),
-  freeTrial: /無料体験|無料お試し|무료 ?체험|free trial/i.test(captured.text),
-  refund: /返金|환불|refund|money[- ]back/i.test(captured.text),
+// 付费墙**信号**（不是结论）：每类正则给出命中的原文片段 + 前后各 40 字的上下文。
+// 旧版输出四个布尔（oneTime/subscription/…），那是脚本替 AI 下的判决——「頁面
+// 提到 free trial」和「这家提供 free trial」不是一回事，命中片段和截图才是证据。
+const PAYWALL_PATTERNS = {
+  oneTime: /都度購入|買い切り|一次性|단건|단품|one[- ]time|single purchase/gi,
+  subscription: /サブスクリプション|定期購読|月額|年額|구독|정기결제|subscription|per month|\/mo\b/gi,
+  freeTrial: /無料体験|無料お試し|무료 ?체험|free trial/gi,
+  refund: /返金|환불|refund|money[- ]back/gi,
 };
+const paywallSignals = {};
+for (const [kind, re] of Object.entries(PAYWALL_PATTERNS)) {
+  const spans = [];
+  for (const m of captured.text.matchAll(re)) {
+    if (spans.length >= 8) break;
+    spans.push({
+      matched: m[0],
+      context: captured.text.slice(Math.max(0, m.index - 40), m.index + m[0].length + 40).replace(/\s+/g, ' ').trim(),
+    });
+  }
+  paywallSignals[kind] = spans;
+}
+
+// 第二证人：census + 截图。价格与付费墙的判断由 AI 拿片段对着截图做。
+const scene = await captureScene({
+  session, outDir: evidenceDir, windowMode: env.OPENCLI_WINDOW, tag: 'page-read',
+  note: `page-read ${url.href}`,
+});
 
 const output = {
   version: 1,
@@ -88,7 +130,8 @@ const output = {
   textLength: captured.textLength,
   truncated: captured.textLength > maxChars,
   prices,
-  paywallShape: shape,
+  paywallSignals,
+  evidence: scene,
   links: linkFilter ? captured.links.filter((l) => linkFilter.test(l.href) || linkFilter.test(l.text)) : captured.links,
   text: captured.text,
 };

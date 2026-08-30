@@ -42,9 +42,15 @@
 ## 二、正文为空有**四个**原因，只有一个是登录能解决的
 
 分不清这四种，最坏的后果不是少拿数据，是**被推去点那个要花钱的解锁按钮**。
-判据全部来自服务端返回的 `bounty.viewer`，不要自己从状态瞎推：
+判据全部来自服务端返回的 `bounty.viewer`，不要自己从状态瞎推。
 
-| `access` | 判据 | 含义与处置 |
+2026-08-30 双证人化后，脚本输出改成两层：`access_evidence`（viewer 原始字段、
+status、各计数、解锁价、rawExcerpt——**这才是判据**）+ `suggested_access`
+（脚本按下表给的**建议**，不是判决：站点改字段语义时 evidence 仍真、suggested
+会陪着错；存疑时看 evidence 与 `--transport browser` 的截图）。取数失败 die 前
+会把状态码/原文片段落 `.rankup/evidence/webcafe-forum-<ts>/`。
+
+| `suggested_access` | 判据 | 含义与处置 |
 |---|---|---|
 | `full` | `viewer.canSeeAll === true` | 拿全了 |
 | `anonymous` | `viewer.isLoggedIn === false` | 没登录。**唯一一个开浏览器有用的情况**。默认的 `auto` 会自动升级；`--transport http` 下需手动改 `auto` 或 `browser` |

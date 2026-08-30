@@ -38,10 +38,16 @@
  *   node semrush-report.mjs --session $S --report backlinks-overview --domain b.com
  *   ...
  *   opencli browser $S close
+ *
+ * 2026-08-30 双证人化：所有失败路径（never rendered / never settled / 任何异常）
+ * 在退出前 captureScene（穿透 census + 截图）落进 --evidence-dir（默认
+ * `<out>.evidence/` 或 `.backlink/evidence/semrush-report/…`）；
+ * `status:'unavailable'` 的输出带 evidence 字段（现场路径）。截图链路待实盘验证。
  */
 import { resolveSession, opencli, firstJson, parseFlags, showHelpIfRequested, printJson, validateSession } from './opencli-core.mjs';
 import { captureStable, expiryWarning, launchTool, redactSecrets } from './lib-tools-share.mjs';
 import { DEEP_DOM_JS, scrollThroughSegments } from './lib-deep-dom.mjs';
+import { captureScene, defaultSceneDir, sceneSummaryLine } from './lib-evidence-scene.mjs';
 import { writeFile } from 'node:fs/promises';
 
 const flags = parseFlags(process.argv.slice(2));
@@ -250,6 +256,10 @@ if (!flags['self-test'] && !target) {
 }
 const dbGiven = flags.db !== undefined && String(flags.db).trim() !== '';
 const db = String(flags.db || '').trim().toLowerCase();
+// 失败现场的落点（census + 截图成对）。默认贴着 --out，没有 --out 进 .backlink/。
+const evidenceDir = typeof flags['evidence-dir'] === 'string'
+  ? flags['evidence-dir']
+  : defaultSceneDir({ out: typeof flags.out === 'string' ? flags.out : null, script: 'semrush-report', runTag: `${target || 'na'}-${name || 'na'}`.replace(/[^a-zA-Z0-9.-]+/g, '_') });
 if (!flags['self-test'] && !dbGiven && spec.needs !== 'keyword') {
   console.error(`⚠ --db not given. organic-overview/organic-positions/organic-pages fall back to Semrush's own default country — not a global total; pass --db explicitly when the market matters.`);
 }
@@ -1573,15 +1583,27 @@ try {
     // `!loaded.capture` 恰恰是限额页最常见的落点（见 diagnoseUnrendered 上方注释）——
     // 这里必须现场再读一次 body 去分辨「真的没渲染」和「渲染了但 ready 正确拒绝了
     // 限额页」，不能指望 loaded.capture 里已经有证据。
-    throw await diagnoseUnrendered(name, target, db, flags.retries || 3,
+    // **先取证后死**：诊断之外再落一对双证人（穿透 census + 截图），把 REGION_PROBE
+    // 的读数也写盘——错误消息只带结论文案的形态是这轮重构要杀的。
+    const scene = await captureScene({
+      session, outDir: evidenceDir, evalPage, tag: 'never-rendered',
+      note: `semrush-report ${name} ${target}: loaded.capture is null`,
+    });
+    const diagnosed = await diagnoseUnrendered(name, target, db, flags.retries || 3,
       () => evalPage(REGION_PROBE_JS));
+    diagnosed.message += ` ${sceneSummaryLine(scene)}`;
+    throw diagnosed;
   }
   if (!loaded.stable) {
     // **读到了但一直在变，只能算没测成。** 写下一个还在水合的值，它不会被任何人发现是错的。
+    const scene = await captureScene({
+      session, outDir: evidenceDir, evalPage, tag: 'values-never-settled',
+      note: `semrush-report ${name} ${target}: stable=false after ${loaded.reads} reads`,
+    });
     throw new Error(
       `Semrush ${name} for "${target}" 渲染了，但数值在 ${loaded.reads} 次读取里始终没稳定下来——` +
       `屏幕上的还是占位值（典型症状：Authority Score 0、表 0 行）。` +
-      `重跑，或调大 --timeout / --stable-interval。`,
+      `重跑，或调大 --timeout / --stable-interval。 ${sceneSummaryLine(scene)}`,
     );
   }
   const cap = loaded.capture;
@@ -1761,9 +1783,20 @@ try {
     rawPages: spec.paginated ? rawPages : null,
   };
 } catch (error) {
+  // **先取证后关**：`status:'unavailable'` 的输出必须带证据路径。上面两个专属
+  // 分支已各拍过一对；这里兜住其余异常（导航失败、翻页超时、eval 崩）。
+  // captureScene 永不 throw，launch 都没成时它把失败原因记进 record 本身。
+  const scene = launched
+    ? await captureScene({
+      session, outDir: evidenceDir, evalPage, tag: 'unavailable',
+      note: `semrush-report ${name} ${target}: ${redactSecrets(String(error?.message || error)).slice(0, 200)}`,
+    })
+    : null;
   output = {
     version: 1, source: 'Semrush via authenticated Tools Share browser session',
     retrievedAt: new Date().toISOString(), report: name, target, db: db || null, session,
+    // 失败输出带现场：census + 截图的落盘路径（拍不到时是错误说明）。
+    evidence: scene,
     // **错误消息必须过 redactSecrets。** opencli 失败时会把带 __gmitm 令牌的会话 URL
     // 打进 stderr，那段文本会一路进 output、进 --out 文件、进日志。
     status: 'unavailable', error: { code: 'report_failed', message: redactSecrets(error.message) },

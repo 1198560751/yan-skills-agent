@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { asList, die, parseArgs, writeOut } from './_lib.mjs';
+import { asList, die, parseArgs, writeOut, initEvidence, saveEvidence, recordSource, writeManifest, evidenceDir } from './_lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_CONFIG = path.resolve(process.cwd(), '.rankup/demand/game-platforms.json');
@@ -92,13 +92,13 @@ function runDiff(platform, options) {
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGTERM'); }, timeout * 1000);
     child.stdout.on('data', (chunk) => { stdout += chunk; });
     child.stderr.on('data', (chunk) => { stderr += chunk; });
-    child.on('error', (error) => { clearTimeout(timer); resolve({ ok: false, error: error.message }); });
+    child.on('error', (error) => { clearTimeout(timer); resolve({ ok: false, error: error.message, stdout, stderr }); });
     child.on('close', (code) => {
       clearTimeout(timer);
-      if (timedOut) return resolve({ ok: false, error: `超过 ${timeout} 秒` });
-      if (code !== 0) return resolve({ ok: false, error: stderr.trim() || `退出码 ${code}` });
-      try { resolve({ ok: true, rows: JSON.parse(stdout), notes: stderr.trim() }); }
-      catch (e) { resolve({ ok: false, error: `输出解析失败：${e.message}` }); }
+      if (timedOut) return resolve({ ok: false, error: `超过 ${timeout} 秒`, stdout, stderr });
+      if (code !== 0) return resolve({ ok: false, error: stderr.trim() || `退出码 ${code}`, stdout, stderr });
+      try { resolve({ ok: true, rows: JSON.parse(stdout), notes: stderr.trim(), stdout, stderr }); }
+      catch (e) { resolve({ ok: false, error: `输出解析失败：${e.message}`, stdout, stderr }); }
     });
   });
 }
@@ -188,11 +188,21 @@ async function main() {
     timeout: positiveInt(args.timeout, 300, '--timeout'),
   };
 
+  initEvidence('game-platform-monitor', { dir: args['evidence-dir'] ?? null });
+
   const platforms = await pool(selected, options.concurrency, async (platform) => {
     const snapshot = path.join(state, `${platform.id}.json`);
     const baseline = !fs.existsSync(snapshot);
     const result = await runDiff(platform, options);
-    if (!result.ok) return { ...platform, status: 'failed', error: result.error };
+    // 逐平台把子进程 stdout/stderr 原样落证据目录：失败只剩一句 error 时，
+    // 「sitemap 403」「超时」「解析崩了」在原始输出里才分得开。
+    saveEvidence(`${platform.id}-stdout.txt`, result.stdout ?? '');
+    saveEvidence(`${platform.id}-stderr.txt`, result.stderr ?? '');
+    if (!result.ok) {
+      recordSource({ source: platform.id, status: 'failed', rawCount: 0, error: result.error });
+      return { ...platform, status: 'failed', error: result.error };
+    }
+    recordSource({ source: platform.id, status: 'ok', rawCount: result.rows.length });
     let count = 0;
     try { count = JSON.parse(fs.readFileSync(snapshot, 'utf8')).count ?? 0; } catch { /* 由 rows 兜底 */ }
     const added = baseline ? [] : result.rows.filter((row) => row.status === 'added');
@@ -225,9 +235,20 @@ async function main() {
   try { previous = JSON.parse(fs.readFileSync(out, 'utf8')); } catch { /* 首次运行 */ }
   report = mergeSameDay(previous, report, day);
   const written = writeOut(out, report);
+  const mf = writeManifest(report.failures ? `completed_with_failures: ${report.failures}` : 'completed');
   if (args.json) console.log(JSON.stringify(report, null, 2));
   else console.log(`平台 ${selected.length}｜新 baseline ${report.baselineCreated}｜已对比 ${report.compared}｜候选 ${candidates.length}｜失败 ${report.failures}\n报告 ${written}`);
-  if (report.failures) process.exitCode = 1;
+  if (report.failures) {
+    // 「候选 0 + 失败 N」不许被读成「无新游」：失败的平台根本没被看过。
+    if (!candidates.length) {
+      console.error(`注意：候选 0 条，但 ${report.failures} 个平台采集失败——这不是「没有新游」的证据，` +
+        `失败平台的子进程输出在 ${evidenceDir()}。`);
+    } else {
+      console.error(`注意：${report.failures} 个平台采集失败，候选清单不完整；子进程输出在 ${evidenceDir()}。`);
+    }
+    process.exitCode = 1;
+  }
+  if (mf) console.error(`manifest：${mf}`);
 }
 
 main().catch((e) => die(e.message));

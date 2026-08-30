@@ -181,6 +181,11 @@ node <rankup-skill-dir>/scripts/naver-setup.mjs submit-sitemap --site example.co
 **CAPTCHA 限制：** 所有权验证需要人机验证，脚本会取出 meta 标签内容但无法自动完成验证点击。
 用户部署 meta 标签后必须在浏览器中手动完成验证。
 
+**输出是证据不是结论（2026-08-30 双证人化）：** `submit-sitemap` 每步截图落
+`.rankup/evidence/naver-setup-<ts>/`，结束时报「页面回读命中/未命中哪些文案 +
+suggested」。**eval 超时（读不到页面）不再被当成提交成功**——那只说明读不到，
+成没成看最后一张截图。
+
 #### 验证方式
 
 与 Bing/GSC 同理，优先 HTML meta 标签：
@@ -296,6 +301,14 @@ node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs gsc    submit --property s
 node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs bing   submit --site https://example.com --sitemap https://example.com/sitemap.xml
 node <rankup-skill-dir>/scripts/webmaster-sitemap.mjs yandex submit --site https://example.com --sitemap https://example.com/sitemap.xml
 ```
+
+**脚本采集留证，判读归 AI（2026-08-30 双证人化，截图链路待实盘验证）**：
+`webmaster-sitemap.mjs` 的每次点击前后都会截图并保存页面文本到
+`.rankup/evidence/webmaster-sitemap-<ts>/`（含 manifest.json 的 stopReason）。
+submit 结束时它只报告事实——「解析出 N 行，其中含/不含目标地址（suggested:
+listed/not-listed）」；**not-listed 不等于提交失败**（表格改版会让解析器失配），
+以 05-after-submit-click 的截图为准。失败退出前现场必已落盘，`--keep-session`
+可连标签页一起留下。
 
 ### 为什么是浏览器而不是 API
 

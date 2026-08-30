@@ -59,7 +59,7 @@
  *     其实不计（raw 是独立 CDN），只是别开太大并发；脚本串行取。
  */
 
-import { parseArgs, getJson, get, emit, die, sleep, readToken } from './_lib.mjs';
+import { parseArgs, getJson, get, emit, die, sleep, readToken, initEvidence, recordSource } from './_lib.mjs';
 
 const HELP = `
 github-skill-search.mjs — 反查别人沉淀的 SKILL.md，倒推真实需求
@@ -253,8 +253,12 @@ async function recentSearch(args, token) {
         `https://api.github.com/repos/${r.full_name}/git/trees/${r.default_branch || 'HEAD'}?recursive=1`,
         { headers: ghHeaders(token) }
       );
+      recordSource({ source: `trees:${r.full_name}`, status: 'ok', rawCount: (tree.tree ?? []).length });
     } catch (e) {
-      // 空仓库 / 被禁用 / 单次 Trees 超限都可能在这里失败，跳过而不是整轮失败
+      // 空仓库 / 被禁用 / 单次 Trees 超限都可能在这里失败：跳过但**必须记账**——
+      // 静默 continue 会让「扫了 30 个仓库」和「扫了 30 个、其中 8 个打不开」同形。
+      recordSource({ source: `trees:${r.full_name}`, status: 'trees_failed', rawCount: 0, error: String(e.message) });
+      console.error(`[warn] ${r.full_name} 的 Trees 取数失败，跳过：${String(e.message).slice(0, 120)}`);
       continue;
     }
     for (const node of tree.tree ?? []) {
@@ -287,6 +291,7 @@ async function main() {
 
   const token = readToken('GITHUB_TOKEN', 'GH_TOKEN');
   const mode = String(args.mode ?? 'code');
+  initEvidence('github-skill-search', { dir: args['evidence-dir'] ?? null });
 
   if (mode === 'recent') {
     if (!token) {

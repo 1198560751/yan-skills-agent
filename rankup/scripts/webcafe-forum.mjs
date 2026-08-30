@@ -46,7 +46,10 @@
  * 【已知坑，都是实测踩出来的】
  *   - **匿名降级是静默的。** 拿到 200、拿到 23 条、拿到作者名和 content_len，
  *     只有正文是空的。不检查 `visible` 就会把「没登录」写成「这条答案是空的」。
- *   - **正文为空有四个原因，只有一个是登录能解决的**，脚本用 `access` 字段区分：
+ *   - **正文为空有四个原因，只有一个是登录能解决的**。脚本把判据原文放在
+ *     `access_evidence`（viewer 字段 / status / 各计数 / 解锁价），并按它给一个
+ *     `suggested_access` **建议**（不是判决——站点改字段语义时 evidence 仍真，
+ *     suggested 会陪着错，存疑看 evidence 与截图）：
  *       `full`          拿全了
  *       `anonymous`     没登录 → 加 --transport browser（唯一一个开浏览器有用的情况）
  *       `sealed`        悬赏还在 funding/collecting/open/answering 阶段，
@@ -66,6 +69,8 @@
  *     要正文得 `topic <uid>` 逐条取。对它套用列表降级判据会每页白开一次浏览器。
  */
 
+// 双证人化改造 2026-08-30（截图链路待实盘验证）：正文可见性输出
+// access_evidence + suggested_access；取数失败 die 前 dump 现场到 .rankup/evidence/。
 import { writeFileSync, mkdirSync, appendFileSync, existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import {
@@ -81,6 +86,8 @@ import {
   ensureLoggedIn,
 } from "./webcafe-transport.mjs";
 import { propsFromHtml, isLoginPage } from "./webcafe-rsc.mjs";
+import { execFileSync } from "node:child_process";
+import { newEvidenceDir, captureScene, writeManifest } from "./lib-scene.mjs";
 
 /* ─────────────────────────────── 参数 ─────────────────────────────── */
 
@@ -117,6 +124,37 @@ const die = (m) => {
   process.exit(1);
 };
 
+/**
+ * 取数失败的退出出口（双证人化 2026-08-30，截图链路待实盘验证）：
+ * die 之前把手里最后的证据 dump 进 `.rankup/evidence/webcafe-forum-<ts>/`——
+ * 响应状态、props/HTML/原文片段进 extra.json；ctx.session 存在（走过浏览器
+ * transport）时再补一张截图。旧版只留一句结论文案，「没拿到」到底是 401、
+ * 改版还是解析失配，事后无从对质。
+ */
+function dumpAndDie(ctx, stopReason, msg, payload) {
+  try {
+    const dir = newEvidenceDir("webcafe-forum");
+    captureScene({
+      dir,
+      tag: `fail-${stopReason}`,
+      screenshot: ctx?.session
+        ? (p) => execFileSync("opencli", ["browser", ctx.session, "screenshot", p], { stdio: ["ignore", "pipe", "pipe"], timeout: 90_000 })
+        : undefined,
+      extra: payload,
+    });
+    writeManifest(dir, {
+      script: "webcafe-forum",
+      stopReason,
+      transport: ctx?.transport ?? null,
+      finishedAt: new Date().toISOString(),
+    });
+    console.error(`现场已落盘：${dir}（状态码 / 原文片段${ctx?.session ? " / 截图" : ""}，判读以它们为准）`);
+  } catch (e) {
+    console.error(`（取证失败：${String(e?.message || e).slice(0, 200)}）`);
+  }
+  die(msg);
+}
+
 /* ───────────────────────── 降级判据（每个端点一条） ───────────────────────── */
 
 /**
@@ -137,45 +175,54 @@ const gatedBounty = (j) => {
 
 /**
  * 正文为什么看不到——四种，处置方式完全不同。
- * 判据全部来自 `bounty.viewer`，那是服务端给的权威答案，不要自己从状态推。
+ *
+ * 双证人化改造（2026-08-30）：本函数不再只回一个判决词。它先把**判据本身**
+ * （服务端 `bounty.viewer` 的原始字段、status、各计数、解锁价）原样收进
+ * `evidence`，再基于这些字段给一个 `suggestedAccess`——那是**建议**不是判决：
+ * 站点改了 viewer 字段语义时，evidence 还是真的，suggested 会陪着错。
+ * 判读者对 suggested 存疑时，看 evidence 与 `--transport browser` 的截图对质。
  */
 function classifyAccess(b) {
   const v = b?.viewer || {};
   const answers = b?.answers || [];
+  const evidence = {
+    kind: b?.kind ?? null,
+    status: b?.status ?? null,
+    // loginSeen：服务端说这次请求带没带登录态（viewer.isLoggedIn 原样转录）。
+    loginSeen: v.isLoggedIn ?? null,
+    canSeeAll: v.canSeeAll ?? null,
+    answerCount: answers.length,
+    visibleAnswerCount: answers.filter((a) => a.visible).length,
+    hiddenNonEmptyAnswerCount: answers.filter((a) => (a.content_len || 0) > 0 && !a.visible).length,
+    boardLength: (b?.collect?.board || []).length,
+    optionCount: b?.collect?.option_count ?? null,
+    // paywallSeen：这一场有没有标价（解锁价 > 0 就是有付费墙的迹象，不等于必须付）。
+    paywallSeen: (b?.unlock_price || 0) > 0,
+    unlockPriceYuan: yuan(b?.unlock_price),
+    rawExcerpt: JSON.stringify({ viewer: v, status: b?.status, kind: b?.kind }).slice(0, 400),
+  };
+  const suggest = (suggestedAccess, note) => ({ suggestedAccess, note, evidence });
   // 征集型（kind:collect）的内容在 collect.board[]，不在 answers[]。
   // 两种 kind 的「有没有内容」判据不同，混用会把 588 条的榜单判成空。
   if (b?.kind === "collect") {
-    const board = b.collect?.board || [];
-    if (board.length) return { access: "full", note: "" };
-    const n = b.collect?.option_count || 0;
-    if (!n) return { access: "no-answers", note: "这个征集还没有条目" };
+    if (evidence.boardLength) return suggest("full", "");
+    const n = evidence.optionCount || 0;
+    if (!n) return suggest("no-answers", "这个征集还没有条目");
     if (!v.isLoggedIn) {
-      return { access: "anonymous", note: `榜单有 ${n} 条，但匿名拿到的 board 是空数组（HTTP 仍是 200）。加 --transport browser 重跑。` };
+      return suggest("anonymous", `榜单有 ${n} 条，但匿名拿到的 board 是空数组（HTTP 仍是 200）。加 --transport browser 重跑。`);
     }
-    return {
-      access: "sealed",
-      note: `榜单有 ${n} 条，但这个征集处于「${b.status}」阶段，榜单要到「已开榜」(open) 才对外可见。等状态推进。`,
-    };
+    return suggest("sealed", `榜单有 ${n} 条，但这个征集处于「${b.status}」阶段，榜单要到「已开榜」(open) 才对外可见。等状态推进。`);
   }
-  if (!answers.length) return { access: "no-answers", note: "这个悬赏还没有答案" };
-  if (v.canSeeAll) return { access: "full", note: "" };
+  if (!answers.length) return suggest("no-answers", "这个悬赏还没有答案");
+  if (v.canSeeAll) return suggest("full", "");
   if (!v.isLoggedIn) {
-    return {
-      access: "anonymous",
-      note: "匿名只给元数据，正文被抹成空串（HTTP 仍是 200）。加 --transport browser 用已登录的浏览器重跑。",
-    };
+    return suggest("anonymous", "匿名只给元数据，正文被抹成空串（HTTP 仍是 200）。加 --transport browser 用已登录的浏览器重跑。");
   }
   // 已登录还看不到：要么整场还封着，要么这一场要花钱解锁。
   if (["funding", "collecting", "open", "answering"].includes(b.status)) {
-    return {
-      access: "sealed",
-      note: `这个悬赏处于「${b.status}」阶段，答案对**所有人**封存（答题期防抄袭），等它进入 voting 再取。这不是登录或付费能解决的。`,
-    };
+    return suggest("sealed", `这个悬赏处于「${b.status}」阶段，答案对**所有人**封存（答题期防抄袭），等它进入 voting 再取。这不是登录或付费能解决的。`);
   }
-  return {
-    access: "needs-unlock",
-    note: `需要解锁才能看正文，解锁价 ${yuan(b.unlock_price)} 元。**本脚本绝不会自动解锁**——要不要花这笔钱由你决定，在网页上手动点。`,
-  };
+  return suggest("needs-unlock", `需要解锁才能看正文，解锁价 ${yuan(b.unlock_price)} 元。**本脚本绝不会自动解锁**——要不要花这笔钱由你决定，在网页上手动点。`);
 }
 
 /** 列表类端点匿名就是全的，没有降级概念。给个恒 false 免得调用方漏传。 */
@@ -225,8 +272,9 @@ function table(rows, cols) {
 
 /** 拿不全就必须说出来，并且说清是哪一种拿不全，不许静默返回半份数据。 */
 function warnAccess(cls, res) {
-  if (cls.access === "full" || cls.access === "no-answers") return;
-  console.error(`\n⚠️  正文未取到（${cls.access}）：${cls.note}`);
+  if (cls.suggestedAccess === "full" || cls.suggestedAccess === "no-answers") return;
+  console.error(`\n⚠️  正文未取到（suggested: ${cls.suggestedAccess}）：${cls.note}`);
+  console.error(`   判据原文：${cls.evidence.rawExcerpt}`);
   if (res?.upgradeError) console.error(`   自动升级到浏览器失败：${res.upgradeError}`);
 }
 
@@ -239,7 +287,13 @@ async function cmdBounty(uid, args, ctx) {
     gated: gatedBounty,
   });
   const b = res.json?.bounty;
-  if (!b) die(`没拿到悬赏数据（HTTP ${res.status}）`);
+  if (!b) {
+    dumpAndDie(ctx, "no-bounty-data", `没拿到悬赏数据（HTTP ${res.status}）`, {
+      status: res.status,
+      transport: res.transport,
+      jsonExcerpt: JSON.stringify(res.json ?? null).slice(0, 2000),
+    });
+  }
 
   const cls = classifyAccess(b);
   const out = {
@@ -248,8 +302,11 @@ async function cmdBounty(uid, args, ctx) {
     title: b.title,
     question: b.content,
     status: b.status,
-    access: cls.access,
+    // suggested_access 是脚本按 viewer 字段给的**建议**；判据原文在 access_evidence，
+    // 两者不一致时以 evidence（和浏览器截图）为准。
+    suggested_access: cls.suggestedAccess,
     access_note: cls.note,
+    access_evidence: cls.evidence,
     kind: b.kind,
     pool_yuan: yuan(b.pool_fen),
     unlock_price_yuan: yuan(b.unlock_price),
@@ -328,7 +385,7 @@ function bountyMd(o) {
     `奖池 **${o.pool_yuan} 元**，${o.investor_count} 人投资，${o.answer_count} 条答案。`,
     ``,
   );
-  if (o.access !== "full") L.push(`> ⚠️ 正文未取到（${o.access}）：${o.access_note}`, ``);
+  if (o.suggested_access !== "full") L.push(`> ⚠️ 正文未取到（suggested: ${o.suggested_access}）：${o.access_note}`, ``);
   for (const a of o.answers) {
     L.push(`## ${a.author}（${a.votes} 票 · ${a.chars} 字）`, ``, a.content || "_（正文未取到）_", ``);
   }
@@ -834,7 +891,12 @@ async function cmdSearch(q, args, ctx) {
       accept: "text/html",
     });
     if (/^3/.test(String(r.status)) || !r.text) {
-      die("搜索被重定向了——说明浏览器里没有登录 new.web.cafe。搜索匿名不可用。");
+      dumpAndDie(ctx, "search-redirected", "搜索请求返回重定向或空正文。最常见成因是浏览器里没有登录 new.web.cafe（搜索匿名不可用）——是不是这个成因，看现场截图。", {
+        status: r.status,
+        page: p,
+        textLen: (r.text || "").length,
+        textHead: (r.text || "").slice(0, 500),
+      });
     }
     if (total === null) {
       const m = r.text.match(/共有\s*(\d+)\s*条结果/);
@@ -929,7 +991,13 @@ async function cmdQuestion(rootUid, args, ctx) {
     gated: (j) => (j?.thread?.rounds || []).some((r) => !r.unlocked),
   });
   const th = res.json?.thread;
-  if (!th) die(`没拿到问答数据（HTTP ${res.status}）`);
+  if (!th) {
+    dumpAndDie(ctx, "no-question-data", `没拿到问答数据（HTTP ${res.status}）`, {
+      status: res.status,
+      transport: res.transport,
+      jsonExcerpt: JSON.stringify(res.json ?? null).slice(0, 2000),
+    });
+  }
   const rows = (th.rounds || []).map((r) => ({
     seq: r.seq,
     uid: r.uid,
@@ -1234,7 +1302,7 @@ const HELP = `webcafe-forum.mjs —— new.web.cafe（哥飞社区论坛）全�
 
 注意：匿名不会 401——它返回 200 和完整条目，只把正文抹成空串。
       正文取不到时脚本会在 stderr 说明是哪一种（anonymous / sealed / needs-unlock），
-      并在 --json 输出里带 access 字段。**脚本绝不会自动解锁（那要花钱）。**`;
+      并在 --json 输出里带 suggested_access + access_evidence 字段。**脚本绝不会自动解锁（那要花钱）。**`;
 
 async function main() {
   const args = parseArgs();

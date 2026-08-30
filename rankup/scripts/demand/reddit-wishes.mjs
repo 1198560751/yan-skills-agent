@@ -58,7 +58,7 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { parseArgs, get, getJson, emit, die, sleep, readToken, asList, probeBrowserBridge } from './_lib.mjs';
+import { parseArgs, get, getJson, emit, die, sleep, readToken, asList, probeBrowserBridge, initEvidence, recordSource } from './_lib.mjs';
 
 const execFileP = promisify(execFile);
 
@@ -315,17 +315,21 @@ async function main() {
     source = 'rss';
   }
   if (!args.json) console.error(`# 取数路径：${source}${source === 'rss' ? '（无 token，限流紧，每请求间隔 ' + delay + 'ms）' : ''}`);
+  initEvidence('reddit-wishes', { dir: args['evidence-dir'] ?? null });
 
   const targets = subs.length ? subs : [''];
   const rows = [];
   const seen = new Set();
   let first = true;
+  let filteredByStrict = 0;
+  let filteredAsDup = 0;
 
   outer:
   for (const tpl of tpls) {
     for (const sub of targets) {
       if (rows.length >= limit) break outer;
       const query = `"${tpl}"${topic ? ` ${topic}` : ''}`;
+      const srcTag = `${source}:${tpl}${sub ? `@r/${sub}` : '@all'}`;
       if (!first && source === 'rss') await sleep(delay);
       first = false;
       let batch = [];
@@ -340,17 +344,27 @@ async function main() {
           batch = parseAtom(await viaRss({ query, subreddit: sub, time, sort, ua, delay }), tpl);
         }
       } catch (e) {
+        // 逐 (template, subreddit) 记状态：限流/被挡的组合和「这个句式真没帖子」分得开。
+        recordSource({ source: srcTag, status: 'fetch_failed', rawCount: 0, error: String(e.message) });
         console.error(`[${tpl}${sub ? ' @r/' + sub : ''}] 取数失败：${e.message}`);
         continue;
       }
+      let kept = 0;
       for (const r of batch) {
-        if (seen.has(r.permalink)) continue;
-        if (strict && !`${r.title} ${r.text}`.toLowerCase().includes(tpl.toLowerCase())) continue;
+        if (seen.has(r.permalink)) { filteredAsDup += 1; continue; }
+        if (strict && !`${r.title} ${r.text}`.toLowerCase().includes(tpl.toLowerCase())) { filteredByStrict += 1; continue; }
         seen.add(r.permalink);
         rows.push(r);
-        if (rows.length >= limit) break outer;
+        kept += 1;
+        if (rows.length >= limit) { recordSource({ source: srcTag, status: 'ok', rawCount: batch.length, kept }); break outer; }
       }
+      recordSource({ source: srcTag, status: 'ok', rawCount: batch.length, kept });
     }
+  }
+
+  // 本地过滤丢了多少要报出来：rawCount 和最终行数之间的差不是「Reddit 没给」。
+  if (filteredByStrict || filteredAsDup) {
+    console.error(`# 本地过滤：句式二次过滤丢弃 ${filteredByStrict} 条（--no-strict 可关），跨查询去重丢弃 ${filteredAsDup} 条`);
   }
 
   if (!rows.length && source === 'rss') {

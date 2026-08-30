@@ -39,6 +39,14 @@
  *     自助申请见 https://api.producthunt.com/v2/docs）。缺失时自动降级到浏览器路径。
  *     **不要把真实 token 写进脚本或文档。**
  *
+ * 失败留现场（2026-08-30 重构第二波，截图链路待实盘验证）：
+ *   - 浏览器源（producthunt / toolify / taaft）单页失败：先把**截图+页面全文**落进
+ *     证据目录、状态记进 manifest，再继续/收尾——不再 die 全局，也不再让 finally
+ *     的 browserClose 先毁现场（--keep-open 连关都不关）。
+ *   - HTTP 源（traffic.cv / trustmrr / columbus）失败：响应体原样落证据目录，
+ *     异常带落点路径。
+ *   - 每次运行落 manifest.json；「0 条 + 源失败」和「0 条 + 源成功」长得不一样。
+ *
  * 已验证：2026-08-23
  *   producthunt（浏览器路径）/ toolify（浏览器路径）/ traffic-cv / trustmrr / columbus
  *   都真跑出数。producthunt 的 GraphQL 路径**未验证**（手上没有 token），
@@ -77,10 +85,13 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { writeFileSync, readFileSync, existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { readFileSync, existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { requireBrowserBridge } from "./_lib.mjs";
+import {
+  requireBrowserBridge, sessionName, die, emit, initEvidence, saveEvidence,
+  recordSource, writeManifest, captureBrowserScene, evidenceDir,
+} from "./_lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ENV_FILE = resolve(HERE, "..", "..", ".env");
@@ -104,11 +115,6 @@ function envVar(key) {
     if (t.slice(0, i).trim() === key) return t.slice(i + 1).trim().replace(/^["']|["']$/g, "");
   }
   return undefined;
-}
-
-function die(msg) {
-  console.error(`error: ${msg}`);
-  process.exit(1);
 }
 
 async function httpText(url, opts = {}) {
@@ -203,21 +209,7 @@ function stripTracking(u) {
 const today = () => new Date().toISOString().slice(0, 10);
 
 /* -------------------------------------------------------------- opencli io */
-
-function sessionName(base) {
-  // 会话名就是标签页的所有权声明：两个任务挑同一个名字就共用同一个标签页，
-  // 于是各自读回对方打开的页面——导航报成功，数据是别人的，全程不报错。
-  // 所以这里绝不能返回字面常量。后缀取「真正会并发的那个单位」：
-  // 一次对话 = 一个 CLAUDE_CODE_SESSION_ID。HOST_SESSION_ID 是整个桌面端共用的，
-  // 拿它当第一顺位等于把同一个标签页发给两个并行任务，只能垫底。
-  const suffix = (
-    process.env.OPENCLI_SESSION_SUFFIX ||
-    process.env.CLAUDE_CODE_SESSION_ID ||
-    process.env.CLAUDE_CODE_HOST_SESSION_ID ||
-    String(process.ppid)
-  ).replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || "local";
-  return `${base}-${suffix}`;
-}
+// 会话名纪律见 _lib.sessionName()：绝不能是字面常量，后缀取真正会并发的那个单位。
 
 function opencli(args, timeoutMs = 180000) {
   const r = spawnSync("opencli", args, { encoding: "utf8", timeout: timeoutMs });
@@ -269,6 +261,25 @@ function browserClose(session) {
   }
 }
 
+/**
+ * 浏览器源失败：**先取证后关**。截图+页面全文成对落进证据目录，状态记进 manifest，
+ * 然后由调用方决定继续跑其它页/其它步骤（单页失败不 die 全局）。
+ * 截图链路待实盘验证（2026-08-30 重构第二波）。
+ */
+function leaveSceneAndRecord(session, source, tag, error) {
+  const scene = captureBrowserScene(session, tag);
+  recordSource({ source, status: "browser_error", rawCount: 0, error: String(error?.message ?? error), scene });
+  console.error(`warn: ${source} 取数失败，现场已留 ${evidenceDir()}：${String(error?.message ?? error).slice(0, 200)}`);
+  return scene;
+}
+
+/** HTTP 源失败：把响应体原样落证据目录再抛，异常里带落点路径。 */
+function httpFailure(source, url, r, note) {
+  const file = saveEvidence(`${source.replace(/[^a-zA-Z0-9_-]/g, "_")}-${r?.status ?? "neterr"}.html`, r?.body ?? "");
+  recordSource({ source, status: r?.status ? `http_${r.status}` : "bad_payload", rawCount: 0, error: note, evidence: file });
+  return new Error(`${note}（响应体已留 ${file}）`);
+}
+
 /* ------------------------------------------------------------ arg parsing */
 
 function parseArgs(argv) {
@@ -306,35 +317,11 @@ function parseArgs(argv) {
 const num = (v, d) => (v === undefined || v === true ? d : Number(v));
 
 /* -------------------------------------------------------------- 输出与落盘 */
+// 输出走 _lib.emit：--out / --json / 表格之外还会落 manifest.json，
+// 且空结果时逐源报采集状态——「0 条 + 源失败」和「0 条 + 源成功」长得不一样。
 
 const FIELDS = ["source", "rank", "name", "url", "domain", "metric", "metricLabel", "date"];
-
-function emit(rows, args) {
-  if (args.out) {
-    const file = String(args.out);
-    const body = file.endsWith(".jsonl")
-      ? rows.map((r) => JSON.stringify(r)).join("\n") + "\n"
-      : JSON.stringify(rows, null, 2) + "\n";
-    writeFileSync(file, body);
-    console.error(`wrote ${rows.length} rows -> ${file}`);
-  }
-  if (args.json) {
-    console.log(JSON.stringify(rows, null, 2));
-    return;
-  }
-  if (!rows.length) {
-    console.log("(no rows)");
-    return;
-  }
-  const cols = FIELDS.filter((f) => rows.some((r) => r[f] !== undefined && r[f] !== null && r[f] !== ""));
-  const width = Object.fromEntries(
-    cols.map((c) => [c, Math.max(c.length, ...rows.map((r) => String(r[c] ?? "").slice(0, 46).length))])
-  );
-  const line = (cells) => cells.map((c, i) => String(c).padEnd(width[cols[i]])).join("  ");
-  console.log(line(cols));
-  console.log(cols.map((c) => "-".repeat(width[c])).join("  "));
-  for (const r of rows) console.log(line(cols.map((c) => String(r[c] ?? "").slice(0, 46))));
-}
+const COLS = FIELDS.map((f) => ({ key: f, label: f, max: 46 }));
 
 /* ============================================================ PRODUCT HUNT */
 
@@ -495,7 +482,9 @@ async function cmdProducthunt(args) {
   if (token) {
     try {
       rows = await phViaGraphql(token, date, limit);
+      recordSource({ source: "producthunt:graphql", status: "ok", rawCount: rows.length });
     } catch (e) {
+      recordSource({ source: "producthunt:graphql", status: "graphql_error", rawCount: 0, error: String(e.message) });
       console.error(`warn: GraphQL 路径失败，降级：${e.message}`);
     }
   } else {
@@ -506,18 +495,26 @@ async function cmdProducthunt(args) {
     if (!rows || !rows.length) {
       if (!wantBrowser) {
         rows = await phViaFeed(limit, args.date ? date : null);
+        recordSource({ source: "producthunt:atom-feed", status: "ok", rawCount: rows.length });
         console.error("note: --no-browser，只有 Atom feed 兜底：没有名次、没有票数");
       } else {
         needSession = true;
-        rows = await phViaBrowser(session, date, limit, num(args.scrolls, 2));
+        try {
+          rows = await phViaBrowser(session, date, limit, num(args.scrolls, 2));
+          recordSource({ source: "producthunt:browser", status: "ok", rawCount: rows.length });
+        } catch (e) {
+          // 先取证后关：截图+页面全文进证据目录，空结果由 manifest 说明是「没取到」。
+          leaveSceneAndRecord(session, "producthunt:browser", "producthunt-failed", e);
+          rows = [];
+        }
       }
     }
-    if (args.resolveUrls) {
+    if (args.resolveUrls && rows.length) {
       needSession = true;
       rows = phResolveUrls(session, rows, num(args.resolveLimit, 10));
     }
   } finally {
-    if (needSession) browserClose(session);
+    if (needSession && !args.keepOpen) browserClose(session);
   }
   return rows;
 }
@@ -584,9 +581,17 @@ async function cmdToolify(args) {
   try {
     for (let page = 1; page <= pages && rows.length < limit; page++) {
       const url = `https://www.toolify.ai${path}${page > 1 ? `?page=${page}` : ""}`;
-      browserOpen(session, url);
-      const res = browserEval(session, TOOLIFY_EXTRACT);
-      if (!res || res.error) throw new Error(`toolify 取数失败：${res && res.error}`);
+      let res;
+      try {
+        browserOpen(session, url);
+        res = browserEval(session, TOOLIFY_EXTRACT);
+        if (!res || res.error) throw new Error(`toolify 取数失败：${res?.error ?? "eval 无返回"}`);
+      } catch (e) {
+        // 单页失败不 die 全局：先取证（截图+全文）再停止翻页，已取到的页照常输出。
+        leaveSceneAndRecord(session, `toolify:${boardKey}:page${page}`, `toolify-${boardKey}-page${page}`, e);
+        break;
+      }
+      recordSource({ source: `toolify:${boardKey}:page${page}`, status: "ok", rawCount: res.rows.length });
       for (const t of res.rows) {
         if (rows.length >= limit) break;
         if (args.skipAds && t.isAd) continue;
@@ -614,7 +619,7 @@ async function cmdToolify(args) {
       }
     }
   } finally {
-    browserClose(session);
+    if (!args.keepOpen) browserClose(session);
   }
   return rows;
 }
@@ -695,9 +700,17 @@ async function cmdTaaft(args) {
 
   try {
     if (spec.kind === "tools") {
-      browserOpen(session, `https://theresanaiforthat.com${spec.path}`);
-      const res = browserEval(session, TAAFT_TOOLS_EXTRACT);
-      if (!res || res.error) throw new Error(`taaft 取数失败：${res && res.error}`);
+      let res;
+      try {
+        browserOpen(session, `https://theresanaiforthat.com${spec.path}`);
+        res = browserEval(session, TAAFT_TOOLS_EXTRACT);
+        if (!res || res.error) throw new Error(`taaft 取数失败：${res?.error ?? "eval 无返回"}`);
+      } catch (e) {
+        // 失败先取证（截图+全文），状态进 manifest；返回空行集而不是 die 全局。
+        leaveSceneAndRecord(session, `taaft:${boardKey}`, `taaft-${boardKey}`, e);
+        return rows;
+      }
+      recordSource({ source: `taaft:${boardKey}`, status: "ok", rawCount: res.rows.length });
       for (const t of res.rows) {
         if (rows.length >= limit) break;
         if (args.skipAds && t.featured) continue;
@@ -729,9 +742,17 @@ async function cmdTaaft(args) {
     } else {
       for (let page = 1; page <= pages && rows.length < limit; page++) {
         const path = page > 1 ? `${spec.path}page/${page}/` : spec.path;
-        browserOpen(session, `https://theresanaiforthat.com${path}`);
-        const res = browserEval(session, TAAFT_REQUESTS_EXTRACT);
-        if (!res || res.error) throw new Error(`taaft 取数失败：${res && res.error}`);
+        let res;
+        try {
+          browserOpen(session, `https://theresanaiforthat.com${path}`);
+          res = browserEval(session, TAAFT_REQUESTS_EXTRACT);
+          if (!res || res.error) throw new Error(`taaft 取数失败：${res?.error ?? "eval 无返回"}`);
+        } catch (e) {
+          // 单页失败不 die 全局：先取证再停止翻页，已取到的页照常输出。
+          leaveSceneAndRecord(session, `taaft:${boardKey}:page${page}`, `taaft-${boardKey}-page${page}`, e);
+          break;
+        }
+        recordSource({ source: `taaft:${boardKey}:page${page}`, status: "ok", rawCount: res.rows.length });
         for (const q of res.rows) {
           if (rows.length >= limit) break;
           rows.push({
@@ -758,7 +779,7 @@ async function cmdTaaft(args) {
       }
     }
   } finally {
-    browserClose(session);
+    if (!args.keepOpen) browserClose(session);
   }
   return rows;
 }
@@ -778,10 +799,11 @@ async function cmdTrafficCv(args) {
   }
   const url = `https://traffic.cv${path}`;
   const r = await httpText(url);
-  if (r.status !== 200) throw new Error(`traffic.cv HTTP ${r.status} @ ${url}`);
+  if (r.status !== 200) throw httpFailure("traffic.cv", url, r, `traffic.cv HTTP ${r.status} @ ${url}`);
   const payload = flightPayload(r.body);
   const data = arrayAfterKey(payload, "data");
-  if (!data || !data.length) throw new Error("traffic.cv 页面里没解析出 data 数组（改版了？）");
+  if (!data || !data.length) throw httpFailure("traffic.cv", url, r, "traffic.cv 页面里没解析出 data 数组（改版了？）");
+  recordSource({ source: `traffic.cv:${type}-${tab}`, status: "ok", rawCount: data.length });
 
   const monthTag = data[0].year && data[0].month ? `${data[0].year}-${String(data[0].month).padStart(2, "0")}` : today().slice(0, 7);
   // 付费墙后的条目 hostname 被打成 `***`，域名对下游没用。默认剔掉，
@@ -840,10 +862,11 @@ async function cmdTrustmrr(args) {
   const limit = num(args.limit, 50);
 
   const r = await httpText("https://trustmrr.com/");
-  if (r.status !== 200) throw new Error(`trustmrr HTTP ${r.status}`);
+  if (r.status !== 200) throw httpFailure("trustmrr", "https://trustmrr.com/", r, `trustmrr HTTP ${r.status}`);
   const payload = flightPayload(r.body);
   const list = arrayAfterKey(payload, board);
-  if (!list || !list.length) throw new Error(`trustmrr 首页里没解析出 "${board}" 榜（改版了？）`);
+  if (!list || !list.length) throw httpFailure("trustmrr", "https://trustmrr.com/", r, `trustmrr 首页里没解析出 "${board}" 榜（改版了？）`);
+  recordSource({ source: `trustmrr:${board}`, status: "ok", rawCount: list.length });
 
   const rows = list.slice(0, limit).map((s, i) => ({
     source: `trustmrr:${board}`,
@@ -910,10 +933,10 @@ async function cmdColumbus(args) {
   const limit = num(args.limit, 50);
   const url = `https://columbus.tools/${board}`;
   const r = await httpText(url);
-  if (r.status !== 200) throw new Error(`columbus HTTP ${r.status} @ ${url}`);
+  if (r.status !== 200) throw httpFailure("columbus", url, r, `columbus HTTP ${r.status} @ ${url}`);
 
   const tb = r.body.slice(r.body.indexOf("<tbody"), r.body.indexOf("</tbody>"));
-  if (!tb) throw new Error("columbus 页面里没有 <tbody>（改版了？）");
+  if (!tb) throw httpFailure("columbus", url, r, "columbus 页面里没有 <tbody>（改版了？）");
   const trs = tb.split("<tr").slice(1);
   const rows = [];
   for (const tr of trs) {
@@ -946,7 +969,8 @@ async function cmdColumbus(args) {
       },
     });
   }
-  if (!rows.length) throw new Error("columbus 解析出 0 行（列结构变了？）");
+  if (!rows.length) throw httpFailure("columbus", url, r, "columbus 解析出 0 行（列结构变了？）");
+  recordSource({ source: `columbus:${board}`, status: "ok", rawCount: rows.length });
   return rows;
 }
 
@@ -978,6 +1002,8 @@ source：
   --limit <n>        取前 n 条（默认按源 30~50）
   --json             输出结构化 JSON（默认人类可读表格）
   --out <file>       落盘；.jsonl 结尾写 JSON Lines，否则写 JSON
+  --keep-open        浏览器源失败/跑完都不关标签页（排查时保住活现场）
+  --evidence-dir <d> 失败现场与 manifest 落点（默认 .rankup/evidence/demand/boards-<ts>/）
   -h, --help         本帮助
 
 producthunt：
@@ -1038,11 +1064,12 @@ async function main() {
   }
   const fn = SOURCES[source];
   if (!fn) die(`未知 source「${source}」。可选：${Object.keys(SOURCES).join(", ")}`);
+  initEvidence("boards", { dir: args.evidenceDir ?? null });
   try {
     const rows = await fn(args);
-    emit(rows, args);
+    emit(rows, args, COLS); // _lib.emit：落 manifest + 空结果逐源报状态
   } catch (e) {
-    die(e.message);
+    die(e.message); // _lib.die：先落 manifest（stopReason=died）再退出
   }
 }
 

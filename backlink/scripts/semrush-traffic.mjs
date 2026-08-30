@@ -11,6 +11,8 @@
  * semrush-report.mjs 的 `note` 字段早就把读者指向这个路由了，但一直没有脚本实现它——
  * 本文件把那句注释兑现，别再写第二个。
  *
+ * 2026-08-30 双证人化：失败路径退出前 captureScene 落现场，截图链路待实盘验证。
+ *
  * 用法：
  *   node semrush-traffic.mjs --domain canva.com
  *   node semrush-traffic.mjs --domain canva.com --out traffic.json --json
@@ -98,6 +100,9 @@ import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } f
 import { parseNumber } from './lib-similarweb.mjs';
 import { classifyTargetScope } from './lib-report-readiness.mjs';
 import { DEEP_DOM_JS, scrollThroughSegments } from './lib-deep-dom.mjs';
+// 2026-08-30 双证人化：失败路径在退出前 captureScene（穿透 census + 截图）成对
+// 落盘，unavailable 输出带 evidence 字段。截图链路待实盘验证。
+import { captureScene, defaultSceneDir } from './lib-evidence-scene.mjs';
 import { writeFile } from 'node:fs/promises';
 
 import path from 'node:path';
@@ -397,8 +402,13 @@ async function reloadPastTransient(evalPage, attempts = 2) {
   let state = await readLocation(evalPage);
   for (let i = 0; i < attempts && state?.transient; i += 1) {
     await evalPage('(() => { location.reload(); return JSON.stringify({ reload: 1 }); })()');
-    await sleep(6000);
-    state = await readLocation(evalPage);
+    // 条件等待，不是定长睡眠：每 1.5s 读一次「还在瞬时错误页吗」，最多 ~9s。
+    // 恢复得快就快走，恢复得慢也不会在 6 秒整点误读一个还没重载完的页面。
+    const deadline = Date.now() + 9_000;
+    do {
+      await sleep(1_500);
+      state = await readLocation(evalPage);
+    } while (state?.transient && Date.now() < deadline);
   }
   return state;
 }
@@ -596,6 +606,10 @@ async function main() {
   let launched;
   let deepLink = null;
   let targetCheck = null;
+  // 失败现场的落点。默认贴着 --out（`x.json.evidence/`），没有 --out 进 .backlink/。
+  const evidenceDir = typeof flags['evidence-dir'] === 'string'
+    ? flags['evidence-dir']
+    : defaultSceneDir({ out: typeof flags.out === 'string' ? flags.out : null, script: 'semrush-traffic', runTag: domain });
   try {
     launched = await launchTool({
       session,
@@ -743,6 +757,16 @@ async function main() {
       rawText: cap.bodyText.slice(0, 20000),
     };
   } catch (error) {
+    // **先取证后死**：所有失败分支（瞬时错误页、深链没落地、摘要区不稳、页头
+    // 对不上、任何 eval 崩）都汇到这里；在 finally 释放锁之前把此刻的穿透
+    // census + 截图成对落盘。captureScene 永不 throw。
+    const scene = launched
+      ? await captureScene({
+        session, outDir: evidenceDir, evalPage: launched.evalPage, env: launched.env,
+        tag: 'unavailable',
+        note: `semrush-traffic ${domain}: ${redactSecrets(String(error?.message || error)).slice(0, 200)}`,
+      })
+      : null;
     output = {
       version: 1,
       source: 'Semrush Traffic & Market (.Trends) via authenticated Tools Share browser session',
@@ -750,6 +774,8 @@ async function main() {
       report: 'traffic-overview',
       target: domain,
       session,
+      // 失败输出带现场：census + 截图的落盘路径（拍不到时是错误说明）。
+      evidence: scene,
       // **错误消息必须过 redactSecrets。** opencli 失败会把带 __gmitm 令牌的会话 URL
       // 打进 stderr，那段文本会一路进 output、进 --out 文件、进日志。
       status: 'unavailable',

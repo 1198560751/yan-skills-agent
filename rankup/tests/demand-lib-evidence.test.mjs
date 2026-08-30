@@ -82,3 +82,53 @@ test('空结果输出：源失败与源成功长得不一样；die() 先落 mani
   assert.ok(m.stopReason.startsWith('died: 桥没连上'), m.stopReason);
   assert.ok(r.stderr.includes('现场已留'));
 });
+
+// ── 2026-08-30 重构第二波：浏览器失败现场的双证人 captureBrowserScene ──────────
+// 契约：页面文本（DOM 证人）+ 截图（视觉证人）成对落进证据目录；
+// 任何一步取证失败都不抛——取证失败不许掩盖原始错误。
+// 这里用假 opencli 验证调用形态与落盘；真 Chrome 上的截图链路待实盘验证。
+
+import { mkdtempSync as mkdtemp2, writeFileSync, chmodSync, existsSync } from 'node:fs';
+
+function fakeOpencli(dir, body) {
+  const bin = path.join(dir, 'fake-opencli');
+  writeFileSync(bin, `#!/bin/sh\n${body}\n`);
+  chmodSync(bin, 0o755);
+  return bin;
+}
+
+test('captureBrowserScene：文本与截图成对落进证据目录', () => {
+  const dir = mkdtemp2(path.join(os.tmpdir(), 'demand-lib-scene-'));
+  const binDir = mkdtemp2(path.join(os.tmpdir(), 'demand-lib-bin-'));
+  const bin = fakeOpencli(binDir, [
+    'for last; do :; done',
+    'case "$*" in',
+    '  *" eval "*) echo \'{"url":"https://example.test/x","title":"T","readyState":"complete","text":"hello page"}\';;',
+    '  *" screenshot "*) printf PNG > "$last";;',
+    'esac',
+  ].join('\n'));
+  lib.initEvidence('unit-test-scene', { dir, argv: [] });
+  const out = lib.captureBrowserScene('sess-x', 'tag one/兩', { bin });
+  assert.ok(out.text, '文本证人应当落盘');
+  assert.ok(out.text.startsWith(dir), `文本证人应在证据目录里：${out.text}`);
+  const page = JSON.parse(readFileSync(out.text, 'utf8'));
+  assert.equal(page.url, 'https://example.test/x');
+  assert.equal(page.text, 'hello page');
+  assert.ok(out.shot && existsSync(out.shot), '截图证人应当落盘');
+  assert.ok(/-shot\.png$/.test(out.shot));
+  // tag 里的非法字符要被清洗掉，别把路径写坏
+  assert.ok(!path.basename(out.text).includes('/'));
+});
+
+test('captureBrowserScene：opencli 调不起来也不抛，证人记 null/错误现场', () => {
+  const dir = mkdtemp2(path.join(os.tmpdir(), 'demand-lib-scene-'));
+  lib.initEvidence('unit-test-scene-fail', { dir, argv: [] });
+  let out;
+  assert.doesNotThrow(() => { out = lib.captureBrowserScene('sess-x', 'boom', { bin: '/nonexistent-opencli-xyz' }); });
+  assert.equal(out.shot, null);
+  // 文本证人退化为错误现场文件（或 null），但绝不抛出去掩盖原始错误
+  if (out.text) {
+    const page = JSON.parse(readFileSync(out.text, 'utf8'));
+    assert.ok(page.error, '退化文件里应记下拿不到证人的原因');
+  }
+});

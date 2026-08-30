@@ -1,6 +1,15 @@
 #!/usr/bin/env node
+/**
+ * safe-fill.mjs — 按 inspect-page 的 scan 指纹回填 payload，装提交守卫，绝不提交。
+ *
+ * 2026-08-30 双证人化：拒绝路径（page_changed / form_changed / field_changed /
+ * captcha / login / no_values）在 exit 2 之前 captureScene（穿透 census + 截图）
+ * 落进 --evidence-dir，输出带 evidence——拒绝理由本来就精确，现在配上现场，
+ * AI 能直接对质「页面到底变成了什么样」。截图链路待实盘验证。
+ */
 import { readFile } from 'node:fs/promises';
 import { firstJson, makeSubmitGuard, opencli, parseFlags, printJson, required, validateSession, showHelpIfRequested} from './opencli-core.mjs';
+import { captureScene, defaultSceneDir } from './lib-evidence-scene.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
@@ -81,5 +90,15 @@ const fillFunction = `(() => {
 
 const evaluated = await opencli(['browser', session, 'eval', fillFunction], { timeoutMs: 60_000 });
 const result = firstJson(evaluated.stdout);
+if (!result.ok) {
+  // **先取证后死**：exit 2 之前把拒绝时刻的现场成对落盘。captureScene 永不 throw。
+  const evidenceDir = typeof flags['evidence-dir'] === 'string'
+    ? flags['evidence-dir']
+    : defaultSceneDir({ script: 'safe-fill' });
+  result.evidence = await captureScene({
+    session, outDir: evidenceDir, tag: `refused-${result.reason || 'unknown'}`,
+    note: `safe-fill refused: ${result.reason || 'unknown'}`,
+  });
+}
 printJson(result);
 if (!result.ok) process.exitCode = 2;

@@ -22,13 +22,18 @@
  *   前置：`opencli doctor` 要绿。
  *
  * 已验证日期：2026-08-24
+ * 失败留现场（2026-08-30 重构第二波，截图链路待实盘验证）：
+ *   任何浏览器路径失败（打不开 / eval 不回 / 0 张卡片）都会先把**截图 + 页面全文**
+ *   落进证据目录再关标签页（--keep-open 则连关都不关），并写 manifest.json。
+ *   「0 张卡片」是留证陈述不是结论——是 CF 没过完、改版、还是真空榜，
+ *   由 AI 对着证据目录里的双证人判。
  *
  * 已知坑：
  *   - **免费只有第 1 页**：每个榜单固定 25 条，翻页链接（2/3/Next）全部指向 /pricing，
  *     即翻页要付费账号。想要更多样本就换不同榜单 / 不同平台各拉 25 条。
  *   - 站点是 Svelte 构建，class 带编译哈希（`svelte-xxxxxxx`），本脚本只用不带哈希的
  *     基础类名（.extension-card / .rank / .extension-name / .stats-item.users ...），
- *     改版仍可能断。出数为 0 时先 --debug 看一眼页面文本。
+ *     改版仍可能断。出数为 0 时先看证据目录里的截图和页面全文。
  *   - obsolete 榜默认不是按用户数排序，小扩展会排在前面；用 --min-users 过滤，
  *     但因为只有 25 条，**大产品下架不一定当天就能被这个榜捞到**。
  *   - users 是 chrome-stats 自己的估算/快照，和 Chrome Web Store 页面上的四舍五入值可能不同。
@@ -40,7 +45,10 @@
 import { writeFileSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { sessionName, requireBrowserBridge } from './_lib.mjs';
+import {
+  sessionName, requireBrowserBridge, initEvidence, saveEvidence, recordSource,
+  writeManifest, captureBrowserScene, evidenceDir,
+} from './_lib.mjs';
 
 const exec = promisify(execFile);
 
@@ -69,9 +77,11 @@ const HELP = `chrome-stats.mjs — chrome-stats.com 榜单取数（需要 OpenCL
   --limit <n>      最多输出                                   (默认 不限)
   --session <s>    OpenCLI 会话名，必须是带你前缀的字面常量
                                                 (默认 demand-chrome-stats)
-  --keep-open      跑完不关标签页（默认会 close）
-  --timeout <ms>   页面加载等待                                (默认 9000)
-  --debug          出错时打印页面文本片段
+  --keep-open      跑完不关标签页（默认会 close；失败排查时建议带上）
+  --timeout <ms>   页面就绪轮询预算                            (默认 9000)
+  --evidence-dir <d> 失败现场与 manifest 落点
+                     (默认 .rankup/evidence/demand/chrome-stats-<ts>/)
+  --debug          出错时把页面文本片段也打到 stderr（截图/全文总会落证据目录）
   --json / --jsonl / --out <file>
   -h, --help
 
@@ -84,7 +94,7 @@ function parseArgs(argv) {
     list: 'trending-week', path: null, platform: 'chrome',
     minUsers: 0, maxRating: 5, limit: Infinity,
     session: sessionName('demand-chrome-stats'), keepOpen: false, timeout: 9000, debug: false,
-    json: false, jsonl: false, out: null, help: false,
+    json: false, jsonl: false, out: null, evidenceDir: null, help: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]; const next = () => argv[++i];
@@ -103,6 +113,7 @@ function parseArgs(argv) {
       case '--json': o.json = true; break;
       case '--jsonl': o.jsonl = true; break;
       case '--out': o.out = next(); break;
+      case '--evidence-dir': o.evidenceDir = next(); break;
       default:
         if (a.startsWith('-')) { console.error(`未知参数: ${a}\n${HELP}`); process.exit(2); }
     }
@@ -172,25 +183,55 @@ async function main() {
 
   // 注意：`opencli doctor` 即使桥没连上也照样退出码 0，只是文案里带 [FAIL]——
   // 之前这里 catch 退出码的写法从来没真正生效过。真正的判据在 requireBrowserBridge()
-  // 里（认 `[OK] Connectivity`），探测本身失败/超时则放行，不拿它当「没连上」。
+  // 里（认 `[OK] Connectivity`，探测本身失败/超时则放行，不拿它当「没连上」）。
   requireBrowserBridge();
+  initEvidence('chrome-stats', { dir: o.evidenceDir });
 
-  let payload;
+  // 铁律：先取证后死、先取证后关。失败路径先把截图+页面全文落进证据目录，
+  // 再决定关不关标签页（--keep-open 连关都不关，留活现场）。
+  const leaveScene = (tag) => captureBrowserScene(o.session, tag);
+  const closeTab = async () => {
+    if (o.keepOpen) return;
+    try { await opencli(['browser', o.session, 'close']); } catch { /* 已关就算了 */ }
+  };
+
+  let payload = null;
   try {
     await opencli(['browser', o.session, '--window', 'background', 'open', url]);
-    await sleep(o.timeout);
-    payload = jsonFromStdout(await opencli(['browser', o.session, 'eval', EXTRACTOR]));
-  } finally {
-    if (!o.keepOpen) {
-      try { await opencli(['browser', o.session, 'close']); } catch { /* 已关就算了 */ }
-    }
+    // waitFor 不 sleep：在 --timeout 预算内轮询提取器，出卡片就走，不傻等整个预算。
+    const deadline = Date.now() + Math.max(o.timeout, 3000);
+    do {
+      await sleep(1200);
+      try { payload = jsonFromStdout(await opencli(['browser', o.session, 'eval', EXTRACTOR])); }
+      catch { payload = null; /* 页面可能还在过 CF 挑战，继续轮询 */ }
+      if (payload?.count) break;
+    } while (Date.now() < deadline);
+    if (!payload) throw new Error('轮询预算内 eval 一直没有返回 JSON（页面可能没打开/挑战没过）');
+  } catch (e) {
+    const scene = leaveScene('open-eval-failed');
+    recordSource({ source: `chrome-stats:${o.list}`, status: 'browser_error', rawCount: 0, error: String(e.message), scene });
+    writeManifest('died: browser_error');
+    await closeTab();
+    console.error(`错误: ${e.message}`);
+    console.error(`现场已留（截图+页面文本）：${evidenceDir()}${o.keepOpen ? '，标签页保持打开' : ''}`);
+    process.exit(1);
   }
 
   if (!payload.count) {
-    console.error(`未取到任何卡片。可能是 Cloudflare 挑战没过完，或站点改版。`);
+    // 留证陈述，不是结论：0 张卡片只说明「这次没取到」，可能是 CF 挑战没过完、
+    // 站点改版、或榜单页确实空——哪一种由 AI 对着证据目录里的截图+全文判。
+    const scene = leaveScene('zero-cards');
+    saveEvidence('zero-cards-payload.json', payload);
+    recordSource({ source: `chrome-stats:${o.list}`, status: 'zero_cards', rawCount: 0, error: '提取器返回 0 张卡片', scene });
+    const mf = writeManifest('died: zero_cards');
+    await closeTab();
+    console.error('未取到任何卡片——这是「这次没取到」，不是「榜单为空」。');
+    console.error(`截图+页面全文已落证据目录，自己看：${evidenceDir()}（manifest：${mf}）`);
     if (o.debug) console.error(payload.text || '(无页面文本)');
     process.exit(1);
   }
+  recordSource({ source: `chrome-stats:${o.list}`, status: 'ok', rawCount: payload.count });
+  await closeTab();
 
   let rows = payload.rows
     .filter((r) => r.id)
@@ -214,6 +255,7 @@ async function main() {
     .filter((r) => (r.users ?? 0) >= o.minUsers && (r.rating ?? 0) <= o.maxRating);
 
   if (Number.isFinite(o.limit)) rows = rows.slice(0, o.limit);
+  console.error(`manifest：${writeManifest('completed')}`);
 
   const jsonl = rows.map((r) => JSON.stringify(r)).join('\n');
   if (o.out) {

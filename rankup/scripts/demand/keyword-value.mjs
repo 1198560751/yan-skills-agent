@@ -21,12 +21,17 @@
  * 合起来是个 U 型：CPC 太低说明没人愿意为这个词付钱；CPC 太高说明你在跟买量的
  * 公司抢，KD 不可信。中间才是甜区。
  *
- * ## 这个脚本刻意不做的两件事
+ * ## 这个脚本刻意不做的三件事
  *
- * **不给绝对的 CPC 档位阈值。** CPC 的量级跟垂类强相关——实测 image converter 这个
+ * **不给档位命名。** 2026-08-30 重构第二波把 low/normal/high 分档删掉了：
+ * 「远低/正常/远高」是判断，判断在文档里（seo-growth.md 负向清单、
+ * demand-discovery.md「CPC 怎么读」）。脚本只输出三个数——CPC、同批中位数、
+ * 二者之比——怎么读交给 AI。
+ *
+ * **不给绝对的 CPC 阈值。** CPC 的量级跟垂类强相关——实测 image converter 这个
  * 工具类赛道 100 个词的 CPC 挤在 $0.9–1.1，而保险、法律类单词就能到几十美元。
  * 拿一套写死的 `$0.5 / $3` 去卡所有垂类，是在用一个凭空来的数字覆盖真实分布。
- * 所以分档一律**相对于这批词自己的中位数**。
+ * 所以唯一的参照系是**这批词自己的中位数**，且只给比值不给档位。
  *
  * **不给收入点估计。** 只给区间，并且把假设和它唯一的那个校准锚点一起印出来。
  * 见下面 REVENUE_ANCHOR 的注释——样本量是 1，任何比「一个数量级」更精确的说法
@@ -75,34 +80,23 @@ export function median(values) {
 }
 
 /**
- * 单个词的商业价值信号。
+ * 单个词的 CPC 事实。**只有数值，没有档位**（删档位的理由见文件头）。
  *
  * **`null` 和 `0` 必须分开。** null 是「这次没取到 CPC」（页面没渲染、列解析失败、
  * 指标待刷新），0 是「取到了，广告主确实不出价」。把前者当成后者，等于把一次
  * 抓取失败读成一个业务结论——这正是本仓库反复出事的那类错误。
  */
-export function cpcSignal(cpc, cohortMedian) {
+export function cpcFact(cpc, cohortMedian) {
   if (cpc === null || cpc === undefined) {
-    return { level: 'unknown', why: 'CPC 未取到（不是「没有商业价值」，是这次没读到）' };
+    return { cpc: null, ratioToMedian: null, note: 'CPC 未取到（不是「没有商业价值」，是这次没读到）' };
   }
   if (cpc === 0) {
-    return { level: 'none', why: '广告主明确不出价——这个词没有可变现的商业意图' };
+    return { cpc: 0, ratioToMedian: cohortMedian > 0 ? 0 : null, note: '取到了 0：广告主不出价（这是事实，不是失败）' };
   }
   if (cohortMedian === null || cohortMedian <= 0) {
-    return { level: 'unranked', why: '这批词里没有足够的 CPC 数据来定相对位置' };
+    return { cpc, ratioToMedian: null, note: '这批词里没有足够的 CPC 数据算中位数' };
   }
-  const ratio = cpc / cohortMedian;
-  // 相对于**这批词自己**的中位数分档，不用绝对金额——理由见文件头。
-  if (ratio < 0.3) return { level: 'low', ratio, why: '远低于同批中位数，商业意图弱' };
-  if (ratio <= 2) return { level: 'normal', ratio, why: '落在同批词的正常区间' };
-  return {
-    level: 'high',
-    ratio,
-    // 这一档**不是好消息**。seo-growth.md 的负向清单里，高 CPC 是跳过的理由之一。
-    why: '远高于同批中位数。先查 top10 是不是被把工具页当获客漏斗的 SaaS 占了——'
-       + '是的话这个词的 KD 不可信，高 CPC 是「有人在买量」而不是「这词好做」',
-    checkSerpBeforeUsing: true,
-  };
+  return { cpc, ratioToMedian: Math.round((cpc / cohortMedian) * 100) / 100, note: null };
 }
 
 /**
@@ -153,7 +147,7 @@ export function cohortRevenue(rows) {
   };
 }
 
-/** 给一整批词打上信号。中位数从这批词自己算，所以同一个词在不同批次里可以有不同档位——
+/** 给一整批词补上事实字段。中位数从这批词自己算，所以同一个词在不同批次里比值不同——
  * 这是**故意的**：CPC 的意义本来就只有在同垂类内部比较才成立。 */
 export function annotate(rows) {
   const cohortMedian = median(rows.map((r) => num(r.cpc)));
@@ -163,7 +157,7 @@ export function annotate(rows) {
     cpcKnown: rows.filter((r) => num(r.cpc) !== null).length,
     rows: rows.map((r) => ({
       ...r,
-      cpcSignal: cpcSignal(num(r.cpc), cohortMedian),
+      cpcFact: cpcFact(num(r.cpc), cohortMedian),
       revenue: revenueRange(r.volume, num(r.cpc)),
     })),
   };
@@ -196,23 +190,20 @@ function selfTest() {
   const check = (name, cond) => { ok.push([name, cond]); };
 
   // null ≠ 0：这是这个文件最重要的一条区分。
-  check('CPC 未取到 → unknown（不是「没价值」）', cpcSignal(null, 1).level === 'unknown');
-  check('CPC 取到且为 0 → none', cpcSignal(0, 1).level === 'none');
+  check('CPC 未取到 → cpc=null 且带「没读到」说明', cpcFact(null, 1).cpc === null && /没读到/.test(cpcFact(null, 1).note));
+  check('CPC 取到且为 0 → cpc=0，说明是事实不是失败', cpcFact(0, 1).cpc === 0 && cpcFact(0, 1).ratioToMedian === 0);
 
   const med = median([0.3, 0.95, 1.09, 1.09, 5]);
   check('中位数取中间值', med === 1.09);
   check('空集合的中位数是 null，不是 0', median([]) === null);
   check('全 null 的一批词，中位数是 null', median([null, undefined]) === null);
 
-  check('远低于中位数 → low', cpcSignal(0.1, 1).level === 'low');
-  check('中位数附近 → normal', cpcSignal(1.2, 1).level === 'normal');
-  check('远高于中位数 → high', cpcSignal(9, 1).level === 'high');
-  // 高 CPC 必须带着「先去查 SERP」的提示，否则它会被当成好消息读。
-  check('high 档带 SERP 复核标记', cpcSignal(9, 1).checkSerpBeforeUsing === true);
-  check('normal 档不带 SERP 复核标记', cpcSignal(1.2, 1).checkSerpBeforeUsing === undefined);
+  // 删档位后只剩数值：脚本不再输出 low/normal/high，比值原样透出，判读归文档。
+  check('比值 = cpc / 中位数（保留两位）', cpcFact(0.1, 1).ratioToMedian === 0.1);
+  check('比值不做档位命名（没有 level 字段）', cpcFact(9, 1).level === undefined);
+  check('中位数缺失时比值为 null 而不是 0', cpcFact(1.2, null).ratioToMedian === null);
 
-  // 实测数据回归：image converter 那批词（2026-08-28 live）中位数 0.95，
-  // 'jpg changer' 的 0.3 落在 low，主词 1.09 落在 normal。
+  // 实测数据回归：image converter 那批词（2026-08-28 live）中位数 1.02。
   const live = annotate([
     { keyword: 'image converter', volume: 18100, cpc: 1.09 },
     { keyword: 'photo converter', volume: 2900, cpc: 1.02 },
@@ -221,8 +212,8 @@ function selfTest() {
   ]);
   check('中位数只用有值的行算', live.cohortMedian === 1.02);
   check('cpcKnown 不把 null 算进去', live.cpcKnown === 3);
-  check('实测：主词落 normal', live.rows[0].cpcSignal.level === 'normal');
-  check('实测：0.3 相对 1.02 落 low', live.rows[2].cpcSignal.level === 'low');
+  check('实测：主词比值 1.07', live.rows[0].cpcFact.ratioToMedian === 1.07);
+  check('实测：0.3 相对 1.02 比值 0.29', live.rows[2].cpcFact.ratioToMedian === 0.29);
   check('CPC 为 null 的行仍然给出收入区间（收入只需要搜索量）',
     live.rows[3].revenue !== null && live.rows[3].revenue.cpcWouldSuggest === null);
 
@@ -245,6 +236,7 @@ function selfTest() {
   check('合计区间是两行之和', cohort.highUsdPerMonth === 2 * revenueRange(1000, 1).highUsdPerMonth);
 
   check('parseCpc 吃得下 $1.09', parseCpc('$1.09') === 1.09);
+  check('annotate 不再输出 low/normal/high 档位', JSON.stringify(live).includes('"level"') === false);
   check('parseCpc 吃得下裸数字', parseCpc(1.09) === 1.09);
   check('parseCpc 认不出的格式给 null，不给 0', parseCpc('一美元') === null);
   check('parseCpc 保留真实的 0', parseCpc('$0') === 0);
@@ -269,7 +261,8 @@ if (args.help || !args.in) {
 吃得下 semrush-report --report keyword-magic 的 --out、semrush-keyword 的 --out
 JSONL、以及任何 [{keyword, volume, kd, cpc}] 数组。
 
-分档一律相对于**这批词自己的中位数**，不用绝对金额——CPC 量级跟垂类强相关。
+输出只有数值：CPC、同批中位数、二者之比——不给 low/normal/high 档位命名，
+判读见 seo-growth.md 负向清单与 demand-discovery.md「CPC 怎么读」。
 收入只给区间并附带假设；唯一的校准锚点样本量是 1，见文件头注释。`);
   process.exit(args.in ? 0 : 1);
 }
@@ -278,21 +271,22 @@ const result = annotate(loadRows(args.in));
 if (args.json) {
   console.log(JSON.stringify(result, null, 2));
 } else {
-  console.log(`同批中位数 CPC: ${result.cohortMedian === null ? '无数据' : '$' + result.cohortMedian}`
+  console.log(`同批中位数 CPC: ${result.cohortMedian === null ? '无数据' : '$' + Math.round(result.cohortMedian * 100) / 100}`
     + `  |  ${result.cpcKnown}/${result.cohortSize} 个词取到了 CPC`);
   emit(result.rows.map((r) => ({
     keyword: r.keyword,
     volume: r.volume,
     kd: r.kd,
-    cpc: r.cpc,
-    signal: r.cpcSignal.level,
+    // null 显示成「未取到」：这一列的空不许和「CPC=0」长得一样。
+    cpc: r.cpcFact.cpc === null ? '未取到' : r.cpcFact.cpc,
+    'cpc/中位数': r.cpcFact.ratioToMedian ?? '—',
     'rev$/mo': r.revenue ? `${r.revenue.lowUsdPerMonth}–${r.revenue.highUsdPerMonth}` : '—',
   })), args, [
     { key: 'keyword', label: '关键词', max: 34 },
     { key: 'volume', label: '搜索量' },
     { key: 'kd', label: 'KD' },
     { key: 'cpc', label: 'CPC' },
-    { key: 'signal', label: '信号' },
+    { key: 'cpc/中位数', label: 'CPC/中位数' },
     { key: 'rev$/mo', label: '月收入区间$' },
   ]);
   const total = cohortRevenue(result.rows);
@@ -300,9 +294,6 @@ if (args.json) {
     + `（${total.counted} 个词参与计算${total.skipped ? `，${total.skipped} 个词缺搜索量、未计入` : ''}）`);
   console.log('  ↑ 这是选赛道该看的数字。单个词的区间小到没有决策意义，'
     + '而「一百多个低难度词」加起来往往仍是零头——假设见 --json 输出里的 assumptions。');
-  const high = result.rows.filter((r) => r.cpcSignal.checkSerpBeforeUsing);
-  if (high.length) {
-    console.error(`\n⚠ ${high.length} 个词的 CPC 远高于同批中位数。这不是好消息——`
-      + `先查这些词的 top10 是不是被把工具页当获客漏斗的 SaaS 占了，是的话它们的 KD 不可信。`);
-  }
+  console.log('  CPC/中位数怎么读（比值偏离意味着什么、何时先查 SERP）见'
+    + ' references/seo-growth.md 负向清单与 demand-discovery.md「CPC 怎么读」——脚本只给数，不给档。');
 }

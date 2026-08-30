@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 /**
  * gt-browser — Google Trends 的 OpenCLI 路由
+ * 状态：双证人化改造 2026-08-30（截图链路待实盘验证）——每次运行落
+ * trends-<kw>.json + 截图 + manifest(stopReason/attempt/emptyResultCount)
+ * 进 `.rankup/evidence/gt-browser-<ts>/`；空结果不再被叙述成「太冷门」。
  *
  * pytrends 走的是没有凭据的匿名请求，Google 对它限流极狠（429 是常态）。
  * 这个脚本改走用户本机那个已登录的 Chrome：打开 trends.google.com，
@@ -22,6 +25,9 @@
  */
 
 import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { newEvidenceDir, captureScene, writeManifest } from "./lib-scene.mjs";
 
 // 会话名要同时满足两件事，缺一个都会静默出错：
 //   · 描述性——名字是唯一存在的标识，得能回答「这是谁的标签页」；
@@ -64,6 +70,19 @@ function die(msg) {
   console.error(`[gt-browser] 错误：${msg}`);
   process.exit(1);
 }
+
+/**
+ * 取数路径上的失败不再直接 die：抛一个带 stopReason 的错误，让 fetchTrends 的
+ * finally 先把现场（截图 + 页面文本 + manifest）落进证据目录、再关会话。
+ * 旧版在 runBatch 里 process.exit(1)，finally 根本不会执行——会话泄漏、
+ * 现场全毁，AI 拿到的只有一句结论文案。
+ */
+function fail(stopReason, msg, extra) {
+  throw Object.assign(new Error(msg), { stopReason, extra });
+}
+
+/** 本次取数的统计，进 manifest。每次 fetchTrends 重置。 */
+let runStats = null;
 
 function toTimeframe(t = "12m") {
   if (PRESETS[t]) return PRESETS[t];
@@ -145,6 +164,7 @@ const SESSION_NOT_FOUND = /session_not_found|No active session/i;
 const STALE = /stale page identity|Page not found/i;
 
 function runBatch(js, session, { retry = true, open = false, attempt = 1 } = {}) {
+  if (runStats) runStats.attempt = Math.max(runStats.attempt, attempt);
   const settleMs = SETTLE_MS * attempt;
   const commands = JSON.stringify([
     ...(open ? [
@@ -174,16 +194,16 @@ function runBatch(js, session, { retry = true, open = false, attempt = 1 } = {})
       closeSession(session);
       return runBatch(js, session, { retry: false, open: true });
     }
-    die(`opencli 调用失败：${msg.trim().slice(0, 400)}`);
+    fail("opencli-failed", `opencli 调用失败：${msg.trim().slice(0, 400)}`, { stderr: msg.slice(0, 2000) });
   }
   // opencli 会在 stdout 里混 npm 升级提示，取第一个 JSON 数组
   const start = raw.indexOf("[");
-  if (start < 0) die(`opencli 没有返回 JSON：${raw.slice(0, 300)}`);
+  if (start < 0) fail("no-json", `opencli 没有返回 JSON：${raw.slice(0, 300)}`, { rawHead: raw.slice(0, 2000) });
   let steps;
   try {
     steps = JSON.parse(raw.slice(start));
   } catch {
-    die(`解析 opencli 输出失败：${raw.slice(0, 300)}`);
+    fail("json-parse-failed", `解析 opencli 输出失败：${raw.slice(0, 300)}`, { rawHead: raw.slice(0, 2000) });
   }
   // The extractor is the LAST eval, not the first. The settle is an eval too now
   // that `wait time` turned out to be broken, and picking the first one handed
@@ -200,7 +220,7 @@ function runBatch(js, session, { retry = true, open = false, attempt = 1 } = {})
       closeSession(session);
       return runBatch(js, session, { retry: false, open: true });
     }
-    die(`页面取数失败：${err}`);
+    fail("eval-failed", `页面取数失败：${err}`, { steps });
   }
   const data = evalStep.result?.value ?? evalStep.result;
   if (retry && data?.error === "wrong_page") {
@@ -208,9 +228,9 @@ function runBatch(js, session, { retry = true, open = false, attempt = 1 } = {})
   }
   if (!data || data.error) {
     if (String(data?.error).includes("_429")) {
-      die("Google 在浏览器里也限流了（429）。这次是真的要等，或者换网络");
+      fail("rate-limited-429", "Google 在浏览器里也限流了（429）。**这不是「没有搜索量」**，等一会儿或换网络重试", { data });
     }
-    die(`Trends 接口返回异常：${data?.error || "空结果"}`);
+    fail("api-error", `Trends 接口返回异常：${data?.error || "空结果"}`, { data });
   }
   // An empty object means the eval result never came back. The extractor itself
   // always returns at least `keywords`, so this is the bridge dropping it rather
@@ -218,11 +238,16 @@ function runBatch(js, session, { retry = true, open = false, attempt = 1 } = {})
   // time. Never report it as "no search volume"; that is a wrong answer that looks
   // like a real one.
   if (!Object.keys(data).length) {
+    if (runStats) runStats.emptyResultCount++;
     if (attempt < EMPTY_RESULT_ATTEMPTS) {
       closeSession(session);
       return runBatch(js, session, { retry, open: true, attempt: attempt + 1 });
     }
-    die(`Trends 连续 ${EMPTY_RESULT_ATTEMPTS} 次返回空结果——页面脚本没跑完或结果没回传，不是没有搜索量。稍后重试`);
+    fail(
+      "empty-result-exhausted",
+      `Trends 连续 ${EMPTY_RESULT_ATTEMPTS} 次返回空结果——页面脚本没跑完或结果没回传，不是没有搜索量。稍后重试`,
+      { attempts: attempt },
+    );
   }
   return data;
 }
@@ -255,14 +280,61 @@ function closeSession(session) {
   }
 }
 
+/**
+ * 每次运行都落证据（双证人化 2026-08-30，截图链路待实盘验证）：
+ * `.rankup/evidence/gt-browser-<ts>/` 里有 trends-<kw>.json（原始 widget 数据）、
+ * final.png / final.txt（页面双证人）、manifest.json（stopReason / attempt /
+ * emptyResultCount）。取证发生在 finally 里、**关会话之前**——失败时现场不毁。
+ * 截图对着的是 explore 空页（取数走页内 fetch，DOM 不变），它的价值是能看出
+ * consent 弹窗 / 限流插页 / 未登录这类「接口层看不见」的状态。
+ */
 function fetchTrends(keywords, opts, { resolution } = {}) {
   if (keywords.length > 5) die("Google Trends 一次最多对比 5 个关键词");
   const geo = opts.geo ?? "";
   const timeframe = toTimeframe(opts.time);
   const session = opts.session ?? defaultSession();
+  const dir = newEvidenceDir("gt-browser");
+  runStats = { attempt: 1, emptyResultCount: 0 };
+  const kwSlug = keywords.join("_").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60) || "kw";
+  let stopReason = "completed";
+  let data = null;
   try {
-    return { data: runBatch(extractor({ keywords, geo, timeframe, resolution }), session), geo, timeframe };
+    data = runBatch(extractor({ keywords, geo, timeframe, resolution }), session);
+    try {
+      writeFileSync(join(dir, `trends-${kwSlug}.json`), JSON.stringify(data, null, 2) + "\n");
+    } catch (e) {
+      console.error(`[gt-browser] 原始数据落盘失败：${String(e?.message || e).slice(0, 200)}`);
+    }
+    return { data, geo, timeframe, evidenceDir: dir };
+  } catch (e) {
+    stopReason = e?.stopReason || "error";
+    e.evidenceDir = dir;
+    throw e;
   } finally {
+    captureScene({
+      dir,
+      tag: "final",
+      screenshot: (p) => execFileSync(OPENCLI, ["browser", session, "screenshot", p], { stdio: ["ignore", "pipe", "pipe"], timeout: 90_000 }),
+      pageText: () =>
+        execFileSync(OPENCLI, ["browser", session, "eval", "(()=>{try{return document.body?document.body.innerText.slice(0,20000):''}catch(e){return 'PAGE_TEXT_FAILED:'+e}})()"], {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+          timeout: 60_000,
+        }),
+    });
+    try {
+      writeManifest(dir, {
+        script: "gt-browser",
+        keywords,
+        geo,
+        timeframe,
+        session,
+        stopReason,
+        attempt: runStats.attempt,
+        emptyResultCount: runStats.emptyResultCount,
+        finishedAt: new Date().toISOString(),
+      });
+    } catch { /* manifest 写不进也不能拦住关会话 */ }
     if (opts.keepSession) {
       // 保留会话是合法用法（连续查多个词时省掉重开页面），但它留下的标签页
       // 会一直停在空白的 explore 界面上——取数全在页面内 fetch，DOM 不会变，
@@ -288,11 +360,24 @@ function mdTable(headers, rows) {
   return [line(headers), "|" + widths.map((w) => "-".repeat(w + 2)).join("|") + "|", ...rows.map(line)].join("\n");
 }
 
+/**
+ * widget 空/失败时的退出：不下「太冷门」的结论。「没取到数」（限流/插页/改版）
+ * 与「确实没有足够搜索量」在这一层**不可分辨**——如实说不可分辨，把证据目录
+ * 指给判读者（原始 JSON + 截图 + manifest 都已在 fetchTrends 里落盘）。
+ */
+function widgetEmptyExit(evidenceDir, whatFor, widget, reasonLine) {
+  writeManifest(evidenceDir, { stopReason: `empty-${whatFor}` });
+  console.error(`[gt-browser] ${reasonLine ?? `${whatFor}为空。「接口没给数」与「该范围内搜索量不足」在此不可分辨——不要读成零需求。`}`);
+  console.error(`[gt-browser] 证据：${evidenceDir}（trends-*.json 原始响应 + final.png/final.txt + manifest），判读以它们为准。`);
+  if (widget !== undefined) console.error(`[gt-browser] widget 原始值头部：${JSON.stringify(widget ?? null).slice(0, 300)}`);
+  process.exit(1);
+}
+
 function cmdCompare(kws, opts) {
   if (!kws.length) die("compare 需要至少 1 个关键词，最多 5 个");
-  const { data, geo, timeframe } = fetchTrends(kws, opts);
+  const { data, geo, timeframe, evidenceDir } = fetchTrends(kws, opts);
   const tl = data.timeseries?.default?.timelineData;
-  if (!tl?.length) die(widgetUnavailable(data.timeseries, "热度曲线") ?? "没有数据：关键词太冷门，或该地区/时间范围内无足够搜索量");
+  if (!tl?.length) widgetEmptyExit(evidenceDir, "热度曲线", data.timeseries, widgetUnavailable(data.timeseries, "热度曲线"));
 
   let rows;
   let note = "";
@@ -331,11 +416,11 @@ function cmdCompare(kws, opts) {
 function cmdRegion(kws, opts) {
   if (!kws.length) die("region 需要至少 1 个关键词");
   const list = kws.slice(0, 5);
-  const { data, geo, timeframe } = fetchTrends(list, opts, {
+  const { data, geo, timeframe, evidenceDir } = fetchTrends(list, opts, {
     resolution: opts.geo ? "REGION" : "COUNTRY",
   });
   const gm = data.geo?.default?.geoMapData;
-  if (!gm?.length) die(widgetUnavailable(data.geo, "地区分布") ?? "没有地区数据");
+  if (!gm?.length) widgetEmptyExit(evidenceDir, "地区分布", data.geo, widgetUnavailable(data.geo, "地区分布"));
   const topN = Number(opts.top || 15);
   const rows = gm
     .filter((g) => g.value.some((v) => v > 0))
@@ -349,10 +434,10 @@ function cmdRegion(kws, opts) {
 
 function cmdRelated(kws, opts) {
   if (kws.length !== 1) die("related 只支持单个关键词");
-  const { data, geo, timeframe } = fetchTrends(kws, opts);
+  const { data, geo, timeframe, evidenceDir } = fetchTrends(kws, opts);
   const ranked = data.related?.[0]?.default?.rankedList;
   const relatedProblem = widgetUnavailable(data.related?.[0], "相关查询");
-  if (!ranked && relatedProblem) die(relatedProblem);
+  if (!ranked && relatedProblem) widgetEmptyExit(evidenceDir, "相关查询", data.related?.[0], relatedProblem);
   console.log(`## 相关查询：${kws[0]}`);
   console.log(scopeLine(geo, timeframe));
   const topN = Number(opts.top || 15);
@@ -410,7 +495,15 @@ function main() {
   const cmd = argv[0];
   if (!COMMANDS[cmd]) die(`未知子命令 ${cmd}，可用：${Object.keys(COMMANDS).join(", ")}`);
   const { kws, opts } = parseArgs(argv.slice(1));
-  COMMANDS[cmd](kws, opts);
+  try {
+    COMMANDS[cmd](kws, opts);
+  } catch (e) {
+    // fail() 抛出的取数失败在这里落地：现场已经在 fetchTrends 的 finally 里
+    // 采好了（截图 + 文本 + manifest），这里只负责把话说全再退出。
+    console.error(`[gt-browser] 错误：${e?.message || e}`);
+    if (e?.evidenceDir) console.error(`[gt-browser] 现场已落盘：${e.evidenceDir}（stopReason=${e.stopReason ?? "error"}），判读以截图与原始响应为准。`);
+    process.exit(1);
+  }
 }
 
 main();

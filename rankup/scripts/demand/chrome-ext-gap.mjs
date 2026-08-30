@@ -35,10 +35,7 @@
  */
 
 import { writeFileSync } from 'node:fs';
-
-const UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
-  '(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
+import { getText, initEvidence, recordSource, writeManifest, sourceStatusSummary } from './_lib.mjs';
 
 const HELP = `chrome-ext-gap.mjs — Chrome Web Store 用户多/评分低 缺口挖掘 + 差评抓取
 
@@ -54,7 +51,7 @@ const HELP = `chrome-ext-gap.mjs — Chrome Web Store 用户多/评分低 缺口
   --detail <id>        单个扩展 ID (32 位 a-p)。可逗号分隔或重复传入
 
 筛选:
-  --min-users <n>      最少用户数            (默认 100000)
+  --min-users <n>      最少用户数            (默认 0，即不过滤；挖缺口时自己给门槛)
   --max-users <n>      最多用户数            (默认 不限)
   --min-rating <x>     最低评分              (默认 0)
   --max-rating <x>     最高评分              (默认 5，缺口挖掘建议 4.3)
@@ -86,7 +83,9 @@ const HELP = `chrome-ext-gap.mjs — Chrome Web Store 用户多/评分低 缺口
 function parseArgs(argv) {
   const o = {
     category: [], search: [], detail: [],
-    minUsers: 100000, maxUsers: Infinity,
+    // minUsers 不再有 100000 的默认值：默认门槛是判断层的事，脚本只采集。
+    // 挖「用户多/评分低」缺口时自己传 --min-users（判读见 demand-sources.md）。
+    minUsers: 0, maxUsers: Infinity,
     minRating: 0, maxRating: 5, minRatings: 0,
     noFilter: false, reviews: 0, maxStars: 5, reviewLang: 'en',
     json: false, jsonl: false, out: null, limit: Infinity,
@@ -119,6 +118,7 @@ function parseArgs(argv) {
       case '--raw': o.raw = true; break;
       case '--sleep': o.sleep = Number(next()); break;
       case '--gl': o.gl = next(); break;
+      case '--evidence-dir': o.evidenceDir = next(); break;
       default:
         if (a.startsWith('-')) { console.error(`未知参数: ${a}\n`); console.error(HELP); process.exit(2); }
     }
@@ -128,16 +128,12 @@ function parseArgs(argv) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// 走 _lib.getText：失败时 {url,status,headers,body} 原样落证据目录，异常带落点路径。
+// `[warn]`+continue 之前那种「只剩一句文案」的失败从此有原始 HTML 可对质。
 async function get(url) {
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': UA,
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.9',
-    },
+  return getText(url, {
+    headers: { Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
-  return await res.text();
 }
 
 // ---------- 内联 JSON 提取 ----------
@@ -343,25 +339,28 @@ async function main() {
     process.exit(2);
   }
 
+  initEvidence('chrome-ext-gap', { dir: opts.evidenceDir ?? null });
+
   let rows = [];
   const seen = new Set();
   const push = (list) => { for (const r of list) if (!seen.has(r.extra.id)) { seen.add(r.extra.id); rows.push(r); } };
+  // 逐目标记状态：失败的目标（原始 HTML 已由 _lib.getText 落证据目录）和成功的目标
+  // 在 manifest 里分得开——「结果少」可能只是「有几路没取到」。
+  const attempt = async (source, fn) => {
+    try {
+      const list = await fn();
+      recordSource({ source, status: 'ok', rawCount: list.length });
+      push(list);
+    } catch (e) {
+      recordSource({ source, status: 'fetch_failed', rawCount: 0, error: String(e.message) });
+      console.error(`[warn] ${source}: ${e.message}`);
+    }
+    await sleep(opts.sleep);
+  };
 
-  for (const c of opts.category) {
-    try { push(await fetchCategory(c, opts)); }
-    catch (e) { console.error(`[warn] category ${c}: ${e.message}`); }
-    await sleep(opts.sleep);
-  }
-  for (const q of opts.search) {
-    try { push(await fetchSearch(q, opts)); }
-    catch (e) { console.error(`[warn] search ${q}: ${e.message}`); }
-    await sleep(opts.sleep);
-  }
-  for (const id of opts.detail) {
-    try { push(await fetchDetail(id, opts)); }
-    catch (e) { console.error(`[warn] detail ${id}: ${e.message}`); }
-    await sleep(opts.sleep);
-  }
+  for (const c of opts.category) await attempt(`category:${c}`, () => fetchCategory(c, opts));
+  for (const q of opts.search) await attempt(`search:${q}`, () => fetchSearch(q, opts));
+  for (const id of opts.detail) await attempt(`detail:${id}`, () => fetchDetail(id, opts));
 
   if (!opts.noFilter) {
     rows = rows.filter((r) =>
@@ -377,8 +376,13 @@ async function main() {
 
   if (opts.reviews > 0) {
     for (const r of rows) {
-      try { r.extra.reviews = await fetchReviews(r.extra.id, opts); }
-      catch (e) { console.error(`[warn] reviews ${r.extra.id}: ${e.message}`); }
+      try {
+        r.extra.reviews = await fetchReviews(r.extra.id, opts);
+        recordSource({ source: `reviews:${r.extra.id}`, status: 'ok', rawCount: r.extra.reviews.length });
+      } catch (e) {
+        recordSource({ source: `reviews:${r.extra.id}`, status: 'fetch_failed', rawCount: 0, error: String(e.message) });
+        console.error(`[warn] reviews ${r.extra.id}: ${e.message}`);
+      }
       await sleep(opts.sleep);
     }
   }
@@ -388,9 +392,17 @@ async function main() {
     writeFileSync(opts.out, opts.jsonl ? jsonl + '\n' : JSON.stringify(rows, null, 2));
     console.error(`已写入 ${opts.out} (${rows.length} 条)`);
   }
+  const mf = writeManifest('completed');
   if (opts.jsonl) console.log(jsonl);
   else if (opts.json) console.log(JSON.stringify(rows, null, 2));
   else printTable(rows);
+  // 结尾必报 fetched vs failed：几路成功、几路失败，别让「结果少」被读成「市场小」。
+  const s = sourceStatusSummary();
+  if (s) {
+    console.error(`采集状态：${s.ok}/${s.total} 路成功${s.failed ? `，${s.failed} 路失败（缺的是「没取到」，不是「不存在」）` : ''}`);
+    if (s.failed) for (const l of s.lines) console.error(l);
+  }
+  if (mf) console.error(`manifest：${mf}`);
 }
 
 main().catch((e) => { console.error(`错误: ${e.message}`); process.exit(1); });

@@ -85,10 +85,19 @@ backlink/
 │   │                               similarweb-query.mjs JSON and reports whether the two
 │   │                               platforms agree; never touches a page itself
 │   ├── tools-share-evidence.mjs    rendered, redacted evidence bundle for one report
-│   ├── page-read.mjs               render a public page → text, prices, paywall shape
+│   ├── page-read.mjs               render a public page → text, prices, paywall signal
+│   │                               spans (matched text + context, never verdict booleans)
 │   ├── apply-traffic-screen.mjs    write measured numbers + evidence paths back (never verdicts)
-│   ├── inspect-page.mjs            dump one target's form / login / CAPTCHA state
-│   ├── safe-fill.mjs               fill a reviewed payload, never submit
+│   ├── inspect-page.mjs            full form census (every form, every field, semantics +
+│   │                               markers) + scene evidence; fillable/blocker are marked
+│   │                               `suggested` — the AI judges from the census + screenshot
+│   ├── safe-fill.mjs               fill a reviewed payload, never submit; refusal exits
+│   │                               leave a captureScene pair first
+│   ├── lib-evidence-scene.mjs     ★ captureScene(): the ONE failure-scene contract —
+│   │                               piercing census + screenshot, paired, redacted, never
+│   │                               throws. Every browser script's failure branch calls it
+│   │                               BEFORE any close/exit (先取证后死、先取证后关).
+│   │                               Reuses ground-truth.mjs's CENSUS_EXPR verbatim.
 │   ├── lib-deep-dom.mjs           ★ the ONE shadow-DOM-piercing traversal. EVERY counting
 │   │                               probe goes through it. Measured 2026-08-29 on one page,
 │   │                               one instant: body.innerText 59 chars / deep text
@@ -126,7 +135,13 @@ backlink/
 │   │                               names are stable across every install of a family,
 │   │                               so one adapter covers twenty sites. This is what makes
 │   │                               batch cheaper than walking 150 forms by hand.
-│   ├── probe-submission-targets.mjs leads → reachability, route, gate, price
+│   ├── probe-submission-targets.mjs leads → reachability, route, gate, price; dumps the
+│   │                               raw HTML per domain into `<out>.evidence/` — the
+│   │                               classification is a suggestion, the HTML is the record
+│   ├── lib-probe-classifier.mjs   ★ the probe's classification layer (decide/classifyKind/
+│   │                               gatesFrom), separately unit-tested; every output is
+│   │                               `suggested: true` and the AI may overrule it against
+│   │                               the dumped raw HTML
 │   ├── merge-submission-targets.mjs fold a probe run into the two data files
 │   ├── lib-cohort.mjs              ★ the shared cohort/gate vocabulary — targets-select,
 │   │                               validate-data, probe and merge all read it. Change a
@@ -2991,10 +3006,13 @@ opencli browser "$S" close
 opencli browser "$S" tab list                        # expect [] 
 ]]></cmd>
 <or>
-For a public page where you want prices and paywall shape parsed out:
+For a public page where you want prices and paywall signals pulled out:
 <cmd>node scripts/page-read.mjs --url https://example.com/pricing --out .backlink/pricing.json</cmd>
 `page-read.mjs` reads only; it never fills or submits. `curl | grep` returns an
-empty shell on the SPAs these sites are built with.
+empty shell on the SPAs these sites are built with. Its `paywallSignals` are
+matched text spans with context, paired with a screenshot in the evidence dir —
+the one-time/subscription call is yours to make from those, the script no
+longer emits verdict booleans.
 </or>
 <promote>
 If you find yourself running the same exploration twice, that is the signal to
@@ -3123,16 +3141,23 @@ then sampled five for traffic — every filled form was discarded.
 <workflow id="submit" when="a route exists and the target passed the screen">
 <read><ref file="references/submission-lanes.md"/></read>
 <inspect>
-Inspect every target independently. Never infer a form from a sibling site. A
-page is directly fillable only when there is one unambiguous qualifying form
-and no detected CAPTCHA/login wall. A CAPTCHA page may be staged only when the
-owner explicitly accepts normal human completion; never bypass or solve it by
-an external CAPTCHA service.
+Inspect every target independently. Never infer a form from a sibling site.
+`inspect-page.mjs` outputs a **full form census** — every form, every field
+(visible and hidden) with its semantic tuple and stable marker — plus a
+captureScene pair (piercing census + screenshot) in the evidence dir. Its
+`fillable` / `blocker` / `reason` / `selectedForm` fields are **heuristic
+suggestions** (see the `suggested` note in the output), not verdicts: the AI
+judges "can this page be filled, and what gates it" from the census and the
+screenshot, and may overrule the suggestion. The mechanical rule safe-fill
+still enforces: it only proceeds on one unambiguous qualifying form. A CAPTCHA
+page may be staged only when the owner explicitly accepts normal human
+completion; never bypass or solve it by an external CAPTCHA service.
 <cmd><![CDATA[
 node scripts/inspect-page.mjs --session "inspect-comment-scan" --mode comment \
   --url https://example.com/article --out .backlink/scan.json
 ]]></cmd>
-Modes are `comment`, `directory`, or `auto`.
+Modes are `comment`, `directory`, or `auto`. Evidence lands in
+`.backlink/scan.json.evidence/` (override with `--evidence-dir`).
 </inspect>
 <payload>
 Create a reviewed JSON payload with truthful values. For comment mode,

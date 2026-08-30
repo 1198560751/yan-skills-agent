@@ -1,6 +1,21 @@
 #!/usr/bin/env node
+/**
+ * inspect-page.mjs — 一个目标页的**全表单普查** + 现场截图。
+ *
+ * 2026-08-30 双证人化：输出以普查为主体——每个 form 每个 field 的语义七元组
+ * （tag/type/id/name/label/autocomplete/placeholder）+ 稳定 marker，含隐藏控件
+ * （visible: false）；随后 captureScene 落一对现场（穿透 census + 截图）进
+ * --evidence-dir。`fillable` / `blocker` / `reason` / `selectedForm` 是**启发式
+ * 建议（见 suggested 字段），不是判决**：判断由 AI 基于 forms 普查 + 截图做，
+ * 可推翻。safe-fill.mjs 只把 fillable 当机械前置条件用。截图链路待实盘验证。
+ *
+ * 用法：
+ *   node inspect-page.mjs --url https://x/submit [--mode auto|directory|comment]
+ *     [--out scan.json] [--evidence-dir dir] [--session s] [--wait n]
+ */
 import { writeFile } from 'node:fs/promises';
 import { defaultSession, firstJson, openAndEval, parseFlags, printJson, required, validateSession, showHelpIfRequested} from './opencli-core.mjs';
+import { captureScene, defaultSceneDir } from './lib-evidence-scene.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
@@ -59,7 +74,17 @@ const scanFunction = `(() => {
   const captchaDetected = Boolean(captchaNode || /\\b(captcha|recaptcha|hcaptcha|turnstile|security challenge)\\b/i.test(bodyText));
   const loginDetected = /\\b(sign in|log in|login|required to log in|continue with google)\\b/i.test(bodyText);
   const summaries = [...document.forms].map((form, formIndex) => {
-    const controls = [...form.querySelectorAll('input,textarea,select')].filter(visible);
+    // 全字段普查：每个控件的语义七元组 + 稳定 marker + 可见性。隐藏控件也进普查
+    // （visible: false）——CSRF token、蜜罐字段、被折叠的步骤都在这里现形，
+    // AI 判「这张表单是什么」要看全量，不能只看启发式挑出来的四个字段。
+    const allControls = [...form.querySelectorAll('input,textarea,select,button')];
+    const controls = allControls.filter((el) => el.matches('input,textarea,select')).filter(visible);
+    const fieldCensus = allControls.map((el) => ({
+      marker: marker(el),
+      semantic: semantic(el),
+      visible: visible(el),
+      required: el.required || false,
+    }));
     const looksLikeComment = controls.some((field) => field.tagName === 'TEXTAREA' && commentPatterns.description.test(text(field)));
     const detectedMode = looksLikeComment ? 'comment' : 'directory';
     const patterns = detectedMode === 'comment' ? commentPatterns : directoryPatterns;
@@ -89,6 +114,7 @@ const scanFunction = `(() => {
       method: (form.method || 'get').toLowerCase(),
       marker: marker(form),
       fields,
+      fieldCensus,
       ambiguous,
       qualifies,
       submitLabels: [...form.querySelectorAll('button,input[type="submit"]')].filter(visible).map(label).filter(Boolean)
@@ -127,6 +153,24 @@ const evalResult = await openAndEval(session, url.toString(), scanFunction, {
   timeoutMs: 120_000,
 });
 const scan = typeof evalResult === 'string' ? JSON.parse(evalResult) : evalResult;
-const output = { session, ...scan };
+// 普查之外的第二证人：穿透 census + 截图。判断（这页能不能填、卡在什么闸门）
+// 由 AI 拿 forms 普查和这对现场做；captureScene 永不 throw。
+const evidenceDir = typeof flags['evidence-dir'] === 'string'
+  ? flags['evidence-dir']
+  : defaultSceneDir({ out: typeof flags.out === 'string' ? flags.out : null, script: 'inspect-page' });
+const scene = await captureScene({
+  session, outDir: evidenceDir, windowMode, tag: 'scan',
+  note: `inspect-page ${url.toString()}`,
+});
+const output = {
+  session,
+  // fillable/blocker/reason/selectedForm 是下面 suggested.note 说明的启发式建议。
+  suggested: {
+    fields: ['fillable', 'blocker', 'reason', 'selectedForm', 'qualifies'],
+    note: '这些字段是脚本内正则/计数的启发式建议，不是判决——判断由 AI 基于 forms 普查（每表单 fieldCensus）+ evidence 现场做，可推翻。safe-fill 只把 fillable 当机械前置条件。',
+  },
+  evidence: scene,
+  ...scan,
+};
 if (typeof flags.out === 'string') await writeFile(flags.out, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
 printJson(output);

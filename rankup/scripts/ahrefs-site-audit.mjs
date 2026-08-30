@@ -3,6 +3,11 @@
  * ahrefs-site-audit.mjs —— 读取 Ahrefs Site Audit 已有的抓取结果，
  * 驱动用户已登录的浏览器。与 ahrefs-setup.mjs 互补：那个负责建项目和验证，这个负责取数。
  *
+ * 状态：双证人化改造 2026-08-30（截图链路待实盘验证）。
+ * 失败分支不再只留一句结论文案：退出前把「截图 + 页面文本 + manifest(stopReason)」
+ * 落进 `.rankup/evidence/ahrefs-site-audit-<ts>/`，会话关闭发生在取证**之后**；
+ * `--keep-session` 可以连现场标签页一起留下。
+ *
  * 用法：
  *   node <rankup-skill-dir>/scripts/ahrefs-site-audit.mjs projects [--json]
  *   node <rankup-skill-dir>/scripts/ahrefs-site-audit.mjs report <项目|域名片段> <报告> [--json] [--out f]
@@ -10,8 +15,9 @@
  *
  * 标志：
  *   --session <名>   opencli 会话名。**默认固定 `ahrefs-nav`，不要传**——理由见下。
- *   --wait <毫秒>    报告渲染等待，默认 12000（重报表要更久）
- *   --keep-session   完成后不关闭
+ *   --wait <毫秒>    报告渲染等待上限，默认 20000。不再硬睡这么久：页内轮询到
+ *                    「正文长度 > 阈值且连续两拍不变」就提前返回，这个值只是封顶。
+ *   --keep-session   完成后不关闭（失败时想留现场标签页也用它）
  *
  * ── 为什么是浏览器而不是 API（实测 2026-08-29）────────────────────
  *
@@ -38,13 +44,17 @@
  * ── 已验证（2026-08-29，扩展 1.0.32 / CLI 1.8.7）──────────────
  *   * `projects` 在 9 个真实项目上跑通（健康评分、已抓取 URL、内链错误数）。
  *   * `report <id> overview` 跑通，返回完整概述文本。
- *   * 报告页需要 ~12 秒渲染；给 5 秒会拿到半张页面而**不报错**。
+ *   * 报告页需要 ~12 秒渲染；固定短等待会拿到半张页面而**不报错**——
+ *     这正是改成「长度稳定判据」的原因。
  *   * `/all-issues` 不是有效路由（返回站内 404 页面），正确的是 `/issues`。
  */
 
 import { execFileSync } from "node:child_process";
+import { dirname } from "node:path";
+import { newEvidenceDir, captureScene, writeManifest } from "./lib-scene.mjs";
 
 const BASE = "https://app.ahrefs.com/site-audit";
+const SCRIPT = "ahrefs-site-audit";
 
 // 项目内报告路由，2026-08-29 从真实项目页的导航里读出来的。
 const ROUTES = {
@@ -65,14 +75,9 @@ const ROUTES = {
   "project-history": "项目历史：健康评分随时间变化",
 };
 
-function die(msg) {
-  console.error(msg);
-  process.exit(1);
-}
-
 function parseArgs(argv) {
   const pos = [];
-  const o = { session: "ahrefs-nav", wait: 12000, json: false, out: null, keep: false };
+  const o = { session: "ahrefs-nav", wait: 20000, json: false, out: null, keep: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--session") o.session = argv[++i];
@@ -81,8 +86,10 @@ function parseArgs(argv) {
     else if (a === "--json") o.json = true;
     else if (a === "--keep-session") o.keep = true;
     else if (a === "-h" || a === "--help") o.help = true;
-    else if (a.startsWith("--")) die(`未知参数：${a}`);
-    else pos.push(a);
+    else if (a.startsWith("--")) {
+      console.error(`未知参数：${a}`);
+      process.exit(1);
+    } else pos.push(a);
   }
   return { pos, o };
 }
@@ -92,31 +99,102 @@ function browser(session, args, timeoutMs = 200_000) {
     encoding: "utf8",
     timeout: timeoutMs,
     stdio: ["ignore", "pipe", "pipe"],
+    maxBuffer: 64 * 1024 * 1024,
   });
 }
 
+/* ── 取证（铁律 1/2：先取证，后死；先取证，后关） ───────────── */
+
+let evidence = null; // 惰性建目录：routes/help 这类不碰浏览器的路径不留空目录
+function evidenceDir() {
+  if (!evidence) evidence = newEvidenceDir(SCRIPT);
+  return evidence;
+}
+
+/** 采一幕现场。截图与页面文本各自失败都不抛，错误进 manifest。 */
+function scene(o, tag, extra) {
+  return captureScene({
+    dir: evidenceDir(),
+    tag,
+    screenshot: (p) => browser(o.session, ["screenshot", p], 90_000),
+    pageText: () =>
+      browser(o.session, [
+        "eval",
+        `(()=>{try{return document.body?document.body.innerText:''}catch(e){return 'PAGE_TEXT_FAILED:'+e}})()`,
+      ]),
+    extra,
+  });
+}
+
+function closeSession(o) {
+  if (o.keep) return;
+  try {
+    browser(o.session, ["close"], 30_000);
+  } catch {
+    /* 会话本来就不存在是正常情况 */
+  }
+}
+
+/**
+ * 失败退出的唯一出口：先落现场，再写 stopReason，**然后**才关会话、退出。
+ * `extra` 里放已经在手的事实（原始响应、URL、页面对象），不做结论转译。
+ */
+function bail(o, stopReason, msg, extra) {
+  let dir = null;
+  try {
+    scene(o, `fail-${stopReason}`, extra);
+    dir = writeManifest(evidenceDir(), { script: SCRIPT, stopReason, finishedAt: new Date().toISOString() });
+  } catch (e) {
+    console.error(`（取证失败：${String(e?.message || e).slice(0, 200)}）`);
+  }
+  console.error(msg);
+  if (dir) console.error(`现场已落盘：${dirname(dir)}（截图 + 页面文本 + manifest，判读以它们为准）`);
+  if (o.keep) console.error(`会话 ${o.session} 已保留，可去浏览器里看现场标签页。`);
+  closeSession(o);
+  process.exit(1);
+}
+
 // 一次访问打包成一个 batch：含写操作的 batch 整体按写处理，别人插不进来。
-function openAndEval(session, url, js) {
-  const raw = browser(session, [
-    "batch",
-    "--commands",
-    JSON.stringify([{ cmd: "open", args: { url } }, { cmd: "eval", args: { js } }]),
-  ]);
+function openAndEval(o, url, js) {
+  let raw;
+  try {
+    raw = browser(o.session, [
+      "batch",
+      "--commands",
+      JSON.stringify([{ cmd: "open", args: { url } }, { cmd: "eval", args: { js } }]),
+    ]);
+  } catch (e) {
+    // batch 本身没跑起来（daemon 掉线 / 超时），此时可能连会话都没有，
+    // 截图多半也采不到——captureScene 会把这一点如实记进 manifest。
+    bail(o, "opencli-failed", `opencli batch 失败：${String(e?.stderr || e?.message || e).slice(0, 400)}`, { url });
+  }
   const arr = JSON.parse(raw.slice(raw.indexOf("[")));
   const open = arr.find((x) => x.cmd === "open");
-  if (!open?.ok) die(`打开失败：${JSON.stringify(open?.error)}`);
+  if (!open?.ok) bail(o, "open-failed", `打开失败：${JSON.stringify(open?.error)}`, { url, steps: arr });
   const ev = arr.find((x) => x.cmd === "eval");
-  if (!ev?.ok) die(`读取失败：${JSON.stringify(ev?.error)}`);
+  if (!ev?.ok) bail(o, "eval-failed", `读取失败：${JSON.stringify(ev?.error)}`, { url, steps: arr });
   return JSON.parse(ev.result);
 }
 
 // eval 体一律包 IIFE：本环境 eval 上下文跨调用持续，重复声明会抛错且那次调用不执行。
-const readPage = (wait) => `(async()=>{
-  await new Promise(r=>setTimeout(r,${wait}));
+//
+// 等待不再是「硬睡 wait 毫秒」：页内轮询，正文长度超过阈值且连续两拍（1s）不变
+// 即认为渲染稳定，提前返回；waitMs 只是封顶。慢页面不至于拿到半张页（那不报错、
+// 只给一个看着正常的错误答案），快页面也不用白等十几秒。
+const readPage = (waitMs) => `(async()=>{
+  const deadline = Date.now() + ${Math.max(1000, Number(waitMs) || 20000)};
+  let prev = -1, stable = 0;
+  while (Date.now() < deadline) {
+    const len = document.body ? document.body.innerText.length : 0;
+    if (len > 500 && len === prev) { stable++; if (stable >= 2) break; }
+    else stable = 0;
+    prev = len;
+    await new Promise(r=>setTimeout(r,1000));
+  }
   const t = document.body ? document.body.innerText.replace(/\\s+/g,' ') : '';
   const links = [...new Set([...document.querySelectorAll('a')]
     .map(a=>a.getAttribute('href')||'').filter(h=>/^\\/site-audit\\/\\d+\\//.test(h)))];
-  return JSON.stringify({url: location.href, text: t, links});
+  return JSON.stringify({url: location.href, text: t, textLen: t.length, settled: stable >= 2, links});
 })()`;
 
 // 登录判据**只看 URL**，绝不看正文。
@@ -124,48 +202,77 @@ const readPage = (wait) => `(async()=>{
 // 一条锚文本 "Sign In →" 和一个 `https://<被审计站>/auth/signin` 链接出现在链接报告里，
 // 于是脚本对着一张加载完好的页面报「未登录」。**把目标站的数据读成平台状态，
 // 是这类脚本最贵的错误**：它不报错，只是给出一个反向的结论。
-function requireLogin(page) {
+function requireLogin(o, page) {
   if (/\/(user\/)?(login|signin|sign-in)(\/|\?|$)/i.test(page.url)) {
-    die("Ahrefs 未登录（页面被重定向到登录页）。请在用户的 Chrome 里登录 app.ahrefs.com 后重试。");
+    bail(
+      o,
+      "redirected-to-login",
+      "页面被重定向到登录页（判据：URL，不是正文）。请在用户的 Chrome 里登录 app.ahrefs.com 后重试。",
+      { finalUrl: page.url },
+    );
   }
 }
 
 async function cmdProjects(o) {
-  const page = openAndEval(o.session, `${BASE}`, readPage(o.wait));
-  requireLogin(page);
+  const page = openAndEval(o, `${BASE}`, readPage(o.wait));
+  requireLogin(o, page);
   const ids = [...new Set(page.links.map((h) => h.match(/^\/site-audit\/(\d+)\//)?.[1]).filter(Boolean))];
   // 项目名与域名从概览表格文本里取；表格是 innerText，Ahrefs 改版会让这里失配，
   // 所以 ids 与 raw 都原样返回，解析失败时仍有东西可用。
   const domains = [...page.text.matchAll(/([a-z0-9-]+(?:\.[a-z0-9-]+)+)\//g)].map((m) => m[1]);
-  const out = { projectIds: ids, domainsSeen: [...new Set(domains)], raw: page.text };
+  const out = { projectIds: ids, domainsSeen: [...new Set(domains)], settled: page.settled, raw: page.text };
+  if (!ids.length) {
+    // 「没解析到 ID」有两个不可分辨的成因：账号确实没有项目，或页面没渲染完/改版。
+    // 落现场，让判读者对着截图分辨，不在这里替他选一个。
+    scene(o, "projects-no-ids", { finalUrl: page.url, textLen: page.textLen, settled: page.settled });
+    writeManifest(evidenceDir(), { script: SCRIPT, stopReason: "projects-empty", finishedAt: new Date().toISOString() });
+    console.error(
+      `没解析到任何项目 ID（正文 ${page.textLen} 字，渲染稳定=${page.settled}）。` +
+        `「账号没有项目」与「页面没渲染完/改版」在此不可分辨——看 ${evidenceDir()} 里的截图与文本判断。`,
+    );
+  }
   if (o.json) return JSON.stringify(out, null, 2);
   return (
-    `项目 ID：${ids.join(", ") || "（没解析到——账号里可能一个项目都没有）"}\n` +
+    `项目 ID：${ids.join(", ") || "（没解析到——成因见 stderr 与证据目录）"}\n` +
     `域名：${out.domainsSeen.join(", ")}\n\n${page.text}`
   );
 }
 
 async function cmdReport(pos, o) {
   const [, target, route] = pos;
-  if (!target || !route) die("用法：report <项目ID|域名片段> <报告>。报告清单跑 `routes`。");
-  if (!ROUTES[route]) die(`未知报告 ${route}。可用：${Object.keys(ROUTES).join(", ")}`);
+  if (!target || !route) {
+    console.error("用法：report <项目ID|域名片段> <报告>。报告清单跑 `routes`。");
+    process.exit(1);
+  }
+  if (!ROUTES[route]) {
+    console.error(`未知报告 ${route}。可用：${Object.keys(ROUTES).join(", ")}`);
+    process.exit(1);
+  }
 
   let id = /^\d+$/.test(target) ? target : null;
   if (!id) {
-    const list = openAndEval(o.session, `${BASE}`, readPage(o.wait));
-    requireLogin(list);
     // 域名片段 → 项目 ID 只能靠列表页的顺序对齐，Ahrefs 没在链接上带域名。
     // 对不上就直接报错，不猜——猜错会静默地把另一个站的报告写进 audit.md。
-    die(
+    console.error(
       `本命令需要项目 ID。先跑 \`projects\` 拿到 ID 列表，再用 ID 调本命令。\n` +
         `（Ahrefs 的项目链接里不带域名，"${target}" → ID 的映射只能靠人对一次。）`,
     );
+    process.exit(1);
   }
 
-  const page = openAndEval(o.session, `${BASE}/${id}/${route}`, readPage(o.wait));
-  requireLogin(page);
+  const page = openAndEval(o, `${BASE}/${id}/${route}`, readPage(o.wait));
+  requireLogin(o, page);
   if (/Page not found|找不到|couldn.t find that page/i.test(page.text)) {
-    die(`路由 ${route} 在项目 ${id} 上返回站内 404。项目 ID 对不对？`);
+    // 这句正则命中的是**站内 404 的文案**，但它也可能来自报告数据本身
+    // （被审计站点的页面标题里就含 "Page not found" 的情况见 requireLogin 注释）。
+    // 所以不下「路由 404」的结论，落现场让判读者看截图。
+    bail(
+      o,
+      "page-text-matched-404",
+      `路由 ${route} 在项目 ${id} 上的页面文本命中了「Page not found」类字样。\n` +
+        `可能是项目 ID 不对 / 路由改版，也可能是报告数据本身含这几个词——两者在文本层不可分辨，看截图。`,
+      { finalUrl: page.url, route, id, textHead: page.text.slice(0, 500) },
+    );
   }
   return o.json ? JSON.stringify({ projectId: id, route, ...page }, null, 2) : page.text;
 }
@@ -179,7 +286,8 @@ if (o.help || !cmd) {
       "  ahrefs-site-audit.mjs projects [--json]\n" +
       "  ahrefs-site-audit.mjs report <项目ID> <报告> [--json] [--out f] [--wait ms]\n" +
       "  ahrefs-site-audit.mjs routes\n\n" +
-      "会话名固定 ahrefs-nav（并发度 1），不要传 --session。",
+      "会话名固定 ahrefs-nav（并发度 1），不要传 --session。\n" +
+      "失败时现场（截图+文本+manifest）落 .rankup/evidence/ahrefs-site-audit-<ts>/。",
   );
   process.exit(0);
 }
@@ -193,17 +301,18 @@ let text;
 try {
   if (cmd === "projects") text = await cmdProjects(o);
   else if (cmd === "report") text = await cmdReport(pos, o);
-  else die(`未知子命令：${cmd}`);
-} finally {
-  // 崩溃时 daemon 不会自动清理，残留会话在用户 Chrome 里就是一个孤儿标签页。
-  if (!o.keep) {
-    try {
-      browser(o.session, ["close"], 30_000);
-    } catch {
-      /* 会话本来就不存在是正常情况 */
-    }
+  else {
+    console.error(`未知子命令：${cmd}`);
+    process.exit(1);
   }
+} catch (e) {
+  // 走到这里说明是没被 bail 接住的意外错误（bail 自己 process.exit，不会到这）。
+  // 同样先取证再关——finally 关会话毁现场正是旧版最大的坑。
+  bail(o, "unexpected-error", `执行失败：${String(e?.message || e).slice(0, 400)}`, { stack: String(e?.stack || "").slice(0, 1000) });
 }
+
+// 成功路径：关会话（崩溃时 daemon 不会自动清理，残留会话在用户 Chrome 里就是一个孤儿标签页）。
+closeSession(o);
 
 if (o.out) {
   const { writeFileSync } = await import("node:fs");

@@ -28,9 +28,17 @@
  * 空态（「未找到匹配内容」）是**页面正面渲染出来的一句话**，不是「读到 0 行」——
  * 这两者形状不同，见下面 fingerprint 处的长注释，别按同一条规则改。
  *
- * `belowFloor: true` 是**结论**（数据源明说没有此站的数据），不是失败，别和「查不到」混为一谈。
+ * `noDataTextObserved: true` 是**观测事实**（页面正面渲染出「没有此网站的数据」这句话，
+ * 且连读三次一致），不是失败，别和「查不到」混为一谈；「该不该当没数据处理」由 AI
+ * 拿 rawText + 现场证据判。旧字段名 belowFloor 暂留作兼容别名（traffic-crosscheck
+ * 还在读），第三波移除。
  * 只有 performance 报表有 metrics：在渠道页上跑 deriveMetrics 会把筛选器文字当数值抓
  * （实测 globalRank 抓成 1），宁可不给也不要给错的。
+ *
+ * 2026-08-30 双证人化：任何失败路径（never settled / timed out / launch 失败）在
+ * close 之前先 captureScene（穿透 census + 截图）落进 --evidence-dir（默认
+ * `<out>.evidence/` 或 `.backlink/evidence/similarweb-query/…`），错误输出带证据
+ * 路径。截图链路待实盘验证。
  */
 import { writeFile } from 'node:fs/promises';
 import {
@@ -43,6 +51,7 @@ import {
   validateSession,
 } from './opencli-core.mjs';
 import { captureStable, expiryWarning, gotoInTool, launchTool, redactSecrets } from './lib-tools-share.mjs';
+import { captureScene, defaultSceneDir, sceneSummaryLine } from './lib-evidence-scene.mjs';
 // 解析只有一份，住在 lib-similarweb.mjs。**这里曾经和 similarweb-batch.mjs 各抄一份**，
 // 于是同一个错报 bug 要修两遍，实际只修了一遍。
 import {
@@ -86,6 +95,10 @@ const report = REPORTS.has(flags.report) ? flags.report : 'performance';
 const windowMode = flags.window === 'foreground' ? 'foreground' : 'background';
 const timeoutMs = Math.max(30_000, Math.min(240_000, Number(flags.timeout || 150) * 1000));
 const keepOpen = Boolean(flags['keep-open']);
+// 失败现场的落点。默认贴着 --out（`x.json.evidence/`），没有 --out 就进 .backlink/。
+const evidenceDir = typeof flags['evidence-dir'] === 'string'
+  ? flags['evidence-dir']
+  : defaultSceneDir({ out: typeof flags.out === 'string' ? flags.out : null, script: 'similarweb-query', runTag: `${domain}-${report}` });
 // 面板入口已硬编码(公开 URL,账号在浏览器会话里),环境变量仍可覆盖。
 // 面板地址与登录流程都在 lib-tools-share.mjs 里，这里不再重复一份。
 // 面板点开之后跳转到的应用域名与入口面板不是同一个 host,推导不出来,只能写死或由环境变量给。
@@ -264,14 +277,22 @@ try {
   });
   if (!settled.stable) {
     // 两种失败要分开说：从没就绪（八成是节点/代理）vs 就绪了但数一直在变（占位值）。
-    throw new Error(settled.fingerprint
+    // **先取证后死**：抛错前把此刻的穿透 census + 截图成对落盘，错误消息带证据路径。
+    const scene = await captureScene({
+      session, outDir: evidenceDir, evalPage: evaluate, env: launched?.env,
+      tag: settled.fingerprint ? 'values-never-settled' : 'timed-out',
+      note: `similarweb-query ${report} ${domain}: stable=false after ${settled.reads} reads`,
+    });
+    throw new Error((settled.fingerprint
       ? `The Similarweb ${report} report for ${domain} rendered but its values never settled across ` +
         `${settled.reads} reads — what is on screen is still placeholder. Rerun, or raise --timeout.`
       : `Timed out waiting for the Similarweb ${report} report for ${domain} after ${settled.reads} reads. ` +
-        `Last URL: ${settled.capture?.url ? String(settled.capture.url).split('?')[0] : 'unknown'}.`);
+        `Last URL: ${settled.capture?.url ? String(settled.capture.url).split('?')[0] : 'unknown'}.`)
+      + ` ${sceneSummaryLine(scene)}`);
   }
   const captured = settled.capture;
-  const belowFloor = settled.fingerprint === 'no-data';
+  const noDataTextObserved = settled.fingerprint === 'no-data';
+  const belowFloor = noDataTextObserved; // 兼容别名，第三波移除
   const lines = captured.bodyText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
   // audience-geo 的「总数」（totalRowsOnPage）就是这张表的行总数，和 rowsRead
   // 说的是同一件事。site-keywords 的表头总数（pageReportedKeywordTotal）是这个
@@ -394,8 +415,10 @@ try {
     subscription,
     // 读了几次才稳下来；偶发 4+ 次说明这个节点水合很慢，值得换。
     reads: settled.reads,
-    // 数据源正面说了「没有此网站的数据」，且连着三次都这么说。**这是结论，不是失败**——
-    // 但它和「查不到」必须区分开，所以单独一个字段，而不是一个空的 metrics。
+    // 数据源正面渲染了「没有此网站的数据」这句话，且连着三次都这么说。**这是观测
+    // 事实，不是失败**——它和「查不到」必须区分开，所以单独一个字段，而不是一个空的
+    // metrics。「该不该当没数据处理」由 AI 判；belowFloor 是旧名兼容别名（第三波移除）。
+    noDataTextObserved,
     belowFloor,
     // 只有「网站表现」页有总访问量/排名/跳出率这些指标。在渠道页上跑 deriveMetrics
     // 会把筛选器里的字当成数值抓（实测 globalRank 抓成 1），宁可不给也不要给错的。
@@ -411,6 +434,15 @@ try {
   }
   printJson(output);
 } catch (error) {
+  // **先取证后关**：finally 里的 closeSession 会销毁唯一证人，所以现场必须在
+  // 这里落。上面 never-settled 分支已经拍过一次的话，这里再拍一张 unavailable
+  // 时刻的也不亏——两处 tag 不同，不会互相覆盖。captureScene 永不 throw。
+  const scene = launched
+    ? await captureScene({
+      session, outDir: evidenceDir, evalPage: evaluate ?? undefined, env: launched?.env,
+      tag: 'unavailable', note: `similarweb-query ${report} ${domain}: ${redactSecrets(String(error?.message || error)).slice(0, 200)}`,
+    })
+    : null;
   output = {
     version: 1,
     source: 'Similarweb via authenticated Tools Share browser session',
@@ -419,6 +451,8 @@ try {
     report,
     session,
     status: 'unavailable',
+    // 失败输出必须带现场：census + 截图的落盘路径（拍不到时是错误说明）。
+    evidence: scene,
     error: {
       // 三种成因三个码：从没渲染（代理/节点）、渲染了但数没稳（占位值）、其它。
       code: /never settled/i.test(error.message)
