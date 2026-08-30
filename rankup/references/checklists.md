@@ -81,7 +81,7 @@
 
 | 检查项 | 客观通过条件 | 证据落点 | 怎么做 | 复查 |
 |---|---|---|---|---|
-| **多引擎首页实勘** | 目标词/方向在 **Google + Bing + 目标市场本地引擎**（做非英语市场时必看）各搜过一遍，**且是无痕/隔离窗口、显式指定了地区与语言**；每个引擎记下七样（页面类型构成、专门页数量、最弱占位者、SERP 特性占屏、AI 答案引用了谁、广告几条、有没有独立站空位），带引擎+国家+日期。**引擎之间不一致要写出来，不能只留一个「综合印象」** | `.rankup/keywords.md`（词级）或 `.rankup/decisions.md`（方向级） | 见 [`demand-sources.md`](demand-sources.md) 第一·五节。**这一步在任何取数之前**，不许拿 `serp-query.mjs` / `seo-webcafe.mjs serp` 这类二手接口代替——它们看不到版式、SERP 特性和 AI 答案。DuckDuckGo 用的是 Bing 索引，**和 Bing 不算两个独立样本** | 会过期 |
+| **多引擎首页实勘** | 目标词/方向在 **Google + Bing + 目标市场本地引擎**（做非英语市场时必看）各搜过一遍，**且是无痕/隔离窗口、显式指定了地区与语言**；每个引擎按 [`demand-sources.md`](demand-sources.md)「每个引擎记下这七样」一节逐样记全，带引擎+国家+日期（七样是什么以那一节为准，本表不复述）。**引擎之间不一致要写出来，不能只留一个「综合印象」** | `.rankup/keywords.md`（词级）或 `.rankup/decisions.md`（方向级） | 见 [`demand-sources.md`](demand-sources.md) 第一·五节。**这一步在任何取数之前**，不许拿 `serp-query.mjs` / `seo-webcafe.mjs serp` 这类二手接口代替——它们看不到版式、SERP 特性和 AI 答案。DuckDuckGo 用的是 Bing 索引，**和 Bing 不算两个独立样本** | 会过期 |
 | 需求证据 | 每个进入开发的机会都有两条来源不同的证据，至少一条是直接信号（GSC 曝光 / Suggest / 持续投放 / 可核验收入）。证据不足的仍标 `RESEARCH`，没有被写成已验证 | `.rankup/decisions.md` | `scripts/demand/` 取数 → [`demand-sources.md`](demand-sources.md) 第十节的候选验证链路 | 一次 |
 | 每个「做」的词有完整裁决 | 六项证据同时对得上：搜索量、KD、SERP 构成、意图核验、链接预算、目标页面。**意图核验与搜索量核实是两条分开可见的记录** | `.rankup/keywords.md` | `seo-webcafe.mjs kd --keyword <词>`；判断读 [`webcafe-topics.md`](experiences/webcafe-topics.md) 一 | 会过期 |
 | SERP 快照是当天的 | 每个词的 SERP 构成带日期；写了「窗口在关闭」的词另带一个不超过一个月的复测日期 | `.rankup/keywords.md` | 拉一次真实 top10。**先读 [`seo-growth.md`](seo-growth.md) 的 `google.com/goto` 一节**——二手 SERP 通道会降级但照样 200，盘面「突然空了」先怀疑通道 | 会过期 |
@@ -158,7 +158,11 @@
 
 ## 阶段 7.5 · 品牌资产与测量接入（上线前闸门七行）
 
-说明见 [`lifecycle.md`](lifecycle.md) 阶段 7.5 D 节——**那张表是判据的完整版，本表是它的索引**。
+说明见 [`lifecycle.md`](lifecycle.md) 阶段 7.5。**判据的完整版在那边，本表只是取用口。**
+下表前七行（闸门 0-6）对应 D 节那张七行表；余下五行不在 D 表里，各有出处：
+「分析通道在采集」出自 B 节第 7-8 条，「IndexNow」「两边 sitemap 已提交」「接入清单逐行有状态」
+出自 C 节的平台清单与该阶段的出口条件，「封板声明」出自 D 节后面的第 17 条。
+**改判据要回各自的出处改，别只改这张表。**
 站主原话：「这些东西都必须要走一遍……这是硬性要求」。**只跑了命令、没留下证据不算过这项。**
 
 | 检查项 | 客观通过条件 | 证据落点 | 怎么做 | 复查 |
@@ -169,7 +173,7 @@
 | 闸门 3 · 关键词密度 | 密度在自然区间，且**「声明的短语」与「测量的短语」逐页是同一个字符串** | `.rankup/audit.md` | `seo-audit.mjs --sitemap <url> --density-only`。实测过 8 个页面在构建绿灯下全过，逐页核对才发现每页测的都不是自己声明的短语 | 动了 URL |
 | 闸门 4 · GEO / AI Agent 就绪度 | 有带分数与逐项结果的基线报告，且**每条 `partial`/`failed` 都独立核实过**（成立则改，误报则记驳回理由） | `.rankup/agentic/<domain>/<date>.json` + 核实结论进 `audit.md` | `is-agentic.mjs scan <domain> --save` | 每轮 |
 | 闸门 5 · 哥飞 AI 审阅 | 每条建议有采纳/拒绝记录，拒绝附理由；**`done` 事件的 `toolCalls`、`rounds`、`charged` 已打印并记录** | `.rankup/audit.md` | `seo-webcafe.mjs chat --ask "审阅 https://<域名> …"`，见 [`seo-webcafe.md`](seo-webcafe.md) | 动了 URL |
-| 闸门 6 · 性能 / CWV | 首页、工具页、内容页三类都达到**项目自设下限**；实验室与现场数据都记录，不一致以现场为准；**先验仪器再信读数** | `.rankup/baseline.md` | `pagespeed.mjs <三类页面 URL> --strategy both --md`——**一次同时给实验室与现场**；Lighthouse 只给实验室，单跑它这条闸门只能过一半而表面是绿的。现场返回「无数据」时原样记，别留空（见 [`seo-box.md`](seo-box.md) 一） | 每轮 |
+| 闸门 6 · 性能 / CWV | 首页、工具页、内容页三类都达到**项目自设下限**；实验室与现场数据都记录，不一致以现场为准；**先验仪器再信读数** | `.rankup/baseline.md` | `pagespeed.mjs <三类页面 URL> --strategy both --md`——**这个脚本一次调用就同时给实验室（Lighthouse）与现场（CrUX）**；Lighthouse 只给实验室，单跑它这条闸门只能过一半而表面是绿的。`--strategy both` 另指移动端 + 桌面端都跑。现场返回「无数据」时原样记，别留空（见 [`seo-box.md`](seo-box.md)「一 · PageSpeed Insights → 补上闸门 6 缺的那一半」） | 每轮 |
 | 分析通道在采集 | **线上原始 HTML 里 grep 得到 beacon**。控制台显示「已启用」不算 | `.rankup/integrations.md` | `cf-analytics-setup.mjs status <domain>` | 每轮 |
 | IndexNow | 密钥文件正文逐字节等于密钥，首次推送已被接受并记下条数与 HTTP 状态 | `.rankup/integrations.md` | `indexnow-submit.mjs`。**密钥不可达时整批被丢弃而接口照样回 200** | 动了 URL |
 | 两边 sitemap 已提交 | GSC 与 Bing 都提交过，记的是**快照日期**不是实时值；**记的是资源 ID 不是资源名字** | `.rankup/integrations.md` | `webmaster-sitemap.mjs <gsc\|bing> submit` | 动了 URL |
@@ -185,7 +189,7 @@
 | 线上技术信号已核实 | 改了什么就在线上核过什么，不是本地看着对 | `.rankup/audit.md` | `seo-audit.mjs --sitemap <url>` | 每轮 |
 | 本轮改过的旧 URL 跳转正确 | 每个被改/被删的旧 URL 都 301 到新址，**不是 302，也不是软 404 落回首页** | `.rankup/audit.md` | `curl -sIL <旧 URL>`，见 [`seo-box.md`](seo-box.md) 二 | 动了 URL |
 | 目标词首页复看 | 本轮动过的目标词，在 Google 与 Bing 各重看一次首页：自己的页面进没进、AI 答案引用名单变没变、盘面有没有新进入者 | `.rankup/experiments.md` | 同 [`demand-sources.md`](demand-sources.md) 第一·五节的七样，只记变化 | 每轮 |
-| 实验有基线、目标指标、回看日期 | 三样齐全。**没有观察窗口就没有结论** | `.rankup/experiments.md` | `is-agentic.mjs diff` + Lighthouse 重测 | 每轮 |
+| 实验有基线、目标指标、回看日期 | 三样齐全。**没有观察窗口就没有结论** | `.rankup/experiments.md` | `is-agentic.mjs diff` + `pagespeed.mjs --strategy both` 重测（**不是单跑 Lighthouse**，那只有实验室一半） | 每轮 |
 | AI 搜索合规项已检查 | Back Button、FAQ schema 现状、非大众化内容审计三项都查过并记录 | `.rankup/audit.md` | 对照 [`seo-growth.md`](seo-growth.md) 三-B | 每轮 |
 | 没有承诺未经观察窗口的结果 | 结论都带观察窗口；排名没稳（连续 5 天不动）之前只做加法 | `.rankup/iterations.md` | 自查，判据见 [`webcafe-experiences.md`](experiences/webcafe-experiences.md) 十七~十九 | 每轮 |
 

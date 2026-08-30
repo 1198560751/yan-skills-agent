@@ -9,12 +9,17 @@
 
 ## 零、一句话结论
 
+> **2026-08-30 复核**：本文件头部标的分析日期是 2026-08-27，而下面「4 个缺口」里的前两个、
+> 以及第五节 Top 10 的第 1/2/9 名，都已在 2026-08-28 落地。已就地划掉并注明落点，
+> 但**基准日仍是 08-27**——再读时先 `ls backlink/scripts/` 核一遍，不要拿本文件当能力底账。
+> 底账是 [`capability-map.md`](capability-map.md)。
+
 **卡住日常工作流的不是那 60 个没脚本的页面，而是 4 个具体缺口：**
 
 | 缺口 | 卡住了什么 |
 |---|---|
-| Similarweb **Keyword Generator**（词根批量扩词） | **整条选词流水线的源头**。`demand-discovery.md` 记的规模是「1,309 个词根 → 扩出 97,681 个词」，这一步现在**完全没有脚本** |
-| Semrush **Keyword Magic Tool**（整包扩词/聚簇） | `semrush-keyword.mjs` 自己在注释里写着"整包导出适合一次拉几千个词做聚簇；本脚本适合点查十几个词"——**另一半从来没实现**。2026-08-28 实测该页可用：种子词 `nonogram` 给出 20.1K 词 / 201 页 + Topics 聚簇 |
+| ~~Similarweb **Keyword Generator**（词根批量扩词）~~ **→ 已实现 2026-08-28** | 曾是整条选词流水线的源头缺口（`demand-discovery.md` 记的规模是「1,309 个词根 → 扩出 97,681 个词」）。现在走 `backlink/scripts/similarweb-keywords.mjs`，四个 tab：`phraseMatch` / `relatedKeywords` / `trending` / `questions`。详见第六节 #1 |
+| ~~Semrush **Keyword Magic Tool**（整包扩词/聚簇）~~ **→ 已实现 2026-08-28** | 落地形态不是新脚本，而是 `backlink/scripts/semrush-report.mjs --report keyword-magic`。实测种子词 `nonogram` 给出 20.1K 词 / 201 页 + Topics 聚簇。详见第六节 #2 |
 | Similarweb **Audience → 国家分布** | 每次跨面板口径对齐都要手开浏览器看目标国占比 |
 | Similarweb **Website → Search**（该站自然搜索词 + 占比） | 隐含点击率校验只能手工做 |
 
@@ -68,15 +73,15 @@
 
 | # | 缺口 | 为什么排这里 |
 |---|---|---|
-| 1 | **Similarweb Keyword Generator** | 选词流水线的入口。`demand-discovery.md` 闭环第②步就是"用词根批量查 Similarweb，下载 搜索量>3万 / KD<60 的词"。**没脚本 = 整条流水线卡在源头** |
-| 2 | **Semrush Keyword Magic Tool** | `semrush-keyword.mjs` 注释里写明的分工，另一半没实现。`game-sites.md` 的每日动作要"多语言关键词需求簇"，点查模式跑不动量 |
+| 1 | ~~**Similarweb Keyword Generator**~~ **已实现** → `similarweb-keywords.mjs` | 选词流水线的入口。`demand-discovery.md` 闭环第②步就是"用词根批量查 Similarweb，下载 搜索量>3万 / KD<60 的词"。**2026-08-28 落地后此行不再是缺口** |
+| 2 | ~~**Semrush Keyword Magic Tool**~~ **已实现** → `semrush-report.mjs --report keyword-magic` | `semrush-keyword.mjs` 注释里写明的分工，另一半已补齐。`game-sites.md` 的每日动作要"多语言关键词需求簇"，走整包导出 |
 | 3 | **Similarweb Audience → 国家分布** | `demand-sources.md` 明确要求：并排 Semrush 国家库和 Similarweb 全球总访问之前**先看目标国占比**。实测"美国流量只占 21–39%，光这一条就是约 5 倍" |
 | 4 | **Semrush Referring Domains 列表** | `webcafe-experiences.md` 外链 SOP 第 2–3 步就是"导出外链域名列表，按出现次数排序"。现在只有逐条链接的 `backlinks-list`，要域名级聚合得二次汇总，分页开销几十倍 |
 | 5 | **Similarweb Website → Search** | `webcafe-experiences.md` 用"前 5 个词只占自然流量 15.5%"反证 Semrush 低估。这个数拿不到，隐含点击率校验就只能手工做 |
 | 6 | **Similarweb Search Competitors** | 每个词在一段时间内各站的**市场占比**，谁起来了谁掉了。比 SERP 快照多一层时间维度 |
 | 7 | **通用化 Similarweb Referrals** | **最低成本的一个缺口——代码已经跑通**，只是焊死在支付场景里。抽出来即可 |
 | 8 | Semrush Keyword Gap / Backlink Gap | 一次给出差集，比逐个跑 `organic-positions` 再做集合运算省一个数量级配额。但频率是周级不是日级 |
-| 9 | Semrush Traffic Analysis | **页面最多但排第 9**，理由见开头的反例 |
+| 9 | ~~Semrush Traffic Analysis~~ **已实现** → `semrush-traffic.mjs` | **页面最多但当时排第 9**，理由见开头的反例。2026-08-28 落地：读 .Trends 流量分析总览（总访问量口径），实测 canva.com 与 Similarweb 相差 2.4%——**跨面板并排时真正对得上的是这个数，不是 organic** |
 | 10 | Semrush 多国家库求和封装 | 不是新能力，是把已经在做的人肉动作沉淀成脚本 |
 
 ---

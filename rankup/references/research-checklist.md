@@ -2,6 +2,15 @@
 
 **本清单是阶段 1「机会与市场调研」的展开——每次调研（关键词、选题、竞品、赛道）都必须逐项走完。**
 
+> **本文件是验收单，不是执行顺序。** 「一句话进来 → 先跑哪条命令、哪些能并行」在
+> [`playbooks/research.md`](playbooks/research.md)（4 条预制流水线 + 1 个分流器）。
+> 先照 playbook 跑，跑完回本清单逐项打勾。
+
+> **脚本路径**：`seo-webcafe.mjs` / `gt.py` / `webcafe-forum.mjs` 在 `<rankup>/scripts/`，
+> `demand/*` 在 `<rankup>/scripts/demand/`，
+> **Semrush / Similarweb / Tools Share 那一组在 `<backlink>/scripts/`——不在 rankup 里**。
+> 下面各节为省版面写的是裸文件名，实际执行必须带上对应前缀。
+
 不是建议，不是最佳实践。跳过任何一节，调研结论就少一个维度的验证，
 而缺维度的调研最危险的失败形态是「每一项都对，结论整个是错的」。
 
@@ -13,7 +22,12 @@
 3. **每个工具的输出都要落盘。** 跑完没存证据 = 没跑。落盘路径统一写进 `.rankup/keywords.md`
    或 `.rankup/decisions.md`，带日期。
 4. **配额前置检查。** 开工第一个动作：确认 seo.web.cafe 档位（脚本自动打印）、
-   Semrush/Similarweb 节点可用性（`tools-share-node.mjs list`）。不要查到一半发现没配额了。
+   Semrush/Similarweb 节点可用性（`<backlink>/scripts/tools-share-node.mjs list --tool semrush`
+   与 `--tool similarweb`，`--tool` 是必填的；`list` 本身不点「打开」，不消耗任何节点配额）。
+   同时确认钥匙（`cut -d= -f1 <rankup>/.env`）：缺 `SERPER_API_KEY` 时 `demand/serp-query.mjs`
+   完全跑不了，缺 `GITHUB_TOKEN` 时 `github-skill-search` 只剩 `--mode repo`——
+   逐条降级路线见 [`playbooks/research.md`](playbooks/research.md) 阶段 0 那张表。
+   不要查到一半发现没配额了。
 
 ---
 
@@ -28,15 +42,9 @@
 | 1.3 目标市场本地引擎 | 沙箱浏览器 | 七样记录 | 非英语市场必做 |
 | 1.4 AI 搜索（AI Overviews / Perplexity） | 沙箱浏览器 | 引用了谁 | 推荐 |
 
-**每个引擎记下这七样**（带引擎 + 国家 + 日期）：
-
-1. 前十的页面类型构成（工具站 / 论坛 / 素材库 / 官方文档 / 平台商品页）
-2. 有几个是专门为该词制作的页面
-3. 最弱的那个占位者长什么样
-4. SERP 特性占了多少屏（PAA、视频、图片包、AI 答案）
-5. 有没有 AI 答案，引用了谁
-6. 广告几条、谁在投
-7. 有没有独立站的空位
+**「七样记录」是什么、每样回答什么问题、写进哪个文件，见
+[`demand-sources.md`](demand-sources.md) 的「每个引擎记下这七样」一节**——
+那是这张表的唯一权威版本，此处不复制，改判据只改那边。
 
 **引擎之间不一致本身就是结论，必须写出来。**
 
@@ -82,7 +90,7 @@
 | 4.2 Similarweb 相似站 | `similarweb-query.mjs` | `--domain <d> --report similar-sites` | 同类站清单（扩大候选池） |
 | 4.3 Similarweb 受众地理 | `similarweb-query.mjs` | `--domain <d> --report audience-geo` | 流量国家分布 |
 | 4.4 Similarweb 站点关键词 | `similarweb-query.mjs` | `--domain <d> --report site-keywords` | 该站排了哪些词 |
-| 4.5 Similarweb 批量域名流量 | `similarweb-batch.mjs` | `--domains-file d.txt --out out.jsonl` | 批量快筛，单域名 6-10 秒 |
+| 4.5 Similarweb 批量域名流量 | `similarweb-batch.mjs` | `--domains-file d.txt --out out.jsonl` | 批量快筛。**单域名 6-10 秒不是节流间隔，是「读数稳定」要花的时间**：脚本没有固定 sleep，它按 `--stable-interval`（默认 3 秒）反复读页面，要连续 2 次读数一致才收（判成空态要连续 3 次），所以下限约 6 秒、空态约 9 秒；渲染慢的站按 `--domain-timeout`（默认 75 秒）封顶后记成未完成 |
 | 4.6 Semrush 域名概览（自然流量） | `semrush-overview.mjs` | `--domain <d> --db us` | 自然流量估算（该国家库）、引荐域数、关键词数 |
 | 4.7 Semrush 排名词报表 | `semrush-report.mjs` | `--report organic-positions --domain <d> --db us` | 该站排了哪些词、每个词的位次 |
 | 4.8 Semrush 主要页面 | `semrush-report.mjs` | `--report organic-pages --domain <d> --db us` | 哪些页面吃了最多流量 |
@@ -105,7 +113,9 @@
 | 步骤 | 工具 | 命令 | 输出 |
 |---|---|---|---|
 | 5.1 Stripe 引荐流量榜 | `seo-webcafe.mjs` | `referringMonth --m YYYYMM` | 域名、月引荐量、名次、份额、环比（**不计配额**） |
+| 5.1b **本月新进榜的域名** | `demand/stripe-referring.mjs` | `top --new-only --limit 40` | 只留 `isNew` 的域名——**最强的「新机会」信号**，5.1 的原始端点给不了这个筛选 |
 | 5.2 单域名 Stripe 在榜历史 | `seo-webcafe.mjs` | `referringSite --domain <d>` | 在榜轨迹（**不计配额**） |
+| 5.2b 同上（带派生指标） | `demand/stripe-referring.mjs` | `site --domain <d>` | 在榜轨迹 + 到达付费页比例；`top --enrich` **吃配额**，改用 `--visits <本地JSON>` |
 | 5.3 traffic.cv 流量榜 | `boards.mjs` | `traffic-cv --type traffic --tab new` | 名次、域名、月访问量、域名注册时间 |
 | 5.4 traffic.cv 收入榜 | `boards.mjs` | `traffic-cv --type revenue --tab top` | Stripe 结账量排名 |
 | 5.5 TrustMRR 实连收入 | `boards.mjs` | `trustmrr --board mrr` | MRR（Stripe 实连，唯一能当数字用） |
@@ -149,6 +159,18 @@
 ## 第八节 · 补充信号源（按需选用）
 
 不是每次调研都要全跑，按信号缺口选用。
+
+> **这张表是「选用视图」，不是底账，也不是配方。** 三处分工写死如下，
+> 改动只改权威那一处，别在这里补细节——同一件事两处各存一份，
+> 改了一处另一处就静默过期，而两边看起来都正常：
+>
+> | 问题 | 权威在哪 |
+> |---|---|
+> | **有哪些源**（底账，含没有脚本的手工源） | [`capability-map.md`](capability-map.md) 第二节 |
+> | **怎么取**（配方、参数、坑） | [`demand-sources.md`](demand-sources.md) 对应小节 |
+> | **这次调研做没做**（勾选） | 本节 + 本文件底部的验收矩阵 |
+>
+> 本表只保留「信号缺口 → 用哪个」这一层映射，供快速选用。
 
 | 信号缺口 | 工具 | 命令 |
 |---|---|---|

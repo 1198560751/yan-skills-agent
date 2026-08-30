@@ -611,7 +611,10 @@ site:<社区域名> "how do people make" <领域词>
 
 操作上：**选词调研跑完量、难度、窗口三项之后不要下裁决**，
 先去查同类站的真实流量（面板口径）并折成钱，再决定做不做。
-方法见 [`demand-sources.md`](../demand-sources.md) 十·五。
+**怎么取那份流量数**（provider 选择、Similarweb 与 Semrush 的口径差、
+拿不到流量结构时退到哪里补）见 [`demand-sources.md`](../demand-sources.md)
+「⓪ 这一步的供应商选择」与「②·六·四 Semrush 的自然流量什么时候不能信」两节；
+那边「十·五」只留一条「第四道闸」的操作规则，判据仍以本节为准。
 
 #### CPC 怎么读（脚本：`demand/keyword-value.mjs`）
 

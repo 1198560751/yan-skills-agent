@@ -201,6 +201,13 @@ grep -oiE '(gtag|googletagmanager|clarity\.ms|cloudflareinsights|plausible|umami
 | NO_KEYWORDS / CANONICAL_MISMATCH / IMG_EMPTY_ALT / IMG_NO_DIMENSIONS / NO_TWITTER_CARD / NO_STRUCTURED | info | 存在性事实 | keywords 可忽略；CANONICAL_MISMATCH 要人工确认是否有意；IMG_NO_DIMENSIONS 关 CLS |
 | fetchError | —— | 该页这次**根本没看到** | **抓取失败 ≠ 页面没问题**，修通抓取或换环境重跑，不许当成通过 |
 
+上表的 title 10–60 / desc 50–160 是 **`seo-audit.mjs` 这一把尺**（字符数口径，
+区间最宽，只筛明显异常）。仓里另有两把口径不同的尺——`seo-webcafe.mjs string`
+的 30–60 / 70–160（按近似展示宽度计长）与 Ahrefs 的 110–160——三者的对照与
+「说超长时必须点名是哪把尺」的规矩，见
+[`seo-webcafe.md`](seo-webcafe.md) 「本地命令数值判读指引」的
+「`string` 的判读：三套 TDK 长度口径，别混着引」小节。
+
 密度（unigrams/bigrams/trigrams）没有「正确值」：它是给判读者看「这页在向搜索引擎
 强调什么」的证据，不做阈值判定。
 

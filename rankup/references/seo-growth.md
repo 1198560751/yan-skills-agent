@@ -640,7 +640,7 @@ Markdown 内容协商），其余一律列进「未能对照」，不做凑数�
 - **[2026-07-17] 标题堆砌导致 Google 改写**:同一短语在 title 出现两次 → SERP 标题被改写(Ahrefs "Page and SERP titles do not match")。主词一次 + 差异化修饰词。
 - **[2026-07-17] 体验分是排名天花板**:哥飞 KD 直接给 SERP 占位者打体验分(停留/跳出);文案做满后,守位靠产品(停留 33s vs 竞品 4-6min = 脆弱占位者)。
 - **[2026-07-17] 第二产品线验证法**:同机制跨 IP 扩展前先用 Suggest 验证(American Psycho 名片 = generator/maker/template/font 全 [512] → GO;Breaking Bad 无名片意图 → SKIP,同宇宙≠同需求)。
-- **[2026-07-17] meta description 110–160 字符**是 Ahrefs 警告阈值;CJK/阿语按字符数同样适用。
+- **[2026-07-17] meta description 110–160 字符**是 Ahrefs 警告阈值(三把尺里最严的一把,把"太短浪费展示位"也算警告);CJK/阿语按字符数同样适用。本仓两个脚本的区间比这宽且口径不同(`seo-audit.mjs` 50–160 按字符数、`seo-webcafe.mjs string` 70–160 按近似展示宽度),对照表与"说超长时必须点名是哪把尺"的规矩见 [`seo-webcafe.md`](seo-webcafe.md)「本地命令数值判读指引」的「`string` 的判读：三套 TDK 长度口径，别混着引」小节。
 - **[2026-07-17] title/desc 长度按"解码后码点"量,别量构建产物**:Astro 把属性里的 `"` 转 `&#34;`(5 码点)、`&`→`&amp;` —— 一条含 `"Better Call Saul!"` 的 desc 在 raw HTML 比 Google 实际计数长 8+ 码点,天真 grep 会误判超长/把 CJK 误判达标。核查脚本先 decode `&#\d+;`/`&#x..;`/`&quot;`/`&amp;` 再套 110–160。CJK 偏低端就达标(~112-118,首页实证 115),拉丁/阿/印 ~145-158。
 - **[2026-07-17] canonical 指向会重定向的 URL 形态 = 白写**:站点服务端把尾斜杠 307 到无斜杠,而 canonical/内链/sitemap 全是带斜杠形态 → 每次点击多一跳、canonical 可能被 Google 忽略。修法:选定一种形态,用一个共享的 normalize 函数守住 href/canonical/hreflang/sitemap 四处(内容站实证)。
 - **[2026-07-17] 仓库结构迁移后必查静态资产**:monorepo 化把 public/ 留在旧根目录,vite 只认 app 内 public/ → favicon/og-image/全部插图 404 静默上线数日。迁移后必跑:线上首页控制台错误 + curl favicon/og-image。

@@ -67,8 +67,10 @@ const LIFECYCLE_CHECKS = [
     group: "上线后",
     evidence: "baseline.md",
     minBytes: 200,
-    fix: "Lighthouse 跑线上 URL，记录 LCP/CLS/INP 到 baseline.md",
-    tool: null,
+    // Lighthouse 只给实验室数据,闸门 6 要的是实验室+现场两套(seo-box.md 一)。
+    // 单跑 Lighthouse 会让这条闸门只过一半而表面是绿的。
+    fix: "node <rankup>/scripts/pagespeed.mjs <三类页面 URL> --strategy both --md，记进 baseline.md",
+    tool: "pagespeed.mjs",
     why: "没有基线的「优化」只是猜测——改了不知道改了多少",
   },
   {
@@ -129,7 +131,7 @@ const LIFECYCLE_CHECKS = [
     group: "上线后",
     evidence: "experiments.md",
     minBytes: 1,
-    fix: "node <rankup>/scripts/is-agentic.mjs diff <domain> + Lighthouse 重测",
+    fix: "node <rankup>/scripts/is-agentic.mjs diff <domain> + pagespeed.mjs --strategy both 重测",
     tool: "is-agentic.mjs diff",
     why: "进步或倒退要用对比数字说话，不能只断言「应该更好了」",
   },

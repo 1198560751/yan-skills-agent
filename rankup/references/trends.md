@@ -180,17 +180,21 @@ node scripts/seo-webcafe.mjs kd --keyword "remove background" --gl JP
 - **新站信号**（< 18 个月的新域名已排进前十 = 赛道对新站友好）
 - **上升期信号**（trend ratio ≥ 1 = 快速增长中）
 
-**KD 输出还自动计算：**
-- **KDROI（投资回报率）**：`(日搜索量 × $0.1 × 365 / 外链成本 - 1) × 100%`
-  - 外链成本用阶梯定价：前 10 条 $100/条，11-50 条每条 +1%，51-200 条 +1.5%，200+ 条 +2%
-  - 假设每次点击 $0.1 收入，假设能拿到全部点击（乐观估算，用于横向对比选词）
-  - KDROI > 100% = 高回报，0-100% = 正回报但边际，< 0 = 不划算
+**KDROI 不在 `kd` 的输出里。** `kd` 分支不产出该字段——KDROI 由本地命令
+`seo-webcafe.mjs kgr` 算（纯本地、零配额，输出 `kdroi.requiredDomains` /
+`invest` / `yearRevenueCap` / `roiPct`），把 `kd` 拿到的难度分喂给 `kgr` 才有。
+公式与外链阶梯定价、以及 `roiPct` 的档位参照，**只在**
+[`seo-webcafe.md`](seo-webcafe.md) 「本地命令数值判读指引」一节，此处不复述阈值。
 
-**KD 关键字段解读：**
-- `score` 58 + 新站信号 = 难度中等但新站可入场，值得做
-- `score` 75+ 且无新站信号 = 红海，除非有大站级资源否则不碰
-- `score` 30- = 蓝海，但要检查搜索量是否太低
-- `KDROI` > 100% = 高回报词，优先做
+**KD 关键字段怎么读（脚本只出数值，档位是判读参照不是判决）：**
+- `score` 只回答「能不能打」，不回答「值不值得打」——后半个问题要看需求真实性、
+  终局流量、变现路径和交付速度，见
+  [`experiences/webcafe-topics.md`](experiences/webcafe-topics.md) 「一·一、判据不是一个数，是五件事」。
+- 看盘面而不是看分数：`details` 的域名构成才是判据。低 KD 但前十一半是社交站 =
+  没人来争而不是有空位，见 [`seo-webcafe.md`](seo-webcafe.md)
+  「KD『容易』而首页全是 Pinterest / Instagram」一节。
+- `score` 高低配合**新站信号**（< 18 个月新域名已排进前十）一起读：新站信号在，
+  说明赛道结构上对新站开放，分数偏高也未必是禁区。
 - `linkBudget.quality.mid` = 优质外链中值，这是外链建设的靶子
 - `details` 里 `dedicated=true` 密度高 = 正面争夺的词（不是大站顺路排的）
 - `keywordTrend.ratio ≥ 1` = 有站正在靠这个词快速增长，时机窗口在
@@ -218,7 +222,10 @@ node scripts/seo-webcafe.mjs kd --keyword "remove background" --gl JP
 - **hot 不支持 CN**（无大陆 feed），建议 TW/HK，或改用 agent-reach 查微博/百度热搜。
 - **429 限流**：连续查询过快会被拒；工作流里每次调用间隔几秒，被限就等 1-2 分钟。
 - 太冷门的词在小国会返回空数据——这本身就是信号（需求不足）。
-- 首次运行 compare/region/related 会自动建 venv（~/.cache/gt-skill/venv），约 30 秒。
+- **venv 只属于 `--via pytrends` 分支**：默认路由是 `browser`（OpenCLI 驱动已登录 Chrome），
+  **不建 venv、不装依赖**。只有显式传 `--via pytrends`（或 `--via auto` 先试 pytrends）时，
+  首次运行才会在 `~/.cache/gt-skill/venv` 建虚拟环境，约 30 秒。
+  （旧版这条写成「首次运行 compare/region/related 会自动建 venv」，那是默认路由还是 pytrends 时的描述。）
 
 ### KD 侧
 - **每日额度 100 次**（Web.Cafe 登录用户），网页/MCP/API 三端共用（我们只用 API，但额度是合并计的），VIP 500 次。
@@ -264,7 +271,8 @@ node scripts/seo-webcafe.mjs kd --keyword "remove background" --gl JP
 
 对通过趋势筛选的词逐个 `seo-webcafe.mjs kd --keyword <词>`（注意每分钟 ≤10 次限流，间隔 ≥6 秒）：
 
-1. 淘汰 `score` > 70 且无新站信号的词（红海，个人站/小团队不碰）。
+1. `score` > 70 且无新站信号的词先降权——但别只看这个数，翻 `details` 的域名构成
+   确认是「老站围死」还是「社交原生意图」，两者对新站的含义不同。
 2. 标注有新站信号的词（即使 score 偏高，新站已证明可入场）。
 3. 对比同簇词的 `keywordVolume`，选搜索量和难度最优组合。
 4. 记录 `linkBudget` 作为外链建设的量化目标。
@@ -274,10 +282,19 @@ node scripts/seo-webcafe.mjs kd --keyword "remove background" --gl JP
 | 词簇 | 代表词 | 趋势(5y) | 月搜索量 | KD 难度 | KDROI | 新站信号 | 链接预算 | 建议 |
 |---|---|---|---|---|---|---|---|---|
 
-建议列判断逻辑（综合看，不机械套用单一指标）：
-- ✅ 做：KDROI > 100% 且 KD < 60（或有新站信号）
-- ⚠️ 可做：KDROI 正但 KD 偏高，或 KDROI 高但竞争格局不确定
-- ❌ 不做：KDROI < 0，或 KD > 70 无新站信号，或月搜索量 < 500
+（KDROI 列的数值来自本地 `kgr`，不是 `kd` 的输出，要单独跑一次。）
+
+建议列不是套阈值算出来的，是判读出来的。三个输入各自的口径：
+
+- **KDROI 的档位参照**见 [`seo-webcafe.md`](seo-webcafe.md)「本地命令数值判读指引」
+  的 `roiPct` 那几行——**注意那里的口径比直觉严**，不要照着「>100% 就是高回报」下结论。
+- **KD 分数**只答「能不能打」，且要配 `details` 域名构成与新站信号一起读（见上文
+  「KD 关键字段怎么读」）。
+- **值不值得打**是另一个判断：需求真实性、终局流量、变现路径、交付速度，见
+  [`experiences/webcafe-topics.md`](experiences/webcafe-topics.md)「一、选词：低 KD 不等于能做」。
+
+只有三项都指向同一个方向才写 ✅；任一项存疑写 ⚠️ 并记下存疑点；明确不划算
+（外链投入回不来）、盘面进不去、或月搜索量低到撑不起终局流量，写 ❌。
 
 选定词后建站阶段 → **seo-geo**（站内优化、schema、传统+AI 搜索）和 **ai-seo**（被 LLM 引用的内容策略）接棒。
 

@@ -26,10 +26,16 @@ import { join, dirname, normalize, resolve } from "node:path";
 
 const ROOT = resolve(new URL("..", import.meta.url).pathname);
 
-/** 递归收集要检查的 Markdown。跳过 node_modules 与 .git 之类。 */
+/**
+ * 递归收集要检查的 Markdown。跳过 node_modules 与 .git 之类。
+ * 也跳过 `*-workspace/`：那是 eval 跑分与实验产物（.gitignore 里就有这条），
+ * 里面躺着 Skill 的历史快照——快照只复制单个 Skill 子目录，指向兄弟 Skill 的
+ * `../../backlink/...` 必然解析不到。把它算进门禁，等于让快照数量决定门禁红绿。
+ */
 function collect(dir, out = []) {
   for (const name of readdirSync(dir)) {
     if (name.startsWith(".") || name === "node_modules" || name === "__pycache__") continue;
+    if (name.endsWith("-workspace")) continue;
     const p = join(dir, name);
     const st = statSync(p);
     if (st.isDirectory()) collect(p, out);
