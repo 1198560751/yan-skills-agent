@@ -57,7 +57,9 @@ platforms/semrush/traffic-analytics/sources-destinations/collect.sh [domain] [ou
 自动持机器级 semrush 锁、会话 `semrush-nav`、轮询→成对截图+census→manifest。
 采完由 AI 对质双证人出结论（脚本不判决），配额纪律见 `../../OVERVIEW.md`。
 「目标」tab 采集：无 URL 直达，用一次性只读探针页内点「目标」后按上节判据等非骨架行
-（骨架可持续 4 分钟+，budget 放宽）；翻页采集（930 页）尚无脚本。
+（骨架可持续 4 分钟+，budget 放宽）；翻页批采走 `node backlink/scripts/harvest-paginated.mjs`（930 页，机制为客户端分页；
+**别全量**，头部 20–40 页 + `--mode stratified` 抽长尾）。注意本页骨架屏可达 4 分钟，
+`--page-budget` 要放宽。配方与配额账见 [`backlink/references/pagination-harvest.md`](../../../../backlink/references/pagination-harvest.md)。
 
 ## 已知坑
 

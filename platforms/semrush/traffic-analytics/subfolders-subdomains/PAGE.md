@@ -46,7 +46,10 @@ platforms/semrush/traffic-analytics/subfolders-subdomains/collect.sh [domain] [o
 内部是一条 `node backlink/scripts/ground-truth.mjs --url … --out … --budget 240`：
 自动持机器级 semrush 锁、会话 `semrush-nav`、轮询→成对截图+census→manifest。
 采完由 AI 对质双证人出结论（脚本不判决），配额纪律见 `../../OVERVIEW.md`。
-翻页采集尚无脚本（2,611 页全量要另行设计，勿逐页点击烧配额）。
+**这只采第 1 页（50 行 / 2,611 页 = 0.04%）。** 翻页批采走
+`node backlink/scripts/harvest-paginated.mjs --url '<本页 URL>' --out <dir> --max-pages 40`
+（机制已判定为客户端分页）。**2,611 页全量按实测节奏是 7–15 小时且全程占锁——不要做**；
+头部 20–40 页 + `--mode stratified` 抽长尾。配方与配额账见 [`backlink/references/pagination-harvest.md`](../../../../backlink/references/pagination-harvest.md)。
 
 ## 已知坑
 

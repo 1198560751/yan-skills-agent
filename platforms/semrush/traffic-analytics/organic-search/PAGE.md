@@ -42,6 +42,17 @@ platforms/semrush/traffic-analytics/organic-search/collect.sh [domain] [out-dir]
 ground-truth.mjs 自动走 chart 就绪分支（svgText>0 三轮稳定），无需额外参数。
 采完由 AI 对质双证人出结论：量级从截图读曲线区间、从 deepText 核对轴刻度，两证互验。
 
+
+**图表读数器（2026-08-30）**：走 chart 分支就绪后，ground-truth.mjs 会自动多打一次
+带几何的读数，把提取结果写进 manifest 的 `chartRead`（见
+[`../OVERVIEW.md`](../OVERVIEW.md) 板块级要点，实现在
+`backlink/scripts/lib-chart-read.mjs`）。`chartRead.text` 给每张图的标题、系列名、
+y 轴刻度与范围、x 轴标签；`chartRead.geometry` 给逐点值。**读数器只提取不判断**：
+读不出的点是 `value: null` + 理由码，绝不猜数——「读不出」和「值是 0」必须分得开。
+`chartRead.capability` 说的是读数器做到了什么（`points` / `axis-only` / `none`），
+**不是页面有没有数据**，后者照旧由你对质双证人来判。
+2026-08-29 那批历史证据没有几何面，复读只能到 `axis-only`。
+
 ## 已知坑
 
 | 坑 | 细节 |
@@ -49,7 +60,7 @@ ground-truth.mjs 自动走 chart 就绪分支（svgText>0 三轮稳定），无�
 | **没有表格≠没有数据** | 历史「无数据」引申是错的——数据存在，形状是图（本板块 9 条里错了 8 条） |
 | 谷歌 AI 模式序列贴 0 轴 | 黄色序列几乎贴地不代表没画——是量级差距（对照自然搜索亿级）；别把贴 0 当渲染故障 |
 | filledCells 判据永不触发 | 等 filledCells>0 会烧满预算退出码 2；认 svgText |
-| 曲线精确值不在文本里 | svgText 只有轴刻度/系列名，逐月精确值要读图；能落的结论是区间量级（1亿–1.3亿） |
+| 曲线精确值不在文本里 | `deep.svgText` **是节点计数不是文本**；带文本的是 `deepText`，里面只有轴刻度/系列名，逐月精确值要读图；能落的结论是区间量级（1亿–1.3亿） |
 | 壳会骗文本判据 | 深层壳文本 ~1.6M 字符先于图表到位；deepTextLength 阈值判据会误判 |
 | 共享标签页会被抢 | 会话 `semrush-nav` 共享标签页；判决前核对每轮 href |
 

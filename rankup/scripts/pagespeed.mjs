@@ -16,8 +16,13 @@
 //
 // 用法：
 //   node pagespeed.mjs <url...> [--strategy mobile|desktop|both] [--json] [--md] [--out <file>]
+//                      [--allow-anonymous]
 //
 // 令牌：环境变量 PAGESPEED_API_KEY 优先，退到本 Skill 目录 .env 的 PAGESPEED_API_KEY=。
+//
+// **没有 key 时默认直接退出（退出码 1），不发任何请求。** 以前只打一行 warn 就照样匿名跑，
+// 于是「不要让它匿名跑」这条纪律只写在文档里、没人执行，实跑必然撞 429 才发现。
+// 真要试匿名（例如验证网络通不通），显式加 `--allow-anonymous`。
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -61,13 +66,14 @@ function apiKey() {
 
 function parseArgs(argv) {
   const urls = [];
-  const opt = { strategy: "mobile", json: false, md: false, out: null };
+  const opt = { strategy: "mobile", json: false, md: false, out: null, allowAnonymous: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--strategy") opt.strategy = argv[++i];
     else if (a === "--json") opt.json = true;
     else if (a === "--md") opt.md = true;
     else if (a === "--out") opt.out = argv[++i];
+    else if (a === "--allow-anonymous") opt.allowAnonymous = true;
     else if (a === "-h" || a === "--help") opt.help = true;
     else if (a.startsWith("-")) die(`未知参数：${a}`);
     else urls.push(a.includes("://") ? a : `https://${a}`);
@@ -177,17 +183,26 @@ const { urls, opt } = parseArgs(process.argv.slice(2));
 if (opt.help || urls.length === 0) {
   console.log(
     "用法：node pagespeed.mjs <url...> [--strategy mobile|desktop|both] [--json] [--md] [--out <file>]\n" +
+      "                          [--allow-anonymous]\n" +
       "  一次拿实验室(Lighthouse)与现场(CrUX)两套数据，对应阶段 7.5 闸门 6。\n" +
-      "  需要免费 key：export PAGESPEED_API_KEY=... 或写进 Skill 目录的 .env。",
+      "  需要免费 key：export PAGESPEED_API_KEY=... 或写进 Skill 目录的 .env。\n" +
+      "  没有 key 时**默认直接退出、不发请求**；--allow-anonymous 才走共享配额（实测常年 429）。",
   );
   process.exit(urls.length === 0 && !opt.help ? 1 : 0);
 }
 
 const key = apiKey();
-if (!key) {
-  console.error(
-    "[warn] 没有 PAGESPEED_API_KEY，将走匿名共享配额——实测常年 429。拿一枚免费 key 见 --help。",
+if (!key && !opt.allowAnonymous) {
+  die(
+    "没有 PAGESPEED_API_KEY，已终止，未发出任何请求。\n" +
+      "不带 key 调用的是 Google 那个所有人共用的项目，实测常年 429——匿名跑只会浪费一轮时间。\n" +
+      "领一枚免费 key：Google Cloud 控制台 → 启用「PageSpeed Insights API」→ 创建 API 密钥，免费 25000 次/日。\n" +
+      "然后 export PAGESPEED_API_KEY=... ，或写进本 Skill 目录的 .env（PAGESPEED_API_KEY=...）。\n" +
+      "确实要试匿名（只为验证网络可达）：加 --allow-anonymous。",
   );
+}
+if (!key) {
+  console.error("[warn] --allow-anonymous：走匿名共享配额，实测常年 429，读数不可信。");
 }
 const strategies = opt.strategy === "both" ? ["mobile", "desktop"] : [opt.strategy];
 const rows = [];

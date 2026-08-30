@@ -169,6 +169,110 @@ export function deepScrollContainers(root, options = {}) {
 }
 
 /**
+ * **每张 SVG 图表的几何**：文本节点的内容 + 位置，数据标记的位置。
+ *
+ * ──────────────────────────────────────────────────────────────────────
+ * 为什么必须新增这一面（2026-08-30 读完 11 份实盘 census 后的结论）
+ * ──────────────────────────────────────────────────────────────────────
+ * `readDomCensus()` 里 `svgText` **是一个计数**（`deepQueryAll(root,'svg text').length`），
+ * 不是文本。census 里唯一带文本的是 `deepText`，它有轴刻度和轴标签，**但没有任何
+ * 一个数据点的值**——Semrush 的折线图不渲染数据标签，逐点数值只存在于点的像素位置。
+ *
+ * 所以「chart-only 路由只能读出量级区间」不是读数器不够聪明，是**采集面缺了几何**。
+ * 这个函数补的就是那一面：把每张 svg 的文本（含 x/y）和标记（circle/rect/path 端点）
+ * 一起带出来，下游 `lib-chart-read.mjs` 才能用「轴刻度的像素位置」标定出
+ * 「像素 → 数值」，再把标记的像素位置反推成值。
+ *
+ * ⚠️ **它只采集，不换算**（第 11 条法律）。这里出的是像素和字符串，不是业务数值。
+ *
+ * 三条取舍：
+ * 1. **坐标一律取 `getBoundingClientRect()`**，不取 `x`/`y` 属性。属性坐标在 svg
+ *    自己的用户坐标系里，被 `viewBox` 和祖先 `transform` 缩放过；rect 是渲染后的
+ *    视口坐标，轴刻度和数据点用的是同一套，才能互相标定。
+ * 2. **标记的 `y` 归一到「代表值的那条边」**：circle 取圆心，rect（柱）取**顶边**——
+ *    柱图的值在柱顶不在柱心。归一在采集侧做掉，读数器就不必知道图型。
+ * 3. **有上限**。一页 1132 个 svg 文本节点是实测数，不封顶会把 census 撑爆；
+ *    截断时 `truncated:true`，让下游知道读到的是下界。
+ */
+export function readChartGeometry(root, options = {}) {
+  const {
+    maxCharts = 40,
+    maxTextsPerChart = 200,
+    maxMarksPerChart = 400,
+    minChartWidth = 80,
+    minChartHeight = 60,
+  } = options;
+
+  const rectOf = (el) => {
+    try {
+      const r = el.getBoundingClientRect();
+      if (!r) return null;
+      return { left: r.left, top: r.top, width: r.width, height: r.height };
+    } catch { return null; }
+  };
+
+  const charts = [];
+  let truncated = false;
+  const svgs = deepQueryAll(root, 'svg', options);
+  for (const svg of svgs) {
+    if (charts.length >= maxCharts) { truncated = true; break; }
+    const box = rectOf(svg);
+    // 图标也是 svg。按渲染尺寸过滤——太小的不可能是带轴的图表。
+    if (!box || box.width < minChartWidth || box.height < minChartHeight) continue;
+
+    const texts = [];
+    let textNodes;
+    try { textNodes = svg.querySelectorAll('text'); } catch { textNodes = []; }
+    for (const node of textNodes) {
+      if (texts.length >= maxTextsPerChart) { truncated = true; break; }
+      const content = String((node.textContent || '')).replace(/\s+/g, ' ').trim();
+      if (!content) continue;
+      const r = rectOf(node);
+      texts.push({
+        text: content,
+        // 文本的代表点取中心：轴刻度的基线对齐方式各家不同，中心最稳。
+        x: r ? r.left + r.width / 2 : null,
+        y: r ? r.top + r.height / 2 : null,
+      });
+    }
+
+    const marks = [];
+    let markNodes;
+    try { markNodes = svg.querySelectorAll('circle, rect'); } catch { markNodes = []; }
+    for (const node of markNodes) {
+      if (marks.length >= maxMarksPerChart) { truncated = true; break; }
+      const r = rectOf(node);
+      if (!r || r.width <= 0 || r.height <= 0) continue;
+      const kind = String(node.tagName || '').toLowerCase();
+      // 见取舍 2：圆取心，柱取顶。
+      marks.push({
+        kind,
+        x: r.left + r.width / 2,
+        y: kind === 'rect' ? r.top : r.top + r.height / 2,
+        width: r.width,
+        height: r.height,
+      });
+    }
+
+    // 折线本身：`path` 的 `d` 原样带出（不解析——解析是读数器的事）。
+    const paths = [];
+    let pathNodes;
+    try { pathNodes = svg.querySelectorAll('path'); } catch { pathNodes = []; }
+    for (const node of pathNodes) {
+      if (paths.length >= 8) { truncated = true; break; }
+      let d;
+      try { d = String(node.getAttribute('d') || ''); } catch { d = ''; }
+      // 短的 d 是图标勾线，长的才可能是数据折线。4000 字符封顶。
+      if (d.length < 24) continue;
+      paths.push({ d: d.slice(0, 4000), dTruncated: d.length > 4000 });
+    }
+
+    charts.push({ box, texts, marks, paths });
+  }
+  return { charts, truncated, svgCount: svgs.length };
+}
+
+/**
  * 一次读完：浅层一份、深层一份、差值一份。
  *
  * `scopeSelector` 是报表区的根。**它在深层里找**（旧代码用
@@ -188,6 +292,10 @@ export function readDomCensus(documentRef, options = {}) {
     tableSelector = 'table',
     gridSelector = '[role="grid"]',
     cellSelector = 'td, [role="gridcell"], [role="cell"]',
+    // 图表几何采集面。**默认关**：它比其余读数贵得多（每个节点一次
+    // getBoundingClientRect，会触发布局），轮询里逐轮跑不划算。
+    // ground-truth 只在 chart 分支**就绪之后**开一次，见那边的注释。
+    chartGeometry = false,
   } = options;
 
   const documentRoot = documentRef.body || documentRef.documentElement || documentRef;
@@ -239,6 +347,10 @@ export function readDomCensus(documentRef, options = {}) {
     textLength: deepTextLength(root),
   };
 
+  // 只在显式要求时采几何；未采时字段**不存在**（不是空数组）——
+  // 「这轮没开几何」和「开了但一张图都没有」必须可分辨。
+  const geometry = chartGeometry ? readChartGeometry(root) : null;
+
   return {
     scopeSelector: scopeSelector || null,
     // 报表区的根有没有真的找到。false = 判据退回了整页，**不许据此出结论**。
@@ -262,6 +374,7 @@ export function readDomCensus(documentRef, options = {}) {
     },
     deepText: deepTextSample(root, { maxChars: sampleChars }),
     scrollContainers: deepScrollContainers(root).slice(0, 20),
+    ...(geometry ? { chartGeometry: geometry.charts, chartGeometryTruncated: geometry.truncated } : {}),
   };
 }
 
@@ -349,5 +462,6 @@ export const DEEP_DOM_JS = [
   deepTextSample,
   deepFilledCells,
   deepScrollContainers,
+  readChartGeometry,
   readDomCensus,
 ].map((fn) => fn.toString()).join('\n');

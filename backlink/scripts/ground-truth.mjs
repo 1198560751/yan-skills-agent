@@ -50,6 +50,7 @@ import {
   sessionForUrl, showHelpIfRequested, sleepStep,
 } from './opencli-core.mjs';
 import { DEEP_DOM_JS } from './lib-deep-dom.mjs';
+import { readCharts } from './lib-chart-read.mjs';
 import { acquireToolsShareBrowserLocks, redactSecrets } from './lib-tools-share.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -379,7 +380,7 @@ export function pairsIdentical(prev, curr) {
 export function buildManifest({
   url, session, startedAt, finishedAt, readyAfterMs, polls, steps,
   stopReason, budgetSeconds, maxScreens, error = null, refreshes = [],
-  readyBranch = null, suspectedEmptyState = false,
+  readyBranch = null, suspectedEmptyState = false, chartRead = null,
   lockHeld = false, lockWaitMs = null, hijacked = false, hijackedHref = null, finalHref = null,
   acceptRedirects = [], readyTextPattern = null,
   scrollMode = 'auto', scrollSelector = null, scrolls = [],
@@ -422,6 +423,11 @@ export function buildManifest({
     // svgText===0 且 deepTextLength 稳定且无 filledCells 的疑似空态打标。
     // 只是打标——判断留给 AI 对质双证人。
     suspectedEmptyState,
+    // chart 读数器的**提取结果**（轴刻度/轴范围/标签/系列名/几何逐点值），
+    // 见 lib-chart-read.mjs。null = 本轮没走 chart 分支或读数器抛了错。
+    // `capability` 说的是读数器做到了什么（points / axis-only / none），
+    // **不说页面有没有数据**——后者是判断，归 AI。
+    chartRead,
     pollCount: polls.length,
     stepCount: steps.length,
     // 打开即刷新是否启用（默认 true；--no-eager-reload 关）。首刷不计入 refreshCount。
@@ -506,8 +512,25 @@ export function buildScrollExpr({ mode = 'auto', selector = null, amount = 700 }
 })()`;
 }
 
-async function readCensus(evalPage) {
-  const capture = await evalPage(CENSUS_EXPR);
+/**
+ * 图表几何专用读数：和 CENSUS_EXPR 同一份 readDomCensus，只多开 `chartGeometry`。
+ *
+ * **只在 chart 分支就绪之后打一次**，不进轮询：每个 svg 节点一次
+ * `getBoundingClientRect()` 会触发布局，逐轮跑既慢又没意义（没就绪时没有图）。
+ */
+export const CHART_GEOMETRY_EXPR = `(() => {
+  ${DEEP_DOM_JS}
+  const census = readDomCensus(document, { sampleChars: 20000, chartGeometry: true });
+  return JSON.stringify({
+    when: new Date().toISOString(),
+    href: location.pathname + location.search + location.hash,
+    title: document.title,
+    census,
+  });
+})()`;
+
+async function readCensus(evalPage, expr = CENSUS_EXPR) {
+  const capture = await evalPage(expr);
   capture.href = sanitizeUrlString(capture.href);
   return capture;
 }
@@ -571,6 +594,8 @@ async function main() {
   let readyAfterMs = null;
   let readyBranch = null;
   let suspectedEmptyState = false;
+  // chart 分支就绪后由读数器填；其余分支恒 null（「没跑读数器」≠「读数器读到空」）。
+  let chartRead = null;
   let errorRecord = null;
   let hijacked = false;
   let hijackedHref = null;
@@ -720,6 +745,20 @@ async function main() {
       if (emptyMarker) errorRecord = null;
       else errorRecord = { code: 'budget-exhausted', message: 'data never became ready (no table filledCells, no stable svgText)' };
     } else {
+      // 2b. chart 分支就绪 → 打一次图表读数器。**失败不影响主流程**：
+      //     读数器只是把轴/标签/几何提取出来摆到 manifest 上，判读仍归 AI
+      //     （第 11 条法律）。它读不出逐点值时会自己在 uncertain 里说明理由，
+      //     绝不猜一个数填上。
+      if (readyBranch === 'chart') {
+        try {
+          const geoCapture = await readCensus(evalPage, CHART_GEOMETRY_EXPR);
+          writePayload(outDir, 'census-chart-geometry.json', geoCapture);
+          chartRead = readCharts(geoCapture);
+        } catch (chartError) {
+          chartRead = { schemaVersion: 1, capability: 'none', error: redactSecrets(chartError?.message || String(chartError)) };
+        }
+      }
+
       // 3. 分屏循环：census + 截图成对落盘 → 滚一屏 → 真睡眠 → 再采。
       //    到底 = 与上一步双证人同时不变，连续 1 次。
       //    假到底 = census 恒定而截图 md5 恒变（图表动画 + 滚错对象），连续
@@ -753,7 +792,7 @@ async function main() {
       finishedAt: new Date().toISOString(),
       readyAfterMs, polls, steps, stopReason,
       budgetSeconds: budgetMs / 1000, maxScreens,
-      error: errorRecord, refreshes, readyBranch, suspectedEmptyState,
+      error: errorRecord, refreshes, readyBranch, suspectedEmptyState, chartRead,
       lockHeld: Boolean(locks), lockWaitMs, hijacked, hijackedHref, finalHref,
       acceptRedirects, readyTextPattern: readyText ? readyText.source : null,
       scrollMode: scroll.mode, scrollSelector: scroll.selector, scrolls,

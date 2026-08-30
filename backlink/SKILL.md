@@ -112,8 +112,21 @@ backlink/
 │   │                               every table / cell / text count taken before this file
 │   │                               existed measured a sliver of the page. Emits the LIGHT
 │   │                               reading beside the deep one - the gap is the diagnostic.
-│   │                               Also holds the segmented-scroll capability (default off).
+│   │                               Also holds the segmented-scroll capability (default off)
+│   │                               and readChartGeometry() - per-SVG text/mark PIXEL
+│   │                               positions, the collection surface chart-only routes need
+│   │                               (default OFF: one getBoundingClientRect per node forces
+│   │                               layout; ground-truth opens it once AFTER chart readiness).
 │   │                               See <law-ref id="readiness-must-bind-to-this-query"/>
+│   ├── lib-chart-read.mjs         ★ the chart-only READER. Extracts axis ticks, axis range,
+│   │                               x labels, series names from census.deepText, and per-point
+│   │                               values from census.chartGeometry when present. It CONVERTS
+│   │                               AND EXTRACTS, it does not conclude. Anything it cannot read
+│   │                               is `value: null` + an `uncertain` reason code - never a
+│   │                               plausible-looking guess, so "unreadable" and "the value is
+│   │                               0" stay distinguishable. NOTE: `census.deep.svgText` is a
+│   │                               COUNT, not text; without chartGeometry the reader tops out
+│   │                               at `capability: 'axis-only'`.
 │   ├── lib-report-readiness.mjs    ★ the report-route criteria, and the HARD GATE that runs
 │   │                               BEFORE any classification: landed path == requested
 │   │                               route, header domain == requested target, content region
@@ -179,6 +192,9 @@ backlink/
     ├── authorized-data-sources.md  the panel, the cards, quota, expiry, the traps
     ├── field-notes.md           what actually blocks submissions in practice
     ├── harvest.md               scraping failures that look like success
+    ├── pagination-harvest.md    tables with hundreds of pages: which paging mechanism,
+    │                            what a full crawl really costs, how to sample without bias,
+    │                            and how to notice rows silently going missing
     ├── safety-policy.md         read before any fill / submit / logged-in action
     ├── acquisition-doctrine.md  the standing ruling on what is worth pursuing
     ├── discovery-loop.md · link-quality-rubric.md · analysis-templates.md
@@ -250,6 +266,7 @@ pointers. Rows are grouped; within a group the later row is the more specific.
 | 「这两个工具我们到底买到了哪些功能 / 哪些还没探过」 | references/semrush-feature-map.md · references/similarweb-feature-map.md（✅ 已实测 / ⬜ 未探索 / ❓ 套餐可能不含，逐工具标注） |
 | 「我要查某个具体指标」（自然排名词、付费广告词、外链缺口、关键词聚类、行业榜单、受众画像…） | 先读平台 OVERVIEW 的板块索引 → 板块 OVERVIEW → 目标页的 `PAGE.md`（URL 模板、数据清单、就绪判据、已知坑、验证记录）。规约见 <ref file="../platforms/README.md"/> |
 | 「把这个后台的表格给我导出来」「这个 SaaS 没有 API」 | references/harvest.md（**这一节与外链无关也适用**：广告后台、电商后台、任何无 API 报表） |
+| 「这表有 1,430 页，只采到第 1 页」「怎么翻页 / 全量导出」 | <ref file="references/pagination-harvest.md"/> + `scripts/harvest-paginated.mjs`（判据全在纯函数层 <ref file="scripts/lib-pagination.mjs"/>：分页器解析、采页计划、断点续跑状态机、行数自检，离线可测）。**先判机制（`--probe`）、再试水 2 页、最后才加量**；`--max-pages` 默认 5，**绝不默认全量**——1,430 页按实测节奏是 4–8 小时且全程占着机器级配额锁 |
 | 「打开面板/授权账号在哪」「配额还剩多少」「换个节点」 | references/authorized-data-sources.md → `scripts/tools-share-open.mjs`（唯一的面板启动器）· `scripts/tools-share-node.mjs`（每个 node 是不同的共享账号：配额满了是换 node，不是重试） |
 | 「这个页面我们没测过 / 手册里没有」「先勘测一下这页有没有数据」 | `node scripts/ground-truth.mjs --url <url> --out <evidence-dir>` —— 双证人采集：穿透 shadow DOM 的 census + 成对截图。**它只采集，不下结论**；「有数据/空/功能不存在」由你拿两个证人对质后判，见 <law-ref id="every-measurement-needs-two-witnesses"/>。判完把结论写回对应 `PAGE.md` 的验证记录 |
 | 「一个域名的总体盘面」「AS / 自然流量 / 引荐域名」 | `scripts/semrush-overview.mjs`；.Trends 的总访问量（唯一能和 Similarweb 对比的数字）走 `scripts/semrush-traffic.mjs`（**默认前台**，见 <law-ref id="hidden-tabs-do-not-hydrate"/>） |

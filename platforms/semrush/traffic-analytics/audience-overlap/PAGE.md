@@ -41,7 +41,11 @@ platforms/semrush/traffic-analytics/audience-overlap/collect.sh [domain] [out-di
 内部是一条 `node backlink/scripts/ground-truth.mjs --url … --out … --budget 240`：
 自动持机器级 semrush 锁、会话 `semrush-nav`、轮询→成对截图+census→manifest。
 采完由 AI 对质双证人出结论（脚本不判决），配额纪律见 `../../OVERVIEW.md`。
-翻页采集（9 页全量）尚无脚本。
+翻页批采：`node backlink/scripts/harvest-paginated.mjs --url '<本页 URL>' --out <dir> --max-pages 9`。
+**本页是整棵树里唯一适合全量的（canva 9 页 / 429 个域名；nytimes 15 页）**，
+也是翻页脚本 2026-08-30 的实盘验证目标——**已跑通**：机制判定 client、
+每页 50 行、连点 `Next` 逐页翻动、断点续跑从第 3 页接着采 4/5/6、
+6 页合计 300 行 300 唯一、`rowCountMismatch: false`。四个实盘 bug 的复盘见 [`backlink/references/pagination-harvest.md`](../../../../backlink/references/pagination-harvest.md)。
 
 ## 已知坑
 
@@ -64,4 +68,14 @@ platforms/semrush/traffic-analytics/audience-overlap/collect.sh [domain] [out-di
   裁决：**confirmed-data**。
   证据（本地，gitignore）：`backlink/evidence/ground-truth/recheck-audience-overlap/`，
   判决书 `backlink/evidence/ground-truth/recheck-VERDICTS.md`。
+- **2026-08-30 翻页批采实盘**（nytimes.com，`lid=1234971`，会话 `semrush-nav`，
+  整轮持机器级 semrush 锁）。`harvest-paginated.mjs` 两轮各 `--max-pages 3`：
+  第 1 轮采 1/2/3、第 2 轮**续跑**自动接上 4/5/6，每页 50 行、`strategy=role-row`、
+  `pagerCurrent` 与请求页号逐页一致；合并 300 行 / 300 唯一 / `rowCountMismatch: false`、
+  `hijacked: false`、`finalHref` 里 `q=` 与 `lid=` 对得上。
+  分页器读作 `Prev Next Page: of 15 Page: 1`（nytimes 15 页，canva 9 页）。
+  **跳页（页码输入框）未跑通**——`no page input found`，客户端分页目前只能连点 `Next`。
+  复盘（含四个实盘 bug）见
+  [`backlink/references/pagination-harvest.md`](../../../../backlink/references/pagination-harvest.md) 第六节。
+  证据（本地，gitignore）：`backlink/evidence/pagination/audience-overlap-live/`。
 - 截图档案：`assets/loaded.png`（「受众重叠」标题 + 已访问域名表首行）。

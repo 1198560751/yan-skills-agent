@@ -23,6 +23,7 @@ import {
   deepTextLength,
   deepTextSample,
   planScrollSegments,
+  readChartGeometry,
   readDomCensus,
   scrollThroughSegments,
 } from '../scripts/lib-deep-dom.mjs';
@@ -284,4 +285,57 @@ test('DEEP_DOM_JS 自足可执行，且带上了页面侧要用的每一个函�
   const run = new Function(`${DEEP_DOM_JS}\nreturn readDomCensus(arguments[0]);`);
   const body = shadowPage();
   assert.deepEqual(run({ body }), readDomCensus({ body }));
+});
+
+// ---------------------------------------------------------------------------
+// readChartGeometry() —— chart-only 路由的采集面（2026-08-30 补）。
+//
+// 它存在的理由写在函数注释里：census 的 `svgText` 是**计数**，`deepText` 有轴刻度
+// 但**没有任何一个数据点的值**。Semrush 折线图不渲染数据标签，逐点数值只在像素里。
+// 这里锁三件事：坐标取渲染后的 rect（不是被 viewBox 缩放过的属性）、柱取顶而点取心、
+// 图标级的小 svg 不当图表。
+// ---------------------------------------------------------------------------
+function svgNode(tag, rect, attrs = {}, children = []) {
+  const node = element(tag, attrs, children);
+  node.getBoundingClientRect = () => rect;
+  node.getAttribute = (name) => (name in attrs ? attrs[name] : null);
+  return node;
+}
+
+test('readChartGeometry 取渲染后的 rect，柱取顶、点取心，图标级小 svg 不当图表', () => {
+  const tick = svgNode('text', { left: 0, top: 95, width: 20, height: 10 }, {}, '4000万');
+  const dot = svgNode('circle', { left: 55, top: 145, width: 10, height: 10 });
+  const bar = svgNode('rect', { left: 80, top: 120, width: 8, height: 60 });
+  const chart = svgNode('svg', { left: 0, top: 0, width: 600, height: 300 }, {}, [tick, dot, bar]);
+  const icon = svgNode('svg', { left: 0, top: 0, width: 16, height: 16 }, {}, [
+    svgNode('circle', { left: 0, top: 0, width: 8, height: 8 }),
+  ]);
+  const body = element('body', {}, [chart, icon]);
+
+  const out = readChartGeometry(body);
+  assert.equal(out.charts.length, 1, '16×16 的图标 svg 不该被当成图表');
+  assert.equal(out.svgCount, 2, 'svgCount 报的是遍历到的全部 svg，含被过滤掉的');
+  assert.deepEqual(out.charts[0].texts, [{ text: '4000万', x: 10, y: 100 }]);
+  // 点取圆心 145+5=150；柱取顶 120（不是柱心 150）——柱图的值在柱顶。
+  assert.equal(out.charts[0].marks[0].y, 150);
+  assert.equal(out.charts[0].marks[1].y, 120);
+});
+
+test('readChartGeometry 在没有 getBoundingClientRect 的节点上不抛错', () => {
+  const plain = element('svg', {}, [element('text', {}, '4000万')]);
+  assert.doesNotThrow(() => readChartGeometry(element('body', {}, [plain])));
+  // rect 拿不到 ⇒ 该 svg 尺寸未知 ⇒ 不当图表，而不是当成一张空图表。
+  assert.deepEqual(readChartGeometry(element('body', {}, [plain])).charts, []);
+});
+
+test('readDomCensus 默认不采几何；chartGeometry:true 时字段才出现', () => {
+  const chart = svgNode('svg', { left: 0, top: 0, width: 600, height: 300 }, {}, [
+    svgNode('text', { left: 0, top: 95, width: 20, height: 10 }, {}, '0'),
+  ]);
+  const body = element('body', {}, [chart]);
+  // 「这轮没开几何」和「开了但一张图都没有」必须可分辨：前者字段不存在。
+  assert.equal('chartGeometry' in readDomCensus({ body }), false);
+  const on = readDomCensus({ body }, { chartGeometry: true });
+  assert.equal(Array.isArray(on.chartGeometry), true);
+  assert.equal(on.chartGeometry.length, 1);
 });

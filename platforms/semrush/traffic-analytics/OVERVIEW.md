@@ -37,9 +37,27 @@ URL 基式：`/analytics/traffic/<路由>/?q=<domain>&searchType=domain`（host:
 ## 板块级要点
 
 - **「没有表格」≠「没有数据」**——历史上这条错误推断在 9 条路由里错了 8 条。
-  chart 路由的轴标签、系列名、数值都在穿透后的 `deep.svgText` 里（13–1132 节点）。
+- ⚠️ **本文档曾写「轴标签、系列名、数值都在 `deep.svgText` 里」，那是错的**
+  （2026-08-30 读透 11 份实盘 census 后更正）。`deep.svgText` **是一个计数**
+  （13–1132 个 svg 文本节点），不是文本。census 里唯一带文本的字段是 `deepText`，
+  它有**轴刻度、轴标签、系列名**，**没有任何一个数据点的值**——面板的折线图不渲染
+  数据标签，逐点数值只存在于点的**像素位置**里。所以「只能读出量级区间」不是读得
+  不够仔细，是采集面缺了几何。
 - 就绪判据两分支：`filledCells > 0`（先查）→ `svgText > 0` 三轮稳定（chart 分支），
   manifest 记 `readyBranch`。
+- **chart 读数器（2026-08-30 上线）**：走 chart 分支就绪后，
+  `backlink/scripts/ground-truth.mjs` 会自动多打一次带几何的读数，把提取结果写进
+  manifest 的 `chartRead` 字段（失败不影响主流程）。读的是
+  `backlink/scripts/lib-chart-read.mjs`，**它只提取与换算，不下判断**：
+  - `chartRead.capability`：`points`（读到逐点值）/ `axis-only`（只有轴与标签）/
+    `none`。它说的是**读数器做到了什么**，不是页面有没有数据——后者仍归 AI 对质双证人。
+  - `chartRead.text`：每张图的标题、系列名、y 轴刻度与范围、x 轴标签。
+    **2026-08-29 那批历史证据只有这一路**，逐点值一律标 `uncertain: no-geometry`。
+  - `chartRead.geometry`：逐点值（由轴刻度的像素位置标定「像素→数值」反推）。
+    轴刻度不足或对数轴时点仍在，但 `value: null` + 理由码——**「读不出」和「值是 0」
+    永远可分辨，读数器绝不猜一个数填上**。
+  - 想复读历史证据：`node -e "import('./backlink/scripts/lib-chart-read.mjs')…"`
+    直接喂 `census-s1.json`，纯离线不烧配额。
 - `email` 曾被判唯一真空态（svgText=0，2026-08-29），**2026-08-30 同域（canva.com）
   渲染出真图（svgText=31）——判决降级为「时变/水合相关」**：svgText=0 只能判
   「本轮空」，判不了「该路由恒空」；详见 `email/PAGE.md`。

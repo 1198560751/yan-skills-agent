@@ -47,6 +47,17 @@ platforms/semrush/traffic-analytics/daily-trends/collect.sh [domain] [out-dir]
 ground-truth.mjs 自动走 chart 就绪分支（svgText>0 三轮稳定），无需额外参数。
 采完由 AI 对质双证人出结论：量级从截图读曲线区间、从 deepText 核对轴刻度，两证互验。
 
+
+**图表读数器（2026-08-30）**：走 chart 分支就绪后，ground-truth.mjs 会自动多打一次
+带几何的读数，把提取结果写进 manifest 的 `chartRead`（见
+[`../OVERVIEW.md`](../OVERVIEW.md) 板块级要点，实现在
+`backlink/scripts/lib-chart-read.mjs`）。`chartRead.text` 给每张图的标题、系列名、
+y 轴刻度与范围、x 轴标签；`chartRead.geometry` 给逐点值。**读数器只提取不判断**：
+读不出的点是 `value: null` + 理由码，绝不猜数——「读不出」和「值是 0」必须分得开。
+`chartRead.capability` 说的是读数器做到了什么（`points` / `axis-only` / `none`），
+**不是页面有没有数据**，后者照旧由你对质双证人来判。
+2026-08-29 那批历史证据没有几何面，复读只能到 `axis-only`。
+
 ## 已知坑
 
 | 坑 | 细节 |
