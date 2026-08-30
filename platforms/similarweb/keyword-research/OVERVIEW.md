@@ -41,6 +41,25 @@ host: sim.3ue.co，全 hash 路由。14 条路由已于 2026-08-30 双证人判�
 - **5 条机器盲路由**（home / serp-snapshot / keyword-generator / ranking-distribution，
   加 referrals 板块的 outgoing）：cells=0 且 svgText=0，采集 exit 2。**exit 2 ≠ 空**，
   数据在 deepText 与像素里俱全——判读靠 deepText grep + AI 读图。
-- 关键词列表页 monitorkeywords 只录了入口未采（列表管理页，只读价值低且怕误触「创建列表」）。
-- 生成器的 Amazon/YouTube 词库：UI 下拉里存在，但冷深链 `searchEngine=amazon` 落错误页，
-  合成事件点不开 portal 下拉——**未验证成功 ≠ 不存在**，下轮用真 CDP 点击或 UI 切换后抄 URL。
+- 平台级坑与配额纪律见 `../OVERVIEW.md`。
+
+## 第四轮补齐（2026-08-30，判决书 `<similarweb-round4-capabilities>`）
+
+| 路由 | hash 模板尾段 | 形状 | readyBranch | PAGE.md |
+|---|---|---|---|---|
+| 关键词生成器 · YouTube 词库 | `findkeywords/keyword-generator-tool/999/28d?searchEngine=youtube&keyword=<词>&…&tab=phraseMatch` | 趋势折线 + 2 tab + 5 列榜 | chart（svgText 18，21s） | ✅ `keyword-generator-youtube/PAGE.md` |
+| 关键词列表 | `acquisition/monitorkeywords/home` | **真 table** 4 列（账号级，无上下文参数） | table（60 格 / 44 填充） | ✅ `keyword-lists/PAGE.md` |
+
+**两条旧记录已更正：**
+
+1. ~~「关键词列表页 monitorkeywords 只录了入口未采」~~ → **已只读采过一次**，是真 table
+   的列表管理页，有可读数据（11 个列表），不是空壳；两个写入口都在页面边缘，未触碰。
+   注意 KW home 上记的「关键词列表 16」与本页表头的 `(11)` 是**两处不同计数**，以本页为准。
+2. ~~「生成器的 Amazon/YouTube 词库：UI 下拉里存在……未验证成功 ≠ 不存在」~~ →
+   **真 CDP 点击一次即开下拉，穿透 shadow DOM 枚举出的选项恰好 2 个：`Google` / `YouTube`。**
+   **Amazon 判定为「本账号/本构建不提供」**（DOM 枚举 + 截图双证），不是「未验证」；
+   第三轮之所以打不开下拉，是因为用的不是真 CDP 输入。YouTube 词库已完整采集，
+   且与 Google 词库**不是同一张表换数据源**（多一张趋势图、tab 少 2 个、列结构不同）。
+   → 由此固化的通用判别子：**「冷深链落错误页」有两种成因**——
+   (a) 参数值不在枚举里（功能真没有）；(b) 少了必需的上下文参数（功能在，URL 写错）。
+   **先把 UI 的下拉枚举出来**，枚举里有就是 (b)，没有就是 (a)。

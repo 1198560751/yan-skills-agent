@@ -40,6 +40,10 @@ ground-truth.mjs 的 stall-refresh 分支已内置。**连刷 3 次仍坏才暂�
 | **主滚动条在内层 div** | `.sw-layout-scrollable-element`，window scrollY 恒 0 | ground-truth `--scroll-container auto` 已处理；手动滚要找最大 scrollHeight 容器 |
 | **列主序 DIV 大榜不产 cells** | rankings 主榜、KW 组多条榜单 cells=0 | `filledCells>0` 不是这类页的就绪判据；看 svgText 或 deepText grep |
 | **机器就绪三分支可能全盲** | 搜索框/列表页型 cells=0 且 svgText=0，exit 2 | **exit 2 ≠ 空**，是仪器看不见；判读靠 deepText grep + AI 读图 |
+| **「空态等输入」不是判决** | AI Traffic 曾被记成「功能空」，真因只是 URL 少了 `&key=<域>` | 任何以「空态」结案的旧记录，**先补 `&key=` 重测一次**再说 |
+| **冷深链落错误页有两种成因** | (a) 参数值不在枚举里 = 功能真没有；(b) 少了上下文参数 = 功能在、URL 写错 | **判别子：先把 UI 的下拉枚举出来。** 枚举里有 → (b)；没有 → (a)（生成器的 Amazon 就是 (a)，有 DOM 枚举 + 截图双证） |
+| **合成事件打不开的下拉，真 CDP 能打开** | 第三轮点不开引擎下拉被误当权限问题 | `opencli browser <会话> click <css选择器>`；返回体 `click_method: "cdp"` **且** `hit: "target"` 才算真点到，多匹配必须带 `--nth` |
+| **stall-refresh 会在无需水合的页上空转** | rankings 首页刷了 2 次，因为它本来就没有东西要动 | 这类页 exit 2 之后 grep deepText，不要加预算 |
 | **census href 剥值** | sanitizeUrlString 把 `keyword=`/`key=` 的值剥空（留键名） | 核对上下文用 manifest 的 `url`/targetUrl，别用 census href |
 | **搜索框是 React 受控 input** | 合成 value 无效；单 click 选不中联想项 | native setter + input 事件打字；选项要 pointerdown→mousedown→pointerup→mouseup→click 全序列 |
 | **语义点击不可靠** | 行业树 `click --text` 落到第一个可点项 | 一律优先深链；shadow DOM 内用 deepQueryAll + `.click()` |
@@ -54,9 +58,10 @@ Similarweb 给**总访问量**（含直接/推荐），Semrush 域名概览给**
 
 | 板块 | 目录 | 状态（2026-08-30 建成） |
 |---|---|---|
-| Keyword Research（关键词研究 14 子页） | `keyword-research/` | ✅ 14/14 有 PAGE.md（13 条完整双证人 + home；monitorkeywords 列表管理页未采） |
+| Keyword Research（关键词研究） | `keyword-research/` | ✅ 16/16 有 PAGE.md（round3 的 14 条 + round4 补的 keyword-generator-youtube、keyword-lists）。**更正**：monitorkeywords 已只读采过，是真 table；生成器的 Amazon 词库判定为不提供（枚举+截图双证） |
 | Audience（受众重叠三域对比） | `audience/` | ✅ 1 页（overlap 深链 `key=a,b,c`） |
 | Referrals（引荐进出） | `referrals/` | ✅ 2 页（incoming / outgoing） |
 | Demand Analysis（需求分析·选题雷达） | `demand-analysis/` | ✅ 2 页（home、topic-report），判决 2026-08-29 |
-| Website Rankings（站点排名·万域榜） | `rankings/` | ✅ 1 页（category-board），判决 2026-08-29 |
-| AI Traffic / 其他 | 未建目录 | 只记形状（空态等输入），未深挖 |
+| Website Rankings（站点排名·万域榜） | `rankings/` | ✅ 2 页（category-board 判决 2026-08-29、industry-picker 补齐 2026-08-30） |
+| AI Traffic（AI 流量） | `ai-traffic/` | ✅ 1 页（overview）。**翻案**：此前记的「空态等输入」是错的，真因是 URL 少了 `&key=<域>`；补上后是真 table + 两张图 + 22 个 AI 平台 |
+| 其他模块 | 未建目录 | 未勘测。**未勘测 ≠ 不存在** |

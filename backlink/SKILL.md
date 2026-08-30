@@ -2302,6 +2302,34 @@ budget 退出码 2 不可信 —— exit 2 在这种页上不是"没就绪",是"
 `--ready-text` 也救不了它,regex 会被左栏同名导航词在 spinner 上提前误触发
 (census-stable-shot-unstable 实录)。此页型的正确姿势:foreground 开页 →
 固定等待(实测 90–120s)→ 截图为准,必须人/AI 看图下判,绝不采信机器判定。**
+
+**⚠️ 第二种就绪盲区 —— 卡片/列表页型:`filledCells==0` 且 `svgText==0`,
+但页面满是数据 (2026-08-30, Site Audit 的 `review/issues` 与 `review/https`)。**
+和 DOM 全盲页型不同,这一类 DOM 是**读得到**的,失明的只有就绪判据:
+数据既不在 `&lt;table&gt;` 单元格里,也不在 SVG 文本里,而在一堆 DIV 卡片里,
+于是 table 与 chart 两条分支**都不接**,采集必然烧满预算以 `stopReason=budget`
+收场。四种页型并排看清楚:
+
+| 页型 | filledCells | svgText | 老判据 | 实际 |
+|---|---|---|---|---|
+| 表格 (pagereport) | 608 | 0 | table 分支就绪 ✅ | 有数据 |
+| 图表 (chart-only 系) | 0 | &gt;0 且稳定 | chart 分支就绪 ✅ | 有数据 |
+| **卡片/列表 (issues、https、SWA 文档列表、Topic Research 报表)** | **0** | **0** | **两分支都不接 → 烧满预算判死 ❌** | **有数据** |
+| 混合仪表盘 (crawlability) | 1(侥幸) | 22 | 侥幸走 table ⚠️ | 有数据 |
+
+**判别法(不开浏览器就能做):** 拿最后一份 `census-poll*.json`,看三个数 ——
+(1) `deep.filledCells == 0` 且 `deep.svgText == 0`;(2) 但 `deep.textLength`
+是 159 万量级(外壳全量文本,证明页面确实渲染了,**这个数对判就绪本身零信息量**);
+(3) **决定性的一条:打开 `deepText`,用眼睛 grep 业务词。**
+
+**纪律:`stopReason=budget` 不等于没数据。** 判死之前必须先 grep 一遍最后一份
+census 的 `deepText`;命中业务词 = 页型错配,正确处置是**改用 `--ready-text`
+重采**,而不是记「功能不存在 / 零数据」。实证的代价就在证据里:那次被判死的
+`route-issues/census-poll25.json` 中赫然写着「错误 (1) / 6 个结构化数据项目无效 /
+警告 (2) / 77 个页面单词数量少」—— **判死的那一刻,业务数据已经在证据文件里
+躺了三分钟。** 单证人(而且是被误读的机器判据)独自作出的否定结论,又一次是错的。
+`--ready-text` 的写法另有讲究(中文标签与数字之间常是换行,别写死空格),
+见本文件 `semrush-siteaudit-capabilities` 里的 `ready-text-regex-must-not-hard-code-spaces`。
 </statement>
 <why>
 Every prior instance of this Skill's blindness — the 59-character shell read as
@@ -2895,6 +2923,246 @@ for the target control (census or leaf-text hit) before clicking; (c)
 </footnote>
 </semrush-keyword-research-capabilities>
 
+<semrush-content-audit-capabilities date="2026-08-30">
+<summary>
+**Route capability map for the content-tools group + the site-audit门 pages —
+14 routes, double-witness, 2026-08-30.** Session `semrush-nav`, machine-level
+`semrush` lock held per route, one <ref file="scripts/ground-truth.mjs"/> run
+each. **Zero consuming writes this round**: no SEO project created, no template
+created, nothing published, exported or subscribed; the only two clicks were
+read-only (`/siteaudit/`「显示所有项目」 and `/topic-research/`'s history
+「查看内容创意」). Judge's write-up:
+`backlink/evidence/ground-truth/semrush-content-audit-VERDICTS.md` (local,
+gitignored). Markdown manual: `platforms/semrush/content-tools/` (repo root).
+**Split: 3 read-layer routes · 7 do-layer routes behind a REAL paywall ·
+2 project-gate empty states · 2 dead routes.**
+</summary>
+
+<routes><![CDATA[
+| # | route (sem.3ue.co) | layer | shape | readyBranch / --ready-text | verdict |
+|---|---|---|---|---|---|
+| 1 | /topic-research/ | READ | form + 5-row history list; tables=grids=cells=svgText=0 | none of the 3 branches fires → budget/exit 2; MUST pass --ready-text | alive; entry only, the report id is behind a click |
+| 2 | /topic-research/<24hex>/ | READ | CARD report, 10 subtopic cards; cells=0 svgText=0 canvas=0 | `text` — `--ready-text "Volume:"`, ready in 18.9s | **the only content report with real data this round** |
+| 3 | /swa/ | READ (list) + DO (editor) | card list, 10 documents; cells=0 svgText=0 | `text` — `--ready-text "质量分数为"`, ready in 18.7s | alive; list face is harvestable, the editor behind「分析新文本」is do-layer |
+| 4 | /content/ | DO | English marketing landing page | `table` (10–19s) — **the ready table is a PRICING table** | **REAL paywall**: Content Toolkit, $60/month, this account has not bought it |
+| 5 | /content/topic-finder/ | DO | same | same | same |
+| 6 | /content/briefs/create/ | DO | same | same | same (this one would have been a read-layer spec generator) |
+| 7 | /content/articles/ | DO | same | same | same |
+| 8 | /content/articles/create/ | DO | same | same | same |
+| 9 | /content/articles/optimize/ | DO | same | same | same |
+| 10 | /content/articles/repurpose/ | DO | same | same | same |
+| 11 | /seo-content-template/ | — | — | — | **DEAD ROUTE — 302 → /swa/** (exit 3 hijack unless --accept-redirect /swa/) |
+| 12 | /siteaudit/ | gate | table EMPTY state, 12 column headers, 0 data rows | `table` at 23.3s with **filledCells=1** — that 1 cell IS the empty-state copy | 0 SEO projects on the account → no report reachable (see <semrush-siteaudit-capabilities> for the state after a project exists) |
+| 13 | /on-page-seo-checker/ | gate | onboarding page + promo illustration; all counts 0 | all 3 branches blind → budget/exit 2 | project gate; no project = no data |
+| 14 | /log-file-analyzer/ | — | — | — | **DEAD ROUTE — 302 → /siteaudit/** |
+]]></routes>
+
+<read-vs-do>
+**The whole `/content/*` subtree is do-layer AND paywalled — two independent
+reasons it is unusable, so it is judged dead without deeper interaction.**
+Semrush has rebuilt the content-marketing group into **Content Toolkit and
+split it out of the plan as a separate $60/month subscription**; all seven
+routes render an English sales page ("Try it now for free / 7-day free trial,
+then $60/month"). What GURU still carries are the two *old* standalone tools —
+Topic Research and SEO Writing Assistant — and neither lives under `/content/`.
+This contradicts `references/semrush-feature-map.md` §5 ("Content Marketing
+工具组 = GURU 独占解锁"), which is wrong as of 2026-08-30.
+
+This is **not** the `fake-paywall-is-a-url-encoding-error` shape:
+no blur modal, no「升级到 Business」, clean URL, correct landing, and the `fid=`
+on the landing href is the panel's own folder context. It is simply not bought.
+</read-vs-do>
+
+<lesson id="ready-branch-is-not-a-data-verdict">
+**`readyBranch` only proves the page finished painting. It never proves the
+page has data.** Two proofs from one round: the seven `/content/*` sales pages
+all reach `readyBranch=table` in 10–19 seconds — the table that satisfied the
+branch is the **pricing/feature-comparison table** of a marketing page; and
+`/siteaudit/` reaches `readyBranch=table` with `filledCells=1`, where that
+single filled cell **is the「未找到任何数据」copy itself**. On this page
+`table + filledCells=1` means *confirmed empty*, not "one row of data".
+→ Presence of data is decided by reading census body text **and** the
+screenshot, per <law-ref id="every-measurement-needs-two-witnesses"/>. Never by
+a branch name.
+</lesson>
+
+<lesson id="pixels-can-be-a-promo-illustration">
+**Sharpest double-witness catch of the round.** `/on-page-seo-checker/`'s
+screenshot shows a bold donut chart reading `243 Total Ideas for 24 pages`,
+`Strategy 9 / Backlinks 24 / Technical 39 / Content 142 / Semantic 21 /
+SERP Features 8 / UX 12`, `Over 240%`, `Current 300K → Potential 720K`.
+**None of those strings exist in the DOM** — full-text search of the census for
+`243` / `Total Ideas` / `240` returns false, and `svgText=0`. It is a raster
+sales illustration. A screenshot-only reader copies a promotional mock-up into
+the archive as this account's real report.
+→ **Any number taken from pixels must be findable in the census full text.
+Not findable = illustration, not data.** This is the mirror image of the
+DOM-blind page type: there, pixels were the only witness; here, pixels are the
+lying witness. Neither witness is trusted alone, in either direction.
+</lesson>
+
+<lesson id="nav-entry-is-not-availability">
+The left sidebar lists all six Content Toolkit sub-tools (AI 文章生成器 /
+内容优化工具 / 转换为社交媒体管理或电子邮件 / 主题查找器 / SEO 概要生成器 /
+我的内容) while every one of the seven routes is a $60/month wall. **A sidebar
+entry proves the route exists; availability is decided only by double-witness
+reading of the landed page.** Same family as the dead-route lesson: the panel's
+own navigation is not a capability inventory.
+</lesson>
+
+<lesson id="topic-research-report-id-has-no-deep-link">
+`/topic-research/&lt;24-hex savedSearchId&gt;/` is the report; the entry form is a
+POST-shaped React form and **no `?q=` deep link was proven this round**. The id
+observed (`6a929f3316989629165fb08b`) came only from clicking a row of
+「近期搜索」. `document.title` is identical on entry page and report page, so
+**landing checks read `finalHref`'s path, never the title.** This is the
+biggest open harvesting gap in this section; the next attempt drives the entry
+form with the React controlled-combobox recipe (`el.focus()` +
+`execCommand("insertText")` + `keys Enter`) and records how the id is minted.
+</lesson>
+</semrush-content-audit-capabilities>
+
+<semrush-siteaudit-capabilities date="2026-08-30">
+<summary>
+**Site Audit is the one Semrush module with no stateless entry: every route is
+bound to a project id.** One project was created this round (user's own site,
+campaign `31025602`), consuming 1 of the account's 15 Projects slots — the
+create recipe below is therefore recorded once and **must be reused, not
+repeated**. 6 report routes judged double-witness, 2026-08-30. Judge's
+write-up: `backlink/evidence/ground-truth/semrush-siteaudit-VERDICTS.md`
+(local, gitignored). Markdown manual: `platforms/semrush/site-audit/`.
+Nothing was exported, subscribed, or PDF'd; project settings were not changed
+after creation.
+</summary>
+
+<create-recipe><![CDATA[
+CREATING A PROJECT IS TWO INDEPENDENT DIALOGS, NOT ONE WIZARD.
+
+  段 1  「创建 SEO 项目」 (2 inputs)   ← button 「创建 SEO 项目」 on /siteaudit/
+  段 2  「新检测」 (5-step wizard)     ← auto-pops 1–2s after 段 1 submits
+                                        (also re-openable from the row's 「设置」)
+
+*** THE TRAP ***  After 段 1 submits, 段 1's dialog DOES NOT DISAPPEAR.
+Both dialogs hang in the DOM at once (evidence create/wizard-log.json step
+`13-submitted`: dialogs.length === 2). Any locator written as "the current
+single dialog" hits the STALE one.
+    → ALWAYS TAKE THE LAST ELEMENT OF THE dialogs ARRAY.
+
+段 1 fields
+  domain   input#cpmProjectDomain   placeholder domain.com   (subfolders rejected:
+                                    「输入域名或子域名。不支持子文件夹」)
+  name     input#cpmProjectName     optional, leave blank = auto-generated
+  submit   click the button BY VISIBLE TEXT 「创建 SEO 项目」
+           (the button list contains several text:"" icon buttons; matching by
+            text avoids them for free)
+  Fill values with opencli's controlled set-value (assert action.ok + read the
+  value back). Do NOT simulate per-character typing.
+
+段 2 — 「新检测」, 5 steps, steps 2–5 all marked 可选
+  1 常规      scope / 每次检测的限额 / 抓取源 / 排期 / 完成邮件
+  2 抓取器    user agent, crawl delay, JS rendering
+  3 允许/禁止规则   two textareas
+  4 URL 参数规则    「要忽略的参数」 textarea, max 100
+  5 绕过的限制      3 checkboxes (bypass robots.txt / use my credentials /
+                    Web Bot Auth signing) — default ALL OFF
+  submit  button 「开始检测」
+
+DEFAULTS THAT SILENTLY SHAPE THE REPORT (measured, step 1 + step 2)
+  每次检测的限额  = 100 pages   (account-tier default; it is why the report says
+                                「已抓取页面 88/100」)
+  抓取源          = 网站 (internal links from the homepage)
+  用户代理        = SiteAuditBot (Mobile)  → report header says「移动设备」
+  抓取延迟        = radio value 1「最短」
+  JS 渲染         = checkbox UNCHECKED → report header「JS 渲染：已禁用」
+      ⚠ On an SPA / client-rendered site this default systematically depresses
+        the content metrics (word count, text-HTML ratio). Re-run with JS
+        rendering ON before believing a「单词数量少」warning.
+
+排期下拉 HAS a 「一次」 OPTION — full option set measured (start/log.json
+`41-schedule-options`): 每周，每周一 … 每周，每周日 / 每日 / 一次.
+The selector implementation missed it and kept the default WEEKLY, so the
+project now re-runs itself every week. Pick 「一次」 explicitly for one-shot
+recon.
+  → Second trap: the dropdown's CURRENT-VALUE LABEL CHANGES WITH THE WEEKDAY
+    (「每周一」/「每周五」/「每周六」 all appear across one evidence bundle).
+    Locating the schedule button by a hard-coded weekday string always breaks;
+    locate it as the sibling of the 「排期」 label.
+
+AFTER 「开始检测」
+  the row shows 「正在检测站点…… 1 /100」; 88 pages took ~13 minutes.
+  The project row is a DIV with href=null (hash-mangled CSS-module class), so
+  THE CAMPAIGN ID CANNOT BE READ FROM A LINK — click in and read it off the URL.
+]]></create-recipe>
+
+<routes><![CDATA[
+URL template, uniform:  https://sem.3ue.co/siteaudit/campaign/<CAMPAIGN_ID>/review/<route>
+There is NO domain-query entry — unlike /analytics/*, every Site Audit route
+binds the project id. Parameterise it in any script.
+
+| route | shape | readyBranch | --ready-text | measured scale | landing |
+|---|---|---|---|---|---|
+| review/overview | cards + gauge + small table | table (filledCells=15) | not needed | 15 cells / 4 svgText | unchanged |
+| review/issues | **DIV card list** | **text** | `如何解决` | 5 issue rows, cells=0 svgText=0 | `?restrictions=<base64>` appended by the page itself |
+| review/pagereport | real table | table (filledCells=608) | not needed | 88 rows × 9 of 22 columns | → `/pagereport/pages?sort=prScore_desc&page=1` (needs --accept-redirect) |
+| review/crawlability | cards + chart dashboard | nominally table (filledCells=**1**, pure luck) | `分数：` (use it) | 1 cell / 22 svgText, data lives in DIV cards | unchanged |
+| review/https | **11 check-cards** | **text** | `分数：` | 11 checks, cells=0 svgText=0 | unchanged |
+| statistics / compare-crawls / progress / JS-impact / 站点架构 | NOT SURVEYED | — | — | — | — |
+
+`restrictions` decodes to {"search":"","severity":"all","checks":"nonzero"} —
+it lands on the QUERY, not the pathname, so the landing self-check passes and
+**--accept-redirect is NOT needed** for issues. The only route that needs it is
+pagereport.
+
+pagereport, on "did we lose rows": NO. The earlier run stopped on `max-screens`,
+which truncates SCREENSHOT COVERAGE only — census was always complete: every
+census s1–s6 held all 88 URL rows, matching the page's own「已抓取页面 88/100」
+and the pager「页码 1 / 每页 100 / 共 1 页」. `max-screens` is not a failure and
+also not "reached the bottom": before judging, check whether
+scrollY + innerHeight covers `bodyScrollHeight`.
+]]></routes>
+
+<lesson id="ready-text-regex-must-not-hard-code-spaces">
+**The 200-second lesson.** `review/issues` was first collected with
+`--ready-text "错误 \(\d+\)"` and burned the full 200s budget plus two useless
+refreshes before `stopReason=budget`. The page renders that string as
+**「错误」+ NEWLINE + 「(1)」** — the literal space in the regex can never match.
+Rules that follow:
+- **Never hard-code a space between a Chinese label and its number** in a
+  ready-text regex; the separator is routinely `\n`.
+- Prefer **one stable word**: `如何解决` for issues, `分数：` for https and
+  crawlability.
+- Never pick a word that also appears in the left nav (`网站检测`, `概览`) —
+  the shell satisfies it instantly, which is the same as having no criterion.
+- The text branch requires **two consecutive polls with an unchanged
+  `deepTextLength`**, so one extra poll after the word hits is normal.
+</lesson>
+
+<lesson id="transient-nav-failure-masquerades-as-hijack">
+`hijacked=true` + `finalHref=/` + a tiny `deepTextLength` (88 characters) is
+**not an alias redirect — it is a navigation that never happened**, typically
+right after the previous route burned its whole budget with refreshes and left
+the tab unsettled. Same URL, one retry later, landed cleanly
+(`route-https-v2`, `stopReason=stable`).
+→ **The fix is to retry, NOT to add `--accept-redirect`.** `/` is not a legal
+alias of anything; whitelisting it teaches the collector to archive a blank
+page as data. Reserve `--accept-redirect` for a real alias with a real
+destination path (here: `pagereport` → `/pagereport/pages`).
+</lesson>
+
+<lesson id="siteaudit-census-constants">
+Two census numbers that look informative and are not:
+- **`census.deep.textLength` ≈ 1,599,xxx is a shell constant** on every Site
+  Audit page (differences of a few dozen characters). It carries **zero
+  information about whether the page has data**; its only use is spotting a
+  blank page (the failed navigation above read 88).
+- **`deepText` is truncated at ~20,000 characters** (every census in this
+  bundle is exactly 20,034). The 88-row table survived because business content
+  comes first and the tail that got cut was injected CSS variables — but a
+  bigger table WILL be eaten. Count rows by `filledCells` or by paging, never
+  by grepping `deepText`.
+</lesson>
+</semrush-siteaudit-capabilities>
+
 <similarweb-explore-capabilities date="2026-08-29">
 <summary>
 **Route capability map for Similarweb's "pick the racetrack" chain — Demand
@@ -2915,7 +3183,7 @@ link can load an empty shell — the collector's hash-aware self-check and
 | Demand Analysis topic report | #/digitalsuite/marketresearch/keywordmarketanalysissearch/demand-search-trends?country=999&webSource=Total&duration=12m&id=AiTopic%3B<topic>%3B999 | cards + charts + 4 tables (table-ready in 23s, filledCells=180) | 74M total searches on 1,000 keywords; 12-month curve; countries table paginated /29 ≈ 145 countries | a topic's total demand, growth, keyword mix, geography — the core pick-a-keyword report. Deep-linkable: the id format is AiTopic;<topic>;999 |
 | Website Rankings selector | #/digitalsuite/markets/webmarketanalysis/home | industry tree only, no table | 217 industries (26 top-level + subcategories) | entry into a category board |
 | Website Rankings category board | #/digitalsuite/markets/webmarketanalysis/mapping/<Top_Level~Sub_Category>/<country>/1m?webSource=Total | 3 Top-movers tables + main board as a COLUMN-MAJOR DIV layout (produces no cells — census is blind to it) | 10,000 domains × 13 columns × 100 pages (100 rows/page); 9 channel tabs (all/search/social/display/referral/direct/email/generative AI/affiliates) | the god-view for site picking: category map, climbers/fallers, per-channel slices ("who is eating generative-AI traffic" is just a tab) |
-| AI traffic | #/digitalsuite/ai-traffic/overview/*/999/6m?webSource=Total | empty state awaiting a domain query | — | who gets AI referrals (not yet mined) |
+| AI traffic | #/digitalsuite/ai-traffic/overview/*/999/6m?webSource=Total | **CORRECTED 2026-08-30 — this row's "empty state" was WRONG**: the URL was missing `&key=<domain>`. With the key it is a real table + 2 charts + 22 AI platforms. See <similarweb-round4-capabilities> row 18. | table | who gets AI referrals, per AI platform per landing-page URL |
 ]]></routes>
 
 <rankings-mechanics>
@@ -3047,11 +3315,139 @@ half the verdict can still be automated.
   cold deep link lands on the error page and synthetic events could not open
   the portal dropdown. Next attempt: real CDP click, or switch once in the
   UI and copy the URL.
+  **→ SETTLED 2026-08-30 (round 4): a real CDP click opened the dropdown on
+  the first try, and it enumerates EXACTLY TWO options, Google and YouTube.
+  Amazon is not "unverified" — it does not exist on this account/build
+  (DOM enumeration + screenshot). YouTube is real and fully collected.**
 - Typeahead dropdowns: React controlled inputs need the native value setter
   + input event; option clicks need the full
   pointerdown→mousedown→pointerup→mouseup→click sequence.
 </lesson>
 </similarweb-round3-capabilities>
+
+<similarweb-round4-capabilities date="2026-08-30">
+<summary>
+**Round 4 closes the four gaps round 3 left open: the generator's
+Amazon/YouTube dictionaries, `monitorkeywords`, the rankings industry picker,
+and AI Traffic — which turned out to be a WRONGFUL CONVICTION.** Session
+`similarweb-nav`, machine lock `yan-tools-share-similarweb` held per run, one
+<ref file="scripts/ground-truth.mjs"/> run per route; the manual probing (CDP
+dropdown clicks, industry search box) ran inside a scratchpad script that
+acquired the same two locks first and released on exit. **Read-only
+throughout**: nothing exported, no list created, no workspace created, no
+subscription, account untouched — `monitorkeywords`'「+ 创建新列表」was
+photographed, never clicked. Judge's write-up:
+`backlink/evidence/ground-truth/similarweb-round4-VERDICTS.md` (local,
+gitignored). Markdown manuals: `platforms/similarweb/ai-traffic/`,
+`.../keyword-research/keyword-generator-youtube/`, `.../keyword-lists/`,
+`.../rankings/industry-picker/`. Quota probe before any collection: landed on
+the target route and was still there 12s later, `document.referrer` carried no
+`gmitm.redirect.dash?msg=` — **web quota available**, no lockout this round.
+</summary>
+
+<routes><![CDATA[
+| # | route (hash on sim.3ue.co) | shape | readyBranch | measured scale |
+|---|---|---|---|---|
+| 18 | AI Traffic #/digitalsuite/ai-traffic/overview/*/999/6m?webSource=Total&key=<domain> | total card + stacked split + area chart w/ 22-platform checklist + REAL table of chatbot landing pages | table (cells 105 / filled 100, svgText 16; ready in 2 polls) | openai.com 6m: total 275.2M, AI share 23%, ChatGPT 96.08%; 22 AI platforms; 999 URLs / 20 per page / pager 1 of 50 |
+| 19 | Keyword generator · YouTube …/keyword-generator-tool/999/28d?searchEngine=youtube&keyword=<kw>&webSource=Total&isWWW=*&tab=phraseMatch | 12-month YouTube trend line + 2 tabs + 5-column board (关键字/规模/流量趋势/点击量/热门国家 地区) | chart (svgText 18, 21s) | `ai image editor`: phrase 106 / related 3,465 — two orders of magnitude below the Google dictionary, which is normal |
+| 20 | Keyword lists #/digitalsuite/acquisition/monitorkeywords/home | REAL 4-column table (关键词列表 (11) / 关键词 / 持有人 / 最近修改) + 3 tabs + search box | table (cells 60 / filled 44, stable) | 11 lists, account-level page, NO domain/keyword context params |
+| 21 | Rankings industry picker #/digitalsuite/markets/webmarketanalysis/home | auto-opening search overlay 「行业 (217)」 over an EMPTY report shell (9 channel tabs) | **null, stopReason=budget, exit 2 — and NOT empty** | 217 industries (26 top categories + children) all present in deepText |
+]]></routes>
+
+<ai-traffic-reversal>
+**A verdict is being overturned here, so it is stated explicitly.** Round 3
+recorded AI Traffic as "empty state awaiting a domain query". **That was
+wrong.** The page is not empty and the behaviour is not domain-dependent — the
+URL was simply missing `&amp;key=&lt;domain&gt;`. With the key supplied it is the
+richest route of the round: a real table plus two charts plus 22 AI platforms
+broken out.
+
+Consequences, both of them general:
+1. **"Empty state awaiting input" is never a verdict that may be archived.**
+   It only says the URL did not carry full context. Every old record closed
+   with「空态」must be re-measured once with `&amp;key=` before it is believed.
+2. **"Cold deep link lands on an error/empty page" has two causes, and round 3
+   collapsed them into one**: (a) the parameter VALUE is not in the enum — the
+   feature genuinely does not exist; (b) a required context parameter is
+   MISSING — the feature is there and the URL is wrong. **Discriminator: first
+   enumerate the UI's own dropdown.** In the enum → (b). Not in the enum → (a).
+
+The same discriminator settles the generator's dictionaries. A real CDP click
+on `[class*=GeneratorTypeDropdownContainer] button` opened the engine dropdown
+first try (`click_method: "cdp"`, `hit: "target"`); piercing shadow DOM
+enumerated **exactly two option rows: `Google` and `YouTube`**, and the
+screenshot shows the same two and nothing else. So **Amazon is case (a):
+「本账号/本构建不提供」, backed by DOM enumeration plus a screenshot — not
+"unverified"**, which is what round 3's `round3-misc-traps` had to say. YouTube
+is real, fully collected, and its URL survives a cold deep link unchanged.
+</ai-traffic-reversal>
+
+<rankings-industry-picker><![CDATA[
+The picker page is NOT an industry tree page. It is a search overlay over an
+empty report shell, and its only purpose is to learn a slug you do not know.
+
+  1. if the overlay is not already open, CDP-click [class*=CategoryItemWrapper]
+     (the 「行业无效 / 不适用」 block in the page header)
+  2. type into input.sc-ligLZB — the overlay's only placeholder-less input.
+     The list filters live and the label counts down 行业 (217) → 行业 (1).
+     Result rows are BREADCRUMBS: 计算机电子技术 > 多媒体图像和网站设计
+  3. CDP-click the result row [class*=sc-bACmPo] --nth 0
+     (without --nth the CLI refuses with matches_n: 3)
+
+Landing URL actually observed:
+  #/digitalsuite/markets/webmarketanalysis/mapping/
+    Computers_Electronics_and_Technology~Graphics_Multimedia_and_Web_Design/840/1m?webSource=Total
+
+  slug levels joined by `~`, exactly the shape round 2 guessed.
+  *** THE COUNTRY SEGMENT LANDS AS 840 (US), NOT 999. ***
+  The panel remembered the country last picked in the UI and wrote it into the
+  new URL — one more confirmation that URL TEMPLATES ARE RECORDED FROM THE
+  LANDED HREF, never from what you typed.
+
+Practical rule: never run these three steps to collect. Go straight to the
+mapping deep link with a known slug. Run them once, only when the slug for
+some industry is unknown, and copy the landed href.
+
+Semantic clicking stays useless on this tree (`click --text 行业无效` →
+semantic_not_found). A bare `open` hit a white shell once; one
+`location.reload()` healed it (mirror jitter, not a block).
+]]></rankings-industry-picker>
+
+<lesson id="round4-exit2-is-not-empty-again">
+The rankings picker is the **sixth** instance of `round3-machine-blind-routes`
+and the cleanest: cells=0 and svgText=0 are *correct* (the page has neither a
+table nor a chart), `deep.textLength` = 1,600,394, and deepText holds all 217
+industry names. The two automatic stall-refreshes were the stall branch
+spinning on a page that has nothing left to hydrate — **it will never move,
+because it was already finished.** The right reading of exit 2 on this page
+type is "grep deepText", not "raise the budget".
+</lesson>
+
+<lesson id="round4-cdp-click-is-the-real-click">
+**A dropdown that synthetic events cannot open opens under a real CDP click:**
+`opencli browser &lt;session&gt; click &lt;css-selector&gt;`. Verify the return body —
+only `click_method: "cdp"` **plus** `hit: "target"` counts as landing on the
+element you meant; `click_method: "js"` or `hit: "other"` means it fell onto
+something else, so move the selector inward or outward and retry. Multiple
+matches require `--nth`, or the CLI reports `matches_n: N` and refuses. Round
+3's failure to open this same dropdown was a synthetic-event failure, not a
+permission problem; `--text` semantic targeting remains unreliable on this
+site.
+</lesson>
+
+<lesson id="round4-remaining-unknowns">
+Recorded as unverified, which is not the same as "does not exist":
+- **The YouTube dictionary's second tab** (相关关键词) — its `tab=` value is
+  unknown; this round only ever landed on `tab=phraseMatch`. Switch it once in
+  the UI and copy the URL; do not guess by analogy with the Google dictionary,
+  whose tab set (4 tabs) is different anyway.
+- **AI Traffic was measured on exactly one domain** (openai.com). The mechanism
+  (missing `key=` produces the empty state) is URL-level and domain-independent,
+  but "every domain has AI-traffic data" has no second data point behind it.
+- `monitorkeywords` reports **11 lists**, while round 3 read「关键词列表 16」off
+  the KW home page. Different counters; the page's own header `(11)` wins.
+</lesson>
+</similarweb-round4-capabilities>
 
 <other-drivers>
 <driver name="agent-browser" verdict="no logged-in identity, ever">

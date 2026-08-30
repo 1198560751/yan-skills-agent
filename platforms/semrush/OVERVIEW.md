@@ -45,6 +45,13 @@
 | **图例归一化到根域** | 韦恩图把 express.adobe.com 显示成 adobe.com | 域名以表格列头为准，绝不读图例 |
 | **无障碍副本** | 表头 innerText 每个词重复两遍（「页数 页数」） | 解析表头先去重 |
 | **Traffic Analytics 全树 `q=` 被 `lid` 覆盖** | 面板自动附加 `lid=<未命名列表>` 后，`/analytics/traffic/*` 各子路由渲染的都是列表域的数据，href 里的 `q=` 是摆设（`?q=nytimes.com` 落点仍渲染 canva.com，2026-08-30 实锤） | **已解决（2026-08-30）**：为目标域新建一个列表，之后所有子路由带 `lid=<新lid>` 直达（历史列表照旧不动）。配方与坑见 `traffic-analytics/OVERVIEW.md`「换域配方」；判决书 `semrush-lid-switch-VERDICTS.md` |
+| **`readyBranch` 不是数据判决** | `/content/*` 七条营销落地页都 `readyBranch=table`——就绪的是**定价对比表**；无项目时的 `/siteaudit/` `filledCells=1`，那 1 格是**空态提示本身** | 就绪只保证「页面画完了」；有无数据必须再看 census 正文 + 截图 |
+| **卡片/列表页型双零盲区** | `filledCells=0` 且 `svgText=0` 但满页数据（Site Audit 的 issues/https、SWA 文档列表、Topic Research 报表） | **必须 `--ready-text`**；`stopReason=budget` 不等于没数据，判死前先 grep 最后一份 census 的 `deepText` |
+| **`--ready-text` 别写死空格** | 中文标签与数字之间常常是**换行**（`错误\n(1)`），`错误 \(\d+\)` 永不匹配，实测烧满 200 秒 | 首选单个稳定的正文词；别用左栏导航里也有的词 |
+| **导航瞬时失败伪装成 hijack** | `hijacked=true` + `finalHref=/` + `deepTextLength` 只有 88 = 白屏 | **重试，不是加 `--accept-redirect`**；放行 `/` 等于把空白页当数据采 |
+| **像素里的数字可能是促销插画** | `/on-page-seo-checker/` 截图有 `243 Total Ideas`、`Over 240%`，DOM 里 0 命中、`svgText=0` | 任何来自截图的数字都必须能在 census 全文里检索到；检索不到 = 插画，不是数据 |
+| **导航有条目 ≠ 功能可用** | 左栏完整列出 Content Toolkit 六个子工具，七条路由全是付费墙 | 侧栏只证明路由存在；可用性由落点页面的双证人判 |
+| **`fid=` 会被自动附加** | `/content/*` 落点全带 `fid=…&name=…` | 与 `lid=` 同类，是面板的文件夹上下文，无需手传但落点核对时要预期它 |
 | **桶类筛选器 URL 参数不可信** | Keyword Gap 的 `rankType=` 直达可用，Backlink Gap 同名参数被静默忽略（恒渲染默认桶），且每次加载仅首次桶点击可靠 | 每个工具的桶/tab 直达参数**逐工具实证**，不做同构迁移；多桶采集用「一桶一开页」（详见 `backlink-analytics/backlink-gap/PAGE.md`） |
 
 ## 板块索引
@@ -57,4 +64,5 @@
 | Market Overview + Bulk Analysis | `market-overview/` | ✅ 2 页（overview `?lid=` 直达、bulk-analysis 100 域/次）；3 条死路由留档 |
 | Backlink Analytics + 竞对监控 | `backlink-analytics/` | ✅ 7 页（overview、backlinks、refdomains、anchors、indexed-pages、backlink-gap 六桶已勘、competitor-monitoring 像素-only） |
 | Keyword Research（关键词研究） | `keyword-research/` | ✅ 3/3 页（keyword-overview、keyword-magic、keyword-strategy-builder 只读）；`/keyword-manager/` 旧路由证伪 |
-| 内容 / 站点审计 | 未建目录 | 未勘测；全景见 `backlink/references/semrush-feature-map.md` |
+| 内容工具组（Content） | `content-tools/` | ✅ 14 条路由全判决（2026-08-30）：**读层 3 页有 PAGE.md**（topic-research、topic-research-report、swa）；**做层 7 条是真付费墙**（Content Toolkit $60/月单独订阅，本账号未买，不建目录）；死路由 2 条留档 |
+| Site Audit（网站检测） | `site-audit/` | ✅ 5/5 报告页有 PAGE.md（overview、issues、pagereport、crawlability、https）+ 两段式建项目配方；路由绑 campaign id，无无状态入口；已建项目 `31025602`（占 15 个 Projects 名额之一，**复用不新建**） |
