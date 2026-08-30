@@ -1,0 +1,68 @@
+# Traffic Analytics · Display Ads（展示广告）
+
+## 页面身份
+
+- URL 模板：`https://sem.3ue.co/analytics/traffic/display-ads/?q=<domain>&searchType=domain`
+  - `q`：目标域名；`searchType`：固定 `domain`
+  - 面板可能自动附加 `lid=` 与 `__gmitm=`（剥敏，只留键名）——都不需要手动传
+- `document.title`：`Dashboards`（不反映页面内容，别拿它当落点判据）
+- 页面标题/左侧导航「展示广告」高亮；维度：全球 / 月份 / 所有设备
+
+## 回答什么业务问题
+
+竞品展示广告（Display）渠道带来多少月流量、趋势涨跌、桌面/移动怎么分。
+判断「竞品投不投展示位、量级多大」从这页进。
+
+## 数据清单
+
+**本页没有任何表格（grids=0、cells=0），数据在图表里**（canva.com，2026-07 实测）：
+
+1. **流量趋势**折线图：y 轴顶 **20万**，数据点 **4.5万–17万**（7 月峰值约 17万，波动大）。
+2. **桌面设备趋势**（**3万轴**）/ **移动设备趋势**（**20万轴**）两张分图——
+   注意本页**移动轴远大于桌面轴**（展示广告流量以移动为主），与多数邻居路由相反。
+3. 轴刻度、系列名都在穿透后的 `deep.svgText` 里（**35 个 SVG 文本节点**，light=deep）。
+
+**没有表格 ≠ 没有数据**：历史判决曾把本页记成「无数据」，2026-08-29 双证人重测推翻。
+
+## 形状与就绪
+
+- 形状：**chart-only**。filledCells 恒 0 是本页常态。
+- 就绪判据：**svgText > 0 且三轮稳定**（chart 分支）；空态分界是 svgText=0（见 `email/`）。
+- 2026-08-29 证据采集时 collector 还只有 table 判据，故该轮退出码 2（budget，
+  29 轮 poll、刷新 2 次无效也无害）；chart 分支上线后重跑应 stable 提前退出。
+
+## 怎么采
+
+```sh
+platforms/semrush/traffic-analytics/display-ads/collect.sh [domain] [out-dir]
+# 默认 domain=canva.com；证据落 backlink/evidence/ground-truth/ 下带时间戳目录
+```
+
+内部是一条 `node backlink/scripts/ground-truth.mjs --url … --out … --budget 240`：
+ground-truth.mjs 自动走 chart 就绪分支（svgText>0 三轮稳定），无需额外参数。
+采完由 AI 对质双证人出结论：量级从截图读曲线区间、从 deepText 核对轴刻度，两证互验。
+
+## 已知坑
+
+| 坑 | 细节 |
+|---|---|
+| **没有表格≠没有数据** | 历史 no-table-structural（29/4）的「无数据」引申是错的——数据存在，形状是图 |
+| 桌面/移动轴倒挂 | 桌面 3万轴 vs 移动 20万轴——本页移动占大头；拿「桌面为主」的先验读图会读反 |
+| 波动幅度大 | 4.5万–17万 差近 4 倍是数据本身（投放节奏），别把低谷月当渲染缺数 |
+| filledCells 判据永不触发 | 等 filledCells>0 会烧满预算退出码 2；认 svgText |
+| 曲线精确值不在文本里 | svgText 只有轴刻度/系列名；能落的结论是区间量级（4.5万–17万） |
+| 壳会骗文本判据 | 深层壳文本 ~1.6M 字符先于图表到位；deepTextLength 阈值判据会误判 |
+| 共享标签页会被抢 | 会话 `semrush-nav` 共享标签页；判决前核对每轮 href |
+
+## 验证记录
+
+- **2026-08-29**（UTC 07:40–07:44）双证人重测，canva.com，会话 `semrush-nav`。
+  退出码 2（budget，当时无 chart 分支——预期路径），29 轮 poll，refreshCount=2。
+  filledCells=0；deep.tables 0 / deep.grids 0 / **svgText 35**。
+  截图落点正确（「展示广告」高亮、canva.com），y 轴顶 20万，数据点 4.5万–17万；
+  桌面 3万轴 / 移动 20万轴分图。抽查 5万/10万/15万/20万/2万/3万/展示广告
+  **全部命中 deepText**。
+  裁决：**chart-only**（展示广告月流量 4.5万–17万 量级）；历史「无数据」判决被推翻。
+  证据（本地，gitignore）：`backlink/evidence/ground-truth/remeasure-display-ads/`，
+  判决书 `backlink/evidence/ground-truth/remeasure-VERDICTS.md`。
+- 截图档案：`assets/loaded.png`（趋势折线图 + 桌面/移动分图）。
