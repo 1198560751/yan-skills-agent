@@ -2599,6 +2599,116 @@ link can load an empty shell — the collector's hash-aware self-check and
 </rankings-mechanics>
 </similarweb-explore-capabilities>
 
+<similarweb-round3-capabilities date="2026-08-30">
+<summary>
+**Route capability map, round 3 — the whole Keyword Research group (14
+sub-pages), Audience Overlap (3-domain), and Referrals incoming/outgoing.
+17 routes, double-witness, 2026-08-30.** Session `similarweb-nav`, the
+machine-level `yan-tools-share-similarweb` lock held for the entire round,
+one <ref file="scripts/ground-truth.mjs"/> run per route. Judge's write-up:
+`backlink/evidence/ground-truth/similarweb-round3-VERDICTS.md` (local,
+gitignored). Markdown manual for every judged route lives in
+`platforms/similarweb/` (repo root) — read that first when you actually
+need to collect. Quota note: the previous night's web-quota lockout
+(explore2: &lt;3s bounce back to dash, reason only in `document.referrer`
+as `gmitm.redirect.dash?msg=…`) had fully reset by this round; web quota
+and the panel card's "API quota" are two separate pools.
+</summary>
+
+<routes><![CDATA[
+| # | route (hash on sim.3ue.co) | shape | readyBranch | measured scale |
+|---|---|---|---|---|
+| 1 | KW home #/organicsearch/websiteanalysis/home | search box + recents + keyword-list cards (no table/svg) | null (machine-blind, exit 2) | 13 sub-page nav; 5 recent domains; 16 keyword lists |
+| 2 | Keyword overview #/digitalsuite/acquisition/keyword/organic/search/999/<YYYY.MM-YYYY.MM>/overview_2?keyword=<kw> | metric cards + SERP-composition ring + trend + top sites/URLs/related | chart (svgText 48, 21s) | image editor: volume 312.6K, clicks 262.2K, zero-click 31%, KD 95, CPC $0.01–6.52 |
+| 3 | SERP players …999/28d/keywordAnalysis_2?keyword=<kw> | stacked area + 170-domain DIV board (cells=0) | chart | domains (170); canva 44K / 29.20% / ↓11.65%; has "keyword gap" entry |
+| 4 | Keyword pages …999/<months>/trafficAnalysis_2?keyword=<kw> | total/organic/paid tabs + stacked trend + URL board | chart | canva.com/photo-editor weekly avg 11.5K; long tail to <50 |
+| 5 | Search ads (keyword) …999/<months>/ads?keyword=<kw> | REAL table: ad copy + clicks + change + domain + landing page | table (filled 120) | ads (849); canva 220 / 2.86% / +266% |
+| 6 | SERP snapshot …840/<months>/serpsnapshot?keyword=<kw> | SERP-feature cards + 29-position DOM list (no table/svg) | null (exit 2 = blind, data present) | 29 results + movement (canva #1 ↑1); features Video/Related |
+| 7 | Keyword generator #/digitalsuite/acquisition/findkeywords/keyword-generator-tool/999/28d?searchEngine=google&tab=phraseMatch&keyword=<kw> | 4 tabs (phrase/related/trending/questions) + 100-row/page DIV board | null (exit 2 = blind) | phrase 3,722 / related 280,240 / questions 139; total traffic 2.236M; ai image editor 293.1K |
+| 8 | SEO overview #/organicsearch/pageAnalysis/seo-overview/<domain>/999/3m?webSource=Total&vennDiagramSourceType=Total&key=<domain> | summary cards + intent split + ranking opportunities + keyword-gap venn (auto-adds competitors) + top words/pages | table (filled 40) | keywords 2.8M, pages 109K; opportunities 16.7K / losing 1.4M / winning 269.5K |
+| 9 | Site keywords #/organicsearch/pageAnalysis/website-keyword-v2/<domain>/999/3m?webSource=Total&selectedPageTab=Total&key=<domain> | REAL 13-column table (KD/intent/CPC/zero-click/position/SERP features) + opportunity cards | table (filled 1,597) | keywords (2,827,877); canva 236M / 61.83% / KD80; long-tail opportunities 406,744 |
+| 10 | Keyword clusters #/digitalsuite/acquisition/websiteanalysis/topics/<domain>/999/<months>?webSource=Total&selectedPageTab=Total&key=<domain> | REAL table, cluster board | table (filled 120) | clusters (1,813); Canva 240 words 7.3M clicks |
+| 11 | Landing pages #/organicsearch/pageAnalysis/landing-pages-v2/<domain>/999/<months>?webSource=Total&selectedPageTab=Organic&key=<domain> | URL board (DIV) + trend | chart (svgText 300) | URLs (80,276); canva.com homepage 167.2M / 44.13% |
+| 12 | Search competitors #/digitalsuite/acquisition/websiteanalysis/website-competitors/<domain>/999/3m?webSource=Total&selectedPageTab=Organic&key=<domain> | scatter (overlap score × organic visits) + 1,500-domain board | chart | domains (1,500); adobe/picsart/iloveimg/pixlr… |
+| 13 | Ranking distribution #/organicsearch/pageAnalysis/ranking-distribution-v2/<domain>/840/<months>?webSource=Total&key=<domain> | position-summary bars + 142,895-word DIV board | null (exit 2 = blind) | 1-3: 37.5K / 4-10: 49.6K / 11-20: 29K / >20: 26.8K |
+| 14 | Website search ads #/organicsearch/pageAnalysis/website_ads/false/999/<months>?webSource=Desktop&selectedPageTab=Text&key=<domain> | REAL table, ad-copy board | table (filled 180) | ads (49,953); QR ad 7K clicks / $1.26 |
+| 15 | Audience overlap #/digitalsuite/websiteanalysis/website-audience/*/999/6m?webSource=Total&key=<d1>,<d2>,<d3>&selectedTab=overlap | 3-circle venn + shared-audience matrix + trend + exclusivity bars | chart (svgText 33) | canva 214.7M / figma 15.39M / adobe 183.6M; total unique 371.3M; canva∩adobe 16.6% = 35.61M |
+| 16 | Referrals incoming #/digitalsuite/websiteanalysis/referrals/*/999/1m?webSource=Total&selectedTab=incomingTraffic&key=<domain> | metric cards + industry/topic split + 2,329-domain 100-row/page board | chart (svgText 15) | referral visits 227.9M; linking sites 2,329; bit.ly 8.77% |
+| 17 | Referrals outgoing (same, selectedTab=outgoingTraffic) | same structure | null (exit 2 = blind) | outgoing visits 59.7M; destination domains 866; google.com / chatgpt.com / youtube.com on top |
+]]></routes>
+
+<url-template-laws>
+Three template rules worth the whole round:
+1. **Keyword context travels in `?keyword=&lt;url-encoded term&gt;`** — the path
+   segment `/keyword/organic/search/` is a fixed literal. Rewriting the path
+   segment with the term gets a SILENT redirect to
+   `ai-brand-visibility/home`; the collector's hash-prefix self-check judges
+   it hijacked (exit 3) — a real hijack was recorded this round proving the
+   defense fires.
+2. **Site-context cold deep links MUST carry `&amp;key=&lt;domain&gt;`.** Putting the
+   domain only in the path segment lands on the "enter a query to see this
+   report" empty state (path segment ignored on cold load). After landing,
+   the panel expands key into `pageFilter=[{"url":…}]`.
+3. **Audience-overlap `key=` accepts comma-separated multi-domain**
+   (`key=a,b,c&selectedTab=overlap`, lowercase tab name) — one deep link is
+   a full 3-site comparison, no UI adding. Comparison tools' "must feed the
+   full input set" rule is satisfied in the URL itself.
+</url-template-laws>
+
+<lesson id="mirror-jitter-vs-empty-vs-paywall">
+**Three failure shapes on sim.3ue.co that must never be confused** (mirror
+jitter confirmed by the user 2026-08-30, same error page refreshed into full
+data on the Semrush side too):
+- **Mirror jitter / cold SPA shell**: blank page, a few-dozen-byte empty
+  response, or the "出错了…请稍后重试" error component. The top document can
+  sit at ~258 nodes / body 0 chars with five 0×0 hook iframes for 60s+.
+  `location.reload()` heals it in one shot — the collector's stall-refresh
+  branch saved two routes this round. Only after **3 consecutive reloads
+  still broken** do you note it for re-measure. Unrelated to quota.
+- **True empty state**: svgText=0 AND no data anywhere in deepText, with no
+  "no data" copy to grep for (marker-based detection fails; see the Semrush
+  email lesson).
+- **Fake paywall**: an upgrade modal — on this stack usually your own URL's
+  fault, not the plan's.
+Also: `body.innerText` is NEVER a hydration criterion here — a hydrated page
+can show 1,072 light-DOM chars while deepText holds 1.6M inside 3 shadow
+roots. Judge hydration by deep-penetrating counts only.
+</lesson>
+
+<lesson id="round3-machine-blind-routes">
+**5 of 17 routes are machine-blind to all three readiness branches**
+(#1 KW home, #6 SERP snapshot, #7 keyword generator, #13 ranking
+distribution, #17 outgoing referrals): search-box or DOM-list page types
+where cells=0 and svgText=0, so the collector exits 2 on budget. **On these
+page types exit 2 does not mean "empty" — it means "the instrument cannot
+see".** The data is fully present in deepText and pixels; grep deepText for
+the numbers and have the AI read the shots. Same family as the Semrush
+competitor-monitoring lesson, but lighter: deepText is greppable here, so
+half the verdict can still be automated.
+</lesson>
+
+<lesson id="round3-misc-traps">
+- **The panel silently rewrites URL segments**: country 999→840 (clusters /
+  ranking distribution auto-jump to US), duration 1m→6m (incoming
+  referrals). Hijack detection compares only the first 3 hash segments so no
+  false alarms, but **record URL templates from the landed href**, not from
+  what you typed.
+- **`sanitizeUrlString` strips `keyword=` / `key=` VALUES from census
+  hrefs** (the `key` sensitive-param rule keeps the key name, drops the
+  value). Verdicts are unaffected (the path identifies the route), but when
+  auditing keyword context read the manifest's `targetUrl`/`url`, not census
+  hrefs.
+- **Generator's Amazon/YouTube dictionaries: "not verified" ≠ "does not
+  exist".** The dropdown exists in the UI, but `searchEngine=amazon` as a
+  cold deep link lands on the error page and synthetic events could not open
+  the portal dropdown. Next attempt: real CDP click, or switch once in the
+  UI and copy the URL.
+- Typeahead dropdowns: React controlled inputs need the native value setter
+  + input event; option clicks need the full
+  pointerdown→mousedown→pointerup→mouseup→click sequence.
+</lesson>
+</similarweb-round3-capabilities>
+
 <other-drivers>
 <driver name="agent-browser" verdict="no logged-in identity, ever">
 It attaches over CDP, and CDP cannot reach the owner's Chrome: Chrome 136+
