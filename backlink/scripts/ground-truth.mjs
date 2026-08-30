@@ -380,7 +380,7 @@ export function buildManifest({
   url, session, startedAt, finishedAt, readyAfterMs, polls, steps,
   stopReason, budgetSeconds, maxScreens, error = null, refreshes = [],
   readyBranch = null, suspectedEmptyState = false,
-  lockHeld = false, lockWaitMs = null, hijacked = false, hijackedHref = null,
+  lockHeld = false, lockWaitMs = null, hijacked = false, hijackedHref = null, finalHref = null,
   acceptRedirects = [], readyTextPattern = null,
   scrollMode = 'auto', scrollSelector = null, scrolls = [],
   eagerReload = true,
@@ -402,6 +402,12 @@ export function buildManifest({
     // 采集立即终止、退出码 3——不在别人的页面上继续轮询。
     hijacked,
     hijackedHref,
+    // 最后一轮 census 读到的 href（已剥敏，含 search/hash）。**落点自检看不见的那一半**：
+    // 2026-08-30 实盘抓到——`?q=canva.com` 的 URL 因面板自动追加 `lid=`，
+    // 渲染的其实是列表里那个域（截图上是 nytimes）。path/hash 全程没变，
+    // 所以 hijack 判据无从察觉，AI 得自己看 `q=` 与 `lid=` 对不对得上。
+    // 这里只是把它摆到 manifest 表面，不做判断——判断照旧归 AI。
+    finalHref,
     // `--accept-redirect` 声明的合法重定向别名（如 302 的落点），命中不算 hijack。
     acceptRedirects,
     // 就绪走的是哪条分支："table"（filledCells>0）| "chart"（svgText>0 稳定）
@@ -568,9 +574,12 @@ async function main() {
   let errorRecord = null;
   let hijacked = false;
   let hijackedHref = null;
+  // 每轮都覆写，收尾时进 manifest.finalHref——面板悄悄追加的 `lid=` 之类只在这里看得见。
+  let finalHref = null;
 
   /** 逐轮落点自检：href 离开目标路由（path 或 hash 前 3 段，别名豁免）→ 立即终止。 */
   function assertOnTarget(capture) {
+    finalHref = capture.href; // readCensus 已剥敏；无论是否命中 hijack 都记
     if (!isHijacked(target, capture.href, acceptRedirects)) return;
     hijacked = true;
     hijackedHref = capture.href; // readCensus 已剥敏
@@ -745,7 +754,7 @@ async function main() {
       readyAfterMs, polls, steps, stopReason,
       budgetSeconds: budgetMs / 1000, maxScreens,
       error: errorRecord, refreshes, readyBranch, suspectedEmptyState,
-      lockHeld: Boolean(locks), lockWaitMs, hijacked, hijackedHref,
+      lockHeld: Boolean(locks), lockWaitMs, hijacked, hijackedHref, finalHref,
       acceptRedirects, readyTextPattern: readyText ? readyText.source : null,
       scrollMode: scroll.mode, scrollSelector: scroll.selector, scrolls,
       eagerReload,

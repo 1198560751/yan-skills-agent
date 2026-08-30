@@ -227,6 +227,17 @@ test('manifest：refreshes / refreshCount 进 manifest —— 「刷了 2 次没
   assert.equal(noEager.refreshCount, 0, '首刷/关闭首刷都不动 refreshCount');
 });
 
+// 2026-08-30 实盘发现：`?q=canva.com` 被面板追加的 `lid=` 悄悄改写成了别的域，
+// path/hash 全程没变，落点自检看不见。manifest 必须把最后的 href 摆到表面，
+// 否则 AI 要发现域名漂移只能自己翻 census。**只摆事实，不判断。**
+test('manifest 记录最终 href，未就绪时也记', () => {
+  const base = { url: 'https://sem.3ue.co/analytics/traffic/top-pages/?q=canva.com', session: 'semrush-nav', startedAt: 'a', finishedAt: 'b', readyAfterMs: 1, polls: [], steps: [], stopReason: 'stable', budgetSeconds: 180, maxScreens: 12 };
+  const drifted = buildManifest({ ...base, finalHref: '/analytics/traffic/top-pages/?q=canva.com&lid=1234971' });
+  assert.equal(drifted.finalHref, '/analytics/traffic/top-pages/?q=canva.com&lid=1234971');
+  // 没读到任何 census 时是 null，而不是缺字段——「没记到」要能和「记到了空」分开。
+  assert.equal(buildManifest(base).finalHref, null);
+});
+
 // ---------------------------------------------------------------------------
 // 空态标记（采集侧停轮询用，不构成结论）
 // ---------------------------------------------------------------------------

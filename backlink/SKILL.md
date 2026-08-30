@@ -2832,6 +2832,17 @@ hydrates in ~10s); the list name typed in the editor does not persist (lists
 stay "未命名列表", identity is the lid); each list caps at 100 domains
 (X/100 counter), and no list-count quota or asset cost surfaced anywhere in
 the flow.
+
+**AFTERMATH 2026-08-30 — the new list became the panel default, and that is
+a live trap for every later run.** A screenshot-chain validation run aimed at
+`?q=canva.com` (no lid written) came back showing nytimes.com: the panel had
+silently appended `lid=1234971`. Creating a list does not merely add an
+option — it moves the default. So: **write `lid=` explicitly on every
+Traffic Analytics collection, never omit it**, and check the landing URL, not
+the URL you sent. The route self-check compares path/hash only, so a swapped
+subject domain passes it silently; `manifest.finalHref` (added the same day)
+is where `q=` and `lid=` can be seen disagreeing — the AI reads that pair,
+the script still judges nothing.
 </lesson>
 
 <lesson id="ads-history-standin-verdict">
