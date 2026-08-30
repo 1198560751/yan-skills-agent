@@ -580,23 +580,46 @@ Re-staging from a replay record exposed two more traps worth naming:
   screenful of options finds nothing and reports "no match" on a page where the
   match exists.
 
-## There is a hard cap on concurrent staged tabs, and exceeding it evicts silently
+## Staged tabs: two separate failures, and the one that matters is visibility
 
-Measured on one machine, reproduced repeatedly: **about 6 concurrent isolated
-sessions is the ceiling for non-quota sites.** Opening a 7th does not error —
-the least-recently-touched session is **evicted without a word**, and the tab it
-was holding is gone.
+**Failure 1 — a concurrent cap, and exceeding it evicts silently.** Measured
+repeatedly on one machine: roughly **6 concurrent sessions**. Opening one more
+does not error; the least-recently-touched session is dropped **without a word**
+and its tab is gone. Confirmed by the cleanest possible control: with an
+unrelated probe session occupying one slot, a batch of four staged forms came
+back three — closing the probe and re-staging the missing one worked
+immediately. **Your real budget is the cap minus whatever other tasks already
+hold**, so count the live sessions before staging, not after.
 
-This is lethal specifically for staged CAPTCHA work, because the whole value of
-a staged form is that it is still there when the human arrives. A batch that
-stages 8 forms hands the human 6, and the two that vanished were verified filled
-with complete evidence right up until they weren't.
+**Failure 2 — and this is the one that actually wasted the person's time:
+`--window isolated` opens a window the person never looks at.** A batch was
+staged four times over, verified alive each time, and reported to the owner;
+they answered "I only see a blank browser, I don't see anything" every time.
+The tabs were real and the forms were filled — they were just in a window that
+was not the one on screen, and when that window got closed every session inside
+it died at once.
 
-So: **cap a staging batch at 6, and re-verify the session list right before
-telling anyone which tabs are waiting.** `opencli browser <any> sessions` costs
-nothing and is the only thing that distinguishes "staged" from "was staged".
-Combined with the replay-record rule above: the record survives eviction, the
-session does not, so the record is what you promise on.
+The all-at-once disappearance is worth naming, because it invites a wrong
+diagnosis: it looks exactly like someone running a blanket cleanup, and it was
+briefly recorded here as such. **A whole-window close and a blanket cleanup are
+indistinguishable from the session list alone.** Tell them apart by whether an
+unrelated task's sessions also vanished *and* the daemon is still healthy —
+`opencli doctor` came back fully green through all of it.
+
+**So: work a person is expected to finish goes in `--window foreground`.**
+It steals the active tab, which the background-by-default law exists to prevent
+— and that is the correct trade here, because a tab nobody can find is worth
+exactly nothing. Reserve `isolated` for automation whose output is a file, not
+a hand-off.
+
+Two more things that survived the whole episode:
+
+- **Verify by reading the page back, not by trusting the fill command.** Count
+  the non-empty inputs in the tab (`filled: 10, of: 13`) — the remainder is the
+  CAPTCHA and the submit button, which is exactly the shape a correct hand-off
+  should have. A `fill` that returns 0 is not proof anything landed.
+- **Re-verify the session list immediately before naming the tabs to the
+  person.** Between staging and reporting is where they vanish.
 
 ## A fixed session name is a single point of failure across concurrent tasks
 
