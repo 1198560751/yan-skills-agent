@@ -44,14 +44,17 @@
 | **水合看心情** | 同 URL 首开常停在 1.6M 壳（innerText 59–344） | 连续 3 轮 census 不变且 filledCells=0 就 `location.reload()`（ground-truth.mjs 的 stall-refresh 已内置） |
 | **图例归一化到根域** | 韦恩图把 express.adobe.com 显示成 adobe.com | 域名以表格列头为准，绝不读图例 |
 | **无障碍副本** | 表头 innerText 每个词重复两遍（「页数 页数」） | 解析表头先去重 |
+| **Traffic Analytics 全树 `q=` 被 `lid` 覆盖** | 面板自动附加 `lid=<未命名列表>` 后，`/analytics/traffic/*` 各子路由渲染的都是列表域的数据，href 里的 `q=` 是摆设（`?q=nytimes.com` 落点仍渲染 canva.com，2026-08-30 实锤） | 换域必须先换共享列表的域名 chip 或建新列表；现存列表被历史证据引用、只读纪律下不动——换域采集是待裁决事项，详见 `traffic-analytics/OVERVIEW.md` |
+| **桶类筛选器 URL 参数不可信** | Keyword Gap 的 `rankType=` 直达可用，Backlink Gap 同名参数被静默忽略（恒渲染默认桶），且每次加载仅首次桶点击可靠 | 每个工具的桶/tab 直达参数**逐工具实证**，不做同构迁移；多桶采集用「一桶一开页」（详见 `backlink-analytics/backlink-gap/PAGE.md`） |
 
 ## 板块索引
 
-| 板块 | 目录 | 状态（2026-08-30 批量建成） |
+| 板块 | 目录 | 状态（2026-08-30 round4 补齐） |
 |---|---|---|
-| Traffic Analytics（.Trends 流量与市场） | `traffic-analytics/` | ✅ 19/19 页全有 PAGE.md（9 表格 + 9 chart/文本 + email 真空态） |
+| Traffic Analytics（.Trends 流量与市场） | `traffic-analytics/` | ✅ 19/19 页全有 PAGE.md（9 表格 + 9 chart/文本 + email 时变态）；`q=` 被 lid 覆盖，换域待裁决 |
 | Organic Research + Keyword Gap（抄竞品链路） | `organic-research/` | ✅ 6/6 页（keyword-gap、positions、changes、pages、competitors、subdomains） |
-| Advertising Research（广告研究） | `advertising-research/` | ✅ 2 页（positions、ad-copies）；其余 4 tab 待建，Ads History 死路由留档 |
+| Advertising Research（广告研究） | `advertising-research/` | ✅ 6/6 tab 全有 PAGE.md（positions、ad-copies、changes、competitors、pages、subdomains）；Ads History 死路由 + 替身判决留档 |
 | Market Overview + Bulk Analysis | `market-overview/` | ✅ 2 页（overview `?lid=` 直达、bulk-analysis 100 域/次）；3 条死路由留档 |
-| Backlink Analytics + 竞对监控 | `backlink-analytics/` | ✅ 7 页（overview、backlinks、refdomains、anchors、indexed-pages、backlink-gap、competitor-monitoring 像素-only） |
-| 关键词研究 / 内容 / 站点审计 | 未建目录 | 未勘测；全景见 `backlink/references/semrush-feature-map.md` |
+| Backlink Analytics + 竞对监控 | `backlink-analytics/` | ✅ 7 页（overview、backlinks、refdomains、anchors、indexed-pages、backlink-gap 六桶已勘、competitor-monitoring 像素-only） |
+| Keyword Research（关键词研究） | `keyword-research/` | ✅ 3/3 页（keyword-overview、keyword-magic、keyword-strategy-builder 只读）；`/keyword-manager/` 旧路由证伪 |
+| 内容 / 站点审计 | 未建目录 | 未勘测；全景见 `backlink/references/semrush-feature-map.md` |

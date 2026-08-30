@@ -50,6 +50,11 @@ Backlink Gap 在 `/analytics/gap/backlinks/`，竞争对手监控在
   628K 域 / 1.28 亿条。判一个域名有没有外链，永远去明细路由数行（详见 `overview/PAGE.md`）。
 - 明细四件套 + Gap 都是 table 分支（`filledCells > 0` 就绪），唯独 Backlink Gap 是真
   `<table>` 元素，其余全是 `role=grid` DIV。
+- **Backlink Gap 六桶不可 URL 直达（2026-08-30 round4 负面判决）**：`rankType=` 被
+  静默忽略、桶点击不改 URL、每次加载仅首次桶点击可靠——多桶采集唯一可靠配方是
+  **一桶一开页**；六桶实测计数（最佳 507,776 / 弱 14,803 / 强 131,926 / 共享 14,803 /
+  唯一 629,264 / 所有 725,662）与配方详见 `backlink-gap/PAGE.md`。
+  **桶类筛选器的 URL 参数不可信，需逐工具实证**——Keyword Gap 直达可用，本页证伪。
 - 竞争对手监控是全平台唯一 **DOM 全盲页型**：census 全 0 而像素满数据，三条就绪分支失明，
   只能像素采集（详见 `competitor-monitoring/PAGE.md`）。
 - 配额纪律、假付费墙、壳先到货后到等平台级坑见 `../OVERVIEW.md`。

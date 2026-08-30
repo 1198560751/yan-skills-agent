@@ -32,7 +32,7 @@ URL 基式：`/analytics/traffic/<路由>/?q=<domain>&searchType=domain`（host:
 | `paid-social` | chart-only | 140K–170K（轴顶 200K） | ✅ [`paid-social/PAGE.md`](paid-social/PAGE.md) |
 | `display-ads` | chart-only | 45K–170K | ✅ [`display-ads/PAGE.md`](display-ads/PAGE.md) |
 | `daily-trends` | chart-only | 日访问 20M–35M（轴顶 40M） | ✅ [`daily-trends/PAGE.md`](daily-trends/PAGE.md) |
-| `email` | **真空态**（灰色锯齿占位、无轴、导出置灰，svgText=0） | 无数据 | ✅ [`email/PAGE.md`](email/PAGE.md) |
+| `email` | **时变**：2026-08-29 空态（svgText=0）→ 2026-08-30 同域有图（svgText=31） | 轴顶 1000万（有图轮） | ✅ [`email/PAGE.md`](email/PAGE.md) |
 
 ## 板块级要点
 
@@ -40,4 +40,13 @@ URL 基式：`/analytics/traffic/<路由>/?q=<domain>&searchType=domain`（host:
   chart 路由的轴标签、系列名、数值都在穿透后的 `deep.svgText` 里（13–1132 节点）。
 - 就绪判据两分支：`filledCells > 0`（先查）→ `svgText > 0` 三轮稳定（chart 分支），
   manifest 记 `readyBranch`。
-- `email` 是唯一真空态，判别子是 **svgText=0**（空态无任何「无数据」文案，标记法失效）。
+- `email` 曾被判唯一真空态（svgText=0，2026-08-29），**2026-08-30 同域（canva.com）
+  渲染出真图（svgText=31）——判决降级为「时变/水合相关」**：svgText=0 只能判
+  「本轮空」，判不了「该路由恒空」；详见 `email/PAGE.md`。
+- **平台坑：全树 `q=` 被 `lid` 覆盖（2026-08-30 round4 实锤）**。面板会自动附加
+  `lid=<未命名列表>`，此后**所有** `/analytics/traffic/*` 子路由渲染的都是列表域的
+  数据，href 里的 `q=` 是摆设（`?q=nytimes.com` 落点仍渲染 canva.com）。换域必须先
+  换共享「未命名列表」的域名 chip 或建新列表——而现存列表被历史证据引用、只读纪律下
+  不动，**换域采集是待裁决事项，不是 bug**。判决书：`semrush-round4-VERDICTS.md` 页卡 7。
+- **骨架屏 + 分页计 0 + 导出置灰 ≠ 空态**：sources-destinations 目标 tab 实测两轮
+  ~4 分钟全骨架、第三轮出数——判空必须等到非骨架行或明确空文案。

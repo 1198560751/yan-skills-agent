@@ -60,6 +60,7 @@ platforms/semrush/traffic-analytics/top-pages/collect.sh [domain] [out-dir]
 | 报表主体在 light DOM | light cells = deep cells = 850；shadow 里埋的是壳。这是本页特例，**不能推广到其他路由** |
 | 「导航成功」≠「有数据」 | open 1 秒返回、数据 76 秒落——两者相隔 75 秒，谁也不能替代谁 |
 | 迷你趋势线只有像素 | 曲线形状不以文本存在（对应行数字都在 DOM），要曲线只能读图 |
+| **`q=` 被 `lid` 覆盖** | 面板自动附加 `lid=` 后，整个 Traffic Analytics 树渲染的都是「未命名列表」域的数据，`q=` 换域是摆设（2026-08-30 实锤）；换域先换列表域名 chip，详见 `../OVERVIEW.md` |
 
 ## 验证记录
 

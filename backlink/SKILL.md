@@ -2289,7 +2289,7 @@ checkout. This table is the durable summary.
 | `paid-search` | chart-only | 0.8M–1.15M, axis top 1.5M | historical "chart values never rendered" (`chart=0/exp=6`) did not reproduce — the chart carries real digits |
 | `organic-social` | chart-only | 11M–24M, axis top 30M | "no table" holds; data lives in the chart |
 | `paid-social` | chart-only | 140K–170K, axis top 200K | same |
-| `email` | **empty-state** | none — grey jagged placeholder, no axes, export greyed out | historically lumped in with the chart routes; it has no chart at all |
+| `email` | **time-varying: empty-state OR chart-only** | 2026-08-29: grey jagged placeholder, svgText 0; 2026-08-30 (same domain canva.com): real charts, svgText 31, axes 0–1000万 | the earlier "true empty state" verdict is DOWNGRADED — the route is not permanently empty even for canva; the empty rendering is time-varying / hydration-related. Judge each run on its own two witnesses |
 | `display-ads` | chart-only | 45K–170K | "no table" holds; data lives in the chart |
 | `socioeconomics` | chart-only | summary cards + bar/stacked charts; every value present as DOM text — densest of the nine | Class A "no table" holds, but the page is the richest, not empty |
 | `daily-trends` | chart-only | daily visits 20M–35M, axis top 40M | historical "BLANK content area, exportBtns===12" did not reproduce — the same 12 export controls sit beside a full page of charts |
@@ -2331,7 +2331,11 @@ polls (chart), recorded as `readyBranch` in the manifest.
 marker-based empty-state detection never fires; among these routes only the
 census's `svgText` separates it from chart-only (0 vs 13–1132). The collector
 marks it `suspectedEmptyState: true` in the manifest; the verdict still
-belongs to the AI with both witnesses.
+belongs to the AI with both witnesses. **2026-08-30 correction: the same
+canva.com email route rendered real charts (svgText 31)** — so `svgText: 0`
+still discriminates *this load's* rendering, but a stable-zero run only proves
+"empty this session", never "route permanently empty"; see the round-4 block
+below.
 
 **Corrections to the historical record.** "No table" was confirmed 9/9; the
 "no data / feature does not exist" extension was wrong 8/9 (all but `email`).
@@ -2550,6 +2554,111 @@ Authority Score 两卡「Data is unavailable · Reload」,而**同一时刻**明
 详见 <law-ref id="every-measurement-needs-two-witnesses"/> 的 DOM 全盲页补条。
 </lesson>
 </semrush-backlinks-monitoring-capabilities>
+
+<semrush-keyword-research-capabilities date="2026-08-30">
+<summary>
+**Route capability map for Semrush 关键词研究工具组 (Keyword Overview / Keyword
+Magic / Keyword Strategy Builder) + adwords 其余四 tab + round-4 补测判决 —
+double-witness ground-truth run, 2026-08-30.** Collector:
+<ref file="scripts/ground-truth.mjs"/> (machine-wide semrush lock held per run),
+session `semrush-nav`; tab/bucket interaction via one-shot scratchpad probes
+(same `acquireToolsShareBrowserLocks`, read-only clicks, zero list-creation,
+zero exports). Seed keyword `graphic design` (db=us), ads/gap target canva.com.
+Judge's write-up: `backlink/evidence/ground-truth/semrush-round4-VERDICTS.md`
+— **kept local** (the evidence directory is gitignored). Durable manual:
+`platforms/semrush/keyword-research/` + the round-4 amendments in
+`advertising-research/`, `backlink-analytics/backlink-gap/`,
+`traffic-analytics/`. Host is the authorized panel origin; URL templates below
+are paths on it.
+</summary>
+
+<routes><![CDATA[
+| page | URL template | shape | scale (measured 2026-08-30) | answers |
+|---|---|---|---|---|
+| Keyword Overview | /analytics/keywordoverview/?db=us&q=<kw> (spaces as +) | summary cards + trend + opinion cards + SERP table (readyBranch=table, ~33s, 82 cells, svgText 0 — the bars are divs) | graphic design: volume 1.2M US / 1.9M global, KD 77% (~99 ref domains), intent 信息, CPC $4.13, variations 277.8K, questions 18.5K, SERP top-10 with AS/backlinks/traffic; quota widget 5,000/5,000 | is one keyword worth doing — volume/KD/intent/CPC/global split/SERP strength on one screen |
+| Keyword Magic Tool | /analytics/keywordmagic/?db=us&q=<kw>&type=<tab>[&questions=true] — type=all|phrase|exact|related all verified by reading back href after clicks; 广泛匹配 = NO type param (clicking it removes type); questions=true is an independent toggle stackable on any type; mode=0 is always present (meaning unknown, carry it verbatim); type=related direct-open verified: 57.1K words / 5,218,520 volume / avg KD 43% | left Topics tree + main table (readyBranch=table, ~31s, 1344 filledCells/screen) | graphic design all: 149.8K words, total volume 10,592,470, avg KD 40% | expand a seed into mass long-tail: per-word intent/relevance/volume/trend/KD/CPC/competition/SF; Topics/Groups clustering tree |
+| Keyword Strategy Builder | /analytics/keywordmanager/?db=us&q=<kw> (landing href becomes ?q=<kw>&owning=all) — the feature-map's old /keyword-manager/ path is a 404 dead route («我们迷路了», census all-zero), FALSIFIED on record | form entry + existing-lists grid (40 cells, ready in 1 poll) | shared account holds 59 lists (所有 59 / 我自己 59 / 与我分享 0); form shows 主关键词 1/5 + 创建 50/50 remaining quota | up to 5 main keywords → auto-clustered pillar/cluster site structure. READ-ONLY: 创建 consumes shared quota and creates lists — never click; list rows are other users' assets |
+| 广告研究 · 排名变化 | /analytics/adwords/changes/?db=us&q=<domain>&searchType=domain | bucket pills + daily gained/lost chart (readyBranch=chart, svgText 18) + table filtered by current bucket | canva.com @date=20260828: 新增 0 / 丢失 99 / 上升 0 / 下降 0; a 0-row bucket shows «未找到任何数据 尝试更改筛选器» — that is a FILTER empty state, not an empty page (丢失 bucket has 99 words) | a rival's paid keywords gained/lost day by day |
+| 广告研究 · 竞争对手 | /analytics/adwords/competitors/?db=us&q=<domain>&searchType=domain | bubble chart (svgText 33) + table (700 cells) | 631 paid competitors; first row picsart.com 21.2% / 584 / 2.9K / 92,581 | rivals with the highest paid-keyword overlap |
+| 广告研究 · 页面 | /analytics/adwords/pages/?db=us&q=<domain>&searchType=domain | single table (360 cells) | 72 paid pages; first row www.canva.com/ 54K / 76.36% / 1.6K | which landing pages carry the ad traffic |
+| 广告研究 · 子域名 | /analytics/adwords/subdomains/?db=us&q=<domain>&searchType=domain | single table (4 cells) | 1 row: www.canva.com 70,748 / 100% / 2.6K | which subdomains take the paid traffic |
+]]></routes>
+
+All four adwords slugs are verified real routes (first two read back from tab
+clicks, last two by direct-open landing check); the standing rule "unknown
+adwords sub-paths 302 back to positions" still holds around them. Common
+parameter note: the landing swallows `db=us` into `date=YYYYMMDD` (latest data
+day).
+
+<lesson id="backlinkgap-buckets-are-not-url-addressable">
+**Backlink Gap's six buckets can NOT be reached by URL — `rankType=` is
+silently ignored** (page renders the default 最佳 bucket regardless; double
+witness on record: href carries `rankType=weak`, screenshot highlights 最佳).
+**The Keyword Gap `rankType` deep-link experience does not transfer to
+`/analytics/gap/backlinks/`.** Clicking a bucket pill never changes the URL —
+buckets are pure client state. Worse, **per page load only the FIRST bucket
+click lands reliably**; subsequent synthetic clicks (both `el.click()` and full
+pointer sequences) are routinely swallowed. The only reliable recipe is
+**one bucket = one fresh page open**: open the report URL → wait
+`filledCells > 0` → click the target bucket ONCE → poll the "1 – 100 (N)"
+counter for a change to confirm landing → collect. Bind the landing check to
+the counter change, never to the click's return value. Measured bucket counts
+(canva.com vs figma.com vs adobe.com, 2026-08-30): 最佳 507,776 / 弱 14,803 /
+强 131,926 / 共享 14,803 / 唯一 629,264 / 所有 725,662. (弱 and 共享 share a
+count but differ in ordering — canva is weak on every shared domain against
+these two rivals; row-level numbers double-witnessed, not dug further.)
+Generalized: **bucket/tab filter URL params must be proven per tool — never
+assume transfer between sibling tools.**
+</lesson>
+
+<lesson id="traffic-analytics-q-is-overridden-by-lid">
+**The entire Traffic Analytics tree ignores `q=` whenever a `lid=` (未命名列表)
+is attached — and the panel attaches it automatically.**
+`/analytics/traffic/email/?q=nytimes.com&searchType=domain` lands with
+q=nytimes.com in the href yet renders canva.com (the list's domain); so does
+`/analytics/traffic/traffic-overview/?q=nytimes.com`. **Switching domains
+requires switching the shared list's domain chip (or building a new list) —
+the sub-routes' `q=` is decoration.** That shared list (`lid=1234565`) is
+referenced by this round's and prior rounds' evidence; changing it would
+poison shared state and historical reproducibility, so under read-only
+discipline it was NOT touched. **Cross-domain Traffic Analytics collection is
+an open item awaiting a mainline ruling** (option: let the form create a NEW
+lid without touching the old one — needs a human call on whether list
+creation burns account assets). It is a platform trap, not a bug.
+</lesson>
+
+<lesson id="ads-history-standin-verdict">
+**The Ads History stand-in candidate is now judged: Keyword Overview has NO
+ad-history block.** The page bottom offers only 谷歌购物广告创意 / 广告创意
+card slots, both "我们没有要显示的数据" for the informational seed word, with
+the top summary cards reading 不可用 — **an empty slot under an informational
+keyword is the normal state, and the "12-months-running" ad matrix still has
+no entry anywhere in this version.** Whether a commercial keyword (e.g. vpn)
+fills the slots remains untested — that is the only remaining candidate probe.
+</lesson>
+
+<lesson id="sources-destinations-dest-tab">
+**The 目标 (destinations) tab of `/analytics/traffic/sources-destinations/`
+has no URL parameter — pure client-side switch, click 「目标」 in-page** (tab
+state is remembered; a reopened page may land on it directly). Measured
+(canva.com, 2026-07): grid of 208 filledCells, google.com 34.01% / 2155万
+leading, claude.ai 1.62% on the board. Trap: the tab's table body can sit on a
+grey skeleton with the paginator at 0 and export greyed **for entire ~4-minute
+rounds** (twice in a row; the third round rendered) — **skeleton + count 0 is
+loading jitter, never an empty state**; judge empty only on non-skeleton rows
+or explicit empty copy.
+</lesson>
+
+<footnote>
+Round-wide traps, additive to the standing laws: (a) mirror flakiness — the
+「出错了」error page / white screen / whole-round spinner heals on one reload;
+only after 3 consecutive failed reloads park it as "mirror fault, re-measure
+later" (adwords/changes first run spun 240s, rerun succeeded in 46s);
+(b) before hydration completes, ALL synthetic clicks are silent no-ops — poll
+for the target control (census or leaf-text hit) before clicking; (c)
+`document.referrer` still throws under the mirror patch — keep the try/catch.
+</footnote>
+</semrush-keyword-research-capabilities>
 
 <similarweb-explore-capabilities date="2026-08-29">
 <summary>

@@ -3,11 +3,13 @@
 URL 基式：`/analytics/adwords/<路由>/?db=us&q=<domain>&searchType=domain`（host: sem.3ue.co）。
 `q=` / `db=` 参数**只对本 `/analytics/adwords/` 组生效**（.Trends 侧不吃 `q=`）。
 2026-08-30 双证人（ground-truth.mjs，会话 `semrush-nav`，目标 canva.com）判决，判决书见
-`backlink/SKILL.md` 的 `<semrush-ads-trends-capabilities>` 块；本地全文
-`backlink/evidence/ground-truth/semrush-ads-trends-VERDICTS.md`（gitignore）。
+`backlink/SKILL.md` 的 `<semrush-ads-trends-capabilities>` 与
+`<semrush-keyword-research-capabilities>`（round4 补测四 tab）块；本地全文
+`backlink/evidence/ground-truth/semrush-ads-trends-VERDICTS.md`、
+`…/semrush-round4-VERDICTS.md`（gitignore）。
 
 顶部 tab 全集（实见）：排名 / 排名变化 / 竞争对手 / 广告创意 / 页面 / 子域名 ——
-organic 四件套的付费版；本轮只实测了 排名 和 广告创意。
+organic 四件套的付费版；**六个 tab 已全部实测**（round4 补齐后四个）。
 
 ## 已判决路由
 
@@ -15,16 +17,16 @@ organic 四件套的付费版；本轮只实测了 排名 和 广告创意。
 |---|---|---|---|---|---|
 | 排名 positions | `/analytics/adwords/positions/?db=us&q=<domain>&searchType=domain` | 摘要卡+趋势图+表格（readyBranch=table，31s） | 2,607 付费词，100 行/页×27 页 | 竞品投了哪些 Google Ads 词（已验证商业意图词） | **✅ `positions/PAGE.md`** |
 | 广告创意 copies | `/analytics/adwords/copies/?db=us&q=<domain>&searchType=domain` | **卡片网格，无表格无图**（data-not-in-table） | 2,118 条广告创意 | 竞品广告文案原文 + 每条文案背书多少词 | **✅ `ad-copies/PAGE.md`** |
+| 排名变化 changes | `/analytics/adwords/changes/?db=us&q=<domain>&searchType=domain` | 分桶 pill+日级增失图（svgText 18）+表 | 新增 0 / 丢失 99 / 上升 0 / 下降 0（@2026-08-28） | 竞品付费词的日级增失 | **✅ `changes/PAGE.md`** |
+| 竞争对手 competitors | `/analytics/adwords/competitors/?db=us&q=<domain>&searchType=domain` | 气泡图（svgText 33）+表（700 格） | 631 个付费竞品，首行 picsart.com 21.2% | 付费词重合度最高的竞品 | **✅ `competitors/PAGE.md`** |
+| 页面 pages | `/analytics/adwords/pages/?db=us&q=<domain>&searchType=domain` | 单表（360 格） | 付费页面 72，首行 www.canva.com/ 54K | 广告落地页分布 | **✅ `pages/PAGE.md`** |
+| 子域名 subdomains | `/analytics/adwords/subdomains/?db=us&q=<domain>&searchType=domain` | 单表（4 格） | 1 行：www.canva.com 70,748/100% | 付费流量在哪些子域 | **✅ `subdomains/PAGE.md`** |
 
 ## 负面判决 / 死路由（不建目录，留档止损）
 
 | 路由 | 判决 |
 |---|---|
-| ~~`/analytics/adwords/adshistory/`~~ ~~`/analytics/adwords/adhistory/`~~ | **两条路径都 302 回 positions**（hijack 自检 exit 3）。本账号/版本**无独立 Ads History 工具**：广告组左侧导航实见全集（开始 / Ads Launch Assistant / 广告 AI 代理 / 广告研究 / 谷歌购物广告研究 / AdClarity）里没有它。「某词连投 12 个月」矩阵在本版本 UI 无独立入口；未知 adwords 子路径统一回落 positions。候选替身：Keyword Overview 的广告历史区块（**未探，勿当结论**）。证据：`semrush-adwords-adshistory/`、`semrush-adwords-adhistory-kw/` |
-
-## 同导航组、未采路由（待建候选）
-
-排名变化 / 竞争对手 / 页面 / 子域名 —— 同组 tab 实见未采，URL 形式推定同基式换路由段。
+| ~~`/analytics/adwords/adshistory/`~~ ~~`/analytics/adwords/adhistory/`~~ | **两条路径都 302 回 positions**（hijack 自检 exit 3）。本账号/版本**无独立 Ads History 工具**：广告组左侧导航实见全集（开始 / Ads Launch Assistant / 广告 AI 代理 / 广告研究 / 谷歌购物广告研究 / AdClarity）里没有它。「某词连投 12 个月」矩阵在本版本 UI 无独立入口；未知 adwords 子路径统一回落 positions（本轮实证的四个真 tab 不在回落名单里）。**替身判决（2026-08-30 已探）**：Keyword Overview 页内**无**独立广告历史区块——底部只有「谷歌购物广告创意 / 广告创意」两个卡位，信息词下空卡位是正常态；商业词是否填充未测（仅剩候选探针）。证据：`semrush-adwords-adshistory/`、`semrush-adwords-adhistory-kw/`、`semrush-round4-keywordoverview/` |
 
 ## 板块级要点
 
