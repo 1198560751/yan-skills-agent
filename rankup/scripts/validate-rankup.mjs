@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.61.0";
+const expectedVersion = "2.63.0";
 const requiredReferences = [
   "checklists.md",
   "lifecycle.md",

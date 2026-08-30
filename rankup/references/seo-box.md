@@ -1,0 +1,198 @@
+# seo.box：一张外部工具清单，用来给 rankup 的工具地图做对账
+
+## 先说清它是什么，免得按错的期待去用
+
+**[seo.box](https://seo.box/) 不是工具站，是一张单页静态导航。**
+全站一个 HTML、28 条外链、三个分区（工具 16 条含一条重复、浏览器扩展 8 条、博客 4 条），
+**没有 API、没有子页、没有 sitemap、没有登录态、没有任何自己的计算**。
+`robots.txt` 只有一条空 `Disallow:`，`/sitemap.xml` 返回 404。（实测 2026-08-29）
+
+所以**不要把它当数据源，也不要写脚本去抓它**——抓回来的就是那 28 个域名，
+而这 28 个域名此刻已经全部誊在下面这张表里了。它对 rankup 的唯一价值是**外部对账**：
+一份别人整理的「做 SEO 该有哪些工具」清单，拿来逐条比对我们缺不缺，
+比自己凭印象回忆要可靠。这一节记录的就是那次对账的结论。
+
+**下次再遇到同类导航站（工具聚合页、awesome 列表、"100 个 SEO 工具"贴），
+按同一个套路处理：不接入，只对账，把结论写成「已覆盖 / 接了 / 不接 + 裁决依据」三态。**
+
+## 对账结果：28 条逐条判定
+
+判定口径与 `.rankup/integrations.md` 一致：**✅ 已覆盖**（rankup 里已有等价或更好的路径）/
+**➕ 值得接**（真缺口，本轮已处理）/ **❌ 不接**（附裁决依据，`rankup review` 不要反复催）。
+
+### 工具区（16 条）
+
+| 工具 | 判定 | 依据 |
+|---|---|---|
+| Google Search | ✅ | [`demand-sources.md`](demand-sources.md) 第一·五节的「亲眼看首页」已经是阶段 1 硬 check，且规定了地区与语言必须显式指定 |
+| Similarweb | ✅ | `backlink/scripts/similarweb-query.mjs` / `similarweb-batch.mjs`，能力边界见 [`provider-capabilities.md`](provider-capabilities.md) |
+| Semrush | ✅ | `backlink/scripts/semrush-*.mjs` 一组 |
+| Ahrefs（主站） | ✅ **且被低估了** | 见下方「会员实测」一节：免费 AWT 档的 Site Audit 是完整的，`scripts/ahrefs-site-audit.mjs` 取它 |
+| Ahrefs Keyword Difficulty Checker | ❌ | KD 已有两条更好的路：`seo-webcafe.mjs kd`（带 top9 盘面，零配置）与 `semrush-keyword.mjs`（带 `globalVolume`）。Ahrefs 免费版一次一个词、要账号、给不出盘面，接了是**第三个口径**，只会制造对不上的数字 |
+| Ahrefs Backlink Checker | ❌ | 同上。外链走 `backlink` Skill 的既有链路（Semrush 引荐域 + `ledger.mjs` 证据阶梯）。免费版只给 Top 100 外链且要注册，**不足以支撑任何判断，却足以让人以为查过了** |
+| Ahrefs Website "Authority" Checker | ❌ | AS/DR 这类第三方权重分在 rankup 里只作为**相对参照**出现，`semrush-overview.mjs` 已经给 AS。再引一个厂商的分数会诱发跨厂商比大小，那是无意义的 |
+| WooRank SEO Health Checker | ❌ | 站点体检已有两条自有路径：`scripts/seo-audit.mjs`（全站逐 URL、零配额、可对 localhost 跑）与 `seo-webcafe.mjs audit`。WooRank 免费额度极小且要注册，**覆盖不了「全站每一个 URL」这条闸门 2 的硬判据** |
+| Google Search Console | ✅ | `scripts/webmaster-sitemap.mjs gsc`、`scripts/gsc-remove-urls.mjs`，见 [`search-platforms.md`](search-platforms.md) |
+| Google Analytics（清单里重复了两次） | ✅ | 接入清单里的 GA4 一行，验证方式 `curl` grep `gtag` |
+| Microsoft Clarity | ✅ | `scripts/clarity-setup.mjs`，见 [`analytics-platforms.md`](analytics-platforms.md) 第 1 节 |
+| Google Tag Manager | ❌ | 本栈是 TanStack Start SSR，埋点直接进 `<head>`，**引入 GTM 等于多一层「线上到底加载了什么」的不确定性**，而接入清单的验证方式恰恰是 `curl` 线上 HTML grep beacon——GTM 会让这条验证失效 |
+| PageSpeed Insights | ➕ | **本轮补上**：`scripts/pagespeed.mjs`。理由见下一节 |
+| GTmetrix | ❌ | REST API 要登录拿 key，免费账号只给 **5 个 trial credit**，之后按 plan 日额度补（实测 2026-08-29 读其 API 文档）。同样的指标 PSI 免费 25k/日就给了，且 PSI 还多给 CrUX 现场数据 |
+| WhereGoes（重定向追踪） | ➕ | **能力值得要，网站不值得用**：`curl -sIL` 本地就能完整打印跳转链，零网络依赖、可进 CI、可批量。见下方「重定向链」一节 |
+| Similarweb（重复出现于扩展区） | ✅ | 同上 |
+
+### 浏览器扩展区（8 条）
+
+扩展这一类**天然与 rankup 的浏览器纪律契合**：它们装在用户那个已登录的 Chrome 里，
+而 rankup 本来就规定「需要登录态的页面操作必须驱动用户本机浏览器」（见 `opencli` Skill）。
+但**扩展不能被脚本调用**，它们只在人眼看页面时有用，所以判定一律是「给人用，不进自动化链路」。
+
+| 扩展 | 判定 | 依据 |
+|---|---|---|
+| Detailed SEO Extension | ➕ 建议用户装 | 免费。在**人工复看 SERP 首页**（阶段 1 与阶段 8 都有这条 check）时，一眼看到对方的 TDK / H 结构 / schema，比开脚本快得多。属于「省人的时间」，不属于取数链路 |
+| Ahrefs SEO Toolbar | ❌ | 要 Ahrefs 账号，且给的 DR/UR 与上面「不引第三方权重分」的裁决冲突 |
+| Similarweb Website Traffic Rank | ❌ | 数据与 `similarweb-query.mjs` 同源，脚本已覆盖且可复现 |
+| Similarsites Finder | ❌ | 同类站发现走 `similarweb-query.mjs` 的 similar sites 字段，已在脚本里 |
+| Keywords Everywhere | ❌ | 付费按量。其站点确实有 API 与 MCP Server 入口（实测 2026-08-29），但我们的词量口径已经是 Semrush + seo.web.cafe 双源，**第三个付费口径的边际价值为负** |
+| WooRank Extension | ❌ | 同 WooRank 主站 |
+| AITDK Extension | ✅ | AITDK 的能力已被 `scripts/seo-audit.mjs` 复刻（它的头部注释就写着「AITDK 相当」），且脚本能跑全站，扩展只能看当前页 |
+| Wappalyzer | ➕ 能力值得要 | **技术栈识别在阶段 1 的竞品拆解里有真实用途**（对方用什么建站、挂了哪些分析/广告/支付 → 反推变现方式，直接喂 [`lifecycle.md`](lifecycle.md) 6.3 竞品变现分析）。但其 API 是付费 `x-api-key`（实测 2026-08-29），**免费替代见下方「技术栈指纹」一节** |
+
+### 博客区（4 条）
+
+| 来源 | 判定 | 依据 |
+|---|---|---|
+| Google Search Central Blog | ✅ 已是一手源 | [`seo-growth.md`](seo-growth.md) 的算法更新时间线与 2026 AI 搜索范式整节就是从它整合来的。**排障定位时先查它，不要查二手解读** |
+| Google Search Blog（blog.google） | ✅ | 面向大众的产品公告，与上面那条互补；算法细节仍以 Search Central 为准 |
+| Semrush Blog | ❌ | 厂商内容营销，结论普遍缺前提条件。同类判断我们用 [`experiences/`](experiences/) 那一组——**那里每条都带证据等级** |
+| Backlinko Blog | ❌ | 同上 |
+
+## 会员实测：判定不能靠推断，要用登录态验
+
+上面那张表的第一版是**按各站的公开页面推断**写的。后来用用户已登录的浏览器逐个验了一遍
+（2026-08-29），结果推翻了其中一条，也坐实了另外几条。**这一步不能省**：
+「这个工具值不值得接」取决于你在哪一档，而档位只有登录进去才看得见——
+这与本 Skill 反复强调的「配额前置检查」是同一条规则。
+
+| 站 | 实测登录态 | 对判定的影响 |
+|---|---|---|
+| Ahrefs | **已登录，套餐 = 「网站管理员工具（免费）」(AWT)** | **推翻了「Ahrefs 只是 ahrefs-setup 那点用途」**。AWT 免费档看不了别人的站，但**自己已验证站点的 Site Audit 是完整的**：定期抓取、健康评分、20 个分类报告，且不消耗按次配额 |
+| GTmetrix | **未登录**（`/dashboard/` 落回首页，显示 Log In） | ❌ 判定成立，且现在有证据 |
+| WooRank | **未登录**（显示 Log In / Free Trial） | ❌ 判定成立 |
+| Wappalyzer | **未登录**（账号页显示 Sign in to continue） | ❌ 判定成立，技术栈仍走第三节的 curl 指纹 |
+| Keywords Everywhere | **未登录**（页面只有 Get API Key，无账号/登出入口） | ❌ 判定成立 |
+
+### Ahrefs AWT 免费档：边界在哪、能拿什么
+
+**能**：自己已验证所有权的站点的完整 Site Audit——
+内部链接失效数、重定向链、HTML 标签、可索引性、hreflang、图片、性能、抓取日志、历史健康分。
+**不能**：查别人的站、Keywords Explorer 的词量与 KD、Content Explorer（导航里有，点进去是升级页）。
+
+所以 Ahrefs 在 rankup 里的正确位置**不是关键词工具，也不是外链工具**（那两件事分别归
+`seo-webcafe.mjs kd` / Semrush 和 `backlink` Skill），而是**自有站点的第二台爬虫**：
+
+| 它能替谁干活 | 现状 | 拿 Ahrefs 之后 |
+|---|---|---|
+| 闸门 1「内链零 404」 | 自己抓全站内链逐条请求 | Site Audit 的 `links` 报告**已经在按周自动做**并保留历史 |
+| 闸门 2「TDK 全站逐 URL」 | `seo-audit.mjs --sitemap` | `html-tags` 报告作为**第二双眼睛**——两边都说没问题才算数 |
+| 阶段 3 / 阶段 8 的 301 检查 | `curl -sIL` 逐条 | `redirects` 报告给的是**全站**重定向链，不是你想起来查的那几条 |
+
+**两边不一致时以自己的脚本为准**——Ahrefs 抓的是它上次抓取那一刻的站，
+可能是几天前；`seo-audit.mjs` 打的是此刻的线上。**日期对不上就不是矛盾**，
+所以 `projects` 的输出里「最后一次抓取」那一列必须一起记进 `audit.md`。
+
+### 关于走 API（用户问过，这里是结论）
+
+账号里**确实有 API 密钥**（范围 `MCP`、限制「无限制」、消耗单位 0），但脚本没有走它：
+
+1. 密钥在页面上打了码，取出来要么抠 network、要么读剪贴板——**为省一次浏览器调用去搬运一枚凭据，不划算**；
+2. `api.ahrefs.com/v3/*` 不带鉴权一律 403，**猜不出免费档放行哪几个端点**：
+   实测 `/v3/public/keyword-difficulty` 这类猜测路径全是 404，
+   匿名可用的只有 `/v3/public/crawler-ip-ranges` 和 `/v3/public/crawler-ips`（Ahrefs 爬虫 IP 段，
+   顺带一提这两个对配 robots/防火墙白名单是有用的，零鉴权）；
+3. 浏览器路径此刻就是通的，且全程不碰凭据。
+
+**要走 MCP 是用户自己配的事**——密钥在「帐号设置 → API密钥」，脚本不该去搬它。
+
+## 本轮真正落地的三件事
+
+对账的产出不是 28 条摘要，是下面三个**能挂进环节**的东西。其余 25 条要么已覆盖、要么已判死。
+
+### 一 · PageSpeed Insights → 补上闸门 6 缺的那一半
+
+[`checklists.md`](checklists.md) 阶段 7.5 闸门 6 的判据是
+「**实验室与现场数据都记录，不一致以现场为准**」。在此之前那一行的「怎么做」只写了
+「跑 Lighthouse」——Lighthouse 只给实验室数据，**现场那一半没有任何工具**，
+于是这个闸门长期只能过一半，而表面上是绿的。这正是本 Skill 反复警告的失败形态。
+
+`scripts/pagespeed.mjs` 一次调用同时返回两者：
+
+```bash
+node <rankup-skill-dir>/scripts/pagespeed.mjs \
+  https://example.com https://example.com/tool https://example.com/blog/x \
+  --strategy both --md --out .rankup/psi-2026-08-29.md
+```
+
+三条必须知道的（前两条实测 2026-08-29）：
+
+1. **不带 key 是假的能跑。** 匿名调用走 Google 那个所有人共用的项目，
+   实测返回 `429 RESOURCE_EXHAUSTED`（`project_number:583797351490`），**常年如此，不是偶发**。
+   脚本在这种情况下直接终止并教你怎么拿 key，不会退回一个空结果——
+   因为「空结果 + 绿灯」正是这套清单唯一致命的失败形态。
+   key 免费：Google Cloud 启用 PageSpeed Insights API，25000 次/日，
+   `export PAGESPEED_API_KEY=...` 或写进本 Skill 目录的 `.env`（规则见 SKILL.md「令牌统一放 `.env`」）。
+2. **现场数据缺失是正常返回，不是错误。** 响应里直接没有 `loadingExperience` 字段——
+   新站流量不够进 CrUX 就长这样。脚本把它渲染成
+   「**现场：无数据（CrUX 流量不足）— 不是 0，也不等于通过**」。
+   记进 `baseline.md` 时必须原样保留这句话：留空会在下一轮被读成「查过了，没问题」。
+3. **固定串行。** PSI 单次 10–30 秒，并发触发 429。三类页面 × 两端 = 6 次，预期两三分钟。
+
+**已验证边界**：脚本的无 key 失败路径与参数解析已实测；**成功路径（带 key 返回真实评分）
+尚未实测**，因为本机没有配 key。首次拿到 key 的人跑通后，请把已验证日期补进脚本头部注释。
+
+### 二 · 重定向链：要能力，不要那个网站
+
+WhereGoes 做的事 `curl` 本来就会做，且本地版更可用（可批量、可进 CI、不受第三方限流）：
+
+```bash
+curl -sIL -A 'Mozilla/5.0' https://example.com/old-page | grep -iE '^(HTTP/|location:)'
+```
+
+**为什么这条值得单独留一节**：[`experiences/webcafe-topics.md`](experiences/webcafe-topics.md) 第五节
+已有一条硬结论——**302/307 不传权重**。但在此之前，rankup 里没有任何地方写「怎么查一条 URL 到底走的是 301 还是 302」。
+判据有了、量具没有，规则就只能靠人记得去查。
+
+该在这三处查：**阶段 3 域名接入后**（裸域 → www、http → https 到底几跳、是不是 301）、
+**阶段 8 改过 URL 之后**（旧页面的跳转是不是 301，链接权重有没有断在 302 上）、
+**阶段 9 验收外链时**（对方站给的链接如果经过跳转中转，跳的是什么码——见 backlink 的证据阶梯）。
+
+### 三 · 技术栈指纹：竞品变现分析的输入
+
+Wappalyzer 的 API 收费，但它识别的信号绝大多数就摆在响应头和 HTML 里，
+[`lifecycle.md`](lifecycle.md) 6.3「竞品变现分析」要的那一行结论（**他赚谁的钱、怎么收**）
+往往一次 `curl` 就能定：
+
+```bash
+curl -sSL -A 'Mozilla/5.0' https://competitor.example -D - -o body.html | head -40
+grep -oiE '(gtag|googletagmanager|clarity\.ms|cloudflareinsights|plausible|umami|posthog|stripe|paddle|lemonsqueezy|creem|adsbygoogle|carbonads|ezoic|mediavine)' body.html | sort -u
+```
+
+命中 `stripe`/`paddle`/`lemonsqueezy`/`creem` → 卖订阅或买断；
+命中 `adsbygoogle`/`ezoic`/`mediavine` → 靠广告，那么**它的商业模型是流量规模**，
+定位对标时不能照抄它的功能取舍（见 [`lifecycle.md`](lifecycle.md) 阶段 1 第 8 条：
+照抄一个变现方式不同、不可比的竞品是明确的失败模式）。
+
+还有一个已经在 rankup 里的更强工具：`scripts/demand/site-network.mjs`
+按 GA/GTM/AdSense ID 反查同一批人的站群。技术栈指纹是它的单站版本。
+
+## 什么时候回来读这一篇
+
+| 环节 | 用它的哪一条 |
+|---|---|
+| 阶段 1 · 竞品拆解与变现反推 | 第三节「技术栈指纹」；Detailed SEO Extension 用于人工复看首页 |
+| 阶段 3 · 域名与 DNS 接入完成后 | 第二节「重定向链」——裸域/www/https 到底几跳、是不是 301 |
+| 阶段 7.5 · 闸门 6 性能 | 第一节 `pagespeed.mjs`，**实验室与现场都要有** |
+| 阶段 8 · 改过 URL 之后 | 第二节「重定向链」 |
+| 阶段 8 · 排障定位算法更新 | 博客区：只信 Google Search Central Blog，不信厂商博客 |
+| 阶段 9 · 外链验收 | 第二节「重定向链」 |
+| 任何时候有人推荐「一个很全的 SEO 工具站」 | 开头那条规则：**不接入，只对账，三态判定写清裁决依据** |

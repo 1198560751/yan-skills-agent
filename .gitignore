@@ -25,3 +25,6 @@ __pycache__/
 
 # 登录面板截图与双证人证据,不入公开仓库
 backlink/evidence/
+
+# platforms/ 手册各页的视觉档案(登录面板截图),不入公开仓库
+platforms/**/assets/

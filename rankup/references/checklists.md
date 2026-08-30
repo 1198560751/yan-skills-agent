@@ -77,6 +77,8 @@
 
 说明见 [`lifecycle.md`](lifecycle.md) 阶段 1、[`experiences/demand-discovery.md`](experiences/demand-discovery.md)、[`demand-sources.md`](demand-sources.md)。
 
+**执行清单**：[`research-checklist.md`](research-checklist.md) 是本环节的展开——9 节、40+ 个步骤，覆盖 seo.web.cafe / Semrush / Similarweb / Google Trends / 收入三榜 / 折成钱的完整工具链。**每次调研必须逐项走完那张清单，不许只用一部分工具。**
+
 | 检查项 | 客观通过条件 | 证据落点 | 怎么做 | 复查 |
 |---|---|---|---|---|
 | **多引擎首页实勘** | 目标词/方向在 **Google + Bing + 目标市场本地引擎**（做非英语市场时必看）各搜过一遍，**且是无痕/隔离窗口、显式指定了地区与语言**；每个引擎记下七样（页面类型构成、专门页数量、最弱占位者、SERP 特性占屏、AI 答案引用了谁、广告几条、有没有独立站空位），带引擎+国家+日期。**引擎之间不一致要写出来，不能只留一个「综合印象」** | `.rankup/keywords.md`（词级）或 `.rankup/decisions.md`（方向级） | 见 [`demand-sources.md`](demand-sources.md) 第一·五节。**这一步在任何取数之前**，不许拿 `serp-query.mjs` / `seo-webcafe.mjs serp` 这类二手接口代替——它们看不到版式、SERP 特性和 AI 答案。DuckDuckGo 用的是 Bing 索引，**和 Bing 不算两个独立样本** | 会过期 |
@@ -108,6 +110,7 @@
 | 站点身份不是模板占位 | title/description/manifest/OG 里没有脚手架预设文案，且是目标市场语言 | 项目仓库 | grep 脚手架默认字符串 | 一次 |
 | 远端仓库存在且已推送 | `git remote` 有值，当前状态已推，**远端默认私有** | 项目仓库 | 未上线项目的仓库里带着选题与定价策略，公开等于把选题送人 | 每轮 |
 | 入库内容不含凭据 | 将要入库的文件里没有真实密钥、token、私钥 | 项目仓库 | 提交前扫一遍 diff | 每轮 |
+| 域名跳转是 301 且不超过一跳 | 裸域/www、http/https 收敛到同一个规范域，**中间每一跳都是 301**；302/307 不传权重 | `.rankup/infrastructure.md` | `curl -sIL <四种入口> \| grep -iE '^(HTTP/\|location:)'`，判据见 [`seo-box.md`](seo-box.md) 二。要**全站**而不只是这四个入口，用 `ahrefs-site-audit.mjs report <id> redirects` | 动了 URL |
 
 ## 阶段 4 · 建立 Cloudflare 全栈基础
 
@@ -161,12 +164,12 @@
 | 检查项 | 客观通过条件 | 证据落点 | 怎么做 | 复查 |
 |---|---|---|---|---|
 | 闸门 0 · 站点身份 | OG 元数据（`og:image` ≥1200px）与图标全集线上 200，`manifest.json` 引用全部命中真实文件，标记经 16px 实测 | `.rankup/integrations.md` | curl 各路径 + 人工核对线上 HTML | 动了 URL |
-| 闸门 1 · 技术 SEO | sitemap 条目与真实 URL 集合一致且零 404；内链零 404；`llms.txt` 列出的路径与真实 URL 一致（不是模板占位）；robots 未误挡应收录路径 | `.rankup/audit.md` | 抓 sitemap 逐条请求 + 抓全站内链逐条请求 + 请求 `/robots.txt` | 动了 URL |
+| 闸门 1 · 技术 SEO | sitemap 条目与真实 URL 集合一致且零 404；内链零 404；`llms.txt` 列出的路径与真实 URL 一致（不是模板占位）；robots 未误挡应收录路径 | `.rankup/audit.md` | 抓 sitemap 逐条请求 + 抓全站内链逐条请求 + 请求 `/robots.txt`。站点已在 Ahrefs 里验证过所有权时，`ahrefs-site-audit.mjs report <id> links` 是**第二双眼睛**——**两边都说没问题才算数，且必须一起记下 Ahrefs 那次抓取的日期**（它抓的可能是几天前的站） | 动了 URL |
 | 闸门 2 · TDK | 全站 title 互不重复、description 互不重复且长度在截断阈值内；**每页恰好一个 `h1`**；零 error 零 warning。**覆盖全站每一个 URL，不是抽样** | `.rankup/audit.md`（逐 URL，不是一条总述） | `seo-audit.mjs --sitemap <url> --json`，逐条读 `issues` | 动了 URL |
 | 闸门 3 · 关键词密度 | 密度在自然区间，且**「声明的短语」与「测量的短语」逐页是同一个字符串** | `.rankup/audit.md` | `seo-audit.mjs --sitemap <url> --density-only`。实测过 8 个页面在构建绿灯下全过，逐页核对才发现每页测的都不是自己声明的短语 | 动了 URL |
 | 闸门 4 · GEO / AI Agent 就绪度 | 有带分数与逐项结果的基线报告，且**每条 `partial`/`failed` 都独立核实过**（成立则改，误报则记驳回理由） | `.rankup/agentic/<domain>/<date>.json` + 核实结论进 `audit.md` | `is-agentic.mjs scan <domain> --save` | 每轮 |
 | 闸门 5 · 哥飞 AI 审阅 | 每条建议有采纳/拒绝记录，拒绝附理由；**`done` 事件的 `toolCalls`、`rounds`、`charged` 已打印并记录** | `.rankup/audit.md` | `seo-webcafe.mjs chat --ask "审阅 https://<域名> …"`，见 [`seo-webcafe.md`](seo-webcafe.md) | 动了 URL |
-| 闸门 6 · 性能 / CWV | 首页、工具页、内容页三类都达到**项目自设下限**；实验室与现场数据都记录，不一致以现场为准；**先验仪器再信读数** | `.rankup/baseline.md` | Lighthouse 跑线上真实 URL 三类页面 + 读现场数据 | 每轮 |
+| 闸门 6 · 性能 / CWV | 首页、工具页、内容页三类都达到**项目自设下限**；实验室与现场数据都记录，不一致以现场为准；**先验仪器再信读数** | `.rankup/baseline.md` | `pagespeed.mjs <三类页面 URL> --strategy both --md`——**一次同时给实验室与现场**；Lighthouse 只给实验室，单跑它这条闸门只能过一半而表面是绿的。现场返回「无数据」时原样记，别留空（见 [`seo-box.md`](seo-box.md) 一） | 每轮 |
 | 分析通道在采集 | **线上原始 HTML 里 grep 得到 beacon**。控制台显示「已启用」不算 | `.rankup/integrations.md` | `cf-analytics-setup.mjs status <domain>` | 每轮 |
 | IndexNow | 密钥文件正文逐字节等于密钥，首次推送已被接受并记下条数与 HTTP 状态 | `.rankup/integrations.md` | `indexnow-submit.mjs`。**密钥不可达时整批被丢弃而接口照样回 200** | 动了 URL |
 | 两边 sitemap 已提交 | GSC 与 Bing 都提交过，记的是**快照日期**不是实时值；**记的是资源 ID 不是资源名字** | `.rankup/integrations.md` | `webmaster-sitemap.mjs <gsc\|bing> submit` | 动了 URL |
@@ -180,6 +183,7 @@
 | 检查项 | 客观通过条件 | 证据落点 | 怎么做 | 复查 |
 |---|---|---|---|---|
 | 线上技术信号已核实 | 改了什么就在线上核过什么，不是本地看着对 | `.rankup/audit.md` | `seo-audit.mjs --sitemap <url>` | 每轮 |
+| 本轮改过的旧 URL 跳转正确 | 每个被改/被删的旧 URL 都 301 到新址，**不是 302，也不是软 404 落回首页** | `.rankup/audit.md` | `curl -sIL <旧 URL>`，见 [`seo-box.md`](seo-box.md) 二 | 动了 URL |
 | 目标词首页复看 | 本轮动过的目标词，在 Google 与 Bing 各重看一次首页：自己的页面进没进、AI 答案引用名单变没变、盘面有没有新进入者 | `.rankup/experiments.md` | 同 [`demand-sources.md`](demand-sources.md) 第一·五节的七样，只记变化 | 每轮 |
 | 实验有基线、目标指标、回看日期 | 三样齐全。**没有观察窗口就没有结论** | `.rankup/experiments.md` | `is-agentic.mjs diff` + Lighthouse 重测 | 每轮 |
 | AI 搜索合规项已检查 | Back Button、FAQ schema 现状、非大众化内容审计三项都查过并记录 | `.rankup/audit.md` | 对照 [`seo-growth.md`](seo-growth.md) 三-B | 每轮 |

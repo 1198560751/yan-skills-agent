@@ -59,8 +59,9 @@ const session = args.newTab
   ? `${args.session}-${new URL(args.url).hostname.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 40)}`
   : args.session;
 
+const windowMode = args.window || 'background';
 function ocli(...argv) {
-  const out = execFileSync('opencli', ['browser', session, '--window', 'background', ...argv], {
+  const out = execFileSync('opencli', ['browser', session, '--window', windowMode, ...argv], {
     encoding: 'utf8', timeout: 90_000, maxBuffer: 32 * 1024 * 1024,
   });
   return out.split('\n').filter((l) => !/UNDICI|trace-warnings/.test(l)).join('\n').trim();
