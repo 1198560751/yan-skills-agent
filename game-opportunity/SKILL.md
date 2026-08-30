@@ -8,6 +8,18 @@ description: Rankup 的小游戏机会专项 Skill。用于监测游戏平台 si
 把游戏平台的新 URL 变成可直接挑选的建站候选。商业判断看今天的搜索需求、竞争盘面和可玩供给；
 游戏发布时间只负责标注新旧，老游戏同样可以进入优先队列。
 
+## 分工铁律：脚本只采集，判断只归 AI
+
+| 层 | 谁做 | 产出 |
+|---|---|---|
+| 采集 | `game-opportunity.mjs` 各子命令 | 原始 per-source 证据 + manifest（每源 `{source,status,count,error}`）、挑战页原始 HTML、`not-queried` 与实测零严格分开 |
+| 判读 | AI 对着原始信号 | `YYYY-MM-DD-evaluation.json`（action/理由/缺失证据）与 `YYYY-MM-DD-demand-selection.json`（深查名单） |
+| 排版 | `evaluate`/`render` | 只排事实与 AI 已写入的判读，不产生任何结论句 |
+
+脚本里没有打分器、没有阈值门、没有 verdict。本文档下面的所有分值表和门槛数字都是
+**AI 判读指引**，供 AI 对照原始信号使用；任何来源采集失败时，对应项在判读里标「未测」，
+不允许当成 0 或「无需求」。
+
 ## 任务入口
 
 | 任务 | 动作 | 固定产物 |
@@ -17,9 +29,9 @@ description: Rankup 的小游戏机会专项 Skill。用于监测游戏平台 si
 | `collect` | 依次完成 `discover` 和 `radar`，并合并当天新增游戏 | 上述两个输入文件与 `YYYY-MM-DD-new-games.json` |
 | `collect-checklist` | 执行采集并完成 10 项硬验收 | `YYYY-MM-DD-collect-checklist.{json,md}` |
 | `dedupe` | 不联网，读取当天 discovery/radar，去掉重复游戏与社交 campaign | `.rankup/demand/game-review/YYYY-MM-DD-new-games.json` |
-| `plan` | 从真实游戏生成原名、英文名、本地名的全球优先查询计划 | `YYYY-MM-DD-demand-plan.json` 与 `YYYY-MM-DD-global-keywords.txt` |
-| `demand` | 先查全球量和主要国家，再一次性查询各国家库 | `YYYY-MM-DD-demand-results.json` |
-| `evaluate` | 验活、合并实体、查量/KD/趋势/SERP/供给、排序 | `.rankup/demand/game-review/YYYY-MM-DD-candidates.json` 与 `YYYY-MM-DD-report.md` |
+| `plan` | 从真实游戏生成原名、英文名、本地名的全球优先查询计划；深查名单读 AI 写的 `YYYY-MM-DD-demand-selection.json`，缺省用机械顺序（到期复查 → 当天新发现 → 其余），完整候选池连同选中与否写进 plan | `YYYY-MM-DD-demand-plan.json` 与 `YYYY-MM-DD-global-keywords.txt` |
+| `demand` | 先查全球量和主要国家，再一次性查询各国家库；未查询的市场落 `status:'not-queried'` 且数值为 null，与实测零严格分开 | `YYYY-MM-DD-demand-results.json` |
+| `evaluate` | 验活、合并实体、叠加取数结果与 AI 判读、按机械顺序排版日报；挑战页原始 HTML 落 `YYYY-MM-DD-evidence/` 并标记，候选不被剔除 | `.rankup/demand/game-review/YYYY-MM-DD-candidates.json` 与 `YYYY-MM-DD-report.md` |
 | `decision-checklist` | 执行需求调查、日报并完成 10 项硬验收 | `YYYY-MM-DD-decision-checklist.{json,md}` |
 | `daily` | 依次完成 `collect`、`demand` 和 `evaluate` | 上述全部产物 |
 
@@ -61,10 +73,14 @@ opencli twitter search '"<游戏名>" since:<YYYY-MM-DD>' --product live --limit
 社区增速、跨平台重复、可玩供给和 Trends 判断；搜索量出现后再并入常规 KD、SERP 和国家筛选。
 Similarweb 用于最近 28 天的关键词、国家和流量去向验证，Semrush 用于分国家搜索量与 KD。
 
-## 外部需求双轨闸门
+## 外部需求双轨闸门（AI 判读指引，脚本不执行）
 
 站内新增页、首页入口和 sitemap 批量更新时间负责发现候选。外部需求分从独立 Google SERP、本地
 搜索量、Trends、竞品自然搜索词，以及非官方社区传播中取得。
+
+下面两轨的分值和通过线是 **AI 对着原始信号打分判读时的参考口径**，不是脚本行为：
+脚本只把每个来源的原始数值、状态和失败现场交出来。某来源 `status:'failed'` 或关键词行
+`status:'not-queried'` 时，对应打分项标「未测」，整条判决按证据不全处理，不得按 0 分计。
 
 ### 搜索需求轨
 
@@ -80,11 +96,12 @@ Similarweb 用于最近 28 天的关键词、国家和流量去向验证，Semru
 | 目标国家与搜索意图匹配 | 10 |
 
 精确词、玩法大类和多语言变体分别打分。搜索量达到“全球精确词 1,000，或目标国家精确词 500”
-只进入调研，不代表可以开发。独立单游戏站的开发硬门槛是全球精确词至少 10,000、最高国家至少
-2,000、KD 不高于 30、游戏意图已核实、存在独立外部需求并且可玩供给稳定；任一项缺失就进入调研
-或观察。候选再计算 KGR
+只进入调研，不代表可以开发。AI 判 `develop` 的参考硬门槛是全球精确词至少 10,000、最高国家至少
+2,000、KD 不高于 30、游戏意图已核实、存在独立外部需求并且可玩供给稳定；任一项缺失或未测就判
+调研或观察。候选再计算 KGR
 （`allintitle` 结果数 ÷ 月搜）：社区初筛线为 KGR <0.25 或 `allintitle` <100；同时查看 EMD 与前十
-专业站占位。总分 70+ 进入 `quick-ship`，50–69 进入 `priority-research`，其余进入 `watch`。
+专业站占位。总分 70+ 判 `quick-ship`，50–69 判 `priority-research`，其余判 `watch`——这套打分
+由 AI 完成并连同理由写进 evaluation 文件，脚本只透传。
 
 ### 早期爆发轨
 
@@ -253,24 +270,30 @@ Similarweb 的近 28 天总量回答“这个月有没有需求”，Google Tren
 分国家搜索量、非官方社区/视频、竞品自然搜索词取得。每个候选记录 `internalTrafficRisk` 和
 `independentDemand`；只有平台内信号时留在观察，不因该页存在或可 iframe 就升级。
 
-### 4. 排序
+### 4. 分组（AI 判）
 
-把候选放进三组：
+AI 对照上面的判读指引把候选放进三组，写进 evaluation 文件：
 
 - `quick-ship`：全球量、主要国家量、KD、游戏意图、独立需求与可玩供给全部通过开发硬门槛；
 - `priority-research`：已有需求信号，还需要补一项供给、趋势或竞争证据；
 - `watch`：游戏相关信号成立，等待下一次平台、趋势或搜索量信号。
 
-老游戏按当前量、当前 KD、当前 SERP 和当前供给进入同一套排序。把失效 URL 单独汇总，便于清理
-sitemap 噪声。
+AI 未判读的候选在日报里如实归入「未判」组，不由脚本代判。老游戏按当前量、当前 KD、当前
+SERP 和当前供给进入同一套判读。失效 URL（全部实测 404/410）由脚本单独汇总为事实，便于清理
+sitemap 噪声；被 Cloudflare 挑战页挡住的候选**不算失效也不被剔除**，其原始 HTML 在
+`YYYY-MM-DD-evidence/`，由 AI 决定换通道重测还是换判定。
 
 ### 5. 写回并生成日报
 
 把量化结果写成 `.rankup/demand/game-review/YYYY-MM-DD-evaluation.json`，格式为
 `{"candidates":[...]}`；每项用 `entityId`、名称或 URL 与队列合并。
 
-**这个文件是整条链路唯一的人工判断入口。** 品牌词/品类词、SERP 意图、前十弱位、7 天方向、
-站内流量风险这几项脚本算不出来，只能写在这里；D03、D06、D07、D08 四项验收查的就是它们。
+**这个文件是整条链路唯一的判断入口，由 AI 判读后写入。** 品牌词/品类词、SERP 意图、前十
+弱位、7 天方向、站内流量风险，以及 `action`（develop/research/watch）、`reasons`、
+`decisionAudit.missingEvidence`、`nextAction` 全部只能来自这里，脚本原样透传、缺失即「未判」；
+D03、D06、D07、D08 四项验收查的就是它们。深查名单同理写
+`YYYY-MM-DD-demand-selection.json`（entityId 数组），`plan` 的 `pool` 字段列出完整候选池
+供挑选；不写名单时脚本用机械默认顺序（到期复查 → 当天新发现 → 其余）。
 `evaluate` 与 `decision-checklist` 会**自动读取这个约定路径**，不需要每次传 `--evaluation`：
 
 ```bash
@@ -294,28 +317,33 @@ node game-opportunity/scripts/game-opportunity.mjs render \
 - `.rankup/demand/game-review/latest.json`：机器可读候选；
 - `.rankup/demand/game-review/latest.md`：给用户阅读的最新日报。
 
-日报按 `develop`、`research`、`watch` 三组展示，每个候选必须有发现页、可玩页或证据链接。搜索量
-分开显示“全球量、最高国家及其量、发现市场及其量”，不能把最高国家的数字写到发现市场名下；同时
-带该主要市场 KD、可玩状态和一句下一步。自动任务完成时直接把三组 List 与这些链接返回
-给用户，由用户决定继续调研或创建网站开发任务。
+日报按 `develop`、`research`、`watch`、`未判` 四组展示（前三组标签来自 AI），每个候选必须有
+发现页、可玩页或证据链接。搜索量分开显示“全球量、最高国家及其量、发现市场及其量”，不能把最高
+国家的数字写到发现市场名下；同时带该主要市场 KD、未查询行数、可玩状态（是/否/未测）和 AI 写的
+下一步。自动任务完成时直接把各组 List 与这些链接返回给用户，由用户决定继续调研或创建网站开发
+任务。
 
-没有候选通过开发硬门槛时，日报明确写“今天没有达到开发门槛的机会，静候下一轮”，不把中小词
-或意图未核实的泛词升级成建议开发。
+日报本身不写结论句。「今天没有达到开发门槛的机会」这类判断由 AI 在判读完原始信号后自己说，
+且说之前必须确认：不是因为某个来源失败或某些市场未查询才显得没有机会——未测项要么补测，
+要么在结论里如实点名。不把中小词或意图未核实的泛词升级成建议开发。
 
 前一日的 `research/watch` 会自动续带；首次发现后的第 3、7、14、28 天在 `carryForward.recheckDue`
 标记复查。新候选始终排在续带候选之前。
 
-### 深查名额：续带候选只在复查日占位
+### 深查名额：AI 定名单，脚本只有机械默认
 
-每天只有 **6 个深查名额**（要花 Semrush 配额），所以谁占名额是硬约束：
+每天只有 **6 个深查名额**（要花 Semrush 配额）。谁占名额是判断，所以由 AI 在跑 `plan`/`demand`
+前看 `plan` 输出的完整候选池（`pool` 字段），把名单写进
+`YYYY-MM-DD-demand-selection.json`（entityId 数组，按序取用）。
 
-| 情况 | 是否占名额 |
+不写名单时脚本用**机械默认顺序**（只看日历和来源，不看好坏）：
+
+| 顺位 | 情况 |
 |---|---|
-| 已达开发门槛 | 占，最高优先级 |
-| 当天新确认为 `research` | 占 |
-| **续带的 `research`，今天正好跨过第 3/7/14/28 天** | **占**（这就是复查） |
-| **续带的 `research`，今天不是复查日** | **不占，把名额让给新发现** |
-| 新发现的可玩游戏 / Poki/itch / 其他 / Steam | 按此顺序补位 |
+| 1 | 续带候选今天正好跨过第 3/7/14/28 天（复查是日历承诺） |
+| 2 | 当天新发现（`new-games`） |
+| 3 | 其余非续带候选 |
+| 4 | 非复查日的续带候选（不占位——2026-08-27 实测续带常驻会让 224 个新发现只剩 1 个名额） |
 
 > **2026-08-27 修复了两个会让流水线停止发现新机会的 bug：**
 >
@@ -369,12 +397,17 @@ node game-opportunity/scripts/game-opportunity.mjs render \
 主要国家量、CPC、Semrush KD、查询时间和原始结果文件。日报用表格列出候选、量、KD、可玩性、
 结论和下一步。
 
-## 完成判定
+## 完成判定：证据在场，而不是自评通过
 
-- 早间任务以本 Skill 的 `collect-checklist` 10 项验收为唯一完成门槛；
-- 决策任务以本 Skill 的 `decision-checklist` 10 项验收为唯一完成门槛；
-- discovery 报告存在，并给出成功、baseline、失败和新增数量；
-- 每条新增 URL 都有可访问性结论；
+完成与否看**证据是否都在盘上**：每个环节的原始产物存在、每个来源在 manifest 里有明确的
+`collected/failed` 结果、每次失败留了现场（错误信息或原始 HTML）、每个判读字段能追溯到
+evaluation 文件。`collect-checklist` / `decision-checklist` 是这套证据在场判定的机器化形式，
+它们验证的是「证据齐不齐、账对不对」，不是「判决对不对」——判决质量由 AI 与用户对着证据复核。
+
+- 早间任务以 `collect-checklist` 10 项证据验收为完成门槛；
+- 决策任务以 `decision-checklist` 10 项证据验收为完成门槛；
+- discovery 报告存在，并给出成功、baseline、失败和新增数量；失败平台在 manifest 里可见；
+- 每条新增 URL 都有可访问性实测结果（是/否/未测；被挑战页挡住算未测且现场在 evidence 目录）；
 - 多语言重复页已经合并；
 - 每个进入排序的候选都有供给状态和至少一组市场关键词数据；
 - 候选先有 `globalVolume/byCountry`，再有发现市场和主要国家的当地量；有英文名时英语词已进入全球查询；
@@ -383,4 +416,4 @@ node game-opportunity/scripts/game-opportunity.mjs render \
 - KD 口径、SERP 弱位/新站、28 天总量、7 天方向和平台内流量风险均有明确字段；
 - JSON 与 Markdown 数字一致，所有私有产物都位于 `.rankup/`。
 - `latest.json` 与当日 candidates 一致，`latest.md` 与当日日报一致；
-- 最终回复包含 `develop/research/watch` 三组候选和可点击来源链接。
+- 最终回复包含 `develop/research/watch/未判` 各组候选和可点击来源链接；未判与未测项如实点名，不得写成零或没有。

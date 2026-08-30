@@ -1,8 +1,18 @@
 /**
- * 用途：demand/ 下各脚本共用的小工具（参数解析、token 读取、输出、表格打印）。
+ * 用途：demand/ 下各脚本共用的小工具（参数解析、token 读取、输出、表格打印、
+ *       失败留现场：证据目录 + 运行 manifest）。
  *       不是可执行脚本，只被同目录的 *.mjs import。
  * 依赖：无（Node 22 内置 fetch / node:fs / node:path）
- * 已验证日期：2026-08-24
+ * 已验证日期：2026-08-30
+ *
+ * 失败留现场契约（2026-08-30 重构第一波）：
+ *   1. 采集失败不许只剩一句文案。get 系列与 saveEvidence 会把 {url,status,headers摘要,body}
+ *      原样落进证据目录（--evidence-dir 或默认 .rankup/evidence/demand/<script>-<ts>/），
+ *      抛出的异常信息里带落点路径。
+ *   2. 每次运行落一份 manifest.json：{script, argv(剥敏), startedAt,
+ *      sources:[{source,status,rawCount,error}], stopReason, finishedAt}。
+ *      「0 条 + 3 源失败」和「0 条 + 3 源成功」从此长得不一样。
+ *   3. 判断不在这里：manifest 只记录事实；空结果/失败怎么解读交给 AI。
  */
 
 import fs from 'node:fs';
@@ -51,6 +61,131 @@ export function readToken(...names) {
   return null;
 }
 
+// ── 失败留现场：证据目录 + 运行 manifest ────────────────────────────────────
+
+let _ev = null;
+
+const tsSlug = () => new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+const inferScript = () => {
+  try { return path.basename(process.argv[1] || 'demand', '.mjs') || 'demand'; } catch { return 'demand'; }
+};
+
+/** argv 剥敏：跟在 token/key/cookie 类旗标后面的值、以及长得像密钥的值，一律遮掉。 */
+function scrubArgv(argv) {
+  const SENSITIVE = /token|key|cookie|secret|password|auth/i;
+  const LOOKS_SECRET = /^(sk|pk)_(live|test)_|^Bearer\s|^ey[A-Za-z0-9_-]{20,}/;
+  const out = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a.startsWith('--') && SENSITIVE.test(a)) {
+      const eq = a.indexOf('=');
+      out.push(eq !== -1 ? a.slice(0, eq + 1) + '<redacted>' : a);
+      if (eq === -1 && argv[i + 1] !== undefined && !argv[i + 1].startsWith('--')) { out.push('<redacted>'); i++; }
+      continue;
+    }
+    out.push(LOOKS_SECRET.test(a) ? '<redacted>' : a);
+  }
+  return out;
+}
+
+/**
+ * 脚本入口处调用一次：initEvidence('script-name', { dir: args['evidence-dir'] })。
+ * 不调用也能工作——第一次 saveEvidence/recordSource/get* 失败会用脚本文件名兜底初始化。
+ */
+export function initEvidence(script = inferScript(), { argv = process.argv.slice(2), dir = null } = {}) {
+  _ev = {
+    dir: path.resolve(process.cwd(), dir || `.rankup/evidence/demand/${script}-${tsSlug()}`),
+    created: false,
+    manifest: {
+      script,
+      argv: scrubArgv(argv),
+      startedAt: new Date().toISOString(),
+      sources: [],
+      stopReason: null,
+    },
+  };
+  return _ev;
+}
+
+function evEnsure() {
+  if (!_ev) initEvidence();
+  if (!_ev.created) { fs.mkdirSync(_ev.dir, { recursive: true }); _ev.created = true; }
+  return _ev;
+}
+
+/** 证据目录绝对路径；还没初始化过则返回 null。 */
+export const evidenceDir = () => _ev?.dir ?? null;
+
+/** 把一份原始现场写进证据目录（字符串原样写，其它 JSON 化），返回绝对路径。 */
+export function saveEvidence(name, data) {
+  const ev = evEnsure();
+  const file = path.join(ev.dir, name);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, typeof data === 'string' ? data : JSON.stringify(data, null, 2) + '\n');
+  return file;
+}
+
+/**
+ * 记一条数据源状态进 manifest：{source, status, rawCount, error, ...}。
+ * status 约定：'ok' 表示采集动作本身成功（哪怕 rawCount 是 0）；
+ * 其它任何值（'http_403'、'timeout'、'parse_error'…）表示采集失败——
+ * 此时 rawCount 哪怕是 0 也不构成「没有数据」的证据。
+ */
+export function recordSource(entry) {
+  if (!_ev) initEvidence();
+  _ev.manifest.sources.push({ at: new Date().toISOString(), ...entry });
+  return entry;
+}
+
+/** 落 manifest.json；stopReason 只在还没设置时生效（die 优先）。返回文件路径。 */
+export function writeManifest(stopReason = 'completed') {
+  if (!_ev) return null;
+  if (_ev.manifest.stopReason == null) _ev.manifest.stopReason = stopReason;
+  _ev.manifest.finishedAt = new Date().toISOString();
+  const ev = evEnsure();
+  const file = path.join(ev.dir, 'manifest.json');
+  fs.writeFileSync(file, JSON.stringify(ev.manifest, null, 2) + '\n');
+  return file;
+}
+
+/** 供空结果输出用：把 sources 状态折叠成人读行。没记录过源则返回 null。 */
+export function sourceStatusSummary() {
+  const src = _ev?.manifest.sources ?? [];
+  if (!src.length) return null;
+  const failed = src.filter((s) => s.status !== 'ok');
+  const lines = src.map((s) =>
+    `  - ${s.source}: ${s.status}` +
+    (s.rawCount != null ? ` rawCount=${s.rawCount}` : '') +
+    (s.error ? ` error=${String(s.error).replace(/\s+/g, ' ').slice(0, 160)}` : ''));
+  return { lines, total: src.length, ok: src.length - failed.length, failed: failed.length };
+}
+
+/** fetch 响应头摘要：只留诊断相关的几个，绝不落 cookie。 */
+function headerSummary(res) {
+  const keep = ['content-type', 'retry-after', 'server', 'cf-ray', 'cf-mitigated',
+    'x-ratelimit-limit', 'x-ratelimit-remaining', 'x-ratelimit-reset', 'location'];
+  const out = {};
+  for (const k of keep) { const v = res?.headers?.get?.(k); if (v) out[k] = v; }
+  return out;
+}
+
+/** 采集失败 → 完整现场落盘，返回一个信息里带落点路径的 Error（由调用方抛）。 */
+function fetchFailure(url, res, body, note) {
+  const status = res?.status ?? null;
+  let file = null;
+  try {
+    file = saveEvidence(`fetch-${Date.now()}-${status ?? 'neterr'}.json`, {
+      at: new Date().toISOString(), url, status,
+      headers: res ? headerSummary(res) : null,
+      note: note ?? null, body: body ?? null,
+    });
+  } catch { /* 证据都写不进去时至少别把原始错误吞了 */ }
+  const head = note ? `${note}：` : '';
+  const tail = file ? `（现场已留 ${file}）` : '';
+  const snippet = body ? ` :: ${String(body).slice(0, 200)}` : '';
+  return new Error(`${head}HTTP ${status} ${url}${snippet}${tail}`);
+}
+
 const DEFAULT_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
@@ -78,22 +213,31 @@ export async function get(url, { headers = {}, retries = 2, timeout = 25000, ua 
       if (i < retries) await sleep(800 * (i + 1));
     }
   }
-  throw lastErr;
+  // 网络层失败（超时/连接被重置）：把能拿到的都留下再抛。
+  let file = null;
+  try {
+    file = saveEvidence(`fetch-${Date.now()}-neterr.json`, {
+      at: new Date().toISOString(), url,
+      error: String(lastErr?.message ?? lastErr),
+      code: lastErr?.cause?.code ?? lastErr?.code ?? null,
+    });
+  } catch { /* 留不下现场也要抛原始错误 */ }
+  throw new Error(`${String(lastErr?.message ?? lastErr)}${file ? `（现场已留 ${file}）` : ''}`);
 }
 
 export async function getJson(url, opts = {}) {
   const res = await get(url, { headers: { accept: 'application/json' }, ...opts });
   const text = await res.text();
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${url} :: ${text.slice(0, 200)}`);
+  if (!res.ok) throw fetchFailure(url, res, text);
   try { return JSON.parse(text); } catch {
-    throw new Error(`响应不是 JSON（${res.status}，可能被反爬挡了）：${url} :: ${text.slice(0, 200)}`);
+    throw fetchFailure(url, res, text, '响应不是 JSON（可能被反爬挡了）');
   }
 }
 
 export async function getText(url, opts = {}) {
   const res = await get(url, opts);
   const text = await res.text();
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${url} :: ${text.slice(0, 200)}`);
+  if (!res.ok) throw fetchFailure(url, res, text);
   return text;
 }
 
@@ -120,7 +264,17 @@ const clip = (s, max) => {
 
 /** 人类可读表格；cols = [{key, label, max}] */
 export function printTable(rows, cols) {
-  if (!rows.length) { console.log('(无结果)'); return; }
+  if (!rows.length) {
+    // 「0 条 + 源失败」和「0 条 + 源成功」必须长得不一样。
+    const s = sourceStatusSummary();
+    if (!s) { console.log('(无结果)'); return; }
+    if (s.failed) console.log(`(无结果——但 ${s.failed}/${s.total} 个源采集失败，这不是「没有数据/没有需求」的证据)`);
+    else console.log(`(无结果：${s.total} 个源全部采集成功，确实取到 0 条)`);
+    console.log('源状态：');
+    for (const l of s.lines) console.log(l);
+    if (evidenceDir()) console.log(`证据目录：${evidenceDir()}`);
+    return;
+  }
   const cells = rows.map((r) => cols.map((c) => clip(r[c.key], c.max ?? 40)));
   const ws = cols.map((c, i) => Math.max(width(c.label), ...cells.map((row) => width(row[i]))));
   console.log(cols.map((c, i) => pad(c.label, ws[i])).join('  '));
@@ -128,15 +282,26 @@ export function printTable(rows, cols) {
   for (const row of cells) console.log(row.map((v, i) => pad(v, ws[i])).join('  '));
 }
 
-/** 统一收尾：--json / --out / 表格 */
+/** 统一收尾：--json / --out / 表格；记录过源状态的运行顺手落 manifest */
 export function emit(rows, args, cols) {
   if (args.out) {
     const p = writeOut(args.out, rows);
     if (!args.json) console.error(`已写入 ${p}（${rows.length} 条）`);
   }
-  if (args.json) { console.log(JSON.stringify(rows, null, 2)); return; }
-  printTable(rows, cols);
-  console.error(`\n共 ${rows.length} 条`);
+  const s = sourceStatusSummary();
+  const mf = _ev ? writeManifest('completed') : null;
+  if (args.json) {
+    console.log(JSON.stringify(rows, null, 2));
+  } else {
+    printTable(rows, cols);
+    console.error(`\n共 ${rows.length} 条`);
+  }
+  // 有失败源时不论输出形态都要在 stderr 挂状态行，防止 0/少条被读成结论。
+  if (s?.failed) {
+    console.error(`注意：${s.failed}/${s.total} 个源采集失败——缺的行是「没取到」，不是「不存在」。`);
+    for (const l of s.lines) console.error(l);
+  }
+  if (mf) console.error(`manifest：${mf}`);
 }
 
 /**
@@ -159,7 +324,18 @@ export function sessionName(base) {
   return `${base}-${suffix}`;
 }
 
-export function die(msg) { console.error(`错误：${msg}`); process.exit(1); }
+/** 退出前先落 manifest（stopReason=died），现场路径打给调用方，再退出。 */
+export function die(msg) {
+  if (_ev) {
+    _ev.manifest.stopReason = `died: ${String(msg).replace(/\s+/g, ' ').slice(0, 300)}`;
+    try {
+      const f = writeManifest();
+      if (f) console.error(`现场已留：${f}`);
+    } catch { /* manifest 写不进去也要把错误打出来 */ }
+  }
+  console.error(`错误：${msg}`);
+  process.exit(1);
+}
 
 /**
  * 探测 OpenCLI 浏览器桥是否连上，短超时，三种判定：

@@ -166,6 +166,7 @@ const T_GATE = new Set(['open-form', 'account', 'captcha-interactive', 'captcha-
 const T_STATUS = new Set(['usable', 'gated', 'unverified', 'dead']);
 const T_PAY = new Set(['none-seen', 'optional', 'required', 'unknown']);
 const tSeen = new Set();
+let legacyVerdicts = 0;
 for (const t of targets.targets || []) {
   const at = `submission-targets[${t.domain || '?'}]`;
   if (!t.domain || !/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(t.domain)) err(at, 'domain 必须是小写可注册域名，不带 scheme 也不带 www');
@@ -210,22 +211,35 @@ for (const t of targets.targets || []) {
   for (const k of ['relObserved', 'anchorRendered', 'indexable']) {
     if (k in t) err(at, `不得出现字段 ${k} —— 这张表没有观察过任何已发布的链接。观察到了就把它升进 free-channels.json`);
   }
-  // 流量是准入门槛，所以它的判决必须自洽，且必须说得出是什么时候测的。
+  // 流量是测量不是判决：表里落的是实测数字 + 证据指针，门槛由 targets-select
+  // 在查询时现算，「空值意味着什么」由 AI 读证据下判。所以这里校验的是
+  // 「测量自洽」：说得出什么时候测的、用什么口径测的。
   if (t.traffic !== undefined && t.traffic !== null) {
     const tr = t.traffic;
-    if (!['pass', 'fail', 'below-floor'].includes(tr.verdict)) {
-      err(at, `traffic.verdict 非法：${tr.verdict}（error 不是结论，不许落库——重测）`);
-    }
     if (!tr.checkedAt || Number.isNaN(Date.parse(tr.checkedAt))) err(at, 'traffic 必须写 checkedAt：流量是会变的，没有日期的流量数字不能当门槛用');
     if (!tr.source) err(at, 'traffic 必须写 source：不同数据源的口径不同，不标来源就没法互相核对');
     const v = tr.monthlyVisits;
-    if (tr.verdict === 'pass' && !(typeof v === 'number' && v >= 100)) err(at, `traffic.verdict=pass 但 monthlyVisits=${v}，门槛是 >= 100`);
-    if (tr.verdict === 'fail' && !(typeof v === 'number' && v < 100)) err(at, `traffic.verdict=fail 但 monthlyVisits=${v}，fail 指测到了而且低于门槛`);
-    if (tr.verdict === 'below-floor' && v !== null) err(at, 'below-floor 指数据源根本查不到这个域名，monthlyVisits 必须是 null');
+    if (v !== null && typeof v !== 'number') err(at, `traffic.monthlyVisits 必须是数字或 null，读到 ${JSON.stringify(v)}`);
+    // verdict 是 legacy 字段（判断已上交 AI，2026-08-30 起新写入不再落它）。
+    // 旧值保留作历史参考：只可当「当时的脚本这么判过」，不可当测量事实。
+    if (tr.verdict !== undefined) {
+      if (!['pass', 'fail', 'below-floor'].includes(tr.verdict)) {
+        err(at, `traffic.verdict 非法：${tr.verdict}（error 从来不是结论；合法的 legacy 值只有 pass/fail/below-floor）`);
+      } else {
+        legacyVerdicts += 1; // 逐行各报一条会淹掉别的警告，循环后汇总报一次
+      }
+    }
+    // 新写入应带证据指针；没有的（legacy 行）提醒但不拦——那正是「无现场可复核」的历史债。
+    if (tr.verdict === undefined && !tr.evidence) {
+      warn(at, 'traffic 没有 evidence 指针（stopReason/screenshot/raw/jsonl）：无现场可复核的测量，建议重测');
+    }
   }
   if (t.status !== 'dead' && isDate(t.lastProbedAt) && daysAgo(t.lastProbedAt) > 180) {
     warn(at, `已 ${daysAgo(t.lastProbedAt)} 天未复探。目录类渠道消失得比改版还快`);
   }
+}
+if (legacyVerdicts > 0) {
+  warn('submission-targets', `${legacyVerdicts} 行 traffic 仍带 legacy verdict 字段（判断已上交 AI，新写入不再落 verdict）。旧值只可当历史参考；重测即替换，或 apply-traffic-screen --strip-legacy-verdicts 一次清除`);
 }
 
 // —— paid-platforms ————————————————————————————————————————————
@@ -260,10 +274,14 @@ if (!quiet || errors.length) {
   process.stdout.write(`  批次：${Object.entries(cohorts).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(' · ')}\n`);
   const live = tl.filter((t) => t.status !== 'dead');
   const measured = live.filter((t) => t.traffic);
-  const passed = measured.filter((t) => t.traffic.verdict === 'pass');
-  process.stdout.write(`  流量门槛（>=100 月访问）：已测 ${measured.length}/${live.length}，过闸 ${passed.length}，未测 ${live.length - measured.length}\n`);
+  const withNumber = measured.filter((t) => typeof t.traffic.monthlyVisits === 'number');
+  const atLeast100 = withNumber.filter((t) => t.traffic.monthlyVisits >= 100);
+  process.stdout.write(`  流量测量：有数字 ${withNumber.length}/${live.length}（其中 >=100 月访问 ${atLeast100.length}，供参考——门槛由 targets-select 现算），无数字 ${measured.length - withNumber.length}，未测 ${live.length - measured.length}\n`);
   if (live.length - measured.length > 0) {
     process.stdout.write(`  ⓘ 未测的不等于合格。填表前先跑 similarweb-batch.mjs，再用 targets-select --min-traffic 100 选批次\n`);
+  }
+  if (measured.length - withNumber.length > 0) {
+    process.stdout.write(`  ⓘ 无数字也不等于低流量：可能是数据源空态或采集未完成，看 traffic.evidence 分辨\n`);
   }
   for (const w of warns) process.stdout.write(`  ⚠ ${w}\n`);
 }

@@ -1,5 +1,15 @@
 #!/usr/bin/env node
-/** 小游戏机会流水线：复用 Rankup 取数脚本，统一产出每日候选与中文报告。 */
+/**
+ * 小游戏机会流水线：复用 Rankup 取数脚本，产出每日原始信号与事实排版的中文日报。
+ *
+ * 分层纪律（2026-08-30 重构）：
+ * - 采集层（discover/radar/collect/demand/evaluate 的取数部分）只落原始 per-source
+ *   证据 + manifest；失败留现场（Cloudflare 挑战页保留原始 HTML 并标记，不剔除候选）。
+ * - 本脚本不打分、不设阈值门、不下判决。develop/research/watch 等判断只能来自
+ *   evaluation 文件（AI 判读写入），脚本原样透传，缺失时如实标「未判」。
+ * - 「未查询」与「测得为零」严格分开：未查询的市场是 status:'not-queried'，
+ *   全部数值为 null，绝不落 0。
+ */
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -27,9 +37,9 @@ const HELP = `game-opportunity.mjs — 每日小游戏机会发现、筛选与�
   dedupe     合并当天 discovery + radar，只保留新增游戏
   plan       生成“全球先查、国家再下钻”的关键词计划
   demand     执行全球量查询，再查询主要国家与英语大市场
-  evaluate   合并当天输入、验活 URL、生成候选与最终日报
+  evaluate   合并当天输入、验活 URL、汇总原始信号并排版日报（判决只来自 evaluation 文件）
   decision-checklist 执行需求调查、日报并逐项验收
-  render     从已有候选或 --evaluation 文件重新生成日报
+  render     从已有候选或 --evaluation 文件重新排版日报
   daily      依次运行 collect + demand + evaluate
 
 选项:
@@ -44,7 +54,8 @@ const HELP = `game-opportunity.mjs — 每日小游戏机会发现、筛选与�
   -h, --help
 
 固定产物：.rankup/demand/game-review/YYYY-MM-DD-{discovery,radar,new-games,demand-plan,demand-results,candidates}.json、
-          YYYY-MM-DD-report.md、latest.json、latest.md、latest-new-games.json`;
+          YYYY-MM-DD-report.md、YYYY-MM-DD-evidence/（挑战页等原始现场）、latest.json、latest.md、latest-new-games.json
+可选输入：YYYY-MM-DD-demand-selection.json（AI 写入的深查名单，entityId 数组；缺省用机械顺序）`;
 
 function parseArgs(argv) {
   const out = { command: null, date: new Date().toISOString().slice(0, 10), limit: 30, root: process.cwd() };
@@ -157,7 +168,9 @@ function files(o) {
   return {
     discovery: `${base}-discovery.json`, radar: `${base}-radar.json`,
     newGames: `${base}-new-games.json`,
-    demandPlan: `${base}-demand-plan.json`, globalKeywords: `${base}-global-keywords.txt`,
+    demandPlan: `${base}-demand-plan.json`, demandSelection: `${base}-demand-selection.json`,
+    globalKeywords: `${base}-global-keywords.txt`,
+    evidenceDir: `${base}-evidence`,
     globalSemrush: `${base}-semrush-global.jsonl`, countryPlan: `${base}-country-plan.json`,
     countrySemrush: `${base}-semrush-countries.jsonl`, demandResults: `${base}-demand-results.json`,
     evaluation: `${base}-evaluation.json`,
@@ -372,12 +385,13 @@ function inputCandidates(data, origin) {
       languages: arr(row.languages), markets: arr(row.markets),
       firstSeen: row.firstSeen ?? data.generatedAt ?? data.date ?? null,
       pageType: row.pageType ?? row.kind ?? 'new-on-platform',
-      reachable: row.reachable ?? null, playable: row.playable ?? arr(row.playLinks).length > 0,
+      // playable 是实测事实，不从「存在 playLink」推断；未测就是 null（未测 ≠ 否）。
+      reachable: row.reachable ?? null, playable: row.playable ?? null,
       keywords: arr(row.keywords), trend: row.trend ?? {}, demandProof: row.demandProof ?? {},
       promotionRisk: row.promotionRisk ?? {}, reasons: arr(row.reasons),
       origin: uniq([...arr(row.origin), origin]),
       // Age has to survive normalisation the same way firstSeen does. Dropping it
-      // here made every carried candidate look brand new to demandPriority, which
+      // here made every carried candidate look brand new to selectDeepCheck, which
       // is how six stale candidates kept holding the whole deep-check queue.
       ...(row.carryForward ? { carryForward: row.carryForward } : {}),
       ...(row.decision ? { decision: row.decision } : {}),
@@ -416,18 +430,17 @@ function isQuantified(c) {
   return arr(c.keywords).some((k) => ['semrushVolume', 'volume', 'localVolume', 'semrushGlobalVolume', 'globalVolume', 'semrushKd', 'webcafeKd', 'kd'].some((key) => nonempty(k?.[key])));
 }
 
+/**
+ * 只做机械排序（谁进日报的展示截断），不含任何价值判断：
+ * 花过配额的深查候选必须留在报告里（哪怕精确词为零），其次是当天新发现，
+ * 再次是到期复查的续带候选。哪个值得开发由 AI 看原始信号判。
+ */
 function rankCandidates(candidates, todayRows) {
   const rank = (c) => {
-    const action = finishCandidate(c).action;
-    if (isQuantified(c) && action === 'develop') return 0;
-    // A planned deep check stays in the report even when its exact term is zero.
-    // Otherwise the 30-row display cap can hide it, making the decision checklist
-    // ask for evidence that the report has already discarded.
-    if (c.demandCoverage?.globalChecked) return 1;
-    if (todayRows.some((v) => sameCandidate(v, c))) return 2;
-    if (isQuantified(c) && action === 'research') return 3;
-    if (c.carryForward?.recheckDue) return 4;
-    return 5;
+    if (c.demandCoverage?.globalChecked) return 0;
+    if (todayRows.some((v) => sameCandidate(v, c))) return 1;
+    if (c.carryForward?.recheckDue) return 2;
+    return 3;
   };
   return candidates.map((c, i) => ({ c, i, rank: rank(c) })).sort((a, b) => a.rank - b.rank || a.i - b.i).map((v) => v.c);
 }
@@ -454,7 +467,9 @@ function annotateCarryForward(candidate, latestDate, date) {
 
 function carryForward(latest, date) {
   if (!latest?.date || latest.date >= date) return [];
-  return arr(latest.candidates).filter((c) => ['research', 'watch'].includes(finishCandidate(c).action)).map((c) => annotateCarryForward(c, latest.date, date));
+  // 机械规则：只有 AI 明确判了 develop 的候选离开续带池（进入建站流程）；
+  // research、watch 与未判候选一律续带，不由脚本替 AI 淘汰。
+  return arr(latest.candidates).filter((c) => c.action !== 'develop').map((c) => annotateCarryForward(c, latest.date, date));
 }
 
 /**
@@ -463,7 +478,7 @@ function carryForward(latest, date) {
  * It reads latest.json straight from disk, and on a candidate's first carry-over
  * day that file has no carryForward field yet — evaluate only stamps one while
  * carrying. Without ageing them here every stale candidate looked brand new to
- * demandPriority and kept its deep-check slot regardless. Unlike carryForward()
+ * selectDeepCheck and kept its deep-check slot regardless. Unlike carryForward()
  * this keeps every action, because the plan pool ranks them rather than filtering.
  */
 function previousReportPool(latest, date) {
@@ -489,66 +504,46 @@ async function checkUrl(url) {
     await reader?.cancel().catch(() => {});
     const html = Buffer.concat(chunks.map((v) => Buffer.from(v))).toString('utf8');
     const meta = pageMeta(html, res.url);
-    const result = { url, ok: res.ok, status: res.status, finalUrl: res.url, ...meta };
+    // html 只在进程内传递，供 evaluate 把挑战页等异常现场落盘；写入 JSON 前会剥离。
+    const result = { url, ok: res.ok, status: res.status, finalUrl: res.url, ...meta, html };
     return result;
   } catch (e) { return { url, ok: false, status: null, error: e.name === 'AbortError' ? 'timeout' : e.message }; }
   finally { clearTimeout(timer); }
 }
 
-function keywordSignal(c) {
+/**
+ * 只汇总关键词行的原始事实，不选边、不打分：
+ * 每一行区分「实测」与「未查询」；聚合值只来自实测行，未查询行单独计数。
+ * KD 不取最小值（挑较低数字下结论是被点名的病灶），全量列出交给 AI 读。
+ */
+function keywordFacts(c) {
   const keywords = arr(c.keywords);
-  const volume = Math.max(0, ...keywords.map((k) => Number(k.semrushVolume ?? k.volume ?? k.localVolume ?? 0) || 0));
-  const globalVolume = Math.max(0, ...keywords.map((k) => Number(k.semrushGlobalVolume ?? k.globalVolume ?? 0) || 0));
-  const top = keywords.map((k) => ({ row: k, volume: Number(k.semrushVolume ?? k.volume ?? k.localVolume ?? 0) || 0 })).sort((a, b) => b.volume - a.volume)[0]?.row;
-  const topKd = [top?.semrushKd, top?.webcafeKd, top?.kd].filter(nonempty).map(Number).find(Number.isFinite);
-  const kdValues = keywords.flatMap((k) => [k.semrushKd, k.webcafeKd, k.kd]).filter(nonempty).map(Number).filter(Number.isFinite);
-  return { volume, globalVolume, kd: topKd ?? (kdValues.length ? Math.min(...kdValues) : null), trend: c.trend ?? {} };
-}
-
-function buildReadiness(c) {
-  const k = keywordSignal(c);
-  const intentValidated = c.demandProof?.intentValidated === true;
-  const independentDemand = c.demandProof?.independentDemand === true || Number(c.promotionRisk?.independentPublishers ?? 0) >= 2;
-  const checks = {
-    playable: c.playable === true,
-    volume: k.globalVolume >= 10_000 && k.volume >= 2_000,
-    kd: k.kd !== null && k.kd <= 30,
-    intentValidated,
-    independentDemand,
+  const measured = keywords.filter((k) => k.status !== 'not-queried');
+  const notQueried = keywords.length - measured.length;
+  const volumes = measured.map((k) => Number(k.semrushVolume ?? k.volume ?? k.localVolume)).filter(Number.isFinite);
+  const globalVolumes = measured.map((k) => Number(k.semrushGlobalVolume ?? k.globalVolume)).filter(Number.isFinite);
+  const kdValues = uniq(measured.flatMap((k) => [k.semrushKd, k.webcafeKd, k.kd]).filter(nonempty).map(Number).filter(Number.isFinite));
+  return {
+    measuredRows: measured.length, notQueriedRows: notQueried,
+    maxMeasuredVolume: volumes.length ? Math.max(...volumes) : null,
+    maxGlobalVolume: globalVolumes.length ? Math.max(...globalVolumes) : null,
+    kdValues,
   };
-  return { ready: Object.values(checks).every(Boolean), checks };
 }
 
-function decide(c) {
-  const explicit = c.action ?? ({ 'quick-ship': 'develop', 'priority-research': 'research', watch: 'watch', develop: 'develop', research: 'research' }[c.decision]);
-  if (explicit === 'develop') return buildReadiness(c).ready ? 'develop' : 'research';
-  if (['research', 'watch'].includes(explicit)) return explicit;
-  const k = keywordSignal(c);
-  if (buildReadiness(c).ready) return 'develop';
-  if (c.reachable || c.playable || k.volume > 0 || k.globalVolume > 0 || arr(c.evidenceLinks).length > 1) return 'research';
-  return 'watch';
-}
-
+/**
+ * 只规范化，不判决。action/decision/reasons/nextAction 是 AI 在 evaluation 文件里
+ * 写下的判读，脚本原样透传；缺失时保持缺失（渲染层如实显示「未判」），
+ * 绝不代填理由句或下一步。
+ */
 function finishCandidate(c) {
   const urls = uniq(arr(c.urls).filter(validUrl));
   const sourceLinks = uniq([...arr(c.sourceLinks), ...urls].filter(validUrl));
   const playLinks = uniq([...arr(c.playLinks), c.playUrl, c.embed?.url].filter(validUrl));
   const evidenceLinks = uniq([...arr(c.evidenceLinks), ...sourceLinks].filter(validUrl));
-  c = { ...c, urls, sourceLinks, playLinks, evidenceLinks };
-  const action = decide(c);
-  const decision = ({ develop: 'quick-ship', research: 'priority-research', watch: 'watch' })[action];
-  const reasons = arr(c.reasons).length ? arr(c.reasons) : [
-    action === 'watch' ? '当前只有发现信号，尚无足够的外部需求证据。' : '已有需求线索，但开发所需证据尚未齐全。',
-  ];
-  const decisionAudit = action === 'research' && !arr(c.decisionAudit?.missingEvidence).length
-    ? { ...c.decisionAudit, missingEvidence: ['开发所需的需求、竞争、趋势或供给证据尚未齐全。'] }
-    : c.decisionAudit;
-  const nextAction = c.nextAction ?? ({
-    develop: '确认目标市场 SERP 与可玩供给后，直接建立网站开发任务。',
-    research: '补查目标国家搜索量、KD、趋势与 SERP，再决定是否开发。',
-    watch: '保留链接，等待下一次平台或搜索需求信号。',
-  }[action]);
-  return { ...c, action, decision, reasons, decisionAudit, buildGate: buildReadiness(c), keywordMetrics: keywordSignal(c), trend: c.trend ?? {}, nextAction };
+  const action = c.action ?? ({ 'quick-ship': 'develop', 'priority-research': 'research', watch: 'watch' }[c.decision]) ?? null;
+  const decision = c.decision ?? ({ develop: 'quick-ship', research: 'priority-research', watch: 'watch' }[action]) ?? null;
+  return { ...c, urls, sourceLinks, playLinks, evidenceLinks, action, decision, keywordMetrics: keywordFacts(c), trend: c.trend ?? {} };
 }
 
 function staleReason(c) {
@@ -587,29 +582,40 @@ function overlayCandidates(current, overlay) {
 
 const md = (v) => String(v ?? '').replace(/([|[\]])/g, '\\$1').replace(/\n/g, ' ');
 const link = (label, url) => validUrl(url) ? `[${md(label)}](${url})` : md(label);
+// 只排版事实：实测值带市场标注，未查询行单独计数；不做「待查/达标」之类的定性。
 const metric = (c) => {
-  const k = c.keywordMetrics ?? keywordSignal(c);
-  const rows = arr(c.keywords).map((row) => ({ row, volume: Number(row.semrushVolume ?? row.volume ?? row.localVolume ?? 0) || 0 }));
+  const k = c.keywordMetrics ?? keywordFacts(c);
+  const rows = arr(c.keywords).filter((row) => row.status !== 'not-queried')
+    .map((row) => ({ row, volume: Number(row.semrushVolume ?? row.volume ?? row.localVolume) }))
+    .filter(({ volume }) => Number.isFinite(volume));
   const top = rows.sort((a, b) => b.volume - a.volume)[0];
   const discovery = new Set(arr(c.discoveryMarkets).map((market) => String(market).toUpperCase()));
   const discoveryTop = rows.filter(({ row }) => discovery.has(String(row.market ?? row.gl ?? '').toUpperCase())).sort((a, b) => b.volume - a.volume)[0];
   const parts = [];
-  if (k.globalVolume) parts.push(`全球 ${k.globalVolume.toLocaleString('en-US')}`);
-  if (top?.volume) parts.push(`最高 ${String(top.row.market ?? top.row.gl).toUpperCase()} ${top.volume.toLocaleString('en-US')}`);
-  if (discoveryTop?.volume && discoveryTop.row !== top?.row) parts.push(`发现市场 ${String(discoveryTop.row.market ?? discoveryTop.row.gl).toUpperCase()} ${discoveryTop.volume.toLocaleString('en-US')}`);
-  if (k.kd !== null) parts.push(`KD ${k.kd}`);
+  if (k.maxGlobalVolume !== null) parts.push(`全球 ${k.maxGlobalVolume.toLocaleString('en-US')}`);
+  if (top) parts.push(`最高 ${String(top.row.market ?? top.row.gl).toUpperCase()} ${top.volume.toLocaleString('en-US')}`);
+  if (discoveryTop && discoveryTop.row !== top?.row) parts.push(`发现市场 ${String(discoveryTop.row.market ?? discoveryTop.row.gl).toUpperCase()} ${discoveryTop.volume.toLocaleString('en-US')}`);
+  if (k.kdValues.length) parts.push(`KD ${k.kdValues.join('/')}`);
+  if (k.notQueriedRows > 0) parts.push(`未查询 ${k.notQueriedRows} 行`);
   if (c.keywordStrategy?.entityType) parts.push(`类型 ${c.keywordStrategy.entityType}`);
   if (c.trend?.direction) parts.push(`近 7 天 ${c.trend.direction}`);
   if (c.promotionRisk?.internalTrafficRisk) parts.push(`站内流量风险 ${c.promotionRisk.internalTrafficRisk}`);
-  return parts.join('；') || '待查';
+  return parts.join('；') || '未测';
 };
 
+const playableCell = (c) => c.playable === true ? '是' : c.playable === false ? '否' : '未测';
+
 function renderMarkdown(report) {
-  const labels = { develop: '建议开发', research: '继续调研', watch: '继续观察' };
-  const lines = [`# 小游戏机会日报 · ${report.date}`, '', `共 ${report.candidates.length} 个候选：建议开发 ${report.stats.develop} 个，继续调研 ${report.stats.research} 个，继续观察 ${report.stats.watch} 个。`, '', `结论：${report.verdict.text}`, ''];
-  for (const action of ACTIONS) {
-    lines.push(`## ${labels[action]}`, '');
-    const rows = report.candidates.filter((c) => c.action === action);
+  const labels = { develop: '建议开发（AI 判）', research: '继续调研（AI 判）', watch: '继续观察（AI 判）', unjudged: '未判（等待 AI 判读）' };
+  const groups = [...ACTIONS, 'unjudged'];
+  const lines = [
+    `# 小游戏机会日报 · ${report.date}`, '',
+    `共 ${report.candidates.length} 个候选：建议开发 ${report.stats.develop} 个，继续调研 ${report.stats.research} 个，继续观察 ${report.stats.watch} 个，未判 ${report.stats.unjudged} 个。`, '',
+    '本报告只排版采集到的事实与 AI 写入 evaluation 文件的判读；分组标签来自 AI，脚本不下结论。', '',
+  ];
+  for (const group of groups) {
+    lines.push(`## ${labels[group]}`, '');
+    const rows = report.candidates.filter((c) => (group === 'unjudged' ? !c.action : c.action === group));
     if (!rows.length) { lines.push('本组暂无候选。', ''); continue; }
     lines.push('| 候选 | 来源 | 市场 / 搜索量 / KD | 可玩 | 下一步 |', '|---|---|---|---|---|');
     for (const c of rows) {
@@ -617,10 +623,15 @@ function renderMarkdown(report) {
       const primary = arr(c.playLinks)[0] ?? arr(c.urls)[0] ?? arr(c.sourceLinks)[0];
       const sources = uniq([...arr(c.sourceLinks), ...arr(c.evidenceLinks), ...arr(c.urls)]).slice(0, 4);
       const sourceMd = sources.length ? sources.map((url, i) => link(`来源${i + 1}`, url)).join(' · ') : '无链接';
-      const markets = arr(c.markets).join('/') || arr(c.keywords).map((k) => k.market).filter(Boolean).join('/') || '待定';
-      lines.push(`| ${link(name, primary)} | ${sourceMd} | ${md(markets)}；${metric(c)} | ${c.playable ? '是' : '待确认'} | ${md(c.nextAction)} |`);
+      const markets = arr(c.markets).join('/') || arr(c.keywords).map((k) => k.market).filter(Boolean).join('/') || '未记录';
+      lines.push(`| ${link(name, primary)} | ${sourceMd} | ${md(markets)}；${metric(c)} | ${playableCell(c)} | ${md(c.nextAction ?? '—')} |`);
     }
     lines.push('');
+  }
+  const challenged = report.candidates.filter((c) => arr(c.urlChecks).some((v) => v.challenge));
+  if (challenged.length) {
+    lines.push('## 采集受阻（挑战页，原始 HTML 已留证）', '',
+      ...challenged.map((c) => `- ${md(arr(c.names)[0] ?? '未命名游戏')}：${arr(c.urlChecks).filter((v) => v.challenge).map((v) => `\`${v.evidenceFile}\``).join('、')}`), '');
   }
   if (report.errors.length) lines.push('## 本次异常', '', ...report.errors.map((e) => `- ${md(e)}`), '');
   lines.push(`机器可读清单：\`${report.date}-candidates.json\`。`);
@@ -630,13 +641,13 @@ function renderMarkdown(report) {
 function saveReport(o, candidates, errors = [], excluded = []) {
   const f = files(o);
   const done = mergeCandidates(candidates).map(finishCandidate);
-  const stats = Object.fromEntries(ACTIONS.map((a) => [a, done.filter((c) => c.action === a).length]));
+  const stats = {
+    ...Object.fromEntries(ACTIONS.map((a) => [a, done.filter((c) => c.action === a).length])),
+    unjudged: done.filter((c) => !c.action).length,
+  };
   const report = {
     date: o.date, generatedAt: new Date().toISOString(), errors: uniq(errors.filter(Boolean)),
     stats,
-    verdict: stats.develop > 0
-      ? { action: 'act', text: `有 ${stats.develop} 个候选达到开发门槛，进入建站决策。` }
-      : { action: 'wait', text: '今天没有达到开发门槛的机会，静候下一轮。' },
     candidates: done, excluded: excluded.map(finishCandidate),
   };
   writeJson(f.candidates, report);
@@ -683,31 +694,30 @@ function demandCandidate(candidate) {
   return demandKeywords(candidate).length > 0 && arr(candidate.urls).some(validUrl);
 }
 
-// Deep-check slots are capped at six, so this order decides what actually gets
-// investigated each day. DEFERRED_RESEARCH sits below everything else on purpose.
-const DEFERRED_RESEARCH = 6;
-
 /**
- * A carried research candidate holds a slot only on the days its recheck is due.
+ * 深查名额仍然只有 6 个（Semrush 配额），但「谁值得占名额」是判断，不归脚本。
  *
- * It used to hold one every single day. Once six candidates reached `research`
- * the queue was saturated for good: their evidence gap does not close on its own,
- * so they were re-selected forever and newly discovered games could never enter.
- * Measured on 2026-08-27: five of six slots were held by carry-overs while 224
- * fresh games competed for the one that was left. Deferring them between
- * milestones keeps the recheck promise and still lets discovery through.
+ * - AI 判读后写 `YYYY-MM-DD-demand-selection.json`（entityId 数组）即为名单，
+ *   脚本按其顺序取用；
+ * - 没有名单时用**机械默认顺序**（不含价值判断）：到期复查的续带候选先占位
+ *   （复查是日历承诺，续带候选非复查日不占位——2026-08-27 实测续带常驻会让
+ *   224 个新发现只剩 1 个名额），其余按当天新发现、再其余的输入顺序补位。
+ * - 完整候选池连同选中与否一起写进 plan，AI 能看到被跳过的是谁并随时改名单。
  */
-function demandPriority(candidate) {
-  const action = finishCandidate(candidate).action;
-  if (action === 'develop') return 0;
-  if (action === 'research' && isQuantified(candidate)) {
-    const carried = candidate.carryForward;
-    return carried && !carried.recheckDue ? DEFERRED_RESEARCH : 1;
+function selectDeepCheck(pool, selection, cap) {
+  if (Array.isArray(selection) && selection.length) {
+    const ids = selection.map((id) => normalizeName(id));
+    const chosen = ids
+      .map((id) => pool.find((c) => normalizeName(c.entityId) === id))
+      .filter(Boolean);
+    return { chosen: chosen.slice(0, cap), rule: 'ai-selection-file' };
   }
-  if (candidate.playable) return 2;
-  if (arr(candidate.platforms).some((p) => /poki|itch/i.test(p))) return 3;
-  if (arr(candidate.platforms).some((p) => /steam/i.test(p))) return 5;
-  return 4;
+  const bucket = (c) => (c.carryForward?.recheckDue ? 0 : arr(c.origin).includes('new-games') ? 1 : c.carryForward ? 3 : 2);
+  const chosen = pool.map((candidate, index) => ({ candidate, index, bucket: bucket(candidate) }))
+    .sort((a, b) => a.bucket - b.bucket || a.index - b.index)
+    .slice(0, cap)
+    .map((row) => row.candidate);
+  return { chosen, rule: 'mechanical-recheck-then-new' };
 }
 
 function buildDemandPlan(o) {
@@ -715,15 +725,14 @@ function buildDemandPlan(o) {
   const newGames = readJson(f.newGames);
   const latest = readJson(f.latestJson);
   const evaluation = readJson(f.evaluation);
-  const pool = mergeCandidates([
+  const fullPool = mergeCandidates([
     ...inputCandidates({ candidates: arr(evaluation?.candidates) }, 'verified-evaluation'),
     ...inputCandidates({ candidates: previousReportPool(latest, o.date) }, 'previous-report'),
     ...inputCandidates({ candidates: arr(newGames?.games) }, 'new-games'),
-  ]).filter(demandCandidate)
-    .map((candidate, index) => ({ candidate, index, priority: demandPriority(candidate) }))
-    .sort((a, b) => a.priority - b.priority || a.index - b.index)
-    .slice(0, Math.min(o.limit, 6))
-    .map((row) => row.candidate);
+  ]).filter(demandCandidate);
+  const selectionInput = readJson(f.demandSelection);
+  const selection = Array.isArray(selectionInput) ? selectionInput : arr(selectionInput?.entityIds);
+  const { chosen: pool, rule: selectionRule } = selectDeepCheck(fullPool, selection, Math.min(o.limit, 6));
   const candidates = pool.map((candidate) => {
     const keywords = demandKeywords(candidate);
     return {
@@ -752,7 +761,15 @@ function buildDemandPlan(o) {
     date: o.date,
     generatedAt: new Date().toISOString(),
     rule: '先查每个原名、英文名和已有本地名的 globalVolume/byCountry，再查主要国家、发现市场和英语大市场。',
+    selectionRule,
+    selectionFile: f.demandSelection,
     sourceFiles: { verifiedEvaluation: f.evaluation, newGames: f.newGames, previousReport: f.latestJson },
+    // 完整候选池：AI 据此判断该换谁进深查名单（写 selectionFile 即生效）。
+    pool: fullPool.map((c) => ({
+      entityId: c.entityId, name: arr(c.names)[0] ?? null, origin: c.origin,
+      recheckDue: c.carryForward?.recheckDue ?? false,
+      selected: pool.some((p) => p.entityId === c.entityId),
+    })),
     candidates,
     globalKeywords,
   };
@@ -800,18 +817,20 @@ function demandOverlay(o, planData, globalRows, countryRows) {
         ...Object.entries(global.byCountry ?? {}).filter(([, volume]) => Number(volume) > 0).map(([db]) => db.toLowerCase()),
       ]);
       return dbs.map((db) => {
-        const local = localByKey.get(`${normalizeName(keyword)}:${db}`) ?? (db === 'us' ? global : {});
+        // 「未查询」与「测得为零」必须字节级可分辨：没有对应结果行的市场是
+        // status:'not-queried' 且所有数值为 null——绝不默认成 0 或 noData:true。
+        const local = localByKey.get(`${normalizeName(keyword)}:${db}`) ?? (db === 'us' && globalByKeyword.has(normalizeName(keyword)) ? global : null);
+        const queried = local !== null;
         return {
           keyword, market: db.toUpperCase(), gl: db,
-          semrushVolume: local.volume ?? 0,
-          semrushGlobalVolume: global.globalVolume ?? 0,
+          semrushVolume: queried ? (local.volume ?? null) : null,
+          semrushGlobalVolume: global.globalVolume ?? null,
           semrushByCountry: global.byCountry ?? null,
-          semrushKd: local.kd ?? null,
-          cpc: local.cpc ?? null,
-          competition: local.competition ?? null,
-          intent: local.intent ?? global.intent ?? null,
-          noData: local.noData ?? true,
-          status: local.status ?? 'not-queried',
+          semrushKd: queried ? (local.kd ?? null) : null,
+          cpc: queried ? (local.cpc ?? null) : null,
+          competition: queried ? (local.competition ?? null) : null,
+          intent: queried ? (local.intent ?? global.intent ?? null) : null,
+          status: queried ? (local.status ?? (local.volume != null ? 'measured' : 'measured-empty')) : 'not-queried',
           queryTime: o.date,
           rawResultFiles: [f.globalSemrush, f.countrySemrush],
         };
@@ -935,16 +954,30 @@ async function evaluate(o, inheritedErrors = []) {
     if (first?.iframeUrl) c.playLinks = uniq([first.iframeUrl, ...arr(c.playLinks)]);
     const remaining = uniq([...arr(c.playLinks), ...arr(c.urls)]).filter((url) => url !== primary).slice(0, 3 - checks.length);
     for (const url of remaining) checks.push(await checkUrl(url));
+    // 挑战页留现场：原始 HTML 落 evidence 目录并在 check 上标记，候选不被剔除。
+    for (const check of checks) {
+      if (challengePageTitle(check.title)) {
+        check.challenge = true;
+        try {
+          fs.mkdirSync(f.evidenceDir, { recursive: true });
+          const slug = (normalizeUrl(check.url) || 'page').replace(/[^a-z0-9]+/g, '-').slice(0, 80);
+          check.evidenceFile = path.join(f.evidenceDir, `challenge-${slug}.html`);
+          fs.writeFileSync(check.evidenceFile, check.html ?? '');
+        } catch (e) { errors.push(`挑战页现场保存失败 ${check.url}: ${e.message}`); }
+      }
+      delete check.html; // 原始 HTML 只留 evidence 文件，不进 candidates.json
+    }
     c.urlChecks = checks;
-    if (checks.length) c.reachable = c.reachable === true || checks.some((v) => v.ok);
-    if (arr(c.playLinks).length) c.playable = c.playable === true || checks.filter((v) => arr(c.playLinks).includes(v.url)).some((v) => v.ok);
+    // 被挑战页挡住的检查是「未测」，不是「不可达/不可玩」。
+    const usableChecks = checks.filter((v) => !v.challenge);
+    if (c.reachable !== true && usableChecks.length) c.reachable = usableChecks.some((v) => v.ok);
+    if (arr(c.playLinks).length && c.playable !== true) {
+      const playChecks = usableChecks.filter((v) => arr(c.playLinks).includes(v.url));
+      if (playChecks.length) c.playable = playChecks.some((v) => v.ok);
+    }
   }
   const excluded = [];
   candidates = candidates.filter((c) => {
-    if (arr(c.urlChecks).some((check) => challengePageTitle(check.title))) {
-      excluded.push({ ...c, excludedReason: '页面返回 Cloudflare 验证页，保留原始线索但不进入今日候选' });
-      return false;
-    }
     const reason = staleReason(c);
     if (!reason) return true;
     excluded.push({ ...c, pageType: 'stale-url', excludedReason: reason, excludedLinks: uniq([...arr(c.urls), ...arr(c.playLinks)]) });
@@ -1091,7 +1124,8 @@ function inspectDecision(o) {
   const finalPriority = priority.map((candidate) => arr(report?.candidates).find((row) => row.entityId === candidate.entityId || sameCandidate(row, candidate))).filter(Boolean);
   const plannedCountryRows = Object.entries(countryPlan).flatMap(([db, words]) => arr(words).map((word) => `${db}:${normalizeName(word)}`));
   const stats = report?.stats ?? {};
-  const statsMatch = ACTIONS.every((action) => Number(stats[action] ?? 0) === arr(report?.candidates).filter((row) => row.action === action).length);
+  const statsMatch = ACTIONS.every((action) => Number(stats[action] ?? 0) === arr(report?.candidates).filter((row) => row.action === action).length)
+    && Number(stats.unjudged ?? 0) === arr(report?.candidates).filter((row) => !row.action).length;
   const latestMatch = JSON.stringify(latest?.stats) === JSON.stringify(report?.stats) && arr(latest?.candidates).map((row) => row.entityId).join('|') === arr(report?.candidates).map((row) => row.entityId).join('|');
   const strategyReady = (row) => {
     const strategy = row.keywordStrategy ?? {};
@@ -1119,11 +1153,11 @@ function inspectDecision(o) {
   };
   const demandSeparated = (row) => typeof row.demandProof?.independentDemand === 'boolean'
     && ['low', 'medium', 'high'].includes(row.promotionRisk?.internalTrafficRisk);
-  const decisionExplained = (row) => row.action === 'develop'
-    ? row.buildGate?.ready === true
-    : row.action === 'research'
-      ? arr(row.decisionAudit?.missingEvidence).length > 0
-      : arr(row.reasons).length > 0;
+  // 判决只能来自 AI（evaluation 文件）：标了 action 的候选必须带 AI 写下的理由
+  // 或缺失证据清单；未判候选如实处于未判。脚本自产结论（verdict 字段）不允许存在。
+  const decisionExplained = (row) => !row.action
+    || arr(row.reasons).length > 0
+    || arr(row.decisionAudit?.missingEvidence).length > 0;
   const checks = [
     checkItem('D01', '当天采集 Checklist 已全部通过。', collectResult?.ok === true && collectResult?.date === o.date, collectResult?.ok ? '采集通过' : '采集未通过或缺失'),
     checkItem('D02', '已按优先级选出不超过 6 个真实游戏进入深查。', priority.length > 0 && priority.length <= 6 && priority.every((row) => row.entityId && arr(row.urls).some(validUrl)), `${priority.length} 个深查游戏`),
@@ -1133,10 +1167,10 @@ function inspectDecision(o) {
     checkItem('D06', '有量候选都完成 KD 口径、SERP 意图、弱位、新站和冲突复核。', finalPriority.length === priority.length && finalPriority.every(competitionReady), `${finalPriority.filter(competitionReady).length}/${priority.length} 个竞争盘面已核对`),
     checkItem('D07', '每个深查游戏都分开记录近 28 天总量与最近 7 天方向。', finalPriority.length === priority.length && finalPriority.every(trendReady), `${finalPriority.filter(trendReady).length}/${priority.length} 个趋势已核对`),
     checkItem('D08', '每个深查游戏都区分平台内流量与独立外部需求，并核对页面和可玩供给。', finalPriority.length === priority.length && finalPriority.every((row) => demandSeparated(row) && arr(row.urlChecks).length > 0 && typeof row.reachable === 'boolean' && typeof row.playable === 'boolean'), `${finalPriority.filter((row) => demandSeparated(row) && arr(row.urlChecks).length > 0).length}/${priority.length} 个独立需求与供给已核对`),
-    checkItem('D09', '开发候选通过硬门槛，调研和观察候选写明缺失证据或原因。', arr(report?.candidates).every(decisionExplained) && report?.verdict?.action === (Number(stats.develop ?? 0) > 0 ? 'act' : 'wait') && Boolean(report?.verdict?.text), report?.verdict?.text ?? '缺少结论'),
-    checkItem('D10', 'JSON、Markdown、latest、分组数量、链接和异常信息彼此一致。', statsMatch && latestMatch && markdown.includes(report?.verdict?.text ?? '') && arr(report?.candidates).every((row) => [...arr(row.sourceLinks), ...arr(row.urls)].some(validUrl)) && (!arr(report?.errors).length || markdown.includes('本次异常')), `${arr(report?.candidates).length} 个候选，异常 ${arr(report?.errors).length}`),
+    checkItem('D09', '判决只来自 AI：有 action 的候选带理由或缺失证据，报告不含脚本自产结论。', arr(report?.candidates).every(decisionExplained) && report?.verdict === undefined, `develop ${stats.develop ?? 0}／research ${stats.research ?? 0}／watch ${stats.watch ?? 0}／未判 ${stats.unjudged ?? 0}`),
+    checkItem('D10', 'JSON、Markdown、latest、分组数量、链接和异常信息彼此一致。', statsMatch && latestMatch && arr(report?.candidates).every((row) => [...arr(row.sourceLinks), ...arr(row.urls)].some(validUrl)) && (!arr(report?.errors).length || markdown.includes('本次异常')), `${arr(report?.candidates).length} 个候选，异常 ${arr(report?.errors).length}`),
   ];
-  return saveChecklist(o, 'decision', checks, { verdict: report?.verdict, stats, priority: priority.length, errors: arr(report?.errors) });
+  return saveChecklist(o, 'decision', checks, { stats, priority: priority.length, errors: arr(report?.errors) });
 }
 
 async function decisionChecklist(o) {
@@ -1155,9 +1189,13 @@ function selfTest() {
       { names: ['Foo Game'], urls: ['https://example.com/foo'], keywords: [{ keyword: 'foo', semrushVolume: 5000, semrushGlobalVolume: 12000, semrushKd: 22 }], playable: true, demandProof: { intentValidated: true, independentDemand: true } },
       { names: ['foo-game'], urls: ['https://example.com/foo/'], evidenceLinks: ['https://reddit.com/r/games/foo'] },
     ]);
-    if (merged.length !== 1 || decide(merged[0]) !== 'develop') throw new Error('实体合并或分组失败');
-    if (decide({ names: ['Small Game'], urls: ['https://example.com/small'], action: 'develop', playable: true, keywords: [{ semrushVolume: 4400, semrushGlobalVolume: 4400, semrushKd: 35 }] }) !== 'research') throw new Error('严格开发门槛失败');
-    if (!finishCandidate({ names: ['Unquantified Game'], urls: ['https://example.com/unquantified'], action: 'watch' }).reasons.length) throw new Error('观察项决策解释失败');
+    if (merged.length !== 1) throw new Error('实体合并失败');
+    // 脚本不下判决：没写 action 就保持未判，绝不代填 action/理由/下一步。
+    const untouched = finishCandidate({ names: ['Unjudged Game'], urls: ['https://example.com/unjudged'], playable: true, keywords: [{ semrushVolume: 99999, semrushGlobalVolume: 99999, semrushKd: 1 }] });
+    if (untouched.action !== null || untouched.decision !== null || arr(untouched.reasons).length || untouched.nextAction) throw new Error('脚本不应自产判决或理由');
+    // AI 写入的判读原样透传。
+    const judged = finishCandidate({ names: ['Judged Game'], urls: ['https://example.com/judged'], action: 'develop', reasons: ['AI 判读'], nextAction: '建站' });
+    if (judged.action !== 'develop' || judged.decision !== 'quick-ship' || judged.reasons[0] !== 'AI 判读') throw new Error('AI 判读透传失败');
     const carried = mergeRichIntoOrdered(
       [{ names: ['New Game'], urls: ['https://example.com/new'] }],
       carryForward({ date: '2099-01-01', candidates: [{ names: ['Old Game'], firstSeen: '2098-12-30', sourceLinks: ['https://example.com/old'], action: 'research' }] }, o.date),
@@ -1170,15 +1208,18 @@ function selfTest() {
     // And a milestone already crossed must not re-fire every single day after.
     const settled = carryForward({ date: '2099-01-01', candidates: [{ names: ['Gap Game'], urls: ['https://example.com/gap'], firstSeen: '2098-12-29', action: 'watch', carryForward: { ageDays: 4 } }] }, o.date);
     if (settled[0].carryForward.recheckDue !== false || settled[0].carryForward.recheckMilestones.length) throw new Error('已完成的里程碑重复触发');
-    // The deep-check queue must not be permanently held by carry-overs.
-    const quantified = { keywords: [{ semrushVolume: 4400, semrushGlobalVolume: 4400, semrushKd: 35 }], playable: true, action: 'research', urls: ['https://example.com/q'], names: ['Q'] };
-    if (demandPriority({ ...quantified, carryForward: { ageDays: 5, recheckDue: false } }) !== DEFERRED_RESEARCH) throw new Error('遗留 research 未让出深查名额');
-    if (demandPriority({ ...quantified, carryForward: { ageDays: 7, recheckDue: true } }) !== 1) throw new Error('到期复查的候选未取回名额');
-    if (demandPriority(quantified) !== 1) throw new Error('当天新确认的 research 不应被推迟');
-    // The deferral only works if the age survives normalisation, which is where it
-    // was being dropped. Assert the field end-to-end, not just on a raw object.
-    const normalised = inputCandidates({ candidates: [{ ...quantified, carryForward: { ageDays: 5, recheckDue: false } }] }, 'previous-report');
-    if (normalised[0].carryForward?.recheckDue !== false || demandPriority(normalised[0]) !== DEFERRED_RESEARCH) throw new Error('carryForward 未能通过规范化');
+    // 深查名额的机械默认顺序：到期复查 → 当天新发现 → 其余；AI 名单一到即覆盖。
+    const poolA = { entityId: 'carried-due', names: ['Carried Due'], urls: ['https://example.com/a'], keywords: [{ keyword: 'a' }], origin: ['previous-report'], carryForward: { ageDays: 7, recheckDue: true } };
+    const poolB = { entityId: 'fresh', names: ['Fresh'], urls: ['https://example.com/b'], keywords: [{ keyword: 'b' }], origin: ['new-games'] };
+    const poolC = { entityId: 'carried-idle', names: ['Carried Idle'], urls: ['https://example.com/c'], keywords: [{ keyword: 'c' }], origin: ['previous-report'], carryForward: { ageDays: 5, recheckDue: false } };
+    const mech = selectDeepCheck([poolC, poolB, poolA], null, 2);
+    if (mech.rule !== 'mechanical-recheck-then-new' || mech.chosen.map((c) => c.entityId).join('|') !== 'carried-due|fresh') throw new Error('机械深查顺序失败');
+    const aiPick = selectDeepCheck([poolC, poolB, poolA], ['carried-idle'], 6);
+    if (aiPick.rule !== 'ai-selection-file' || aiPick.chosen.length !== 1 || aiPick.chosen[0].entityId !== 'carried-idle') throw new Error('AI 深查名单未生效');
+    // carryForward 字段必须扛过规范化，否则续带候选在选位时看起来像全新的。
+    const normalised = inputCandidates({ candidates: [{ ...poolC, playable: true }] }, 'previous-report');
+    if (normalised[0].carryForward?.recheckDue !== false) throw new Error('carryForward 未能通过规范化');
+    if (normalised[0].playable !== true || inputCandidates({ candidates: [{ names: ['P'], urls: ['https://example.com/p'], playLinks: ['https://example.com/p/play'] }] }, 'x')[0].playable !== null) throw new Error('playable 不应从 playLink 推断');
     if (previousReportPool({ date: '2099-01-01', candidates: [{ names: ['Aged'], firstSeen: '2098-12-31', action: 'develop' }] }, o.date)[0].carryForward.ageDays !== 2) throw new Error('计划阶段未给上一份报告计龄');
     // decision-checklist runs evaluate with no --evaluation, so the conventional
     // dated file has to be found on its own or every judgement field is lost.
@@ -1204,9 +1245,9 @@ function selfTest() {
     const ranked = rankCandidates([
       { names: ['Old Watch'], urls: ['https://example.com/watch'], action: 'watch' },
       fresh,
-      { names: ['Verified Winner'], urls: ['https://example.com/winner'], action: 'develop', playable: true, demandProof: { intentValidated: true, independentDemand: true }, keywords: [{ semrushVolume: 5000, semrushGlobalVolume: 12000, semrushKd: 20 }] },
+      { names: ['Deep Checked'], urls: ['https://example.com/deep'], demandCoverage: { globalChecked: true } },
     ], [fresh]);
-    if (ranked.map((v) => v.names[0]).join('|') !== 'Verified Winner|Fresh Game|Old Watch') throw new Error('候选优先级排序失败');
+    if (ranked.map((v) => v.names[0]).join('|') !== 'Deep Checked|Fresh Game|Old Watch') throw new Error('机械展示排序失败');
     const checkedZero = { names: ['Checked Zero'], urls: ['https://example.com/zero'], action: 'watch', demandCoverage: { globalChecked: true } };
     if (rankCandidates([{ names: ['Fresh'], urls: ['https://example.com/fresh'] }, checkedZero], [{ names: ['Fresh'], urls: ['https://example.com/fresh'] }])[0] !== checkedZero) throw new Error('零量深查候选被日报截断');
     const partial = discoveryHealth({ compared: 45, baselineCreated: 0, platforms: [{ id: 'bad-a', status: 'failed', error: 'timeout' }] });
@@ -1232,11 +1273,28 @@ function selfTest() {
     if (newGames.count !== 1 || newGames.stats.ignoredCampaigns !== 1 || !exists(f.newGames) || !exists(f.latestNewGames)) throw new Error('新增游戏去重失败');
     writeJson(f.newGames, { games: Array.from({ length: 7 }, (_, i) => ({ names: [`New Game ${i}`], urls: [`https://example.com/new-${i}`] })) });
     const demandPlan = buildDemandPlan(o).plan;
-    if (demandPlan.candidates.length !== 6 || !demandPlan.globalKeywords.includes('foo') || !demandPlan.candidates[0].latinKeywords.includes('Foo Game')) throw new Error('全球优先关键词计划失败');
-    if (!challengePageTitle('Just a moment...')) throw new Error('Cloudflare 验证页过滤失败');
+    if (demandPlan.candidates.length !== 6 || demandPlan.selectionRule !== 'mechanical-recheck-then-new' || demandPlan.pool.length < 8) throw new Error('机械深查计划或候选池落盘失败');
+    if (!demandPlan.pool.some((row) => row.selected === false)) throw new Error('未选中的候选没有留在池里给 AI 看');
+    writeJson(f.demandSelection, ['foo-game']);
+    const aiPlan = buildDemandPlan(o).plan;
+    if (aiPlan.selectionRule !== 'ai-selection-file' || aiPlan.candidates.length !== 1 || !aiPlan.globalKeywords.includes('foo') || !aiPlan.candidates[0].latinKeywords.includes('Foo Game')) throw new Error('AI 深查名单计划失败');
+    fs.rmSync(f.demandSelection, { force: true });
+    // 未查询与测得为零必须字节级可分辨。
+    const overlayRows = demandOverlay(o,
+      { candidates: [{ entityId: 'foo', names: ['Foo'], urls: [], keywords: ['foo'], mandatoryCountryDbs: ['us', 'de'], discoveryMarkets: [] }] },
+      [{ keyword: 'foo', volume: 0, globalVolume: 100, byCountry: {} }], []).candidates[0].keywords;
+    const usRow = overlayRows.find((row) => row.gl === 'us');
+    const deRow = overlayRows.find((row) => row.gl === 'de');
+    if (usRow.semrushVolume !== 0 || usRow.status === 'not-queried') throw new Error('测得为零被误标');
+    if (deRow.semrushVolume !== null || deRow.status !== 'not-queried' || 'noData' in deRow) throw new Error('未查询市场被默认成有数据');
+    if (!challengePageTitle('Just a moment...')) throw new Error('Cloudflare 验证页识别失败');
     if (![f.candidates, f.report, f.latestJson, f.latestMd].every(exists)) throw new Error('报告产物不完整');
-    if (!fs.readFileSync(f.report, 'utf8').includes('[Foo Game](https://example.com/foo)')) throw new Error('Markdown 链接缺失');
-    return { ok: true, checks: ['normalize-and-merge', 'decision', 'strict-build-gate', 'checklist-output', 'carry-forward-order', 'recheck-milestone-crossing', 'deep-check-queue-fairness', 'evaluation-overlay-discovery', 'candidate-priority', 'partial-discovery', 'stale-vs-timeout', 'title-and-iframe', 'campaign-dedupe', 'radar-same-day-merge', 'new-games-dedupe', 'global-demand-plan', 'challenge-filter', 'markdown-links', 'stable-latest'] };
+    const reportJson = readJson(f.candidates);
+    if ('verdict' in reportJson || typeof reportJson.stats.unjudged !== 'number') throw new Error('报告仍含脚本自产结论或缺未判计数');
+    const reportMd = fs.readFileSync(f.report, 'utf8');
+    if (!reportMd.includes('[Foo Game](https://example.com/foo)')) throw new Error('Markdown 链接缺失');
+    if (reportMd.includes('结论：') || !reportMd.includes('未判')) throw new Error('日报仍在下结论或未如实标未判');
+    return { ok: true, checks: ['normalize-and-merge', 'no-script-verdict', 'ai-passthrough', 'checklist-output', 'carry-forward-order', 'recheck-milestone-crossing', 'deep-check-mechanical-default', 'deep-check-ai-selection', 'evaluation-overlay-discovery', 'display-rank-mechanical', 'partial-discovery', 'stale-vs-timeout', 'title-and-iframe', 'campaign-dedupe', 'radar-same-day-merge', 'new-games-dedupe', 'not-queried-vs-zero', 'challenge-title-detect', 'markdown-links', 'stable-latest'] };
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }
 

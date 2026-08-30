@@ -48,8 +48,9 @@
   最容易重复踩的一类是**「某平台 + 某功能」型关键词**：先问一句
   「有没有一整个 SaaS 品类把这个平台当主战场」。有的话难度分一律不可信，
   而且**高 CPC 反而是危险信号** —— 那是这些公司在竞价，不是词好做。
-  这一条现在有脚本在守：`demand/keyword-value.mjs` 会把「远高于同批中位数」的词
-  标成 `high` 并要求先查 SERP，判读方法见
+  这一条的判断在这里，不在脚本里：`demand/keyword-value.mjs` 只负责给出每个词的
+  CPC 数值和同批中位数，「远高于中位数 ⇒ 先查 SERP 再信难度分」由 AI 对着这两个数判，
+  判读方法见
   [`demand-discovery.md`](experiences/demand-discovery.md#cpc-怎么读脚本demandkeyword-valuemjs)。
 - **少数几个域名反复占满 top10**（去重后只剩两三个域名）
   → 新站难插入。**这类词的低难度分是「没人在优化」，不是「容易排上去」。**

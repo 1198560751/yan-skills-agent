@@ -42,6 +42,10 @@
  *   --keep-session      跑完不关闭 opencli 会话
  *   --json              输出 JSON 数组
  *   --out <file>        落盘（.jsonl 写 JSON Lines，其它写 JSON）
+ *   --evidence-dir <d>  失败现场与 manifest 落点，默认 .rankup/evidence/demand/reviews-mine-<ts>/
+ *
+ * 失败留现场（2026-08-30）：每页采集状态记进 manifest.json，失败页的原始响应
+ * 落进证据目录。空结果时逐源报状态——「0 条 + 页失败」不是「没有差评」。
  *
  * 依赖：
  *   - appstore / gplay：无，纯 HTTP，可进 CI
@@ -64,7 +68,7 @@
  */
 import { execFileSync } from "node:child_process"
 import { writeFileSync } from "node:fs"
-import { requireBrowserBridge } from "./_lib.mjs"
+import { requireBrowserBridge, initEvidence, recordSource, writeManifest, saveEvidence, sourceStatusSummary } from "./_lib.mjs"
 
 const SOURCES = ["appstore", "gplay", "trustpilot", "g2", "capterra"]
 const UA =
@@ -106,12 +110,14 @@ for (let i = 0; i < argv.length; i++) {
   if (a === "--keep-session") { opt.keepSession = true; continue }
   if (a === "--json") { opt.json = true; continue }
   if (a === "--out" && argv[i + 1]) { opt.out = argv[++i]; continue }
+  if (a === "--evidence-dir" && argv[i + 1]) { opt.evidenceDir = argv[++i]; continue }
   fail(`未知参数：${a}`)
 }
 if (!opt.source) fail("缺少 --source")
 if (!SOURCES.includes(opt.source)) fail(`--source 只能是 ${SOURCES.join("|")}`)
 if (!opt.target) fail("缺少 --target")
 if (!opt.session) opt.session = `demand-reviews-${opt.source}`
+initEvidence("reviews-mine", { dir: opt.evidenceDir || null })
 
 // ── 主流程 ────────────────────────────────────────────────
 const rows = await run()
@@ -126,9 +132,20 @@ if (opt.out) {
   writeFileSync(opt.out, body)
   process.stderr.write(`已写入 ${opt.out}（${kept.length} 条）\n`)
 }
+const manifestPath = writeManifest("completed")
 if (opt.json) console.log(JSON.stringify(kept, null, 2))
 else printTable(kept)
-if (!kept.length) process.stderr.write("没有取到条目：确认 --target 是否正确，或放宽 --max-rating / 增加 --pages\n")
+if (!kept.length) {
+  // 「0 条 + 源失败」和「0 条 + 源成功」必须长得不一样：这里逐源报状态。
+  const s = sourceStatusSummary()
+  if (s?.failed) {
+    process.stderr.write(`没有取到条目——但 ${s.failed}/${s.total} 次采集失败，这不是「该产品没有差评」的证据：\n`)
+    for (const l of s.lines) process.stderr.write(`${l}\n`)
+  } else {
+    process.stderr.write("没有取到条目（各页采集本身成功）：确认 --target 是否正确，或放宽 --max-rating / 增加 --pages\n")
+  }
+}
+if (manifestPath) process.stderr.write(`manifest：${manifestPath}\n`)
 
 async function run() {
   if (opt.source === "appstore") return await appstore()
@@ -150,9 +167,20 @@ async function appstore() {
   for (let p = 1; p <= opt.pages; p++) {
     const u = `https://itunes.apple.com/${opt.country}/rss/customerreviews/page=${p}/id=${appId}/sortby=mostrecent/json`
     let j
-    try { j = await getJSON(u) } catch { break }
+    try { j = await getJSON(u) } catch (e) {
+      // 以前这里是 catch{break}：429/超时 和「评论翻完了」输出字节级相同。
+      // 现在把该页状态记进 manifest 再停，空结果就能被读成「采集失败」而不是「没有差评」。
+      const f = saveEvidence(`appstore-page${p}-${e.status ?? "neterr"}.json`, { url: u, status: e.status ?? null, error: String(e.message), body: e.body ?? null })
+      recordSource({ source: `appstore:page${p}`, status: e.status ? `http_${e.status}` : "network_error", rawCount: 0, error: `${e.message}（现场已留 ${f}）` })
+      process.stderr.write(`[warn] appstore 第 ${p} 页取数失败，停止翻页：${e.message}\n`)
+      break
+    }
     const entries = j?.feed?.entry
-    if (!Array.isArray(entries) || !entries.length) break
+    if (!Array.isArray(entries) || !entries.length) {
+      recordSource({ source: `appstore:page${p}`, status: "ok", rawCount: 0, note: "空 feed（RSS 到底或该页无评论）" })
+      break
+    }
+    recordSource({ source: `appstore:page${p}`, status: "ok", rawCount: entries.length })
     for (const e of entries) {
       if (!e["im:rating"]) continue // 第一条有时是 app 元信息
       out.push({
@@ -204,6 +232,7 @@ async function gplay() {
       // 网络路径都会给出可诊断的信息，只有这一条以前是裸抛 Node 堆栈。
       // 判据：报错要说清「打不通这个主机」而不是「这个 app 没有评论」——
       // 后者会被误读成一个有意义的否定答案。
+      recordSource({ source: `gplay:page${p}`, status: "network_error", rawCount: 0, error: String(e?.cause?.code || e?.code || e?.message || "unknown") })
       fail(
         `连不上 play.google.com（${e?.cause?.code || e?.code || e?.message || "未知网络错误"}）。\n` +
         `  这是主机不可达，不是「该 app 没有评论」。\n` +
@@ -215,9 +244,19 @@ async function gplay() {
     try {
       const row = JSON.parse(txt).find((r) => r[0] === "wrb.fr" && r[2])
       payload = JSON.parse(row[2])
-    } catch { break }
+    } catch (e) {
+      // 以前是 catch{break}：Google 改版/非 200 响应 和「包名没有评论」同形。
+      const f = saveEvidence(`gplay-page${p}-${res.status}.txt`, txt)
+      recordSource({ source: `gplay:page${p}`, status: res.ok ? "parse_error" : `http_${res.status}`, rawCount: 0, error: `batchexecute 响应解析失败（HTTP ${res.status}，原始响应已留 ${f}）` })
+      process.stderr.write(`[warn] gplay 第 ${p + 1} 页响应解析失败（HTTP ${res.status}），停止翻页；原始响应已留 ${f}\n`)
+      break
+    }
     const list = payload?.[0]
-    if (!Array.isArray(list) || !list.length) break
+    if (!Array.isArray(list) || !list.length) {
+      recordSource({ source: `gplay:page${p}`, status: "ok", rawCount: 0, note: "返回空列表（包名错也会走这里而不报错）" })
+      break
+    }
+    recordSource({ source: `gplay:page${p}`, status: "ok", rawCount: list.length })
     for (const r of list) {
       out.push({
         source: "gplay",
@@ -266,7 +305,13 @@ function browserSource() {
         }
       }
       const raw = ocliEval(s, extractor(), 6)
-      if (raw?.error) { process.stderr.write(`[warn] ${u}: ${raw.error}\n`); continue }
+      if (!raw || raw.error) {
+        const f = saveEvidence(`${opt.source}-${encodeURIComponent(u).slice(0, 80)}.json`, { url: u, error: raw?.error ?? "eval 无返回", raw })
+        recordSource({ source: `${opt.source}:${u}`, status: "extract_failed", rawCount: 0, error: `${raw?.error ?? "eval 无返回"}（现场已留 ${f}）` })
+        process.stderr.write(`[warn] ${u}: ${raw?.error ?? "eval 无返回"}\n`)
+        continue
+      }
+      recordSource({ source: `${opt.source}:${u}`, status: "ok", rawCount: (raw.items ?? []).length })
       for (const r of raw?.items ?? []) out.push({ source: opt.source, target: opt.target, ...r })
       if (raw?.meta) process.stderr.write(`[meta] ${JSON.stringify(raw.meta)}\n`)
     }
@@ -346,8 +391,19 @@ function extractor() {
 // ── 工具 ──────────────────────────────────────────────────
 async function getJSON(url) {
   const res = await fetch(url, { headers: { "user-agent": UA } })
-  if (!res.ok) throw new Error(`${res.status} ${url}`)
-  return res.json()
+  const text = await res.text()
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status} ${url}`)
+    err.status = res.status
+    err.body = text
+    throw err
+  }
+  try { return JSON.parse(text) } catch {
+    const err = new Error(`响应不是 JSON：${url}`)
+    err.status = res.status
+    err.body = text
+    throw err
+  }
 }
 
 function ocli(args) {
@@ -387,7 +443,14 @@ function printTable(rows) {
   console.log(`\n共 ${rows.length} 条 · source=${rows[0].source} target=${rows[0].target}`)
 }
 
-function fail(msg) { process.stderr.write(`错误：${msg}\n\n`); usage(); process.exit(1) }
+function fail(msg) {
+  // 采集已经开始过的失败要先落 manifest（initEvidence 之前的参数错误不会建目录）。
+  try {
+    const f = writeManifest(`died: ${String(msg).replace(/\s+/g, " ").slice(0, 300)}`)
+    if (f) process.stderr.write(`现场已留：${f}\n`)
+  } catch {}
+  process.stderr.write(`错误：${msg}\n\n`); usage(); process.exit(1)
+}
 
 function usage() {
   process.stdout.write(`reviews-mine.mjs —— 从差评里挖需求
@@ -405,6 +468,7 @@ function usage() {
   --keep-session     跑完不关会话
   --json             输出 JSON
   --out <file>       落盘（.jsonl 为 JSON Lines）
+  --evidence-dir <d> 失败现场与 manifest 落点
 
 示例：
   reviews-mine.mjs --source appstore --target "<搜索词或 app id>" --pages 3

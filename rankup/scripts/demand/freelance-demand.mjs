@@ -31,6 +31,10 @@
  *   --keep-session    跑完不关闭 opencli 会话
  *   --json            输出 JSON 数组
  *   --out <file>      落盘（.jsonl 写 JSON Lines，其它写 JSON）
+ *   --evidence-dir <d> 失败现场与 manifest 落点，默认 .rankup/evidence/demand/freelance-demand-<ts>/
+ *
+ * 失败留现场（2026-08-30）：每页采集状态记进 manifest.json，失败页原始响应落进
+ * 证据目录。空结果时逐源报状态——「0 条 + 页失败」不是「没人为这事付钱」。
  *
  * 依赖：
  *   - freelancer：无，纯 HTTP，无需 token
@@ -60,7 +64,7 @@
  */
 import { execFileSync } from "node:child_process"
 import { writeFileSync } from "node:fs"
-import { requireBrowserBridge } from "./_lib.mjs"
+import { requireBrowserBridge, initEvidence, recordSource, writeManifest, saveEvidence, sourceStatusSummary } from "./_lib.mjs"
 
 const SOURCES = ["freelancer", "fiverr", "upwork", "xianyu"]
 const UA =
@@ -82,12 +86,14 @@ for (let i = 0; i < argv.length; i++) {
   if (a === "--keep-session") { opt.keepSession = true; continue }
   if (a === "--json") { opt.json = true; continue }
   if (a === "--out" && argv[i + 1]) { opt.out = argv[++i]; continue }
+  if (a === "--evidence-dir" && argv[i + 1]) { opt.evidenceDir = argv[++i]; continue }
   fail(`未知参数：${a}`)
 }
 if (!opt.source) fail("缺少 --source")
 if (!SOURCES.includes(opt.source)) fail(`--source 只能是 ${SOURCES.join("|")}`)
 if (!opt.query) fail("缺少 --query")
 if (!opt.session) opt.session = `demand-freelance-${opt.source}`
+initEvidence("freelance-demand", { dir: opt.evidenceDir || null })
 
 const rows = (opt.source === "freelancer" ? await freelancer() : browserSource()).slice(0, opt.limit)
 
@@ -98,9 +104,20 @@ if (opt.out) {
   writeFileSync(opt.out, body)
   process.stderr.write(`已写入 ${opt.out}（${rows.length} 条）\n`)
 }
+const manifestPath = writeManifest("completed")
 if (opt.json) console.log(JSON.stringify(rows, null, 2))
 else printTable(rows)
-if (!rows.length) process.stderr.write("没有取到条目：换个 --query，或确认 opencli 会话是否正常\n")
+if (!rows.length) {
+  // 「0 条 + 源失败」和「0 条 + 源成功」必须长得不一样：逐源报状态。
+  const s = sourceStatusSummary()
+  if (s?.failed) {
+    process.stderr.write(`没有取到条目——但 ${s.failed}/${s.total} 次采集失败，这不是「该关键词没有付费需求」的证据：\n`)
+    for (const l of s.lines) process.stderr.write(`${l}\n`)
+  } else {
+    process.stderr.write("没有取到条目（采集本身成功）：换个 --query 再试\n")
+  }
+}
+if (manifestPath) process.stderr.write(`manifest：${manifestPath}\n`)
 
 // ── Freelancer.com 公开 API ──────────────────────────────
 async function freelancer() {
@@ -112,8 +129,16 @@ async function freelancer() {
       `?query=${encodeURIComponent(opt.query)}&limit=${per}&offset=${p * per}&job_details=true`
     let j
     try { j = await httpGetJSON(u) }
-    catch (e) { process.stderr.write(`[warn] freelancer 取数失败：${e.message}\n`); break }
+    catch (e) {
+      // 以前是 warn+break：403/429/断网 和「该词没有外包订单」输出同形。
+      // 现在把该页状态记进 manifest 再停，空结果就能读出「取数失败」。
+      const f = saveEvidence(`freelancer-page${p}-${e.status ?? "neterr"}.json`, { url: u, status: e.status ?? null, error: String(e.message), body: e.body ?? null })
+      recordSource({ source: `freelancer:page${p}`, status: e.status ? `http_${e.status}` : "network_error", rawCount: 0, error: `${e.message}（现场已留 ${f}）` })
+      process.stderr.write(`[warn] freelancer 第 ${p + 1} 页取数失败，停止翻页：${e.message}\n`)
+      break
+    }
     const list = j?.result?.projects ?? []
+    recordSource({ source: `freelancer:page${p}`, status: "ok", rawCount: list.length })
     if (!list.length) break
     for (const pr of list) {
       out.push({
@@ -149,8 +174,14 @@ function browserSource() {
       try { ocli(["browser", s, "--window", "background", "open", u]) }
       catch { process.stderr.write(`[warn] open 未确认完成，继续轮询：${u}\n`) }
       const raw = ocliEval(s, extractor(), 6)
-      if (!raw || raw.error) { process.stderr.write(`[warn] ${u}: ${raw?.error ?? "无返回"}\n`); continue }
+      if (!raw || raw.error) {
+        const f = saveEvidence(`${opt.source}-page${p}.json`, { url: u, error: raw?.error ?? "eval 无返回", raw })
+        recordSource({ source: `${opt.source}:page${p}`, status: "extract_failed", rawCount: 0, error: `${raw?.error ?? "eval 无返回"}（现场已留 ${f}）` })
+        process.stderr.write(`[warn] ${u}: ${raw?.error ?? "无返回"}\n`)
+        continue
+      }
       if (raw.note) process.stderr.write(`[note] ${raw.note}\n`)
+      recordSource({ source: `${opt.source}:page${p}`, status: "ok", rawCount: (raw.items ?? []).length, note: raw.note ?? undefined })
       for (const r of raw.items ?? []) out.push({ source: opt.source, query: opt.query, ...r })
     }
   } finally {
@@ -221,8 +252,9 @@ function extractor() {
 async function httpGetJSON(url) {
   try {
     const res = await fetch(url, { headers: { "user-agent": UA } })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.json()
+    const text = await res.text()
+    if (!res.ok) { const err = new Error(`HTTP ${res.status}`); err.status = res.status; err.body = text; throw err }
+    try { return JSON.parse(text) } catch { const err = new Error(`响应不是 JSON（HTTP ${res.status}）`); err.status = res.status; err.body = text; throw err }
   } catch (e) {
     const code = e?.cause?.code ?? ""
     if (!/CERT|SSL|TLS/i.test(String(code))) throw e
@@ -272,7 +304,14 @@ function printTable(rows) {
     (withOrders.length ? ` · 成交代理合计 ${sum}（均值 ${(sum / withOrders.length).toFixed(1)}）` : ""))
 }
 
-function fail(msg) { process.stderr.write(`错误：${msg}\n\n`); usage(); process.exit(1) }
+function fail(msg) {
+  // 采集已经开始过的失败要先落 manifest（initEvidence 之前的参数错误不会建目录）。
+  try {
+    const f = writeManifest(`died: ${String(msg).replace(/\s+/g, " ").slice(0, 300)}`)
+    if (f) process.stderr.write(`现场已留：${f}\n`)
+  } catch {}
+  process.stderr.write(`错误：${msg}\n\n`); usage(); process.exit(1)
+}
 
 function usage() {
   process.stdout.write(`freelance-demand.mjs —— 从「已经有人付钱」的外包/二手市场里挖需求
@@ -285,6 +324,7 @@ function usage() {
   --keep-session   跑完不关会话
   --json           输出 JSON
   --out <file>     落盘（.jsonl 为 JSON Lines）
+  --evidence-dir <d> 失败现场与 manifest 落点
 
 统一字段：{source, query, title, url, price, currency, orders, rating}
   orders = 成交量代理（freelancer 竞标数 / fiverr 评价数 / 闲鱼想要人数）

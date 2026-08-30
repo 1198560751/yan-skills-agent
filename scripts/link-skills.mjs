@@ -14,6 +14,19 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const globalSkills = path.join(homedir(), ".agents", "skills");
+
+// --help 必须在任何文件系统写操作之前早退：check-help.mjs 会对全仓 CLI 跑
+// `node <script> --help`,没有这个守卫时那次"体检"会真的执行一轮全局重链接+备份。
+if (process.argv.includes("--help") || process.argv.includes("-h")) {
+  console.log(`link-skills.mjs —— 把本仓库的每个 Skill 符号链接进 ~/.agents/skills
+
+用法:
+  node scripts/link-skills.mjs           建立或修复链接
+  node scripts/link-skills.mjs --check   只检查,发现漂移时退出 1
+  node scripts/link-skills.mjs --help    显示本帮助(不做任何修改)`);
+  process.exit(0);
+}
+
 const checkOnly = process.argv.includes("--check");
 
 async function exists(target) {

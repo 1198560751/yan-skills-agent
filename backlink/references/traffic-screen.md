@@ -4,19 +4,37 @@ The qualifying test is **real traffic, not DR**, and it runs **before** the form
 does. A directory with no measurable traffic cannot send a referral, cannot pass
 a useful signal, and its DR is whatever its own network linked into it.
 
+**Who does what is fixed: scripts collect, the AI judges, a human can re-check.**
+The batch scripts produce evidence per domain — the measured raw value, a parse
+status (`parsed` / `no-data-marker` / `none`), a raw-text excerpt, a screenshot
+and full-text dump in `<out>.jsonl.evidence/`, and a `stopReason` saying how the
+capture ended. They produce **no verdict**: whether a domain qualifies is
+computed from the number at query time, and what an *absent* number means is a
+judgment the AI makes by reading the evidence — never something a script bakes
+into the data. A one-off mirror hiccup must stay re-checkable, not become a
+permanent "fail" that silently kills a good target.
+
 ## The commands
 
 ```bash
 # hundreds of domains, one login, ~5-10s each, resumable
 node scripts/similarweb-batch.mjs --domains-file domains.txt --out sw.jsonl
 node scripts/semrush-batch.mjs   --domains-file domains.txt --out sem.jsonl
+# evidence lands next to the output: sw.jsonl.evidence/<domain>.png / .txt
 
-# write verdicts back into the table (repeatable --in; clears stale ones)
+# copy numbers + evidence paths into the table (repeatable --in; an incomplete
+# row clears any stale same-source measurement instead of writing one)
 node scripts/apply-traffic-screen.mjs --in sw.jsonl --source similarweb
+
+# the threshold is computed here, from the measured number, at query time
 node scripts/targets-select.mjs --cohort open --min-traffic 100
 ```
 
-`traffic >= 100` monthly visits qualifies.
+`traffic >= 100` monthly visits qualifies. That comparison lives in
+`targets-select`'s filter, nowhere else — the data file stores measurements,
+not conclusions. (`traffic.verdict` values still present in old rows are legacy:
+historical script output, not measurement facts. Re-measuring replaces them;
+`apply-traffic-screen --strip-legacy-verdicts` clears them wholesale.)
 
 ## Budget by quota, not by clock
 
@@ -39,21 +57,27 @@ value is whatever Semrush happened to default to that day.
 Both batch scripts break the circuit after 5 consecutive errors. Without it one
 dead session burned 48 domains at 60s each before anyone noticed.
 
-## "No data" and "timed out" are opposite results
+## "No data" and "timed out" are opposite evidence
 
-**A domain the data source explicitly reports no data for is a result, not a
-tool failure** — it is below the detection floor, i.e. zero, and gets written as
-`below-floor`.
+**A domain the data source explicitly reports no data for is a completed
+capture, not a tool failure** — the page rendered its own empty-state sentence,
+and the row records `stopReason: empty-state` with `parse: no-data-marker`,
+plus the screenshot and raw text in which the source said so. Whether that
+means "below the measurement floor, effectively zero" is the **AI's judgment**,
+made against that pair of witnesses — the script records the sentence, it does
+not convert it into a conclusion.
 
-**A timeout is not that result.** A slow render and a genuinely empty record look
-identical at the moment the clock runs out, and they mean opposite things: two
-directories with 2.4K and 4.6K organic visits were written off as "no traffic"
-by exactly that confusion. Timeouts are recorded as `error`, meaning *this check
-did not complete*; resume retries them, and applying an `error` **clears** any
-stale verdict it previously left on that domain.
+**A timeout is not that evidence.** A slow render and a genuinely empty record
+look identical at the moment the clock runs out, and they mean opposite things:
+two directories with 2.4K and 4.6K organic visits were once written off as "no
+traffic" by exactly that confusion. Timeouts and unstable reads are recorded as
+`stopReason: timeout` / `unstable`, meaning *this check did not complete*;
+resume retries them, and applying such a row **clears** any stale same-source
+measurement it previously left on that domain — an incomplete capture must
+never sit in the table impersonating one.
 
-Before writing "no data", be able to name the sentence in which the source said
-so.
+Before treating any row as "no data", be able to name the sentence in which the
+source said so — it is in `rawExcerpt`, the `.txt` dump, and the screenshot.
 
 ## A rendered label is not a rendered number
 
@@ -81,7 +105,8 @@ Two identical reads of *nothing* is the normal picture for a page that loaded
 `hidden` and for a route that never had a table at all; in both cases the check
 passes and the run reports an emptiness that is not a fact about the domain. So
 a stable **empty** parse needs the `visibilityState` triage below before it may
-become a verdict, while a stable non-empty value may be written straight out.
+be recorded as a completed capture, while a stable non-empty value may be
+written straight out.
 
 `lib-tools-share.mjs` exports `captureStable({ read, fingerprint, timeoutMs,
 intervalMs, needed, abortIf })` for exactly this. Fingerprint **every field you
@@ -116,19 +141,20 @@ Three rules came out of that run, and they are what makes the check hold:
 
 | Rule | Why |
 |---|---|
-| **An all-null parse is never a result.** Keep polling; on timeout write `error` | "Nothing parsed" and "nothing exists" are the same picture. This is what turned three healthy sites into `below-floor` |
+| **An all-null parse is never a result.** Keep polling; on timeout record `stopReason: timeout` | "Nothing parsed" and "nothing exists" are the same picture. This is what once turned three healthy sites into "no traffic" |
 | **A self-contradictory parse needs ~6 reads, not 2.** Traffic > 0 with AS = 0 means AS has not hydrated (it lands after traffic) | A real 0 stays 0 for 18s; a placeholder flips |
 | **Give the page room: settle 8s, poll 3s, cap 75s** | The old 5s/2s/40s budget could not outlast the placeholder window. ~25s per domain instead of ~16s |
 
 After: 4/4 correct on the same domains, on both cards.
 
-**Unstable is `error`, never a number and never `below-floor`.** If the values
-never settle, the run did not complete; say so and let the resume retry it. The
-empty-state marker needs **three** consecutive reads, not two, because it also
-shows up mid-hydration and `below-floor` is terminal — resume never revisits it.
-An **empty parse** gets the same third read — but only after you have ruled out
-the two failure shapes below, because a third read is the wrong move for both of
-them.
+**Unstable is `stopReason: unstable`, never a number and never an empty-state
+record.** If the values never settle, the run did not complete; say so and let
+the resume retry it. The empty-state marker needs **three** consecutive reads,
+not two, because it also shows up mid-hydration and `empty-state` is a
+*completed* capture — resume never revisits it, so writing it off a hydration
+flicker is permanent. An **empty parse** gets the same third read — but only
+after you have ruled out the two failure shapes below, because a third read is
+the wrong move for both of them.
 
 ### Read an empty table? Check `visibilityState` before you read again
 
@@ -140,11 +166,11 @@ not to read a third time.
 | what you actually have | how you tell | what to do |
 |---|---|---|
 | **Not hydrated yet** | the read was taken under `visibilityState === 'hidden'` | a `visible` read is the cure; measured 0 cells hidden / 850 cells visible on the same route |
-| **Class A — there was never a table** | **three consecutive reads under `visible`** still find zero table elements, charts only | re-reading is **wasted time**. The data exists as a chart, not a table; it needs a chart reader, and it is never a "no data" verdict |
-| **Genuinely empty** | stable, `visible`, table present, zero rows | the empty state is the result |
+| **Class A — there was never a table** | **three consecutive reads under `visible`** still find zero table elements, charts only | re-reading is **wasted time**. The data exists as a chart, not a table; it needs a chart reader, and it is never a "no data" record |
+| **Genuinely empty** | stable, `visible`, table present, zero rows | the empty state is the completed capture — what it *means* is judged from the evidence pair |
 
-Never emit a verdict from a read taken while `hidden` — that read is
-`inconclusive-hidden`, not `below-floor` and not "empty".
+Never record a completed capture from a read taken while `hidden` — that read
+is `inconclusive-hidden`, not an empty state and not "no data".
 
 The measurements, the route lists, and the admissible-verdict protocol live in
 one place: the `hidden-tabs-do-not-hydrate` law in this Skill's SKILL.md, which
@@ -230,8 +256,14 @@ graphs are the same graph. See [acquisition-doctrine.md](acquisition-doctrine.md
 to skip this: it governs topical irrelevance, and it always excluded link farms
 in the same breath.
 
-## Unmeasured is not qualified
+## Unmeasured is not qualified — and it is not unqualified either
 
-The gate only works if unmeasured rows are excluded from a batch rather than
-waved through. `targets-select.mjs --min-traffic` drops them by design;
-`--unmeasured` exists to list them as the next screening queue, never as a batch.
+The gate only works if rows without a measured number stay out of a batch
+rather than being waved through. `targets-select.mjs --min-traffic` computes
+the threshold from `traffic.monthlyVisits` at query time and excludes them by
+design — but it reports them **separately on stderr as 未测/无数字, never as
+failures**. A missing number has three possible causes (never measured, the
+source printed its own empty state, the capture did not complete), they are
+told apart by reading `traffic.evidence` (stopReason / screenshot / raw), and
+that reading is the AI's or a human's job. `--unmeasured` lists these rows as
+the next screening or review queue, never as a batch.

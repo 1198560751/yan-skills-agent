@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
  * 用途：给一个域名，拿回悬赏帖里 AITDK 那套判断所需要的四件事——
- *         域名注册日期 / 月访问量 / 流量结构（搜索占比、直接访问占比）/ 核心搜索关键词，
- *       并按阈值把「新站 + 有量 + 搜索为主」的候选筛出来。
- *       用途一句话：**判断一个刚注册不久却已经跑起量的站，它靠什么词跑起来的。**
+ *         域名注册日期 / 月访问量 / 流量结构（搜索占比、直接访问占比）/ 核心搜索关键词。
+ *       用途一句话：**采回「一个刚注册不久却已经跑起量的站」的原始画像。**
+ *       本脚本只采集：不做阈值筛选，「新站 + 有量 + 搜索为主」这类判断由 AI
+ *       对着完整输出（含出错行）来下——见 references/demand-sources.md 第十节。
  *
  * 关于 AITDK 本身（2026-08-23 实测，重要，别再重复探）：
  *   - aitdk.com 网站本身**已经没有域名查询入口了**，只剩 13 个 AI 文案生成器。
@@ -28,8 +29,6 @@
  *   node aitdk-lookup.mjs example.com
  *   node aitdk-lookup.mjs example.com --provider tabapi --json
  *   node aitdk-lookup.mjs --file domains.txt --out profiles.jsonl --via browser
- *   node aitdk-lookup.mjs --file domains.txt --out profiles.jsonl \
- *        --max-age-days 365 --min-visits 50000 --min-search-share 60 --max-direct-share 30
  *
  * 依赖：
  *   - provider=webcafe：无令牌。配额游客 10/日、登录 100/日、VIP 500/日。
@@ -42,8 +41,9 @@
  * 已知坑：
  *   1. `--file` 批量是**逐条追加落盘**（.jsonl），中断后再跑会自动跳过已完成的域名。
  *      所以 --out 一定要给 .jsonl；给 .json 会在结束时整体覆写，中断就全丢。
- *   2. 阈值全部可选：不给就不过滤。**不要把默认值当成「哥飞的标准」**——
- *      帖子里给的是示例数字，具体做什么方向就该配什么阈值。
+ *   2. 本脚本不做阈值筛选（2026-08-30 移除了 --max-age-days 等四个筛选旗标）：
+ *      配额 429、CAPTCHA、改版都会让字段缺失，脚本层过滤会把「没取到」筛成
+ *      「不合格」。筛选判断由 AI 对完整输出做，出错行必须显示在默认输出里。
  *   3. searchShare 是 0~100 的百分数还是 0~1 的比例，服务端两种都出现过。
  *      本脚本统一归一化成百分数，比较前会判断量级。
  *   4. 批量跑之前先看一眼配额：`node ../seo-webcafe.mjs referring` 会打印档位。
@@ -53,7 +53,10 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseArgs, readToken, die, sleep, printTable, requireBrowserBridge } from './_lib.mjs';
+import {
+  parseArgs, readToken, die, sleep, printTable, requireBrowserBridge,
+  initEvidence, recordSource, writeManifest, saveEvidence,
+} from './_lib.mjs';
 import { BASE, UA, toolAuth } from '../seo-webcafe.mjs';
 
 const execFileP = promisify(execFile);
@@ -73,18 +76,15 @@ Provider:
   --via browser          把请求发进已登录的 Chrome，用那边的配额档位
   --session <name>       会话名，默认 demand-aitdk-lookup
 
-阈值筛选（都可选，不给就不过滤；只对有数据的字段生效）:
-  --max-age-days <n>     只保留注册时间少于 n 天的域名
-  --min-visits <n>       只保留月访问量大于 n 的
-  --min-search-share <n> 只保留搜索流量占比大于 n%（没有该字段的域名会被标注并保留）
-  --max-direct-share <n> 只保留直接访问占比小于 n%
-  --strict               上面几条里「没有数据」的域名也一并淘汰，而不是保留并标注
-
 输出:
   --json                 输出 JSON
   --out <file.jsonl>     逐条追加落盘，可续跑（强烈建议批量时使用）
   --limit <n>            批量时最多处理 n 个
-  --help`;
+  --evidence-dir <dir>   失败现场与 manifest 落点，默认 .rankup/evidence/demand/aitdk-lookup-<ts>/
+  --help
+
+注意：本脚本只采集，不做阈值筛选。出错的域名（配额 429、CAPTCHA、改版）会带着
+HTTP 状态显示在默认输出里——「取数失败」和「字段为空」是两回事，判断交给 AI。`;
 
 // ── provider: seo.web.cafe /mine/api/domain ─────────────────────────────────
 
@@ -117,8 +117,11 @@ async function opencliEval(session, expr) {
 async function fetchWebcafe(domain, { via, session }) {
   if (via === 'browser') {
     const res = await opencliEval(session, MINE_EXPR(domain));
-    if (res.status !== 200) return { error: `HTTP ${res.status}` };
-    return res.data || { error: '空响应' };
+    if (res.status !== 200) {
+      const f = saveEvidence(`webcafe-${domain}-${res.status}.json`, { domain, via, status: res.status, body: res.data ?? null });
+      return { error: `HTTP ${res.status}（现场已留 ${f}）`, status: res.status };
+    }
+    return res.data || { error: '空响应', status: 200 };
   }
   const auth = await toolAuth('mine');
   const r = await fetch(`${BASE}/mine/api/domain`, {
@@ -127,8 +130,18 @@ async function fetchWebcafe(domain, { via, session }) {
     body: JSON.stringify({ domain }),
   });
   const t = await r.text();
-  if (!r.ok) return { error: `HTTP ${r.status} ${t.slice(0, 120)}` };
-  try { return JSON.parse(t); } catch { return { error: '非 JSON 响应' }; }
+  if (!r.ok) {
+    const f = saveEvidence(`webcafe-${domain}-${r.status}.json`, {
+      domain, via, url: `${BASE}/mine/api/domain`, status: r.status,
+      headers: { 'content-type': r.headers.get('content-type'), 'retry-after': r.headers.get('retry-after') },
+      body: t,
+    });
+    return { error: `HTTP ${r.status} ${t.slice(0, 120)}（现场已留 ${f}）`, status: r.status };
+  }
+  try { return JSON.parse(t); } catch {
+    const f = saveEvidence(`webcafe-${domain}-nonjson.json`, { domain, via, status: r.status, body: t });
+    return { error: `非 JSON 响应（现场已留 ${f}）`, status: r.status };
+  }
 }
 
 // ── provider: TabAPI ────────────────────────────────────────────────────────
@@ -139,7 +152,10 @@ async function fetchTabapi(domain, { months }) {
   const h = { Authorization: `Bearer ${key}`, 'user-agent': UA };
   const t = await fetch(`https://tabapi.com/api/v1/domains/${encodeURIComponent(domain)}/traffic?months=${months}`, { headers: h });
   const traffic = await t.json().catch(() => null);
-  if (!t.ok) return { error: `traffic HTTP ${t.status} ${JSON.stringify(traffic?.error ?? '').slice(0, 160)}` };
+  if (!t.ok) {
+    const f = saveEvidence(`tabapi-${domain}-${t.status}.json`, { domain, status: t.status, body: traffic });
+    return { error: `traffic HTTP ${t.status} ${JSON.stringify(traffic?.error ?? '').slice(0, 160)}（现场已留 ${f}）`, status: t.status };
+  }
   // 注册日期在 traffic 里没有，要另外花 1 credit 走 RDAP。
   const d = await fetch(`https://tabapi.com/api/v1/domains/${encodeURIComponent(domain)}/rdap`, { headers: h });
   const rdap = d.ok ? await d.json().catch(() => null) : null;
@@ -170,7 +186,7 @@ function ageDays(registeredAt) {
 }
 
 function normalize(domain, provider, raw) {
-  if (raw?.error) return { domain, provider, error: raw.error, retrievedAt: new Date().toISOString() };
+  if (raw?.error) return { domain, provider, error: raw.error, httpStatus: raw.status ?? null, retrievedAt: new Date().toISOString() };
   if (provider === 'webcafe') {
     const search = raw.searchShare != null ? toPct(raw.searchShare) : shareOf(raw.trafficSources, 'search', '搜索', 'organic');
     return {
@@ -209,27 +225,15 @@ function normalize(domain, provider, raw) {
   };
 }
 
-// ── 阈值 ────────────────────────────────────────────────────────────────────
-
-function screen(rec, args) {
-  const strict = Boolean(args.strict);
-  const missing = [];
-  const check = (value, ok, label) => {
-    if (value == null) { missing.push(label); return !strict; }
-    return ok(value);
-  };
-  const rules = [];
-  if (args['max-age-days'] != null) rules.push(check(rec.ageDays, (v) => v < Number(args['max-age-days']), '注册日期'));
-  if (args['min-visits'] != null) rules.push(check(rec.monthlyVisits, (v) => v > Number(args['min-visits']), '月访问量'));
-  if (args['min-search-share'] != null) rules.push(check(rec.searchSharePct, (v) => v > Number(args['min-search-share']), '搜索占比'));
-  if (args['max-direct-share'] != null) rules.push(check(rec.directSharePct, (v) => v < Number(args['max-direct-share']), '直接占比'));
-  return { pass: rules.every(Boolean), missing };
-}
-
 // ── 主流程 ──────────────────────────────────────────────────────────────────
+// 阈值筛选已于 2026-08-30 移出脚本：脚本只采集，筛选判断由 AI 对完整输出做。
 
 const args = parseArgs();
 if (args.help || (!args._[0] && !args.file)) { console.log(HELP); process.exit(0); }
+for (const gone of ['max-age-days', 'min-visits', 'min-search-share', 'max-direct-share', 'strict']) {
+  if (args[gone] != null) die(`--${gone} 已移除：脚本不再做阈值筛选（会把「没取到」筛成「不合格」）。拿完整输出去判断。`);
+}
+initEvidence('aitdk-lookup', { dir: args['evidence-dir'] || null });
 
 const provider = args.provider === 'tabapi' ? 'tabapi' : 'webcafe';
 const via = args.via === 'browser' ? 'browser' : 'http';
@@ -258,11 +262,15 @@ for (const domain of domains) {
   if (done.has(domain)) continue;
   const raw = provider === 'tabapi' ? await fetchTabapi(domain, { months }) : await fetchWebcafe(domain, { via, session });
   const rec = normalize(domain, provider, raw);
-  const s = screen(rec, args);
-  rec.screen = { pass: s.pass, missingFields: s.missing };
   results.push(rec);
+  recordSource({
+    source: `${provider}${via === 'browser' ? '(browser)' : ''}:${domain}`,
+    status: rec.error ? (rec.httpStatus ? `http_${rec.httpStatus}` : 'error') : 'ok',
+    rawCount: rec.error ? 0 : 1,
+    error: rec.error ?? undefined,
+  });
   if (outFile && outFile.endsWith('.jsonl')) fs.appendFileSync(outFile, JSON.stringify(rec) + '\n');
-  console.error(`${rec.error ? '✗' : s.pass ? '✓' : '·'} ${domain}${rec.error ? ` → ${rec.error}` : ''}`);
+  console.error(`${rec.error ? '✗' : '✓'} ${domain}${rec.error ? ` → ${rec.error}` : ''}`);
   await sleep(800);
 }
 
@@ -270,26 +278,37 @@ if (via === 'browser' && browserReady) {
   try { await execFileP('opencli', ['browser', session, 'close'], { timeout: 60000 }); } catch { /* 关不掉不该让命令失败 */ }
 }
 
-const shown = results.filter((r) => !r.error && r.screen.pass);
+const errored = results.filter((r) => r.error);
+const manifestPath = writeManifest(errored.length ? `completed_with_failures: ${errored.length}/${results.length}` : 'completed');
 if (outFile && !outFile.endsWith('.jsonl')) { fs.writeFileSync(outFile, JSON.stringify(results, null, 2) + '\n'); console.error(`已写入 ${outFile}`); }
-if (args.json) { console.log(JSON.stringify(results, null, 2)); process.exit(0); }
+if (args.json) {
+  console.log(JSON.stringify(results, null, 2));
+  if (errored.length) console.error(`注意：${errored.length}/${results.length} 个域名采集失败——那不是「该站没数据」。manifest：${manifestPath}`);
+  process.exit(0);
+}
 
+// 默认输出显示全部行，出错行带 HTTP 状态——「取数失败」绝不允许从表里消失。
 printTable(
-  shown.map((r) => ({
+  results.map((r) => ({
+    状态: r.error ? `✗ ${r.httpStatus ? `HTTP ${r.httpStatus}` : '错误'}` : '✓',
     域名: r.domain,
-    注册: r.registeredAt ? r.registeredAt.slice(0, 10) : '—',
-    站龄天: r.ageDays ?? '—',
-    月访问: r.monthlyVisits == null ? '—' : r.monthlyVisits.toLocaleString('en-US'),
-    搜索占比: r.searchSharePct == null ? '—' : `${r.searchSharePct}%`,
-    直接占比: r.directSharePct == null ? '—' : `${r.directSharePct}%`,
-    环比: r.trendPct == null ? '—' : `${r.trendPct}%`,
-    核心词: (r.topKeywords || []).filter((k) => !k.isBrand).slice(0, 3).map((k) => k.keyword).join(' / ') || '(只有品牌词)',
-    缺字段: r.screen.missingFields.join(',') || '',
+    注册: r.error ? '' : r.registeredAt ? r.registeredAt.slice(0, 10) : '—',
+    站龄天: r.error ? '' : r.ageDays ?? '—',
+    月访问: r.error ? '' : r.monthlyVisits == null ? '—' : r.monthlyVisits.toLocaleString('en-US'),
+    搜索占比: r.error ? '' : r.searchSharePct == null ? '—' : `${r.searchSharePct}%`,
+    直接占比: r.error ? '' : r.directSharePct == null ? '—' : `${r.directSharePct}%`,
+    环比: r.error ? '' : r.trendPct == null ? '—' : `${r.trendPct}%`,
+    核心词: r.error
+      ? String(r.error).slice(0, 60)
+      : (r.topKeywords || []).filter((k) => !k.isBrand).slice(0, 3).map((k) => k.keyword).join(' / ') || '(只有品牌词)',
   })),
   [
-    { key: '域名', label: '域名', max: 30 }, { key: '注册', label: '注册' }, { key: '站龄天', label: '站龄' },
+    { key: '状态', label: '状态', max: 12 }, { key: '域名', label: '域名', max: 30 },
+    { key: '注册', label: '注册' }, { key: '站龄天', label: '站龄' },
     { key: '月访问', label: '月访问' }, { key: '搜索占比', label: '搜索' }, { key: '直接占比', label: '直接' },
-    { key: '环比', label: '环比' }, { key: '核心词', label: '核心搜索词', max: 46 }, { key: '缺字段', label: '缺字段', max: 20 },
+    { key: '环比', label: '环比' }, { key: '核心词', label: '核心搜索词 / 失败原因', max: 60 },
   ],
 );
-console.error(`\n通过 ${shown.length} / 取到 ${results.filter((r) => !r.error).length} / 请求 ${results.length}`);
+console.error(`\n取到 ${results.length - errored.length} / 失败 ${errored.length} / 请求 ${results.length}` +
+  (errored.length ? '——失败 ≠ 没数据，先看证据目录再下判断' : ''));
+if (manifestPath) console.error(`manifest：${manifestPath}`);

@@ -2,7 +2,7 @@
 name: rankup
 description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、rankup check、环节闸门、检查清单、checklist、"现在该做什么"、"到哪一步了"、"这个环节能不能过"、"本轮还差什么"、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、挖需求、找需求、需求挖掘、找方向、找选题、"最近有什么能做的"、"找几个关键词"、"挖个新词的工具站"、"看看有什么游戏站能做"、竞品调研、榜单调研、差评挖掘、反查谁在赚钱、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 哥飞、web.cafe、哥飞论坛、哥飞的朋友们、悬赏、悬赏问答、经验帖、"群里怎么说的"、"社群里有没有讲过"、"论坛里搜一下"、"哥飞说过什么"、哥飞.ai，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
 metadata:
-  version: "2.61.0"
+  version: "2.63.0"
 ---
 
 # Rankup 2.0
@@ -164,8 +164,8 @@ opencli browser "$S" eval '(async()=>{ /* fetch(..., {credentials:"include"}) */
 | 脚本 | 干什么 | 什么时候用 |
 |---|---|---|
 | `scripts/seo-webcafe.mjs` | **一个脚本覆盖 seo.web.cafe 全部 21 个工具**：`kd` 关键词难度+top9 盘面、`audit` 页面体检、`serp` 排名归因、`backlink` 外链估价、`worth` 网站估值、`history` 域名前世、`adsense` 过审预检、`chat` 站内 SEO Agent、`referring*` Stripe 引荐流量榜（不计配额）；**`translate*` 需求翻译器 / `mine*` 需求挖掘机 / `domain*` 起名+域名核验**（2026-08-24 补全）；**4 个本地命令 `kgr`/`string`/`money`/`email`**（纯本地计算、零网络零配额、可 `--batch` 批量）；`endpoints` 零配额普查、`tools` 列出确认无后端的工具及理由 | 问「这个词难不难做」「这盘面能不能进」「这条外链值不值」「这域名什么来历」「帮我想个站名」。零配置可跑，匿名 10 次/日。**本地那 4 个命令不消耗任何配额，可以放开批量跑** |
-| **`scripts/demand/` 一整组（21 个）** | **需求挖掘取数**：榜单、差评、外包、广告、新词平台、竞品 sitemap、站群反查、词根库、域名画像。全部零依赖、`--json`/`--out` 统一 | 用户说「找几个关键词」「挖点需求」「最近有什么能做的」时。**先读 [`demand-sources.md`](references/demand-sources.md) 那张源→脚本路由表，不要逐个翻脚本** |
-| `scripts/demand/revenue-site-audit.mjs` | **收入站案例复核薄编排**：调用现有 AITDK、Similarweb、Semrush、sitemap、KD 脚本，统一标明月份/国家/报告页，流量估算相差 >2 倍自动报警并生成 claim verdict 骨架 | 社交帖子或榜单声称「新站、月访、自然占比、MRR」时；它只整证据，不替采集器和人工因果审计 |
+| **`scripts/demand/` 一整组（21 个）** | **需求挖掘取数**：榜单、差评、外包、广告、新词平台、竞品 sitemap、站群反查、词根库、域名画像。全部零依赖、`--json`/`--out` 统一。失败会把 `{url,status,body}` 落进证据目录并在 manifest 里逐源记状态 | 用户说「找几个关键词」「挖点需求」「最近有什么能做的」时。**先读 [`demand-sources.md`](references/demand-sources.md) 那张源→脚本路由表，不要逐个翻脚本**。**空结果必须先核对 manifest 的 sources 状态：配额 429/CAPTCHA/改版/超时 都会产出 0 条，采集失败 ≠ 没需求** |
+| `scripts/demand/revenue-site-audit.mjs` | **收入站案例复核薄编排**：调用现有 AITDK、Similarweb、Semrush、sitemap、KD 脚本，统一标明月份/国家/报告页，**产出原始各源对照数据与倍差事实（不含 verdict）**，原始采集文件全部保留并在输出 `rawFilesDir` 给路径 | 社交帖子或榜单声称「新站、月访、自然占比、MRR」时；它只整证据，**证实/反证这类 verdict 由 AI 对照 `demand-sources.md` 第十节的判据下**，采集器失败在 manifest 里可见、不得读成「该站没数据」 |
 | `scripts/rankup-cli.mjs` | **Semrush / Similarweb 能力目录与可续跑取证入口**：`catalog` 看能力（`--modules` 展开工具箱树、`--gaps` 只看没摸到的地方），`capture` 抓一个报告，`audit` 按 manifest 逐页保存原图、全文 HTML、DOM、AX、解析结果、应用 JSON、网络结构和哈希回执 | 第一次摸平台功能、复查页面能力、或把已发现的页面清单重复跑一遍时；底层复用 OpenCLI 登录态。**判断「这个面板能不能拿到 X」先读 [`provider-capabilities.md`](references/provider-capabilities.md)，不要现开浏览器翻** |
 | `scripts/gt.py` | Google Trends 统一入口：热度对比、地区分布、相关飙升词、每日热搜 | 问「XX 和 YY 哪个更火」「哪个国家有机会」「最近什么在涨」。**默认走浏览器路由，不需要 venv** |
 | `scripts/gt-browser.mjs` | gt 的 OpenCLI 取数层：驱动已登录 Chrome，在 trends.google.com 页面里 fetch Trends 内部 widget 接口 | 一般不直接调，由 `gt.py` 转发。pytrends 的 429 就是靠它绕开的；要它工作先 `opencli doctor` |
@@ -183,6 +183,8 @@ opencli browser "$S" eval '(async()=>{ /* fetch(..., {credentials:"include"}) */
 | `scripts/naver-setup.mjs` | **在 Naver Search Advisor 里注册站点、获取验证 meta 标签、提交 sitemap**。`status` / `register` / `submit-sitemap`。CAPTCHA 无法自动化，需要用户手动完成验证 | 韩国市场站点上线后接 Naver 站长工具时。Naver 内部 API 有 CSRF 保护，注册和 sitemap 提交走 UI 更稳定 |
 | `scripts/ahrefs-setup.mjs` | **在 Ahrefs 里建项目、经 GSC 验证所有权、启用 Web Analytics 并取回 `data-key`**。`status` / `create` / `verify` / `enable-wa` | 上线后接外链视角与总访问量时。Ahrefs API v3 只有数据查询，项目管理只能走 UI |
 | `scripts/seo-audit.mjs` | **AITDK 相当の全ページ SEO 監査**（零依赖、Node 20+）。title/desc/keywords/canonical/robots/charset/lang/h1/OGP/Twitter Card/構造化データ/画像 alt/リンク分析/hreflang、**キーワード密度（1/2/3-gram、日本語 `Intl.Segmenter` 対応）**。`--sitemap <url>` で全ページ一括、`--json` で機械可読、`--density-only` で密度のみ、`--fix-report` で修正リスト | **構建完成後の SEO 検証に必須**。阶段 7.5 闸门第 2、3 行（TDK + 关键词密度）的取数工具；阶段 8 每轮新页面上线后重跑。零配额、零登录、纯 HTTP fetch，可对 localhost dev server 或线上域名跑 |
+| `scripts/pagespeed.mjs` | **PageSpeed Insights 取数：一次同时拿实验室(Lighthouse)与现场(CrUX)两套数据**，对应阶段 7.5 闸门 6「实验室与现场都要记录」。`--strategy both`、`--md`、`--out` | 上线前跑性能基线、每轮回看。**必须自带免费 key**（`PAGESPEED_API_KEY`，Google Cloud 免费 25k/日）——匿名走的是共享项目配额，实测常年 429，那不是偶发。现场返回「无数据」= CrUX 流量不足，**不是 0、不等于通过** |
+| `scripts/ahrefs-site-audit.mjs` | **读 Ahrefs Site Audit 已有的抓取结果**（驱动已登录浏览器）：`projects` 列项目与健康分，`report <id> <报告>` 取 20 个分类报告中的一个（`links` 内链失效 / `redirects` 全站重定向链 / `html-tags` TDK / `indexability` / `localization` hreflang …），`routes` 列清单 | 闸门 1、闸门 2 的**第二双眼睛**，以及阶段 3/8 的全站 301 检查。**免费 AWT 档就够**（只能看自己已验证的站，但那正是我们要的），零按次配额。会话名固定 `ahrefs-nav`，不要传 `--session`。判定与边界见 [`seo-box.md`](references/seo-box.md)「会员实测」 |
 | `scripts/registry.mjs` | 扫描各项目 `.rankup/` 重建跨项目资产登记表 | 开工前查「别的项目有没有现成的」；收工时刷新 |
 | `scripts/review.mjs` | 项目记忆体检：缺失文件、超期记录、脚本体检、**生命周期检查点**（查漏补缺——哪些工具和环节还没跑过）、经验库信号 | `rankup review` 第一步；新引入 Skill 的老站第一件事就跑它 |
 | `scripts/sessions.mjs` | 找出并浓缩本项目的 Claude Code / Codex 会话，供 review 提取信号 | `rankup review` 第二步，默认加 `--new-only` |
@@ -644,8 +646,8 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | **AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化** | [`seo-growth.md`](references/seo-growth.md) section 三-B「2026 AI 搜索范式」 | 无需额外工具——Google 官方定论：AEO/GEO 就是 SEO |
 | **AI Agent 就绪度、is-agentic、agent readiness、llms.txt、AI 代理优化、agentic score** | [`seo-growth.md`](references/seo-growth.md) section 三-B「AI Agent 就绪度」 | `scripts/is-agentic.mjs`（`scan` 评分、`diff` 对比、`history` 历史，零配置可跑） |
 | 关键词难度、SERP 盘面、页面体检、域名与外链估值 | [`seo-webcafe.md`](references/seo-webcafe.md) | `scripts/seo-webcafe.mjs`（一个脚本覆盖全部工具，零配置可跑） |
-| **前期调研、挖需求、「做什么方向」、反推别人在赚什么钱、选题验证** | 判断先读 [`experiences/demand-discovery.md`](references/experiences/demand-discovery.md)（裁定集），取数直接查 [`demand-sources.md`](references/demand-sources.md)（源 → 脚本路由表） | `scripts/demand/` 整组 + `scripts/gt.py` + `seo-webcafe.mjs kd` 收敛成词 |
-| **「找几个关键词」「找点需求」「挖个新方向」「有什么新词的工具站能做」「挖游戏站/AI 产品」** | [`demand-sources.md`](references/demand-sources.md) —— **按「你现在缺哪一类信号」查表，不要凭印象挑站** | `scripts/demand/`。拿到候选后一律走该文件第十节的验证链路，别跳过 |
+| **前期调研、挖需求、「做什么方向」、反推别人在赚什么钱、选题验证** | **先读 [`research-checklist.md`](references/research-checklist.md)（执行清单，逐项走完）**，判断读 [`experiences/demand-discovery.md`](references/experiences/demand-discovery.md)（裁定集），取数查 [`demand-sources.md`](references/demand-sources.md)（源 → 脚本路由表） | `scripts/demand/` 整组 + `scripts/gt.py` + `seo-webcafe.mjs kd` + `backlink/scripts/similarweb-*.mjs` + `backlink/scripts/semrush-*.mjs`——**全部工具链必须跑完，不许只用一部分** |
+| **「找几个关键词」「找点需求」「挖个新方向」「有什么新词的工具站能做」「挖游戏站/AI 产品」** | **[`research-checklist.md`](references/research-checklist.md) 是入口**——9 节清单逐项打勾，全部必做项 + 全部应做项 + 至少 3 个按需项完成才算调研结束。取数路由查 [`demand-sources.md`](references/demand-sources.md) | `scripts/demand/`。**Similarweb 查竞品真实流量、Semrush 验证搜索量、Google Trends 看趋势方向、收入信号三榜、折成钱——一个都不能少** |
 | **「这个词能不能做站」「这条赛道值不值得进」「窗口还开着吗」** | [`demand-sources.md`](references/demand-sources.md) **十·五**（能排上去 ≠ 能赚钱）+ **九·六**（自己扩的词表一定漏了一半）+ **②·六·四**（模型流量什么时候高估） | 量/KD/SERP 窗口三道闸之后**还有第四道**：查同类站真实流量并用 `seo-webcafe.mjs money` 折成钱。**漏掉它会得出 SEO 正确、商业错误的结论**。「新域两个月能进前十」要读成没有护城河，不是机会刚出现 |
 | **小游戏站、游戏新词、监控游戏站、游戏 iframe、游戏站变现** | 加载 Rankup 的专项模块 `game-opportunity`；建站阶段再读 [`game-sites.md`](references/game-sites.md) + [`lifecycle.md`](references/lifecycle.md) | 通用 SOP/Checklist/脚本属于 Rankup 仓库；项目 `.rankup/` 只存平台清单、快照、取数和日报 |
 | **0→1 怎么排优先级、「1」怎么定义、虚荣指标、要不要重构、什么时候止损、新站上线执行清单** | [`experiences/zero-to-one.md`](references/experiences/zero-to-one.md) | 无需工具，是裁定集。**接到「优化一下这个站」时默认打磨转化链路，不是重构架构** |
@@ -676,6 +678,12 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | **发 Product Hunt / 产品发布平台、排期上线、画廊图上传** | [`product-launch.md`](references/product-launch.md) | 需要能设置 file input 的浏览器连接器；**不要点上传按钮**（会弹系统对话框冻死标签页） |
 | 外链、分发、竞品引用域 | [`integrations.md`](references/integrations.md)、[`seo-growth.md`](references/seo-growth.md) | **加载 backlink**（`/backlink`）。未安装：`npx skills add yan-labs/yan-skills --skill backlink -g -y` |
 | 付费外链平台、「竞品在哪买的链接」、投放平台估价 | [`integrations.md`](references/integrations.md) | **加载 backlink**（读 `references/paid-platforms.md`，喂 `data/paid-platforms.json`） |
+| **性能基线、Core Web Vitals、Lighthouse 跑分、「站慢不慢」、闸门 6** | [`seo-box.md`](references/seo-box.md) 一 | `scripts/pagespeed.mjs`。**Lighthouse 单跑只给实验室数据，闸门 6 要的是实验室+现场两套** |
+| **重定向查不查得清：裸域/www 几跳、旧 URL 是 301 还是 302、外链中转跳什么码** | [`seo-box.md`](references/seo-box.md) 二 | `curl -sIL`。判据（302/307 不传权重）在 [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 五 |
+| **竞品用什么建站、挂了哪些分析/广告/支付、他靠什么赚钱** | [`seo-box.md`](references/seo-box.md) 三 + [`lifecycle.md`](references/lifecycle.md) 6.3 | 一次 `curl` + grep 指纹；站群反查用 `scripts/demand/site-network.mjs` |
+| **有人推荐了一个「很全的 SEO 工具站/工具清单/awesome 列表」，要不要接** | [`seo-box.md`](references/seo-box.md) 开头 | **不接入，只对账**：逐条判 ✅ 已覆盖 / ➕ 值得接 / ❌ 不接（附裁决依据）。seo.box 那 28 条已判完，别重判 |
+| **「Ahrefs 能拿什么」「我这个档位够不够」「自己站的爬虫报告」「全站有多少内链失效/重定向」** | [`seo-box.md`](references/seo-box.md)「会员实测」 | `scripts/ahrefs-site-audit.mjs`。**Ahrefs 在本 Skill 里不是关键词工具也不是外链工具**，是自有站点的第二台爬虫 |
+| **要判断某个第三方工具值不值得接** | [`seo-box.md`](references/seo-box.md)「会员实测」 | **先用用户已登录的浏览器验档位，再下判定**。按公开页面推断会把「你没会员」写成「这工具不行」 |
 | 复盘、经验沉淀、自我进化、规则升级 | [`evolution.md`](references/evolution.md)、[`project-memory.md`](references/project-memory.md) | 必要时使用独立 checker |
 | 已有项目下一步、迭代、排障 | [`project-memory.md`](references/project-memory.md) 加任务相关参考 | 按缺口选择 |
 
@@ -796,7 +804,7 @@ pnpm dlx shadcn@latest init \
 
 | | 放什么 | 例子 |
 |---|---|---|
-| Skill 的 `.env` | **跨项目的工具账号令牌真实值** | 关键词/SERP 服务的 API 令牌 |
+| Skill 的 `.env` | **跨项目的工具账号令牌真实值** | 关键词/SERP 服务的 API 令牌（`KD_TOKEN`）、PageSpeed Insights 的免费 key（`PAGESPEED_API_KEY`） |
 | 项目的 `secrets.md` | **本项目专属凭据的名称、用途、保管位置**，绝不写真实值 | 站点的部署密钥、支付密钥 |
 
 规则：

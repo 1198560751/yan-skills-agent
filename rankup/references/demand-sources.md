@@ -28,6 +28,8 @@
 | 竞品正在往哪儿下注 | [九](#九竞品正在往哪儿下注) |
 | 我盯上了一个跑通的站，想把它整个站群拆开 | [九·二](#九二一个站背后的整个站群) |
 | 我连方向都没有，只有一个词根 | [九·五](#九五从词根出发) |
+| 正在上涨的新站（平台子域名监控） | [九·三](#九三平台子域名监控) |
+| 跨平台自动补全扩词 | [九·七](#九七跨平台自动补全扩词) |
 | **同行已经把答案写出来了，我只是没去读** | [九·八](#九八已经有人替你调研过了哥飞社区) |
 | **不管缺哪类信号，先亲眼看一遍搜索结果首页** | [一·五](#一五先亲眼看一遍搜索结果首页多引擎实勘) |
 | 拿到候选之后怎么验证 | [十](#十候选验证链路) |
@@ -247,6 +249,8 @@ Google 广告透明度中心覆盖的是**网页广告主**。想看**谁在给 
 | Capterra | 均分、评论的 **Pros/Cons 分段** | ld+json + DOM 卡片 | 否，但**必须真实浏览器** | `scripts/demand/reviews-mine.mjs --source capterra` |
 | Chrome Web Store | 扩展**用户数 + 精确评分 + 评分人数 + 分类**，以及最近 10 条评论原文/星级 | 公开 HTML 内联 JSON（`AF_initDataCallback`），**不用 token 不用浏览器** | 否 | `scripts/demand/chrome-ext-gap.mjs` |
 | chrome-stats.com | 趋势榜、新增榜、**已下架榜**（`/chrome/obsolete`） | OpenCLI 真浏览器（CF 挡纯 HTTP），免费仅第 1 页 25 条 | 否，但要真浏览器 | `scripts/demand/chrome-stats.mjs` |
+| **AppSumo** | 付费用户差评（极其具体）、Q&A 购前提问（"does it support..."）、热门 deal 的品类分析 | 公开页面 | 否 | 暂无脚本——AI 直接读页面判断 |
+| **AlternativeTo** | 替代理由（价格/复杂度/功能不足）、筛选器维度可组合成长尾词（"free X alternative for Linux"） | 公开页面 | 否 | 暂无脚本——AI 直接读页面判断 |
 
 ### 扩展商店的「已验证市场 + 差执行」筛选
 
@@ -317,6 +321,8 @@ Wish it could…       I love this extension, but…   ← 最值钱的一句
 | GitHub Search | 累计 star、创建/push 时间、topics、open issue 正文 | 公开 JSON API | 否（给 token 配额高 80 倍） | `scripts/demand/github-trending.mjs --source search` |
 | GitHub SKILL.md 反查 | 别人沉淀的 skill 名 + description（= 反复出现的真实需求） | JSON API。**要「最近更新」用 `--mode recent`**：repo search `pushed:>` + Git Trees（一次请求拿全仓库文件清单，实测 34,019 节点 / 286 个 SKILL.md，**且不吃 code search 10 次/分的配额**） | code search 需 token | `scripts/demand/github-skill-search.mjs --mode recent\|repo\|code` |
 | There's An AI For That `/new/` | 工具名、**未经跳转的真实官网**、saves / views / 评分 / 定价，一页 205 条 | OpenCLI 真实 Chrome（纯 HTTP 全路径 CF 403） | 否，但要真实浏览器 | `scripts/demand/boards.mjs taaft --board new` |
+| **turbo0.com** | Fastest Growing（645 产品按 Similarweb 流量增速排，月更）、DR Climbers（888 域名按 Ahrefs DR 增速排，周更）、Hidden Gems（698 小产品异常增长）、New This Month（日更 400 新品） | 公开页面 | 否 | 暂无脚本——AI 读 Collections 页判断 |
+| **Indie Hackers** | 创始人收入复盘帖（直接披露获客关键词和渠道）、产品目录按收入排序、「I'd pay for X」天然付费意图句式、失败案例中的用户反馈（项目失败 ≠ 需求不存在） | 公开页面 | 否 | 暂无脚本——AI 直接读页面判断 |
 
 ### 关键字段：Product Hunt 的产品真实外链
 
@@ -344,6 +350,10 @@ node scripts/demand/boards.mjs producthunt --date 2026-08-22 --resolve-urls --js
 
 **新游戏 = 新词 = 新需求，且没有老站霸占。** 新手拿第一次正反馈最快的一条线。
 
+推广到 AI 领域同理：**新模型 = 新词**。每个新上榜的模型名都会触发一个可预测的关键词周期：
+`[model] release date` → `[model] vs [competitor]` → `[model] pricing` → `[model] API tutorial`。
+Hugging Face 的新 task tag 领先 Google 搜索 2–6 个月——这是游戏新词之外的第二条新词矿脉。
+
 | 源 | 拿什么 | 取数方式 | 需登录 | 脚本 |
 |---|---|---|---|---|
 | Steam 商店 | 新上架/即将发布的游戏名、appid、发售日、价格、genres | 公开 JSON（`store/search/results?infinite=1` + `appdetails`） | 否 | `scripts/demand/game-newtitles.mjs --source steam` |
@@ -351,6 +361,8 @@ node scripts/demand/boards.mjs producthunt --date 2026-08-22 --resolve-urls --js
 | itch.io | 独立游戏名、URL、作者、价格、简介（**无下载量无评分**） | 公开 `?format=json` | 否 | `--source itch` |
 | Poki | web 小游戏名、URL、板块（**仅此三项，播放量不公开**） | 公开 HTML（按 `data-tile-*` 解析） | 否 | `--source poki` |
 | IGDB | 跨平台新作名、首发日、total_rating、genres、platforms | 官方 API（Twitch OAuth） | 需 `IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET` | `--source igdb` |
+| **Hugging Face Trending** | 新 task tag → 新 AI 能力关键词（领先 Google 搜索 2–6 个月）；Trending Models / Trending Spaces / Trending Papers 三个信号源 | 公开页面 + API（`huggingface.co/api/trending`） | 否 | 暂无脚本——AI 读 trending 页 |
+| **Arena.ai (lmarena.ai)** | 13 个 Leaderboard（Agent/Text/Vision/T2I/T2V 等）上新上榜的模型名 = 潜在高搜索量词（`[model] review/vs/tutorial`）；投票数激增 = 搜索需求正在爆发 | 公开页面 | 否 | 暂无脚本——AI 读 leaderboard 页 |
 
 ### 已验证的坑（两条会让人白跑一轮）
 
@@ -378,6 +390,11 @@ node scripts/demand/boards.mjs producthunt --date 2026-08-22 --resolve-urls --js
 | Hacker News 评论 | Ask HN 下的整棵评论树 | 公开 JSON API | 否 | `scripts/demand/hn-signals.mjs --comments` |
 | **TAAFT 许愿区 `/requests/`** | **用户直接写下来的「我想要一个能做 X 的 AI」+ 票数 + 回答数**，实测 1,526 条 | OpenCLI 真实 Chrome | 否，但要真实浏览器 | `scripts/demand/boards.mjs taaft --board requests`（`--board requests-top` 按票数排） |
 | Google SERP（许愿句式限站搜） | organic 前十 + relatedSearches + peopleAlsoAsk | serper.dev API | 需 `SERPER_API_KEY` | `scripts/demand/serp-query.mjs` |
+| **StackOverflow** | 高票未接受答案 = 没有好的解决方案 = 可做成工具；报错信息就是关键词；tag 热度趋势 = 技术采用信号 | 公开页面 + API | 否 | 暂无脚本——AI 直接搜索判断 |
+| **V2EX** | 中文技术社区的「求推荐」「有没有」「吐槽」类帖子——中文关键词竞争通常比英文低得多 | 公开页面 | 否 | 暂无脚本——AI 直接读页面判断 |
+| **TikTok / YouTube** | 播放量增长的视频中的需求信号（评论区「哪里可以用」「有没有网页版」）——**需求先在短视频平台爆发，再形成搜索需求**，抓住窗口期 | 公开页面 | 否 | 暂无脚本——人工探测 |
+| **X / Twitter** | 高级搜索句式：`"looking for" OR "anyone know" "[category]"`、`"alternative to" "[competitor]"`、`#buildinpublic` 发现新兴品类。趋势常领先 Google 搜索量数天到数周 | 公开页面 | 否 | 暂无脚本——AI 直接搜索判断 |
+| **行业博客评论** | 评论者措辞 = 他们在 Google 搜索时用的长尾查询词。监控目标：行业领袖博客、教程站（dev.to）、竞品产品博客 | Google Alerts + `site:` 操作符 / RSS | 否 | 暂无脚本——AI 判断 |
 
 **本节信号密度最高的是 TAAFT 许愿区**：别的源要你从吐槽里推断需求，
 它是用户自己写好的一句需求 + 一个票数。**票数就是现成的排序**，
@@ -463,6 +480,27 @@ node scripts/demand/site-network.mjs --domain <种子域名> --confirm --max 10
 
 ---
 
+## 九·三、平台子域名监控（Certificate Transparency）
+
+**原理**：Vercel、Cloudflare Pages、Netlify 这类平台的默认子域名（`*.vercel.app`、`*.pages.dev`、`*.netlify.app`）会在签发 TLS 证书时被写入公开的 Certificate Transparency（CT）日志。通过 crt.sh 或 Certstream 监控这些通配域名下的**新增子域名**，就能在一个站还没绑自定义域名、还没做 SEO 之前就发现它。
+
+**为什么有效**：
+- 绝大多数新站的第一步是部署到平台默认域名，再等跑通了才买域名绑定——**CT 日志比 Google 收录早几天到几周**。
+- 子域名本身就是项目名/产品名，直接构成关键词候选（`photo-resizer.vercel.app` → 关键词 `photo resizer`）。
+- 批量出现同一品类的子域名 = 那个品类正在爆发。
+
+**操作**：
+
+| 步骤 | 方法 |
+|---|---|
+| 单次查询 | `https://crt.sh/?q=%.vercel.app&output=json` — 返回最近签发的证书及子域名列表 |
+| 实时流 | Certstream（`certstream.calidog.io`）WebSocket 接口，按 `*.vercel.app` 等通配过滤 |
+| 品类聚合 | 把子域名分词后做频率统计，高频词根 = 热门品类（`ai-`、`chat-`、`resume-`） |
+
+暂无脚本——AI 判断 crt.sh 返回的子域名列表，识别品类模式。
+
+---
+
 ## 九·八、已经有人替你调研过了（哥飞社区）
 
 前面八节都是**你去挖**。这一节是**别人挖完了，把结论和踩过的坑公开写了出来**——
@@ -490,7 +528,7 @@ node scripts/demand/site-network.mjs --domain <种子域名> --confirm --max 10
 | `il1fmki1ih` | 访客→注册转化率 | [`experiences/conversion.md`](experiences/conversion.md) |
 | `wlhmhdaoqg` | 去哪儿提交外链（**588 条榜单**） | [`../../backlink/references/authorized-data-sources.md`](../../backlink/references/authorized-data-sources.md) |
 | `0jch5yv6g7` | 你都在哪些网站挖掘需求（**盲征中**，109 条待开榜） | 未开榜，`board` 还取不到 |
-| `k3ivgzypq1` | 被验证过的找需求方法（**盲征中**，46 条） | 同上 |
+| `k3ivgzypq1` | 被验证过的找需求方法（**已研究**，37 个方法） | 本文件各节（13 个新方法已整合进 §四·§六·§七·§八·§九·三·§九·七），完整研究报告见 artifact `db25ad4e` |
 
 **后两场值得盯**：它们正在征集，一旦状态变成 `open` 就能一次性拿到
 一百多条「别人实际在用的需求挖掘站点」——那正是本文件第一节那张表的众包版本。
@@ -570,6 +608,49 @@ node scripts/demand/word-roots.mjs expand converter \
 4. **池子变大不等于经济性变好。** 补漏进来的泛型大词常常是廉价流量（量很大、CPC 接近零）。
    **扩完词必须重算按量加权的 CPC**；加权 CPC 掉下来时，「盘子更大了」是个假的好消息。
 
+### 品牌截流词（Brand Keyword Hijacking）
+
+竞品的品牌词是一座被大多数人忽视的词矿：B2B SaaS 领域 **35–45% 的品牌 SERP 首页上有第三方内容**（`[brand] alternative`、`[brand] vs`、`[brand] review`、`[brand] pricing`）。
+
+操作：
+- 从第二节收集到的竞品列表中，取每个品牌名，构造 `[brand] alternative`、`[brand] vs [你的产品]`、`[brand] review`。
+- 用 `seo-webcafe.mjs kd` 测量这些词的搜索量和难度——品牌修饰词通常 KD 很低，因为竞品自己不会做「自己的替代品」这种页面。
+- 做法：建 `/compare/[brand]-vs-[你的产品]` 或 `/alternative/[brand]-alternative` 页面，内容是真实的功能对比。
+
+**限制**：这是一个有争议的策略。只有在产品确实能替代竞品时才应该做，否则是误导用户。页面内容必须是真实的对比，不是纯粹的截流。
+
+---
+
+## 九·七、跨平台自动补全扩词
+
+搜索引擎和平台的自动补全（autocomplete / suggest）是**用户真实搜索行为**的直接投射——它推荐的是有量的查询，且更新频率远快于任何第三方关键词数据库。
+
+### 两个核心手法
+
+**1. keywordtool.io — 16 个平台的自动补全聚合器**
+
+一次输入种子词，同时从 Google、YouTube、Bing、Amazon、eBay、Play Store、Instagram、Twitter、Pinterest、TikTok 等 16 个平台拉取自动补全建议。免费版只看词不看量，但足以发现**你完全没想到的构词角度**——因为不同平台的用户用不同的方式描述同一个需求。
+
+**2. Alphabet Soup（A–Z 前缀穷举）**
+
+在 Google / YouTube / Amazon 的搜索框里输入 `[种子词] a`、`[种子词] b`、……`[种子词] z`，收集每一轮的下拉建议。这个技巧的价值在于**强制搜索引擎给出 26 个方向的建议**，而直接输入种子词只给 8–10 个最热的。
+
+| 变体 | 前缀形式 | 适合发现什么 |
+|---|---|---|
+| 后缀法 | `种子词 a/b/c…` | 修饰语、使用场景、长尾 |
+| 前缀法 | `a 种子词`、`b 种子词` | 品牌名、形容词、替代表述 |
+| 填空法 | `种子词 _ 种子词2` | 中间连接词、介词搭配 |
+
+### 操作建议
+
+- 种子词取自第二节（需求信号源）的已验证关键词，不要凭空想。
+- 对比多个平台的建议差集——Amazon 上出现而 Google 上不出现的词往往是高购买意图词。
+- 批量操作可用 keywordtool.io，单次深挖用 alphabet soup 手动做（或 AI 通过搜索框自动化）。
+
+暂无脚本——AI 在搜索引擎中执行 alphabet soup 查询并汇总结果。
+
+---
+
 ## 十、候选验证链路
 
 前九节产出的是**候选**，不是结论。候选必须走完这条链路才能开工。
@@ -579,7 +660,7 @@ node scripts/demand/word-roots.mjs expand converter \
    ↓ ⓪ 亲眼看一遍搜索结果首页：Google / Bing / 目标市场本地引擎，各记七样
    见本文件第一·五节。这一步在任何取数之前，别拿二手 SERP 接口代替
    ↓ ① 这个站什么来历：注册日期 / 站龄 / 月访问 / DR / 环比 / 核心搜索词
-   scripts/demand/aitdk-lookup.mjs <域名>           # 支持 --file 批量、jsonl 续跑、四个阈值筛选
+   scripts/demand/aitdk-lookup.mjs <域名>           # 支持 --file 批量、jsonl 续跑；只采集不筛选，阈值判断按第二节的表由 AI 做
    ↓ ② 词有没有量、难不难做
    scripts/seo-webcafe.mjs kd --keyword <词>        # 零配置，含 top9 盘面
    ↓ ③ 盘面上都有谁、我能不能做得更好
@@ -598,6 +679,22 @@ node scripts/demand/word-roots.mjs expand converter \
 ⓪–③ 衡量的是**能不能排上去**，④–⑥ 衡量的是**排上去值不值**。
 只跑前半程会得出一个 SEO 上完全正确、商业上完全错误的结论——见第十·五节。
 
+**每一步都有失败分支，失败 ≠ 该步的否定答案。** 脚本失败时会把 `{url,status,body}`
+落进证据目录（默认 `.rankup/evidence/demand/<脚本>-<时间戳>/`）并在同目录 `manifest.json`
+里逐源记 `{source,status,rawCount,error}`。逐步的失败读法：
+
+| 步 | 失败长什么样 | 正确读法 |
+|---|---|---|
+| ① aitdk-lookup | 表格里带 `✗ HTTP 429/403` 的行；manifest 里该域 `http_*` | 配额耗尽/被挡，**不是「该站没数据」**。换 `--via browser` 档位或次日重试。脚本已不做阈值筛选——出错行永远显示在默认输出里 |
+| ② kd | 非 200 或配额用尽 | 词的难度「未测得」，不是 KD=0 |
+| ③ serp-query | serper 报错/超时 | 盘面「没看到」，不是「盘面是空的」 |
+| ④ similarweb/semrush | 面板没渲染稳、登录态失效 | 流量「未取得」，不是流量小；查 backlink 侧证据目录 |
+| ⑤ gt | 429/widget 空 | 趋势「未取得」，不是「没人搜」 |
+
+判定规则：**看到 0 条或空表，先开 manifest**。`sources` 里有任何一条非 `ok`，
+这次运行就不能当成「真没有需求/没有数据」的证据；全部 `ok` 且 rawCount 为 0，
+才允许读成真空态。
+
 社交帖子或收入榜案例要复核整条链路时，不要手工拼表，也不要重写采集逻辑：
 
 候选发现先用 `boards.mjs trustmrr`；它负责从收入榜找候选。拿到对应 TrustMRR 详情链接后，
@@ -612,13 +709,26 @@ node scripts/demand/revenue-site-audit.mjs \
 ```
 
 它顺序调用现有域名画像、Similarweb 两张报表、Semrush 国家库、sitemap 和 KD 脚本。
-输出必须保留 `unavailable`，不能把失败写成 0；AITDK 与 Similarweb 的近月估算相差
-超过 2 倍会报 `traffic_estimates_conflict`。Semrush 的国家库自然流量只并列展示，
+输出必须保留 `unavailable`，不能把失败写成 0；Semrush 的国家库自然流量只并列展示，
 不和 Similarweb 全球总访问做倍数或渠道占比运算。用 `--from <目录>` 可离线重整已经
 保存的 `aitdk.json` / `similarweb-*.json` / `semrush.json` / `sitemap.json` / `kd.json`。
-Similarweb 的 Performance 总访问与 Marketing Channels 渠道行合计也要互核；同一范围仍差
-超过 35% 会报 `similarweb_report_conflict`。报告必须留下页面 URL、as-of 日期、流量类型和
-原始字段名，渠道行合计不得悄悄冒充 Performance 总访问。
+报告必须留下页面 URL、as-of 日期、流量类型和原始字段名，渠道行合计不得悄悄冒充
+Performance 总访问。
+
+**它只产原始对照数据，verdict 由 AI 下**（2026-08-30 起脚本不再输出
+证实/部分证实/反证与 alerts）。判据在这里，不在脚本里：
+
+- `crossChecks.estimateRatio`（AITDK 与 Similarweb 近月估算的倍差）**> 2** →
+  两个来源打架，claimed 值「无法证实」，不许引用较高的那个数；
+- `crossChecks.similarwebPerformanceVsChannelsRatio` **> 1.35** → 同一家面板两张报表
+  自相矛盾，两个原始字段都要保留，不许拿渠道行合计冒充 Performance 总访问；
+- 自然占比：claimed 与面板差 ≤5 个百分点算吻合，≤20 算部分吻合，再大就是反证；
+- MRR：`stripeVerifiedForThisDomain` 为 true 且 `claimedToVerifiedRatio` ≤1.1 算证实；
+  false 时一律「无法证实」——Stripe 只证收入规模，不证「靠哪类页面/渠道赚的」。
+
+**失败分支**：每个采集器的成败记在同目录 `manifest.json`（`unavailable` = 没取到，
+不是该站没数据）；原始采集文件不再删除，全部保留在输出 `rawFilesDir` 指向的目录里
+（默认 `.rankup/evidence/demand/revenue-site-audit-<时间戳>/`），复核时直接开原始文件。
 
 ### ②·五 盘面里有低 DR 站时，先查它的**域名年龄**，再查它的流量
 

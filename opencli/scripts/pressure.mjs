@@ -54,6 +54,22 @@
  *   0 = go   2 = wait   3 = stale-lock   4 = unknown（会话列表拿不到）
  */
 
+// --help 必须在任何探测之前早退：这个脚本的退出码是链式闸门（0/2/3/4 随现场变化），
+// 没有守卫时 check-help.mjs 的体检会真跑一次压力探测，绿不绿全看当时有没有锁。
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.log(`pressure.mjs —— 开工前自查：我现在动手，会不会把事情搞砸？
+
+用法:
+  node opencli/scripts/pressure.mjs              # 全看
+  node opencli/scripts/pressure.mjs --tool semrush
+  node opencli/scripts/pressure.mjs --json
+
+退出码可以直接当闸门用（... && node my-crawler.mjs）:
+  0 = go   2 = wait   3 = stale-lock   4 = unknown（会话列表拿不到）
+细节与边界见文件头注释。`);
+  process.exit(0);
+}
+
 import { existsSync, realpathSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

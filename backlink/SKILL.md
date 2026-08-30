@@ -63,8 +63,11 @@ backlink/
 │   ├── similarweb-keywords.mjs     seed keyword → thousands of related keywords.
 │   │                               The keyword-research entry point the pipeline was missing.
 │   │                               Column-major DOM table; parsing lives in lib-similarweb.mjs
-│   ├── similarweb-batch.mjs        bulk traffic screen — one login, N domains, resumable
+│   ├── similarweb-batch.mjs        bulk traffic screen — one login, N domains, resumable;
+│   │                               emits evidence rows (value+stopReason+screenshot), no verdicts
 │   ├── semrush-batch.mjs           same, on the other card's quota (organic traffic)
+│   ├── lib-batch-evidence.mjs      the batch scripts' shared evidence contract — row shape,
+│   │                               completeness (resume) semantics, evidence-dir paths
 │   ├── semrush-overview.mjs        AS / organic traffic / ref-domains / keywords
 │   ├── semrush-keyword.mjs         global keyword detail plus one-session multi-country bulk plans
 │   ├── semrush-report.mjs          the OTHER five no-export reports (incl. referring-domains,
@@ -83,7 +86,7 @@ backlink/
 │   │                               platforms agree; never touches a page itself
 │   ├── tools-share-evidence.mjs    rendered, redacted evidence bundle for one report
 │   ├── page-read.mjs               render a public page → text, prices, paywall shape
-│   ├── apply-traffic-screen.mjs    write verdicts back into submission-targets.json
+│   ├── apply-traffic-screen.mjs    write measured numbers + evidence paths back (never verdicts)
 │   ├── inspect-page.mjs            dump one target's form / login / CAPTCHA state
 │   ├── safe-fill.mjs               fill a reviewed payload, never submit
 │   ├── lib-deep-dom.mjs           ★ the ONE shadow-DOM-piercing traversal. EVERY counting
@@ -3069,14 +3072,32 @@ prove the parser; the fourth is level 2 and needs no fix.
 <workflow id="screen" when="before filling anything, always">
 <statement>
 The qualifying test is real traffic (`&gt;= 100` monthly visits), never DR, and it
-runs BEFORE the form does.
+runs BEFORE the form does. The division of labour is fixed: **scripts collect
+evidence, the AI reads the evidence and judges, a human can re-check both.**
+The batch scripts emit measured raw values plus a parse status, a raw-text
+excerpt, a screenshot in `&lt;out&gt;.jsonl.evidence/`, and a `stopReason` — never a
+pass/fail verdict. `apply-traffic-screen` copies numbers and evidence paths into
+the table; the threshold is computed at query time by `targets-select`.
 </statement>
 <read><ref file="references/traffic-screen.md"/></read>
 <cmd><![CDATA[
 node scripts/similarweb-batch.mjs --domains-file domains.txt --out sw.jsonl
+# rows: {totalVisits, parse, stopReason, rawExcerpt, evidence:{screenshot,raw}}
 node scripts/apply-traffic-screen.mjs --in sw.jsonl --source similarweb
 node scripts/targets-select.mjs --cohort open --min-traffic 100
 ]]></cmd>
+<caution>
+**A null value is NOT low traffic — it is an unmeasured or failed capture, and
+treating it as a conclusion is banned.** `stopReason` tells you which:
+`stable`/`empty-state` mean the capture completed (and `empty-state` means the
+source itself printed a no-data sentence — whether that means "too small to
+measure" is the AI's call, made against the screenshot and raw text);
+`unstable`/`timeout`/`exception` mean *this check did not finish* — resume
+retries them, and applying such a row clears any stale same-source measurement
+instead of writing one. Rows without a number never fall into the "unqualified"
+bucket: `targets-select --min-traffic` lists them separately and
+`--unmeasured` queues them.
+</caution>
 <headline>
 Measuring a domain costs one query; filling its form costs two orders of
 magnitude more. One run filled every form across a 73-domain family and only

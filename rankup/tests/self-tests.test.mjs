@@ -59,7 +59,10 @@ test('game-opportunity still covers every named check', () => {
   const report = JSON.parse(result.stdout);
   assert.equal(report.ok, true);
   // Named so a dropped check fails here instead of quietly shrinking coverage.
-  for (const check of ['normalize-and-merge', 'decision', 'strict-build-gate', 'checklist-output', 'carry-forward-order', 'recheck-milestone-crossing', 'deep-check-queue-fairness', 'evaluation-overlay-discovery', 'candidate-priority', 'campaign-dedupe', 'new-games-dedupe', 'global-demand-plan', 'challenge-filter', 'markdown-links', 'stable-latest']) {
+  // 2026-08-30 去判决化重构后的检查集：decision/strict-build-gate 等脚本自判门被
+  // 有意拆除，替换为 no-script-verdict / ai-passthrough / not-queried-vs-zero 等
+  // 「脚本只采集、判断归 AI」的新守卫。
+  for (const check of ['normalize-and-merge', 'no-script-verdict', 'ai-passthrough', 'checklist-output', 'carry-forward-order', 'recheck-milestone-crossing', 'deep-check-mechanical-default', 'deep-check-ai-selection', 'evaluation-overlay-discovery', 'display-rank-mechanical', 'partial-discovery', 'stale-vs-timeout', 'not-queried-vs-zero', 'campaign-dedupe', 'new-games-dedupe', 'challenge-title-detect', 'markdown-links', 'stable-latest']) {
     assert.ok(report.checks.includes(check), `self-test no longer covers ${check}`);
   }
 });
