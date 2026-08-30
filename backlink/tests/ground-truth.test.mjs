@@ -219,6 +219,12 @@ test('manifest：refreshes / refreshCount 进 manifest —— 「刷了 2 次没
   const bare = buildManifest({ url: 'https://x.example/', session: 's', startedAt: 'a', finishedAt: 'b', readyAfterMs: 1, polls: [], steps: [], stopReason: 'stable', budgetSeconds: 180, maxScreens: 12 });
   assert.equal(bare.refreshCount, 0);
   assert.deepEqual(bare.refreshes, []);
+  // 打开即刷新（2026-08-30 用户令）：默认必须是 true——镜像抖动首开常白屏,
+  // 「默认关」会让这条防线静默失效;显式传 false 才关,且首刷不计入 refreshCount。
+  assert.equal(bare.eagerReload, true, 'eagerReload 默认必须为 true');
+  const noEager = buildManifest({ url: 'https://x.example/', session: 's', startedAt: 'a', finishedAt: 'b', readyAfterMs: 1, polls: [], steps: [], stopReason: 'stable', budgetSeconds: 180, maxScreens: 12, eagerReload: false });
+  assert.equal(noEager.eagerReload, false);
+  assert.equal(noEager.refreshCount, 0, '首刷/关闭首刷都不动 refreshCount');
 });
 
 // ---------------------------------------------------------------------------

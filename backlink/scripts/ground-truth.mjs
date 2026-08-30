@@ -6,7 +6,7 @@
  *   node scripts/ground-truth.mjs --url <url> --out <evidence-dir> \
  *     [--budget 180] [--max-screens 12] \
  *     [--accept-redirect <path,path>] [--scroll-container auto|window|<selector>] \
- *     [--ready-text <regex>]
+ *     [--ready-text <regex>] [--no-eager-reload]
  *
  * 2026-08-29 两路开荒（Semrush organic / Similarweb explore）实测补的三个缺口：
  *
@@ -383,6 +383,7 @@ export function buildManifest({
   lockHeld = false, lockWaitMs = null, hijacked = false, hijackedHref = null,
   acceptRedirects = [], readyTextPattern = null,
   scrollMode = 'auto', scrollSelector = null, scrolls = [],
+  eagerReload = true,
 }) {
   return {
     schemaVersion: 1,
@@ -417,6 +418,8 @@ export function buildManifest({
     suspectedEmptyState,
     pollCount: polls.length,
     stepCount: steps.length,
+    // 打开即刷新是否启用（默认 true；--no-eager-reload 关）。首刷不计入 refreshCount。
+    eagerReload,
     // 「刷了 2 次还起不来」和「从没刷过就放弃」是完全不同的证据：
     // 退出码 2 时读这里就能分辨。
     refreshCount: refreshes.length,
@@ -517,6 +520,10 @@ async function main() {
   const maxScreens = Math.max(1, Number(flags['max-screens']) || 12);
   const acceptRedirects = parseAcceptRedirects(flags['accept-redirect']);
   const readyText = resolveReadyText(flags);
+  // 打开即刷新（2026-08-30 用户令）：3ue.co 镜像抖动频发，首开常见白屏/空响应/
+  // 「出错了」组件页，等 stall 判定（3 轮不变）才刷太慢——open 后无条件先 reload
+  // 一次再进轮询，刷新即愈。`--no-eager-reload` 可关（非镜像站点或调试用）。
+  const eagerReload = !flags['no-eager-reload'];
   const scroll = resolveScrollMode(flags['scroll-container']);
   mkdirSync(outDir, { recursive: true });
 
@@ -602,6 +609,13 @@ async function main() {
   try {
     // 1. open（foreground 出生）+ 3 秒落地缓冲。
     await batchBrowser(session, [{ cmd: 'open', args: { url } }, sleepStep(3)], { windowMode, timeoutMs: 120_000 });
+
+    // 1b. 打开即刷新一次（eager reload，见上）——不占 stall 刷新次数配额，
+    //     manifest 单独记 eagerReload，让「首刷」与「卡住后救活」两种证据分开。
+    if (eagerReload) {
+      await evalPage('(() => { location.reload(); return JSON.stringify({ reload: true }); })()');
+      await sleep(3000);
+    }
 
     // 2. 轮询到有数据（filledCells > 0），或明确空态，或预算耗尽。**先轮询后截图。**
     //    卡住（连续 STALL_POLLS 轮 census 完全不变且 0 格）→ 同会话刷新重试，
@@ -734,6 +748,7 @@ async function main() {
       lockHeld: Boolean(locks), lockWaitMs, hijacked, hijackedHref,
       acceptRedirects, readyTextPattern: readyText ? readyText.source : null,
       scrollMode: scroll.mode, scrollSelector: scroll.selector, scrolls,
+      eagerReload,
     });
     try { writePayload(outDir, 'manifest.json', manifest); } catch (writeError) {
       console.error(redactSecrets(`manifest write failed: ${writeError?.message || writeError}`));
