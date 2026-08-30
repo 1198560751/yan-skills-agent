@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-29",
+  "updatedAt": "2026-08-30",
   "note": "Submission routes observed to exist. NOT placements: no row here claims a published link, a rel value, or an index entry. A row graduates into free-channels.json only when a real anchor is seen on a live page. Relevance and authority rank these, they never gate them.",
   "targets": [
     {
@@ -29,7 +29,6 @@
       },
       "traffic": {
         "monthlyVisits": 488551,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:05:42.285Z",
         "source": "similarweb-total",
         "globalRank": 101757
@@ -61,7 +60,6 @@
       },
       "traffic": {
         "monthlyVisits": 0,
-        "verdict": "fail",
         "checkedAt": "2026-08-29T18:23:50.429Z",
         "source": "semrush",
         "db": null,
@@ -120,7 +118,6 @@
       },
       "traffic": {
         "monthlyVisits": 4,
-        "verdict": "fail",
         "checkedAt": "2026-08-29T18:24:40.930Z",
         "source": "semrush",
         "db": null,
@@ -153,7 +150,6 @@
       },
       "traffic": {
         "monthlyVisits": 11291,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:05:46.951Z",
         "source": "similarweb-total",
         "globalRank": 1527550
@@ -206,7 +202,6 @@
       },
       "traffic": {
         "monthlyVisits": 2796,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:47:34.939Z",
         "source": "similarweb",
         "globalRank": 4877213
@@ -238,7 +233,6 @@
       },
       "traffic": {
         "monthlyVisits": 231,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T18:25:28.556Z",
         "source": "semrush",
         "db": null,
@@ -309,7 +303,6 @@
       },
       "traffic": {
         "monthlyVisits": 140264,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:47:39.791Z",
         "source": "similarweb",
         "globalRank": 269098
@@ -341,7 +334,6 @@
       },
       "traffic": {
         "monthlyVisits": 127300,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T18:26:14.701Z",
         "source": "semrush",
         "db": null,
@@ -374,7 +366,6 @@
       },
       "traffic": {
         "monthlyVisits": 82,
-        "verdict": "fail",
         "checkedAt": "2026-08-29T18:27:04.541Z",
         "source": "semrush",
         "db": null,
@@ -432,7 +423,6 @@
       },
       "traffic": {
         "monthlyVisits": 11020,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:06:01.909Z",
         "source": "similarweb",
         "db": null,
@@ -465,7 +455,6 @@
       },
       "traffic": {
         "monthlyVisits": 668,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:06:10.322Z",
         "source": "similarweb-total",
         "globalRank": null
@@ -510,7 +499,6 @@
       },
       "traffic": {
         "monthlyVisits": 3926000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:47:44.610Z",
         "source": "similarweb",
         "globalRank": null
@@ -552,7 +540,6 @@
       },
       "traffic": {
         "monthlyVisits": 2310000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:47:49.489Z",
         "source": "similarweb",
         "globalRank": null
@@ -584,7 +571,6 @@
       },
       "traffic": {
         "monthlyVisits": 77953,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:05:51.617Z",
         "source": "similarweb-total",
         "globalRank": 217398
@@ -616,7 +602,6 @@
       },
       "traffic": {
         "monthlyVisits": 9700,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T18:27:44.941Z",
         "source": "semrush",
         "db": null,
@@ -649,7 +634,6 @@
       },
       "traffic": {
         "monthlyVisits": 9,
-        "verdict": "fail",
         "checkedAt": "2026-08-29T18:28:32.676Z",
         "source": "semrush",
         "db": null,
@@ -681,7 +665,6 @@
       },
       "traffic": {
         "monthlyVisits": 15800,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T18:29:10.741Z",
         "source": "semrush",
         "db": null,
@@ -714,7 +697,6 @@
       },
       "traffic": {
         "monthlyVisits": 43370,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:05:56.276Z",
         "source": "similarweb-total",
         "globalRank": 663447
@@ -746,7 +728,6 @@
       },
       "traffic": {
         "monthlyVisits": 8111,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:06:00.970Z",
         "source": "similarweb-total",
         "globalRank": 2253392
@@ -778,7 +759,6 @@
       },
       "traffic": {
         "monthlyVisits": 44257,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:06:05.652Z",
         "source": "similarweb-total",
         "globalRank": 729136
@@ -836,7 +816,6 @@
       },
       "traffic": {
         "monthlyVisits": 1161000,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:06:42.078Z",
         "source": "similarweb-total",
         "globalRank": 48220
@@ -869,7 +848,6 @@
       },
       "traffic": {
         "monthlyVisits": 321,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T18:30:03.661Z",
         "source": "semrush",
         "db": null,
@@ -902,7 +880,6 @@
       },
       "traffic": {
         "monthlyVisits": 0,
-        "verdict": "fail",
         "checkedAt": "2026-08-29T18:30:46.815Z",
         "source": "semrush",
         "db": null,
@@ -935,7 +912,6 @@
       },
       "traffic": {
         "monthlyVisits": 22479,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:06:46.742Z",
         "source": "similarweb-total",
         "globalRank": 1252677
@@ -967,7 +943,6 @@
       },
       "traffic": {
         "monthlyVisits": 4932,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:06:51.405Z",
         "source": "similarweb-total",
         "globalRank": 3497697
@@ -999,7 +974,6 @@
       },
       "traffic": {
         "monthlyVisits": 375798,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:25:25.318Z",
         "source": "similarweb",
         "db": null,
@@ -1032,7 +1006,6 @@
       },
       "traffic": {
         "monthlyVisits": 19103,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:06:56.079Z",
         "source": "similarweb-total",
         "globalRank": 1006777
@@ -1078,7 +1051,6 @@
       },
       "traffic": {
         "monthlyVisits": 5489,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:47:54.477Z",
         "source": "similarweb",
         "globalRank": 3604846
@@ -1122,7 +1094,6 @@
       },
       "traffic": {
         "monthlyVisits": 338,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:47:59.380Z",
         "source": "similarweb",
         "globalRank": null
@@ -1154,7 +1125,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-29T16:25:48.150Z",
         "source": "similarweb",
         "db": null,
@@ -1187,7 +1157,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-22T10:27:32.817Z",
         "source": "similarweb",
         "globalRank": 363920
@@ -1232,7 +1201,6 @@
       },
       "traffic": {
         "monthlyVisits": 573,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:48:04.286Z",
         "source": "similarweb",
         "globalRank": null
@@ -1302,7 +1270,6 @@
       },
       "traffic": {
         "monthlyVisits": 23840,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:48:09.061Z",
         "source": "similarweb",
         "globalRank": 1125304
@@ -1349,7 +1316,6 @@
       },
       "traffic": {
         "monthlyVisits": 821,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:48:13.876Z",
         "source": "similarweb",
         "globalRank": null
@@ -1380,7 +1346,6 @@
       },
       "traffic": {
         "monthlyVisits": 26380,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:26:04.717Z",
         "source": "similarweb",
         "db": null,
@@ -1413,7 +1378,6 @@
       },
       "traffic": {
         "monthlyVisits": 4782,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:07:00.741Z",
         "source": "similarweb-total",
         "globalRank": 3527868
@@ -1463,7 +1427,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-22T10:48:18.745Z",
         "source": "similarweb",
         "globalRank": null
@@ -1495,7 +1458,6 @@
       },
       "traffic": {
         "monthlyVisits": 73185,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:07:05.390Z",
         "source": "similarweb-total",
         "globalRank": 357648
@@ -1553,7 +1515,6 @@
       },
       "traffic": {
         "monthlyVisits": 94867,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:48:23.550Z",
         "source": "similarweb",
         "globalRank": 400050
@@ -1585,7 +1546,6 @@
       },
       "traffic": {
         "monthlyVisits": 46135,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:26:37.267Z",
         "source": "similarweb",
         "db": null,
@@ -1618,7 +1578,6 @@
       },
       "traffic": {
         "monthlyVisits": 245,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:07:10.063Z",
         "source": "similarweb-total",
         "globalRank": null
@@ -1672,7 +1631,6 @@
       },
       "traffic": {
         "monthlyVisits": 319411,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:48:28.362Z",
         "source": "similarweb",
         "globalRank": 151112
@@ -1703,7 +1661,6 @@
       },
       "traffic": {
         "monthlyVisits": 153519,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:27:05.882Z",
         "source": "similarweb",
         "db": null,
@@ -1761,7 +1718,6 @@
       },
       "traffic": {
         "monthlyVisits": 6012,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:27:29.706Z",
         "source": "similarweb",
         "db": null,
@@ -1794,7 +1750,6 @@
       },
       "traffic": {
         "monthlyVisits": 7886,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:27:52.683Z",
         "source": "similarweb",
         "db": null,
@@ -1827,7 +1782,6 @@
       },
       "traffic": {
         "monthlyVisits": 11077,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:28:11.331Z",
         "source": "similarweb",
         "db": null,
@@ -1880,7 +1834,6 @@
       },
       "traffic": {
         "monthlyVisits": 22422,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:48:33.123Z",
         "source": "similarweb",
         "globalRank": 1251528
@@ -1913,7 +1866,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-29T16:28:33.512Z",
         "source": "similarweb",
         "db": null,
@@ -1946,7 +1898,6 @@
       },
       "traffic": {
         "monthlyVisits": 24260000,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:07:14.704Z",
         "source": "similarweb-total",
         "globalRank": 1474
@@ -1978,7 +1929,6 @@
       },
       "traffic": {
         "monthlyVisits": 4894,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:28:51.416Z",
         "source": "similarweb",
         "db": null,
@@ -2011,7 +1961,6 @@
       },
       "traffic": {
         "monthlyVisits": 14629,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:29:07.803Z",
         "source": "similarweb",
         "db": null,
@@ -2044,7 +1993,6 @@
       },
       "traffic": {
         "monthlyVisits": 10901,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:27:37.554Z",
         "source": "similarweb",
         "globalRank": 1752991
@@ -2076,7 +2024,6 @@
       },
       "traffic": {
         "monthlyVisits": 248815,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:29:28.419Z",
         "source": "similarweb",
         "db": null,
@@ -2109,7 +2056,6 @@
       },
       "traffic": {
         "monthlyVisits": 17798,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:07:19.365Z",
         "source": "similarweb-total",
         "globalRank": 1349361
@@ -2141,7 +2087,6 @@
       },
       "traffic": {
         "monthlyVisits": 60651,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:27:42.422Z",
         "source": "similarweb",
         "globalRank": 598652
@@ -2172,7 +2117,6 @@
       },
       "traffic": {
         "monthlyVisits": 15655,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:29:43.911Z",
         "source": "similarweb",
         "db": null,
@@ -2205,7 +2149,6 @@
       },
       "traffic": {
         "monthlyVisits": 297670,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:29:59.624Z",
         "source": "similarweb",
         "db": null,
@@ -2250,7 +2193,6 @@
       },
       "traffic": {
         "monthlyVisits": 61742,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:48:37.864Z",
         "source": "similarweb",
         "globalRank": 471695
@@ -2282,7 +2224,6 @@
       },
       "traffic": {
         "monthlyVisits": 65820,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:07:24.110Z",
         "source": "similarweb-total",
         "globalRank": 526040
@@ -2338,7 +2279,6 @@
       },
       "traffic": {
         "monthlyVisits": 70,
-        "verdict": "fail",
         "checkedAt": "2026-08-22T10:48:42.642Z",
         "source": "similarweb",
         "globalRank": null
@@ -2370,7 +2310,6 @@
       },
       "traffic": {
         "monthlyVisits": 2977,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:07:28.932Z",
         "source": "similarweb-total",
         "globalRank": null
@@ -2402,7 +2341,6 @@
       },
       "traffic": {
         "monthlyVisits": 20483,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:07:33.720Z",
         "source": "similarweb-total",
         "globalRank": 1311202
@@ -2434,7 +2372,6 @@
       },
       "traffic": {
         "monthlyVisits": 114750,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:28:59.688Z",
         "source": "similarweb",
         "globalRank": 256658
@@ -2465,7 +2402,6 @@
       },
       "traffic": {
         "monthlyVisits": 1,
-        "verdict": "fail",
         "checkedAt": "2026-08-29T18:33:30.122Z",
         "source": "semrush",
         "db": null,
@@ -2522,7 +2458,6 @@
       },
       "traffic": {
         "monthlyVisits": 838,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:11:46.227Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -2554,7 +2489,6 @@
       },
       "traffic": {
         "monthlyVisits": 832,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:30:32.371Z",
         "source": "similarweb",
         "db": null,
@@ -2587,7 +2521,6 @@
       },
       "traffic": {
         "monthlyVisits": 1091,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:30:44.746Z",
         "source": "similarweb",
         "db": null,
@@ -2649,7 +2582,6 @@
       },
       "traffic": {
         "monthlyVisits": 42109,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:48:47.477Z",
         "source": "similarweb",
         "globalRank": null
@@ -2707,7 +2639,6 @@
       },
       "traffic": {
         "monthlyVisits": 42109,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:48:52.254Z",
         "source": "similarweb",
         "globalRank": null
@@ -2739,7 +2670,6 @@
       },
       "traffic": {
         "monthlyVisits": 122792,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:27:47.225Z",
         "source": "similarweb",
         "globalRank": 300062
@@ -2771,7 +2701,6 @@
       },
       "traffic": {
         "monthlyVisits": 145874,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:04:06.035Z",
         "source": "similarweb",
         "db": null,
@@ -2804,7 +2733,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-29T16:31:00.333Z",
         "source": "similarweb",
         "db": null,
@@ -2837,7 +2765,6 @@
       },
       "traffic": {
         "monthlyVisits": 33856,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:31:12.623Z",
         "source": "similarweb",
         "db": null,
@@ -2886,7 +2813,6 @@
       },
       "traffic": {
         "monthlyVisits": 623926,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:48:56.992Z",
         "source": "similarweb",
         "globalRank": 54377
@@ -2918,7 +2844,6 @@
       },
       "traffic": {
         "monthlyVisits": 11933,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:08:24.042Z",
         "source": "similarweb-total",
         "globalRank": 1339810
@@ -2975,7 +2900,6 @@
       },
       "traffic": {
         "monthlyVisits": 2,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:11:54.896Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -3007,7 +2931,6 @@
       },
       "traffic": {
         "monthlyVisits": 34340,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:31:24.823Z",
         "source": "similarweb",
         "db": null,
@@ -3065,7 +2988,6 @@
       },
       "traffic": {
         "monthlyVisits": 71405,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:31:37.073Z",
         "source": "similarweb",
         "db": null,
@@ -3098,7 +3020,6 @@
       },
       "traffic": {
         "monthlyVisits": 4936000,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:31:49.575Z",
         "source": "similarweb",
         "db": null,
@@ -3149,7 +3070,6 @@
       },
       "traffic": {
         "monthlyVisits": 261,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:49:01.745Z",
         "source": "similarweb",
         "globalRank": null
@@ -3181,7 +3101,6 @@
       },
       "traffic": {
         "monthlyVisits": 2103000,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:09:15.694Z",
         "source": "similarweb-total",
         "globalRank": 23872
@@ -3213,7 +3132,6 @@
       },
       "traffic": {
         "monthlyVisits": 1186000000,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:32:02.163Z",
         "source": "similarweb",
         "db": null,
@@ -3246,7 +3164,6 @@
       },
       "traffic": {
         "monthlyVisits": 2429,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:32:14.641Z",
         "source": "similarweb",
         "db": null,
@@ -3354,7 +3271,6 @@
       },
       "traffic": {
         "monthlyVisits": 8539,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:09:20.358Z",
         "source": "similarweb-total",
         "globalRank": 2762176
@@ -3386,7 +3302,6 @@
       },
       "traffic": {
         "monthlyVisits": 6573,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:09:25.047Z",
         "source": "similarweb-total",
         "globalRank": 2824581
@@ -3418,7 +3333,6 @@
       },
       "traffic": {
         "monthlyVisits": 1854,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:09:29.694Z",
         "source": "similarweb-total",
         "globalRank": 8572900
@@ -3450,7 +3364,6 @@
       },
       "traffic": {
         "monthlyVisits": 9235000,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:32:27.149Z",
         "source": "similarweb",
         "db": null,
@@ -3533,7 +3446,6 @@
       },
       "traffic": {
         "monthlyVisits": 340370,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:32:39.738Z",
         "source": "similarweb",
         "db": null,
@@ -3584,7 +3496,6 @@
       },
       "traffic": {
         "monthlyVisits": 261,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:49:06.497Z",
         "source": "similarweb",
         "globalRank": null
@@ -3641,7 +3552,6 @@
       },
       "traffic": {
         "monthlyVisits": 0,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:12:03.558Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -3673,7 +3583,6 @@
       },
       "traffic": {
         "monthlyVisits": 133271,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:32:57.304Z",
         "source": "similarweb",
         "db": null,
@@ -3759,7 +3668,6 @@
       },
       "traffic": {
         "monthlyVisits": 1128,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:33:22.308Z",
         "source": "similarweb",
         "db": null,
@@ -3791,7 +3699,6 @@
       },
       "traffic": {
         "monthlyVisits": 19334,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:33:34.574Z",
         "source": "similarweb",
         "db": null,
@@ -3824,7 +3731,6 @@
       },
       "traffic": {
         "monthlyVisits": 11697,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:10:21.764Z",
         "source": "similarweb-total",
         "globalRank": 1830133
@@ -3868,7 +3774,6 @@
       },
       "traffic": {
         "monthlyVisits": 3336000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:49:11.260Z",
         "source": "similarweb",
         "globalRank": 14133
@@ -3926,7 +3831,6 @@
       },
       "traffic": {
         "monthlyVisits": 310212,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:34:29.162Z",
         "source": "similarweb",
         "db": null,
@@ -4050,7 +3954,6 @@
       },
       "traffic": {
         "monthlyVisits": 3336000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:49:16.115Z",
         "source": "similarweb",
         "globalRank": 14133
@@ -4107,7 +4010,6 @@
       },
       "traffic": {
         "monthlyVisits": 1144000,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:36:31.901Z",
         "source": "similarweb",
         "db": null,
@@ -4154,7 +4056,6 @@
       },
       "traffic": {
         "monthlyVisits": 9650,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:49:20.848Z",
         "source": "similarweb",
         "globalRank": 2175463
@@ -4186,7 +4087,6 @@
       },
       "traffic": {
         "monthlyVisits": 501618,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:37:17.650Z",
         "source": "similarweb",
         "db": null,
@@ -4220,7 +4120,6 @@
       },
       "traffic": {
         "monthlyVisits": 1482000,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:37:53.541Z",
         "source": "similarweb",
         "db": null,
@@ -4253,7 +4152,6 @@
       },
       "traffic": {
         "monthlyVisits": 0,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:12:12.238Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -4311,7 +4209,6 @@
       },
       "traffic": {
         "monthlyVisits": 58333,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:49:25.688Z",
         "source": "similarweb",
         "globalRank": null
@@ -4344,7 +4241,6 @@
       },
       "traffic": {
         "monthlyVisits": 34929,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:38:34.753Z",
         "source": "similarweb",
         "db": null,
@@ -4378,7 +4274,6 @@
       },
       "traffic": {
         "monthlyVisits": 2739000,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:39:13.438Z",
         "source": "similarweb",
         "db": null,
@@ -4425,7 +4320,6 @@
       },
       "traffic": {
         "monthlyVisits": 58333,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:49:30.444Z",
         "source": "similarweb",
         "globalRank": null
@@ -4509,7 +4403,6 @@
       },
       "traffic": {
         "monthlyVisits": 1765,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:39:52.665Z",
         "source": "similarweb",
         "db": null,
@@ -4542,7 +4435,6 @@
       },
       "traffic": {
         "monthlyVisits": 253987,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:40:15.834Z",
         "source": "similarweb",
         "db": null,
@@ -4575,7 +4467,6 @@
       },
       "traffic": {
         "monthlyVisits": 146300000,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:40:50.299Z",
         "source": "similarweb",
         "db": null,
@@ -4608,7 +4499,6 @@
       },
       "traffic": {
         "monthlyVisits": 233138,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:11:13.521Z",
         "source": "similarweb-total",
         "globalRank": 176983
@@ -4640,7 +4530,6 @@
       },
       "traffic": {
         "monthlyVisits": 5212,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:11:18.197Z",
         "source": "similarweb-total",
         "globalRank": 2817826
@@ -4718,7 +4607,6 @@
       },
       "traffic": {
         "monthlyVisits": 12894,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:49:35.206Z",
         "source": "similarweb",
         "globalRank": 1429175
@@ -4775,7 +4663,6 @@
       },
       "traffic": {
         "monthlyVisits": 11647,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:41:33.546Z",
         "source": "similarweb",
         "db": null,
@@ -4809,7 +4696,6 @@
       },
       "traffic": {
         "monthlyVisits": 1226000,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:41:53.132Z",
         "source": "similarweb",
         "db": null,
@@ -4842,7 +4728,6 @@
       },
       "traffic": {
         "monthlyVisits": 16223,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:42:21.631Z",
         "source": "similarweb",
         "db": null,
@@ -4896,7 +4781,6 @@
       },
       "traffic": {
         "monthlyVisits": 2668,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:49:39.947Z",
         "source": "similarweb",
         "globalRank": 6471747
@@ -4928,7 +4812,6 @@
       },
       "traffic": {
         "monthlyVisits": 2843000,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:11:22.874Z",
         "source": "similarweb-total",
         "globalRank": 15557
@@ -5036,7 +4919,6 @@
       },
       "traffic": {
         "monthlyVisits": 26783,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:42:50.696Z",
         "source": "similarweb",
         "db": null,
@@ -5069,7 +4951,6 @@
       },
       "traffic": {
         "monthlyVisits": 21350,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:43:27.916Z",
         "source": "similarweb",
         "db": null,
@@ -5102,7 +4983,6 @@
       },
       "traffic": {
         "monthlyVisits": 1993,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:11:27.552Z",
         "source": "similarweb-total",
         "globalRank": 9131845
@@ -5161,7 +5041,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-29T16:43:44.447Z",
         "source": "similarweb",
         "db": null,
@@ -5194,7 +5073,6 @@
       },
       "traffic": {
         "monthlyVisits": 2468,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:44:02.849Z",
         "source": "similarweb",
         "db": null,
@@ -5227,7 +5105,6 @@
       },
       "traffic": {
         "monthlyVisits": 1656000,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:11:32.233Z",
         "source": "similarweb-total",
         "globalRank": 32779
@@ -5259,7 +5136,6 @@
       },
       "traffic": {
         "monthlyVisits": 7318000,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:11:36.880Z",
         "source": "similarweb-total",
         "globalRank": 8700
@@ -5291,7 +5167,6 @@
       },
       "traffic": {
         "monthlyVisits": 532050,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:44:23.903Z",
         "source": "similarweb",
         "db": null,
@@ -5324,7 +5199,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-19T19:12:18.794Z",
         "source": "similarweb-total",
         "globalRank": null
@@ -5356,7 +5230,6 @@
       },
       "traffic": {
         "monthlyVisits": 276906,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:44:44.561Z",
         "source": "similarweb",
         "db": null,
@@ -5490,7 +5363,6 @@
       },
       "traffic": {
         "monthlyVisits": 83348,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:12:23.481Z",
         "source": "similarweb-total",
         "globalRank": 294904
@@ -5547,7 +5419,6 @@
       },
       "traffic": {
         "monthlyVisits": 134671,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:12:28.145Z",
         "source": "similarweb-total",
         "globalRank": 176557
@@ -5653,7 +5524,6 @@
       },
       "traffic": {
         "monthlyVisits": 1643000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:27:56.863Z",
         "source": "similarweb",
         "globalRank": 25599
@@ -5715,7 +5585,6 @@
       },
       "traffic": {
         "monthlyVisits": 2668,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:49:44.662Z",
         "source": "similarweb",
         "globalRank": 6471747
@@ -5755,7 +5624,6 @@
       },
       "traffic": {
         "monthlyVisits": 922177,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:49:49.431Z",
         "source": "similarweb",
         "globalRank": 21987
@@ -5910,7 +5778,6 @@
       },
       "traffic": {
         "monthlyVisits": 171,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T18:34:17.074Z",
         "source": "semrush",
         "db": null,
@@ -5943,7 +5810,6 @@
       },
       "traffic": {
         "monthlyVisits": 4212,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:12:32.814Z",
         "source": "similarweb-total",
         "globalRank": 3815688
@@ -6116,7 +5982,6 @@
       },
       "traffic": {
         "monthlyVisits": 922177,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:49:54.290Z",
         "source": "similarweb",
         "globalRank": 21987
@@ -6148,7 +6013,6 @@
       },
       "traffic": {
         "monthlyVisits": 9119,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:12:37.481Z",
         "source": "similarweb-total",
         "globalRank": 2038404
@@ -6205,7 +6069,6 @@
       },
       "traffic": {
         "monthlyVisits": 51570,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:12:42.145Z",
         "source": "similarweb-total",
         "globalRank": 641663
@@ -6237,7 +6100,6 @@
       },
       "traffic": {
         "monthlyVisits": 337046,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:12:46.814Z",
         "source": "similarweb-total",
         "globalRank": 129110
@@ -6320,7 +6182,6 @@
       },
       "traffic": {
         "monthlyVisits": 95596,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:12:51.487Z",
         "source": "similarweb-total",
         "globalRank": 366141
@@ -6377,7 +6238,6 @@
       },
       "traffic": {
         "monthlyVisits": 12539,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:12:56.148Z",
         "source": "similarweb-total",
         "globalRank": 1762066
@@ -6467,7 +6327,6 @@
       },
       "traffic": {
         "monthlyVisits": 676970,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:49:59.055Z",
         "source": "similarweb",
         "globalRank": 55801
@@ -6666,7 +6525,6 @@
       },
       "traffic": {
         "monthlyVisits": 3473,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:50:03.818Z",
         "source": "similarweb",
         "globalRank": 4973094
@@ -6774,7 +6632,6 @@
       },
       "traffic": {
         "monthlyVisits": 121,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T18:34:56.133Z",
         "source": "semrush",
         "db": null,
@@ -6833,7 +6690,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-19T19:13:00.817Z",
         "source": "similarweb-total",
         "globalRank": null
@@ -6991,7 +6847,6 @@
       },
       "traffic": {
         "monthlyVisits": 10231,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:13:05.499Z",
         "source": "similarweb-total",
         "globalRank": 2186803
@@ -7048,7 +6903,6 @@
       },
       "traffic": {
         "monthlyVisits": 1251000,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:13:10.171Z",
         "source": "similarweb-total",
         "globalRank": 38682
@@ -7125,7 +6979,6 @@
       },
       "traffic": {
         "monthlyVisits": 3473,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:50:08.589Z",
         "source": "similarweb",
         "globalRank": 4973094
@@ -7316,7 +7169,6 @@
       },
       "traffic": {
         "monthlyVisits": 44671,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:50:13.382Z",
         "source": "similarweb",
         "globalRank": null
@@ -7398,7 +7250,6 @@
       },
       "traffic": {
         "monthlyVisits": 0,
-        "verdict": "fail",
         "checkedAt": "2026-08-29T18:35:44.633Z",
         "source": "semrush",
         "db": null,
@@ -7431,7 +7282,6 @@
       },
       "traffic": {
         "monthlyVisits": 332445,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:13:19.528Z",
         "source": "similarweb-total",
         "globalRank": 152820
@@ -7587,7 +7437,6 @@
       },
       "traffic": {
         "monthlyVisits": 554200000,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T18:36:35.531Z",
         "source": "semrush",
         "db": null,
@@ -7669,7 +7518,6 @@
       },
       "traffic": {
         "monthlyVisits": 7500,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T18:37:24.476Z",
         "source": "semrush",
         "db": null,
@@ -7727,7 +7575,6 @@
       },
       "traffic": {
         "monthlyVisits": 196,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:13:24.200Z",
         "source": "similarweb-total",
         "globalRank": null
@@ -7784,7 +7631,6 @@
       },
       "traffic": {
         "monthlyVisits": 6568,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:28:01.717Z",
         "source": "similarweb",
         "globalRank": 2497228
@@ -7816,7 +7662,6 @@
       },
       "traffic": {
         "monthlyVisits": 0,
-        "verdict": "fail",
         "checkedAt": "2026-08-29T18:38:05.433Z",
         "source": "semrush",
         "db": null,
@@ -7849,7 +7694,6 @@
       },
       "traffic": {
         "monthlyVisits": 4607,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:28:06.755Z",
         "source": "similarweb",
         "globalRank": 4367124
@@ -7881,7 +7725,6 @@
       },
       "traffic": {
         "monthlyVisits": 35067,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:04:28.392Z",
         "source": "similarweb",
         "db": null,
@@ -7960,7 +7803,6 @@
       },
       "traffic": {
         "monthlyVisits": 26001,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:50:18.130Z",
         "source": "similarweb",
         "globalRank": 1053879
@@ -8017,7 +7859,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-19T19:13:28.887Z",
         "source": "similarweb-total",
         "globalRank": null
@@ -8049,7 +7890,6 @@
       },
       "traffic": {
         "monthlyVisits": 119531,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:13:33.557Z",
         "source": "similarweb-total",
         "globalRank": 184736
@@ -8130,7 +7970,6 @@
       },
       "traffic": {
         "monthlyVisits": 119531,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:13:38.233Z",
         "source": "similarweb-total",
         "globalRank": 184736
@@ -8161,7 +8000,6 @@
       },
       "traffic": {
         "monthlyVisits": 267100,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T18:38:48.296Z",
         "source": "semrush",
         "db": null,
@@ -8244,7 +8082,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-22T10:50:22.958Z",
         "source": "similarweb",
         "globalRank": null
@@ -8326,7 +8163,6 @@
       },
       "traffic": {
         "monthlyVisits": 111295,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:13:42.897Z",
         "source": "similarweb-total",
         "globalRank": 288688
@@ -8358,7 +8194,6 @@
       },
       "traffic": {
         "monthlyVisits": 154502,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:13:47.573Z",
         "source": "similarweb-total",
         "globalRank": 121325
@@ -8417,7 +8252,6 @@
       },
       "traffic": {
         "monthlyVisits": 154502,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:13:52.234Z",
         "source": "similarweb-total",
         "globalRank": 121325
@@ -8449,7 +8283,6 @@
       },
       "traffic": {
         "monthlyVisits": 47748,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:13:56.901Z",
         "source": "similarweb-total",
         "globalRank": 457567
@@ -8607,7 +8440,6 @@
       },
       "traffic": {
         "monthlyVisits": 68862,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:14:01.595Z",
         "source": "similarweb-total",
         "globalRank": null
@@ -8639,7 +8471,6 @@
       },
       "traffic": {
         "monthlyVisits": 68862,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:14:06.265Z",
         "source": "similarweb-total",
         "globalRank": null
@@ -8670,7 +8501,6 @@
       },
       "traffic": {
         "monthlyVisits": 38,
-        "verdict": "fail",
         "checkedAt": "2026-08-29T18:39:36.251Z",
         "source": "semrush",
         "db": null,
@@ -8729,7 +8559,6 @@
       },
       "traffic": {
         "monthlyVisits": 137504,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:06:33.381Z",
         "source": "similarweb",
         "db": null,
@@ -8786,7 +8615,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-19T19:14:10.950Z",
         "source": "similarweb-total",
         "globalRank": null
@@ -8818,7 +8646,6 @@
       },
       "traffic": {
         "monthlyVisits": 391194,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:28:11.556Z",
         "source": "similarweb",
         "globalRank": 111533
@@ -8982,7 +8809,6 @@
       },
       "traffic": {
         "monthlyVisits": 20557,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:50:27.716Z",
         "source": "similarweb",
         "globalRank": 1005532
@@ -9113,7 +8939,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-19T19:14:15.632Z",
         "source": "similarweb-total",
         "globalRank": null
@@ -9204,7 +9029,6 @@
       },
       "traffic": {
         "monthlyVisits": 20557,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:50:32.448Z",
         "source": "similarweb",
         "globalRank": 1005532
@@ -9261,7 +9085,6 @@
       },
       "traffic": {
         "monthlyVisits": 176,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:06:50.272Z",
         "source": "similarweb",
         "db": null,
@@ -9329,7 +9152,6 @@
       },
       "traffic": {
         "monthlyVisits": 39938,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:50:37.277Z",
         "source": "similarweb",
         "globalRank": 765697
@@ -9396,7 +9218,6 @@
       },
       "traffic": {
         "monthlyVisits": 84910000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:50:42.231Z",
         "source": "similarweb",
         "globalRank": 368
@@ -9478,7 +9299,6 @@
       },
       "traffic": {
         "monthlyVisits": 35157,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:28:16.313Z",
         "source": "similarweb",
         "globalRank": 852023
@@ -9510,7 +9330,6 @@
       },
       "traffic": {
         "monthlyVisits": 31912,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:14:20.318Z",
         "source": "similarweb-total",
         "globalRank": 954272
@@ -9578,7 +9397,6 @@
       },
       "traffic": {
         "monthlyVisits": 84910000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:50:47.004Z",
         "source": "similarweb",
         "globalRank": 368
@@ -9710,7 +9528,6 @@
       },
       "traffic": {
         "monthlyVisits": 17310000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:28:21.115Z",
         "source": "similarweb",
         "globalRank": 2486
@@ -9778,7 +9595,6 @@
       },
       "traffic": {
         "monthlyVisits": 2213000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:50:51.866Z",
         "source": "similarweb",
         "globalRank": 25059
@@ -9835,7 +9651,6 @@
       },
       "traffic": {
         "monthlyVisits": 7869000,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:14:25.017Z",
         "source": "similarweb-total",
         "globalRank": 6679
@@ -9893,7 +9708,6 @@
       },
       "traffic": {
         "monthlyVisits": 7869000,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:14:29.741Z",
         "source": "similarweb-total",
         "globalRank": 6679
@@ -9949,7 +9763,6 @@
       },
       "traffic": {
         "monthlyVisits": 6482,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:14:34.428Z",
         "source": "similarweb-total",
         "globalRank": 3209401
@@ -10016,7 +9829,6 @@
       },
       "traffic": {
         "monthlyVisits": 2785000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:50:56.632Z",
         "source": "similarweb",
         "globalRank": null
@@ -10056,7 +9868,6 @@
       },
       "traffic": {
         "monthlyVisits": 2785000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:51:01.467Z",
         "source": "similarweb",
         "globalRank": null
@@ -10088,7 +9899,6 @@
       },
       "traffic": {
         "monthlyVisits": 6482,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:14:39.088Z",
         "source": "similarweb-total",
         "globalRank": 3209401
@@ -10171,7 +9981,6 @@
       },
       "traffic": {
         "monthlyVisits": 31085,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:14:43.760Z",
         "source": "similarweb-total",
         "globalRank": 828953
@@ -10244,7 +10053,6 @@
       },
       "traffic": {
         "monthlyVisits": 3389,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:51:06.229Z",
         "source": "similarweb",
         "globalRank": null
@@ -10289,7 +10097,6 @@
       },
       "traffic": {
         "monthlyVisits": 4950,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:51:11.047Z",
         "source": "similarweb",
         "globalRank": 3274815
@@ -10345,7 +10152,6 @@
       },
       "traffic": {
         "monthlyVisits": 511,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:14:48.440Z",
         "source": "similarweb-total",
         "globalRank": null
@@ -10426,7 +10232,6 @@
       },
       "traffic": {
         "monthlyVisits": 4950,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:51:15.837Z",
         "source": "similarweb",
         "globalRank": 3274815
@@ -10634,7 +10439,6 @@
       },
       "traffic": {
         "monthlyVisits": 511,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T19:14:53.128Z",
         "source": "similarweb-total",
         "globalRank": null
@@ -10691,7 +10495,6 @@
       },
       "traffic": {
         "monthlyVisits": 48,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:07:26.312Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -10834,7 +10637,6 @@
       },
       "traffic": {
         "monthlyVisits": 812325,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:51:20.631Z",
         "source": "similarweb",
         "globalRank": 64830
@@ -10866,7 +10668,6 @@
       },
       "traffic": {
         "monthlyVisits": 553,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:07:31.985Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -10974,7 +10775,6 @@
       },
       "traffic": {
         "monthlyVisits": 28,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:07:37.653Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -11053,7 +10853,6 @@
       },
       "traffic": {
         "monthlyVisits": 812325,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:51:25.366Z",
         "source": "similarweb",
         "globalRank": 64830
@@ -11203,7 +11002,6 @@
       },
       "traffic": {
         "monthlyVisits": 837,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:51:30.141Z",
         "source": "similarweb",
         "globalRank": null
@@ -11259,7 +11057,6 @@
       },
       "traffic": {
         "monthlyVisits": 3000,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:07:43.333Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -11316,7 +11113,6 @@
       },
       "traffic": {
         "monthlyVisits": 565,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:07:49.036Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -11348,7 +11144,6 @@
       },
       "traffic": {
         "monthlyVisits": 43040,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:29:14.113Z",
         "source": "similarweb",
         "globalRank": 721541
@@ -11380,7 +11175,6 @@
       },
       "traffic": {
         "monthlyVisits": 2400,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:12:21.087Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -11586,7 +11380,6 @@
       },
       "traffic": {
         "monthlyVisits": 849,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:08:35.871Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -11668,7 +11461,6 @@
       },
       "traffic": {
         "monthlyVisits": 0,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:08:41.540Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -11725,7 +11517,6 @@
       },
       "traffic": {
         "monthlyVisits": 4600,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:12:29.983Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -11782,7 +11573,6 @@
       },
       "traffic": {
         "monthlyVisits": 0,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:09:28.280Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -11863,7 +11653,6 @@
       },
       "traffic": {
         "monthlyVisits": 438,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:09:33.953Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -11895,7 +11684,6 @@
       },
       "traffic": {
         "monthlyVisits": 6,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:09:39.625Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -11927,7 +11715,6 @@
       },
       "traffic": {
         "monthlyVisits": 30,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:12:39.861Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -11995,7 +11782,6 @@
       },
       "traffic": {
         "monthlyVisits": 85169,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:51:34.903Z",
         "source": "similarweb",
         "globalRank": 408968
@@ -12084,7 +11870,6 @@
       },
       "traffic": {
         "monthlyVisits": 85169,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:51:39.663Z",
         "source": "similarweb",
         "globalRank": 408968
@@ -12228,7 +12013,6 @@
       },
       "traffic": {
         "monthlyVisits": 3503000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:51:44.505Z",
         "source": "similarweb",
         "globalRank": 18573
@@ -12320,7 +12104,6 @@
       },
       "traffic": {
         "monthlyVisits": 268491,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:51:49.360Z",
         "source": "similarweb",
         "globalRank": 186003
@@ -12352,7 +12135,6 @@
       },
       "traffic": {
         "monthlyVisits": 1600,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:14:04.181Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -12443,7 +12225,6 @@
       },
       "traffic": {
         "monthlyVisits": 268491,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:51:54.186Z",
         "source": "similarweb",
         "globalRank": 186003
@@ -12549,7 +12330,6 @@
       },
       "traffic": {
         "monthlyVisits": 487,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:14:12.827Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -12606,7 +12386,6 @@
       },
       "traffic": {
         "monthlyVisits": 21900,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:14:21.478Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -12638,7 +12417,6 @@
       },
       "traffic": {
         "monthlyVisits": 865700,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:14:30.156Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -12771,7 +12549,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-22T10:28:25.910Z",
         "source": "similarweb",
         "globalRank": null
@@ -12803,7 +12580,6 @@
       },
       "traffic": {
         "monthlyVisits": 0,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:14:38.808Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -12848,7 +12624,6 @@
       },
       "traffic": {
         "monthlyVisits": 843,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:51:58.995Z",
         "source": "similarweb",
         "globalRank": null
@@ -12880,7 +12655,6 @@
       },
       "traffic": {
         "monthlyVisits": 2600000,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:14:47.477Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -12962,7 +12736,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-29T16:04:44.133Z",
         "source": "similarweb",
         "db": null,
@@ -13052,7 +12825,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-22T10:52:03.746Z",
         "source": "similarweb",
         "globalRank": null
@@ -13084,7 +12856,6 @@
       },
       "traffic": {
         "monthlyVisits": 315,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:16:11.991Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -13116,7 +12887,6 @@
       },
       "traffic": {
         "monthlyVisits": 0,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:16:20.644Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -13172,7 +12942,6 @@
       },
       "traffic": {
         "monthlyVisits": 43040,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:29:09.333Z",
         "source": "similarweb",
         "globalRank": 721541
@@ -13254,7 +13023,6 @@
       },
       "traffic": {
         "monthlyVisits": 4,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:16:29.309Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -13354,7 +13122,6 @@
       },
       "traffic": {
         "monthlyVisits": 378130,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:52:08.536Z",
         "source": "similarweb",
         "globalRank": 86168
@@ -13551,7 +13318,6 @@
       },
       "traffic": {
         "monthlyVisits": 17796,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:52:13.343Z",
         "source": "similarweb",
         "globalRank": null
@@ -13583,7 +13349,6 @@
       },
       "traffic": {
         "monthlyVisits": 268000,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:16:37.978Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -13657,7 +13422,6 @@
       },
       "traffic": {
         "monthlyVisits": 17796,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:52:18.182Z",
         "source": "similarweb",
         "globalRank": null
@@ -13841,7 +13605,6 @@
       },
       "traffic": {
         "monthlyVisits": 40731,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:28:30.754Z",
         "source": "similarweb",
         "globalRank": 600941
@@ -13873,7 +13636,6 @@
       },
       "traffic": {
         "monthlyVisits": 3500,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:16:46.646Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -13918,7 +13680,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-22T10:52:23.028Z",
         "source": "similarweb",
         "globalRank": null
@@ -13999,7 +13760,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-19T20:16:55.313Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -14077,7 +13837,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-22T10:52:27.760Z",
         "source": "similarweb",
         "globalRank": null
@@ -14211,7 +13970,6 @@
       },
       "traffic": {
         "monthlyVisits": 402900,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:18:19.260Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -14504,7 +14262,6 @@
       },
       "traffic": {
         "monthlyVisits": 3339000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:52:32.582Z",
         "source": "similarweb",
         "globalRank": 17738
@@ -14620,7 +14377,6 @@
       },
       "traffic": {
         "monthlyVisits": 345466,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:52:37.421Z",
         "source": "similarweb",
         "globalRank": 114103
@@ -14652,7 +14408,6 @@
       },
       "traffic": {
         "monthlyVisits": 60700,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:18:27.921Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -14721,7 +14476,6 @@
       },
       "traffic": {
         "monthlyVisits": 345466,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:52:42.213Z",
         "source": "similarweb",
         "globalRank": 114103
@@ -14791,7 +14545,6 @@
       },
       "traffic": {
         "monthlyVisits": 3840000000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:52:47.055Z",
         "source": "similarweb",
         "globalRank": 8
@@ -14962,7 +14715,6 @@
       },
       "traffic": {
         "monthlyVisits": 11420000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:52:51.867Z",
         "source": "similarweb",
         "globalRank": null
@@ -15019,7 +14771,6 @@
       },
       "traffic": {
         "monthlyVisits": 245,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:18:36.594Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -15064,7 +14815,6 @@
       },
       "traffic": {
         "monthlyVisits": 11420000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:52:56.628Z",
         "source": "similarweb",
         "globalRank": null
@@ -15161,7 +14911,6 @@
       },
       "traffic": {
         "monthlyVisits": 81,
-        "verdict": "fail",
         "checkedAt": "2026-08-22T10:53:01.320Z",
         "source": "similarweb",
         "globalRank": null
@@ -15193,7 +14942,6 @@
       },
       "traffic": {
         "monthlyVisits": 19600,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:18:45.256Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -15275,7 +15023,6 @@
       },
       "traffic": {
         "monthlyVisits": 1700,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:18:53.947Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -15307,7 +15054,6 @@
       },
       "traffic": {
         "monthlyVisits": 7,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:19:02.620Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -15400,7 +15146,6 @@
       },
       "traffic": {
         "monthlyVisits": 81,
-        "verdict": "fail",
         "checkedAt": "2026-08-22T10:53:06.043Z",
         "source": "similarweb",
         "globalRank": null
@@ -15483,7 +15228,6 @@
       },
       "traffic": {
         "monthlyVisits": 8,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:20:26.548Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -15567,7 +15311,6 @@
       },
       "traffic": {
         "monthlyVisits": 7714,
-        "verdict": "pass",
         "checkedAt": "2026-08-23T03:17:44.998Z",
         "source": "similarweb",
         "globalRank": 2348199
@@ -15691,7 +15434,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-23T02:14:04.042Z",
         "source": "similarweb",
         "globalRank": null
@@ -15833,7 +15575,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-23T02:14:16.211Z",
         "source": "similarweb",
         "globalRank": null
@@ -15865,7 +15606,6 @@
       },
       "traffic": {
         "monthlyVisits": 32067,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:28:35.690Z",
         "source": "similarweb",
         "globalRank": 935136
@@ -15948,7 +15688,6 @@
       },
       "traffic": {
         "monthlyVisits": 55800,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:20:35.255Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -16006,7 +15745,6 @@
       },
       "traffic": {
         "monthlyVisits": 230,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:20:43.914Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -16038,7 +15776,6 @@
       },
       "traffic": {
         "monthlyVisits": 1,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:20:52.557Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -16070,7 +15807,6 @@
       },
       "traffic": {
         "monthlyVisits": 0,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:21:01.245Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -16186,7 +15922,6 @@
       },
       "traffic": {
         "monthlyVisits": 2294000,
-        "verdict": "pass",
         "checkedAt": "2026-08-23T02:14:20.951Z",
         "source": "similarweb",
         "globalRank": 31182
@@ -16351,7 +16086,6 @@
       },
       "traffic": {
         "monthlyVisits": 44758,
-        "verdict": "pass",
         "checkedAt": "2026-08-23T02:14:25.693Z",
         "source": "similarweb",
         "globalRank": 678343
@@ -16383,7 +16117,6 @@
       },
       "traffic": {
         "monthlyVisits": 50680000,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:28:40.550Z",
         "source": "similarweb",
         "globalRank": 710
@@ -16415,7 +16148,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-19T20:21:09.916Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -16549,7 +16281,6 @@
       },
       "traffic": {
         "monthlyVisits": 34461,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:29:04.515Z",
         "source": "similarweb",
         "globalRank": 904760
@@ -16704,7 +16435,6 @@
       },
       "traffic": {
         "monthlyVisits": 97,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:22:33.897Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -16736,7 +16466,6 @@
       },
       "traffic": {
         "monthlyVisits": 81000,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:22:42.560Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -16793,7 +16522,6 @@
       },
       "traffic": {
         "monthlyVisits": 22800,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:22:51.230Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -16851,7 +16579,6 @@
       },
       "traffic": {
         "monthlyVisits": 311,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:22:59.890Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -16883,7 +16610,6 @@
       },
       "traffic": {
         "monthlyVisits": 23900,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:23:08.563Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -16915,7 +16641,6 @@
       },
       "traffic": {
         "monthlyVisits": 53,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:23:17.231Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -17022,7 +16747,6 @@
       },
       "traffic": {
         "monthlyVisits": 34,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:24:41.177Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -17079,7 +16803,6 @@
       },
       "traffic": {
         "monthlyVisits": 63571,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:29:18.925Z",
         "source": "similarweb",
         "globalRank": 432033
@@ -17111,7 +16834,6 @@
       },
       "traffic": {
         "monthlyVisits": 7,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:24:49.851Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -17143,7 +16865,6 @@
       },
       "traffic": {
         "monthlyVisits": 515901,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:28:45.390Z",
         "source": "similarweb",
         "globalRank": 102217
@@ -17248,7 +16969,6 @@
       },
       "traffic": {
         "monthlyVisits": 84,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:24:58.503Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -17280,7 +17000,6 @@
       },
       "traffic": {
         "monthlyVisits": 945441,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:05:11.630Z",
         "source": "similarweb",
         "db": null,
@@ -17338,7 +17057,6 @@
       },
       "traffic": {
         "monthlyVisits": 11000,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:25:07.168Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -17403,7 +17121,6 @@
       },
       "traffic": {
         "monthlyVisits": 354,
-        "verdict": "pass",
         "checkedAt": "2026-08-23T02:14:30.446Z",
         "source": "similarweb",
         "globalRank": null
@@ -17462,7 +17179,6 @@
       },
       "traffic": {
         "monthlyVisits": 0,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:25:15.833Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -17617,7 +17333,6 @@
       },
       "traffic": {
         "monthlyVisits": 1630,
-        "verdict": "pass",
         "checkedAt": "2026-08-23T02:14:47.268Z",
         "source": "similarweb",
         "globalRank": 8764146
@@ -17649,7 +17364,6 @@
       },
       "traffic": {
         "monthlyVisits": 16500,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:25:24.508Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -17706,7 +17420,6 @@
       },
       "traffic": {
         "monthlyVisits": 331,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:26:48.461Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -17738,7 +17451,6 @@
       },
       "traffic": {
         "monthlyVisits": 213200,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:26:57.128Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -17814,7 +17526,6 @@
       },
       "traffic": {
         "monthlyVisits": 3002000,
-        "verdict": "pass",
         "checkedAt": "2026-08-23T02:15:20.555Z",
         "source": "similarweb",
         "globalRank": 33039
@@ -17871,7 +17582,6 @@
       },
       "traffic": {
         "monthlyVisits": 9,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:27:05.800Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -17903,7 +17613,6 @@
       },
       "traffic": {
         "monthlyVisits": 4500,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:27:14.471Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -17935,7 +17644,6 @@
       },
       "traffic": {
         "monthlyVisits": 21500,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:27:23.153Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -17967,7 +17675,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-19T20:27:31.816Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -18024,7 +17731,6 @@
       },
       "traffic": {
         "monthlyVisits": 7400,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:28:55.724Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -18081,7 +17787,6 @@
       },
       "traffic": {
         "monthlyVisits": 170,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:29:04.397Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -18138,7 +17843,6 @@
       },
       "traffic": {
         "monthlyVisits": 2900,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:29:13.055Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -18194,7 +17898,6 @@
       },
       "traffic": {
         "monthlyVisits": 221,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:29:21.718Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -18251,7 +17954,6 @@
       },
       "traffic": {
         "monthlyVisits": 624,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:29:30.387Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -18309,7 +18011,6 @@
       },
       "traffic": {
         "monthlyVisits": 515901,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:28:50.184Z",
         "source": "similarweb",
         "globalRank": 102217
@@ -18415,7 +18116,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-19T20:29:39.079Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -18486,7 +18186,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-23T02:15:35.612Z",
         "source": "similarweb",
         "globalRank": null
@@ -18532,7 +18231,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-23T02:15:58.523Z",
         "source": "similarweb",
         "globalRank": null
@@ -18653,7 +18351,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-23T02:16:30.841Z",
         "source": "similarweb",
         "globalRank": null
@@ -18685,7 +18382,6 @@
       },
       "traffic": {
         "monthlyVisits": 55334,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:29:28.657Z",
         "source": "similarweb",
         "globalRank": 605150
@@ -18792,7 +18488,6 @@
       },
       "traffic": {
         "monthlyVisits": 515901,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:28:54.930Z",
         "source": "similarweb",
         "globalRank": 102217
@@ -18873,7 +18568,6 @@
       },
       "traffic": {
         "monthlyVisits": 10,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:31:02.980Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -18954,7 +18648,6 @@
       },
       "traffic": {
         "monthlyVisits": 43,
-        "verdict": "fail",
         "checkedAt": "2026-08-29T16:05:43.554Z",
         "source": "similarweb",
         "db": null,
@@ -19149,7 +18842,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-23T02:16:53.296Z",
         "source": "similarweb",
         "globalRank": null
@@ -19181,7 +18873,6 @@
       },
       "traffic": {
         "monthlyVisits": 4100,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:31:11.646Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -19213,7 +18904,6 @@
       },
       "traffic": {
         "monthlyVisits": 55334,
-        "verdict": "pass",
         "checkedAt": "2026-08-22T10:29:23.758Z",
         "source": "similarweb",
         "globalRank": 605150
@@ -19245,7 +18935,6 @@
       },
       "traffic": {
         "monthlyVisits": 0,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:31:20.308Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -19403,7 +19092,6 @@
       },
       "traffic": {
         "monthlyVisits": 24417,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T16:05:29.613Z",
         "source": "similarweb",
         "db": null,
@@ -19461,7 +19149,6 @@
       },
       "traffic": {
         "monthlyVisits": 3500,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:31:28.968Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -19493,7 +19180,6 @@
       },
       "traffic": {
         "monthlyVisits": 7600,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:31:37.627Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -19541,7 +19227,6 @@
       },
       "traffic": {
         "monthlyVisits": 7762,
-        "verdict": "pass",
         "checkedAt": "2026-08-23T02:17:47.257Z",
         "source": "similarweb",
         "globalRank": 2319903
@@ -19573,7 +19258,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-19T20:31:46.296Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -19652,7 +19336,6 @@
       },
       "traffic": {
         "monthlyVisits": 4271,
-        "verdict": "pass",
         "checkedAt": "2026-08-23T02:18:10.409Z",
         "source": "similarweb",
         "globalRank": 6742282
@@ -19975,7 +19658,6 @@
       },
       "traffic": {
         "monthlyVisits": 26937,
-        "verdict": "pass",
         "checkedAt": "2026-08-23T02:18:46.905Z",
         "source": "similarweb",
         "globalRank": 818743
@@ -20017,7 +19699,6 @@
       },
       "traffic": {
         "monthlyVisits": 7815,
-        "verdict": "pass",
         "checkedAt": "2026-08-23T02:19:15.096Z",
         "source": "similarweb",
         "globalRank": 2081034
@@ -20136,7 +19817,6 @@
       },
       "traffic": {
         "monthlyVisits": 4513000,
-        "verdict": "pass",
         "checkedAt": "2026-08-23T02:19:41.240Z",
         "source": "similarweb",
         "globalRank": 8862
@@ -20168,7 +19848,6 @@
       },
       "traffic": {
         "monthlyVisits": 8900,
-        "verdict": "pass",
         "checkedAt": "2026-08-19T20:33:10.221Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -20218,7 +19897,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-23T02:20:05.297Z",
         "source": "similarweb",
         "globalRank": null
@@ -20276,7 +19954,6 @@
       },
       "traffic": {
         "monthlyVisits": 0,
-        "verdict": "fail",
         "checkedAt": "2026-08-19T20:33:18.885Z",
         "source": "semrush-organic",
         "globalRank": null
@@ -20353,7 +20030,6 @@
       },
       "traffic": {
         "monthlyVisits": null,
-        "verdict": "below-floor",
         "checkedAt": "2026-08-23T02:20:36.041Z",
         "source": "similarweb",
         "globalRank": null
@@ -20434,7 +20110,6 @@
       },
       "traffic": {
         "monthlyVisits": 1,
-        "verdict": "fail",
         "checkedAt": "2026-08-29T18:41:11.012Z",
         "source": "semrush",
         "db": null,
@@ -20491,7 +20166,6 @@
       },
       "traffic": {
         "monthlyVisits": 148,
-        "verdict": "pass",
         "checkedAt": "2026-08-29T18:40:24.589Z",
         "source": "semrush",
         "db": null,
@@ -20529,7 +20203,6 @@
       },
       "traffic": {
         "monthlyVisits": 1931,
-        "verdict": "pass",
         "checkedAt": "2026-08-27T03:05:01.064+08:00",
         "source": "Similarweb total visits via authenticated Tools Share browser session"
       },
@@ -20565,7 +20238,6 @@
       },
       "traffic": {
         "monthlyVisits": 27770,
-        "verdict": "pass",
         "checkedAt": "2026-08-27T03:17:57.794+08:00",
         "source": "Similarweb total visits via authenticated Tools Share browser session"
       },
@@ -20611,7 +20283,6 @@
       },
       "traffic": {
         "monthlyVisits": 3353,
-        "verdict": "pass",
         "checkedAt": "2026-08-27T03:40:08.893+08:00",
         "source": "Similarweb total visits via authenticated Tools Share browser session"
       },
@@ -20647,7 +20318,6 @@
       },
       "traffic": {
         "monthlyVisits": 2789,
-        "verdict": "pass",
         "checkedAt": "2026-08-27T03:44:01.315+08:00",
         "source": "Similarweb total visits via authenticated Tools Share browser session"
       },

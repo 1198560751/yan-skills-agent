@@ -1,6 +1,6 @@
 ---
 name: skillsmp
-description: 在 SkillsMP（1.6M+ 公开 SKILL.md 的索引，覆盖 Claude Code / Codex / ChatGPT）里搜 Agent Skill，按关键词、分类、职业、语言过滤，并专门挖那些「写得好但没人知道」的冷门 Skill。用户说 找个 skill、有没有现成的 skill、搜一下 skill、skillsmp、skills 市场、agent skill 搜索、find a skill、search skills、discover skills 时使用。也用于判断某个领域已经有哪些 Skill、避免重复造轮子。
+description: 在 SkillsMP（1.6M+ 公开 SKILL.md 的索引，覆盖 Claude Code / Codex / ChatGPT）里搜 Agent Skill，按关键词、分类、职业、语言过滤，并专门挖那些「写得好但没人知道」的冷门 Skill。用户说 找个 skill、有没有现成的 skill、搜一下 skill、skillsmp、skills 市场、agent skill 搜索、find a skill、search skills、discover skills 时使用。也用于判断某个领域已经有哪些 Skill、避免重复造轮子。同样覆盖这些口语说法：这个功能有没有人做过、别人写过没、我想写个做 X 的 skill（动手前先搜）、挖点冷门好用的、有没有小众但写得好的、这领域现在都有啥、按星数排靠不靠谱、只要中文的 skill。
 ---
 
 # SkillsMP
@@ -9,6 +9,24 @@ description: 在 SkillsMP（1.6M+ 公开 SKILL.md 的索引，覆盖 Claude Code
 SKILL.md，来自 GitHub，覆盖 Claude Code、Codex、ChatGPT）。
 
 **要动手写一个新 Skill 之前，先来这里搜一遍。** 别人写过的概率比你以为的高。
+
+## 一句话 → 用哪个能力
+
+用户不会说「跑 treasure.mjs --pages 5」。他会说下面左边那些话。
+
+| 用户大概会这么说 | 从这里开始 |
+|---|---|
+| 「有没有现成的 skill 能做 X」「找个 skill」 | `node scripts/search.mjs "X" --limit 20`。命中少就换个说法再搜一次，别断言「不存在」 |
+| 「我想写个做 X 的 skill」（**动手前必答**） | 先 `search.mjs "X"`，看有没有人写过。这是本 Skill 存在的第一个理由 |
+| 「这个领域已经有哪些 skill 了」「盘一下现状」 | `node scripts/search.mjs "领域词" --pages 3 --json`，存本地再过滤，别反复重搜（配额按天算） |
+| 「找点好东西」「有没有小众但写得好的」「挖宝」 | `node scripts/treasure.mjs "关键词" --pages 5 --top 15`。它出**全量候选 + 原始信号**，`sortKey` 只是排序键、不是评分，也不替你丢行 |
+| 「按星数给我排一下」 | 可以，但先读下面那条坑：`stars` 是**仓库**星数，不是这个 Skill 的。`treasure.mjs --sort stars` 换排法用的是同一批候选 |
+| 「太多了，把大厂仓库的过滤掉」 | `--max-stars N`。**没有默认值**：不给就一条不过滤；给了也只标 `aboveMaxStars` 折叠，不删行，`--json` 里照样全在 |
+| 「只要中文的 / 只要 DevOps 的 / 只要给开发看的」 | `--lang zh` · `--category devops` · `--occupation software-developers` |
+| 「搜出来只有 5 个？」 | 那是 `pagination.total` 在骗人（`totalIsExact:false`，严重偏低）。翻页只认 `hasNext` |
+| 「这个 skill 到底行不行」 | 打开它的 `githubUrl` 读一眼再下结论。description 是作者的营销文案，不是验证过的能力 |
+
+**它不做的事**：装 Skill、写 Skill、评审 Skill 质量。它只把候选摆到你眼前。
 
 ## 目录
 

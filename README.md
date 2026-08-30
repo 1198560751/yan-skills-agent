@@ -34,6 +34,39 @@ npx skills add yan-labs/yan-skills -g --all
 
 ---
 
+## 我该用哪个 Skill
+
+你不需要知道这些 Skill 里有什么。**说你要做的事就行**，下面这张表负责分流。
+左列是真实会说出口的话，右列是该加载哪个 Skill——每个 Skill 内部还有一层
+「一句话 → 用哪个能力」的索引，进去之后不用再猜。
+
+| 你大概会这么说 | 用这个 |
+|---|---|
+| 「我想做个新站」「这个词能不能做」「帮我选词」「挖点需求」 | [`rankup`](rankup/) |
+| 「网站没流量」「排名掉了」「GSC 里这条什么意思」「现在该做什么/到哪一步了」 | [`rankup`](rankup/) |
+| 「部署到 Cloudflare」「接个支付」「上线前检查」 | [`rankup`](rankup/) |
+| 「AI 搜索怎么优化」「怎么被 ChatGPT 引用」「llms.txt」 | [`rankup`](rankup/) |
+| 「帮我搞点外链」「去哪发」「提交目录」「评论外链」 | [`backlink`](backlink/) |
+| 「这些外链有没有毒」「要不要 disavow」「竞品的外链哪来的」 | [`backlink`](backlink/) |
+| 「上次发的到底生效没有」 | [`backlink`](backlink/) |
+| **「Semrush / Similarweb 能查什么」「这个报表在哪」「这个站没有 API，把数据给我」** | [`backlink`](backlink/) → 它会带你去 [`platforms/`](platforms/) 的 64 页平台手册 |
+| 「今天有什么新游戏词」「小游戏机会日报」 | [`game-opportunity`](game-opportunity/) |
+| 「有没有现成的 skill 能做 X」「我想写个 skill，别人写过没」 | [`skillsmp`](skillsmp/) |
+| 「用我的浏览器打开」「登录后台查一下」「标签页被抢了」「doctor 报错」 | [`opencli`](opencli/) |
+| 「一句话，你自己拆解自己跑完」 | [`autopilot`](autopilot/) |
+| 「生成一张图 / 配图」「让 Codex 在后台跑一轮」 | [`codex`](codex/) |
+| 「skill 没生效 / 目录重复 / 链接坏了」 | [`skill-link-check`](skill-link-check/) |
+
+三条容易走错的边界：
+
+- **想查数据 ≠ 直接开浏览器。** 关键词、趋势、竞品先看 `rankup` / `backlink` 里有没有
+  现成脚本；只有确实需要登录态、且没有脚本和 adapter 时才落到 `opencli`。
+- **`opencli` 是底层，不是业务。** 它只回答「怎么把浏览器开对、数据怎么取回来」，
+  不回答「该发哪个外链」「该做哪个词」。
+- **调研互联网内容不在本仓库。** 那是 `agent-reach` 的事，本仓库不重复它。
+
+---
+
 ## `rankup` — 网站全生命周期总控
 
 版本 `2.63.0`。它不重复实现 Wrangler、Stripe 或趋势工具，它负责把这些能力串成一条长期可维护的工作流，并且记住你在每个项目上做过什么。小游戏站另有一条从新词监控、iframe 供给、可玩页面、广告到持续迭代的[专用链路](rankup/references/game-sites.md)。

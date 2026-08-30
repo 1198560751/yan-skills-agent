@@ -8,6 +8,28 @@ description: Rankup 的小游戏机会专项 Skill。用于监测游戏平台 si
 把游戏平台的新 URL 变成可直接挑选的建站候选。商业判断看今天的搜索需求、竞争盘面和可玩供给；
 游戏发布时间只负责标注新旧，老游戏同样可以进入优先队列。
 
+<intent-routing>
+
+## 从一句话反查入口
+
+用户不会说「跑 evaluate」，他会说「看看今天有什么游戏能做」。所有命令都是
+`node game-opportunity/scripts/game-opportunity.mjs <子命令>`。
+
+| 用户可能说的话 | 跑什么 → 判读依据在哪 |
+|---|---|
+| 「跑一下小游戏监测」「今天有什么游戏能做」 | `daily`（= `collect` + `demand` + `evaluate`）→ 日报 `.rankup/demand/game-review/latest.md`，分组判读看下方「外部需求双轨闸门」 |
+| 「只看今天平台新增了什么」 | `discover`（平台 sitemap diff）；只要 24 小时新名字用 `radar` |
+| 「查一下这批游戏的量和 KD」 | `plan` → `demand`（**每天只有 6 个深查名额**，名单由你写进 `YYYY-MM-DD-demand-selection.json`，见「深查名额」） |
+| 「这些候选值不值得做」 | `evaluate` 排版事实 → **判读归你**：对照「搜索需求轨 / 早期爆发轨」分值表与 KD × 新站动作表，把结论写进 `YYYY-MM-DD-evaluation.json` |
+| 「今天这轮算跑完了吗」 | `collect-checklist` / `decision-checklist`（各 10 项证据验收，查的是证据齐不齐，不是判决对不对） |
+| 「不联网重建一下今天的清单」 | `dedupe`（读当天 discovery/radar，去重游戏与社交 campaign） |
+| 「游戏站怎么搭、怎么变现」 | 不在本 Skill：读 `rankup/references/game-sites.md` + `rankup/references/lifecycle.md` |
+| 「选词/外链/建站的通用问题」 | 回 `rankup`——本 Skill 只管「哪个游戏值得做」这一段 |
+
+**任何来源采集失败或某行 `status:'not-queried'` 时，对应项标「未测」，不得当成 0 或「无需求」。**
+
+</intent-routing>
+
 ## 分工铁律：脚本只采集，判断只归 AI
 
 | 层 | 谁做 | 产出 |

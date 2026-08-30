@@ -1,6 +1,6 @@
 ---
 name: rankup
-description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、rankup check、环节闸门、检查清单、checklist、"现在该做什么"、"到哪一步了"、"这个环节能不能过"、"本轮还差什么"、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、挖需求、找需求、需求挖掘、找方向、找选题、"最近有什么能做的"、"找几个关键词"、"挖个新词的工具站"、"看看有什么游戏站能做"、竞品调研、榜单调研、差评挖掘、反查谁在赚钱、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 哥飞、web.cafe、哥飞论坛、哥飞的朋友们、悬赏、悬赏问答、经验帖、"群里怎么说的"、"社群里有没有讲过"、"论坛里搜一下"、"哥飞说过什么"、哥飞.ai，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。
+description: 网站从零到一与长期增长的总控 Skill。用于新建网站、SaaS、工具站或内容站，规划或初始化 TanStack Start Monorepo，使用 Cloudflare Workers、D1、R2 部署全栈应用，接入支付，执行 SEO、内容、外链、上线验证和持续迭代；也负责 Google Trends 查询、关键词难度（KD）估算与选词工作流；2026 AI 搜索范式（AI Overviews、AI Mode、Preferred Sources、Discover 独立算法、Information Gain、引用优先于排名）；AI Agent 就绪度评分（is-agentic、agent readiness、llms.txt、MCP 可发现性、AI 代理优化）。用户提到 rankup、rankup init、rankup check、环节闸门、检查清单、checklist、"现在该做什么"、"到哪一步了"、"这个环节能不能过"、"本轮还差什么"、建站、网站改版、搜索流量、GSC、排名、关键词、CTR、索引、网站增长，或提到 谷歌趋势、Google Trends、搜索热度、热度对比、搜索趋势、trending、"XX 和 YY 哪个更火"、"今天美国/日本在搜什么"、每日热搜、"这个词能不能做站"、"哪个市场/国家有机会"、帮我选 SEO 关键词、选词、选品调研、市场探测、挖需求、找需求、需求挖掘、找方向、找选题、"最近有什么能做的"、"找几个关键词"、"挖个新词的工具站"、"看看有什么游戏站能做"、竞品调研、榜单调研、差评挖掘、反查谁在赚钱、关键词难度、KD、竞争度、SERP 分析、"这个词难不难做"、"做这个词要多少外链"，或提到 哥飞、web.cafe、哥飞论坛、哥飞的朋友们、悬赏、悬赏问答、经验帖、"群里怎么说的"、"社群里有没有讲过"、"论坛里搜一下"、"哥飞说过什么"、哥飞.ai，或提到 AI 搜索优化、AI Overviews、AI Mode、被 AI 引用、AEO、GEO、Preferred Sources、Discover 优化、Google 算法更新、核心更新、spam 更新、Information Gain，或提到 AI Agent 就绪度、is-agentic、agent readiness、llms.txt、对 AI 代理友好、AI 代理优化、agent-friendly、agentic score 时使用。也覆盖用户真正会打出来的模糊说法：我想让流量涨一点、今天弄下 SEO、帮我看看这个站有什么问题、优化一下我的网站、流量掉了、排名没了、是不是被 K 了、怎么一直不收录、新页面多久能进索引、提交 sitemap、IndexNow、站慢不慢、跑个性能、Core Web Vitals、PageSpeed、Lighthouse、全站内链失效、TDK、标题描述怎么写、关键词密度、能不能上线了、上线前还差什么、帮我搞点外链、外链、反链、去哪发外链、抓一下后台数据、导出报表、数据面板、这站没有 API、访客不注册、没人付费、定价怎么定、要不要上多语言、hreflang、发个 Product Hunt、跑一下小游戏监测。
 metadata:
   version: "2.63.0"
 ---
@@ -10,6 +10,61 @@ metadata:
 `rankup` 是网站全生命周期的总控 Skill：恢复项目上下文，判断当前阶段，加载必要的专项能力，完成真实验证，并把项目事实、决策与经验写回 `.rankup/`。
 
 它不重复实现 Wrangler、Stripe、趋势研究或外链工具；它负责把这些能力串成一条长期可维护的网站工作流。
+
+<intent-routing>
+
+## 从一句话反查能力（用户不知道有哪些功能，你得知道）
+
+**用户不会说「跑一下 seo-audit.mjs」，他会说「今天想弄下 SEO」。**
+这一节负责把模糊人话翻译成具体入口。全量能力底账在
+[`references/capability-map.md`](references/capability-map.md)（13 类、每条带入口路径）；
+本表只放最常见的意图簇。
+
+### 越模糊，越不要盲跑全套
+
+| 用户说得 | 你先做什么 | 不要做什么 |
+|---|---|---|
+| **有明确对象**（给了域名 / 词 / 页面） | 直接进下表对应行，**先跑最便宜的那个**（零配额、零登录的排在前面） | 不要先问「您想优化哪方面」 |
+| **只有方向没有对象**（「想涨流量」「弄下 SEO」） | **先跑一次零成本盘点**拿事实：`review.mjs` 看项目缺口 + `checklists.md` 定位第一个没过闸的环节，**然后直接照着做** | 不要把清单念给用户听，也不要一口气把所有花配额的脚本都跑一遍 |
+| **连站都没有**（「想做个站」「有什么能做的」） | 只问**一个**问题：有没有已经想好的方向或词？有 → 走「这个词能不能做」；没有 → 走「挖需求」 | 不要连问三个澄清问题，也不要直接开始 `demand/` 全家桶 |
+| **说的事这张表没有** | 查 [`capability-map.md`](references/capability-map.md) 全量表；仍然没有 → 才按 [`integrations.md`](references/integrations.md) 用 find-skills 搜 | 不要现写一段等价实现（见下方「红线」） |
+
+**花配额之前先看档位**（seo.web.cafe / Semrush / Similarweb），理由见下方「配额前置检查」。
+
+### 意图 → 入口
+
+| 用户可能说的话 | 先看什么 → 再跑什么 → 判读依据在哪 |
+|---|---|
+| 「新建个站」「想做个工具站」「帮我搭起来」 | [`lifecycle.md`](references/lifecycle.md) 阶段 2–4 → 本文「默认建站栈」的脚手架命令 + `scripts/cf-zone-setup.mjs`（域名进 CF）→ 闸门判据 [`checklists.md`](references/checklists.md) 阶段 3/4 |
+| 「把这个老项目接进来」「rankup init」 | [`project-memory.md`](references/project-memory.md) → 本文 `rankup init` 七步 → 完成门禁看 [`checklists.md`](references/checklists.md) 阶段 0 |
+| **「我想让流量涨一点」「今天弄下 SEO」「帮我看看这站有什么问题」** | 先 `node rankup/scripts/review.mjs --project-root .`（零成本，出缺口清单）+ [`checklists.md`](references/checklists.md) 找第一个没过闸的环节 → 再按环节派活：阶段 8 就跑 `scripts/seo-audit.mjs --sitemap <url>`，阶段 7.5 就跑 `scripts/pagespeed.mjs` → 判读 [`seo-box.md`](references/seo-box.md) + [`experiences/zero-to-one.md`](references/experiences/zero-to-one.md)（**默认打磨转化链路，不是重构架构**） |
+| 「流量掉了」「排名突然没了」「是不是被 K 了」 | [`experiences/webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 十七 ~ 十九 → `scripts/seo-audit.mjs`（TDK/canonical 有没有被改坏）+ `curl -sIL`（重定向）+ GSC 后台 → **新词上线 2–4 周内不要改页面** |
+| **「这个词能不能做」「这词难不难」「值不值得进」** | `scripts/seo-webcafe.mjs kd`（KD + top9 盘面，匿名 10 次/日）+ `backlink/scripts/semrush-keyword.mjs`（量、`globalVolume`）+ `scripts/gt.py`（趋势）→ 判读 [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 一 ~ 二 与 [`demand-sources.md`](references/demand-sources.md) **十·五**（能排上去 ≠ 能赚钱，第四道闸用 `seo-webcafe.mjs money` 折成钱） |
+| **「找几个关键词」「挖点需求」「最近有什么能做的」「不知道做什么」** | **入口是 [`research-checklist.md`](references/research-checklist.md)（9 节逐项打勾）** → 取数路由查 [`demand-sources.md`](references/demand-sources.md) 那张源→脚本表，跑 `scripts/demand/` 对应脚本 → 判读 [`experiences/demand-discovery.md`](references/experiences/demand-discovery.md)。**空结果先核 manifest：429/CAPTCHA/超时都产出 0 条** |
+| 「谁在赚钱」「反查这个站」「他还做了哪些站」「帖子说月入 X 是真的吗」 | `scripts/demand/stripe-referring.mjs` / `payment-referrers.mjs`（钱的信号）+ `demand/site-network.mjs`（站群）+ `demand/aitdk-lookup.mjs`（域名画像）+ `demand/revenue-site-audit.mjs`（薄编排对照）→ 判读 [`demand-sources.md`](references/demand-sources.md) 第十节，**verdict 由你下，脚本不下** |
+| 「竞品最近在做什么」「他排了哪些词」「Semrush 能查这个吗」 | **先查 [`provider-capabilities.md`](references/provider-capabilities.md)，不要现开浏览器翻** → `backlink/scripts/similarweb-query.mjs` / `semrush-overview.mjs` / `semrush-report.mjs` + `scripts/demand/sitemap-diff.mjs` → 口径对不上先按本文「地理范围 / 面板页面 / 口径定义」三步对齐 |
+| 「内容怎么写」「标题描述怎么定」「关键词密度够不够」 | `scripts/seo-audit.mjs --sitemap <url>`（TDK + 1/2/3-gram 密度）+ `scripts/seo-webcafe.mjs string`（TDK 长度，零配额）→ 分级阈值在 [`seo-box.md`](references/seo-box.md)「seo-audit 判读指引」 |
+| 「怎么被 AI 引用」「AI Overviews 怎么做」「AEO/GEO」 | [`seo-growth.md`](references/seo-growth.md) 三-B「2026 AI 搜索范式」→ 无需额外工具（Google 定论：AEO/GEO 就是 SEO），落地仍走内容与结构化数据那几行 |
+| 「对 AI 代理友好吗」「要不要写 llms.txt」 | `node rankup/scripts/is-agentic.mjs scan --save`（零配置，秒出）→ 配分母跑 `scripts/cf-agent-baseline.mjs --compare` → 判读 [`seo-growth.md`](references/seo-growth.md)「AI Agent 就绪度」 |
+| **「帮我搞点外链」「去哪发」「竞品的外链哪来的」** | rankup 只路由：`/backlink`（未装：`npx skills add yan-labs/yan-skills --skill backlink -g -y`）→ 发现走 `backlink/scripts/discovery-queue.mjs`、台账走 `ledger.mjs` → 判读 [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 五（买链预算、导航站过滤、302 不传权重） |
+| **「怎么一直不收录」「新页面多久能进索引」「提交下 sitemap」** | `scripts/indexnow-submit.mjs`（零账号，**排在站长工具前面**）→ `scripts/webmaster-sitemap.mjs gsc\|bing submit` → 平台顺序看 [`search-platforms.md`](references/search-platforms.md)；排查看 [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 十七 ~ 十九 |
+| 「废弃页面从谷歌撤下来」 | `node rankup/scripts/gsc-remove-urls.mjs --property sc-domain:xxx <urls>`（GSC 无公开 API，脚本驱动已登录浏览器逐条提交并截图留证） |
+| **「能不能上线了」「上线前还差什么」「这个环节能过吗」** | [`checklists.md`](references/checklists.md) 阶段 7.5 那七行 + 项目 `.rankup/checks.md` → 取数用 `scripts/seo-audit.mjs` + `scripts/pagespeed.mjs` + `scripts/is-agentic.mjs` → **证据是必填的**，控制台绿图标不算 |
+| **「站慢不慢」「跑个性能」「Core Web Vitals」** | `node rankup/scripts/pagespeed.mjs --strategy both`（**必须自带 `PAGESPEED_API_KEY`**，匿名常年 429）→ 判读 [`seo-box.md`](references/seo-box.md) 一。**现场返回「无数据」= CrUX 流量不足，不是 0、不等于通过** |
+| 「全站有多少内链失效」「有没有第二台爬虫」 | `node rankup/scripts/ahrefs-site-audit.mjs projects` → `report <id> links\|redirects\|html-tags\|indexability\|localization` → 档位边界看 [`seo-box.md`](references/seo-box.md)「会员实测」。会话名固定 `ahrefs-nav`，不要传 `--session` |
+| **「抓一下后台数据」「导出这个报表」「这站没有 API」** | 先看 [`provider-capabilities.md`](references/provider-capabilities.md) 有没有现成脚本 → 有就跑（`backlink/scripts/*`）；没有才 `/backlink` 读 `harvest.md`（虚拟滚动、节流、静默丢行的陷阱全在那）→ 落盘规则见本文「抓到的数据不许留在下载目录」 |
+| **「群里怎么说的」「论坛里搜一下」「哥飞讲过这个吗」** | `node rankup/scripts/webcafe-forum.mjs chat-search "词"`（14 个群归档原文，零 AI 额度，**优先于 ask**）→ 单条内容用 `get <url>` → **匿名不报错，只把正文抹成空串**，先读 [`webcafe-forum.md`](references/webcafe-forum.md) 第一节 |
+| **「有什么游戏站能做」「跑一下小游戏监测」** | `node game-opportunity/scripts/game-opportunity.mjs daily`（分步：`collect` / `demand` / `evaluate`）→ 判读指引在 `game-opportunity/SKILL.md`（双轨闸门、KD×动作表、深查 6 名额）；建站阶段再读 [`game-sites.md`](references/game-sites.md) |
+| **「到哪一步了」「现在该做什么」「本轮还差什么」** | 本文 `rankup check` 三步：读 [`checklists.md`](references/checklists.md) + `.rankup/checks.md` → 跑 `review.mjs` 拿文件层线索 → **逐项去真实代码/线上响应/后台读数核对，然后直接照着做** |
+| 「回头看一下」「rankup review」「这项目脱轨了」 | `scripts/review.mjs` → `scripts/sessions.mjs --new-only`（挖会话里没沉淀的结论）→ 逐项线上实测「接入清单」→ 详见本文 `rankup review` 九步 |
+| 「访客不注册」「没人付费」「定价怎么定」 | [`experiences/conversion.md`](references/experiences/conversion.md) —— 无需工具，是裁定集。**动页面之前先查上游流量意图** |
+| 「要不要上多语言」「上了多语言流量掉了」 | [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 七 + [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 三·五 → **先做 2–3 个语言；hreflang 代码统一生成；禁止按 IP 自动跳转** |
+| 「发个 Product Hunt」「上架发布平台」 | [`product-launch.md`](references/product-launch.md) —— 需要能设置 file input 的浏览器连接器，**不要点上传按钮**（会弹系统对话框冻死标签页） |
+
+**这张表只给入口，不重复判据。** 下方「本 Skill 自带」是脚本明细表，
+「任务路由」是更细的参考文档索引；两处都不需要在这里再抄一遍。
+
+</intent-routing>
 
 ## 主线：维护 checklist，使用 checklist
 
@@ -164,7 +219,7 @@ opencli browser "$S" eval '(async()=>{ /* fetch(..., {credentials:"include"}) */
 | 脚本 | 干什么 | 什么时候用 |
 |---|---|---|
 | `scripts/seo-webcafe.mjs` | **一个脚本覆盖 seo.web.cafe 全部 21 个工具**：`kd` 关键词难度+top9 盘面、`audit` 页面体检、`serp` 排名归因、`backlink` 外链估价、`worth` 网站估值、`history` 域名前世、`adsense` 过审预检、`chat` 站内 SEO Agent、`referring*` Stripe 引荐流量榜（不计配额）；**`translate*` 需求翻译器 / `mine*` 需求挖掘机 / `domain*` 起名+域名核验**（2026-08-24 补全）；**4 个本地命令 `kgr`/`string`/`money`/`email`**（纯本地计算、零网络零配额、可 `--batch` 批量；**只出数值不出评级**，判读对照 `references/seo-webcafe.md`「本地命令数值判读指引」）；`endpoints` 零配额普查、`tools` 列出确认无后端的工具及理由 | 问「这个词难不难做」「这盘面能不能进」「这条外链值不值」「这域名什么来历」「帮我想个站名」。零配置可跑，匿名 10 次/日。**本地那 4 个命令不消耗任何配额，可以放开批量跑**。非 200/解析失败的响应原文恒落盘（--out 或 `.rankup/evidence/`），失败先看原文再下结论 |
-| **`scripts/demand/` 一整组（21 个）** | **需求挖掘取数**：榜单、差评、外包、广告、新词平台、竞品 sitemap、站群反查、词根库、域名画像。全部零依赖、`--json`/`--out` 统一。失败会把 `{url,status,body}` 落进证据目录并在 manifest 里逐源记状态 | 用户说「找几个关键词」「挖点需求」「最近有什么能做的」时。**先读 [`demand-sources.md`](references/demand-sources.md) 那张源→脚本路由表，不要逐个翻脚本**。**空结果必须先核对 manifest 的 sources 状态：配额 429/CAPTCHA/改版/超时 都会产出 0 条，采集失败 ≠ 没需求** |
+| **`scripts/demand/` 一整组（23 个可执行 + `_lib.mjs`；逐个能力见 [`capability-map.md`](references/capability-map.md)）** | **需求挖掘取数**：榜单、差评、外包、广告、新词平台、竞品 sitemap、站群反查、词根库、域名画像。全部零依赖、`--json`/`--out` 统一。失败会把 `{url,status,body}` 落进证据目录并在 manifest 里逐源记状态 | 用户说「找几个关键词」「挖点需求」「最近有什么能做的」时。**先读 [`demand-sources.md`](references/demand-sources.md) 那张源→脚本路由表，不要逐个翻脚本**。**空结果必须先核对 manifest 的 sources 状态：配额 429/CAPTCHA/改版/超时 都会产出 0 条，采集失败 ≠ 没需求** |
 | `scripts/demand/revenue-site-audit.mjs` | **收入站案例复核薄编排**：调用现有 AITDK、Similarweb、Semrush、sitemap、KD 脚本，统一标明月份/国家/报告页，**产出原始各源对照数据与倍差事实（不含 verdict）**，原始采集文件全部保留并在输出 `rawFilesDir` 给路径 | 社交帖子或榜单声称「新站、月访、自然占比、MRR」时；它只整证据，**证实/反证这类 verdict 由 AI 对照 `demand-sources.md` 第十节的判据下**，采集器失败在 manifest 里可见、不得读成「该站没数据」 |
 | `scripts/rankup-cli.mjs` | **Semrush / Similarweb 能力目录与可续跑取证入口**：`catalog` 看能力（`--modules` 展开工具箱树、`--gaps` 只看没摸到的地方），`capture` 抓一个报告，`audit` 按 manifest 逐页保存原图、全文 HTML、DOM、AX、解析结果、应用 JSON、网络结构和哈希回执 | 第一次摸平台功能、复查页面能力、或把已发现的页面清单重复跑一遍时；底层复用 OpenCLI 登录态。**判断「这个面板能不能拿到 X」先读 [`provider-capabilities.md`](references/provider-capabilities.md)，不要现开浏览器翻** |
 | `scripts/gt.py` | Google Trends 统一入口：热度对比、地区分布、相关飙升词、每日热搜 | 问「XX 和 YY 哪个更火」「哪个国家有机会」「最近什么在涨」。**默认走浏览器路由，不需要 venv** |

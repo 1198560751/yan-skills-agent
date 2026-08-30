@@ -19,10 +19,22 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readFileSync, realpathSync } from 'node:fs';
+// 本文件是不是被直接执行的那一个。**help 守卫必须先问这一句**：
+// 2026-08-30 实测，treasure.mjs `import` 本文件时，ESM 的 import 提升让这段
+// 顶层代码抢在 treasure 自己的 help 守卫之前跑完——于是
+// `treasure.mjs --help` 打印的是 search.mjs 的帮助并 exit 0，
+// treasure 自己的帮助永远到不了用户眼前，而 check-help 因为「退出码 0 且有输出」
+// 判它绿灯。被 import 时这段必须整段沉默。
+const invokedDirectly = (() => {
+  try {
+    return Boolean(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch { return false; }
+})();
+
 // `--help` 是成功，不是用法错误。放在最前面：本文件在任何参数解析之前
 // 就会开工（起服务 / 读文件 / 校验必填），走到那里再判就已经晚了。
 // 帮助文案直接取本文件头部注释，不另写一份——两份必然漂移。
-if (process.argv.slice(2).some((a) => a === '--help' || a === '-h')) {
+if (invokedDirectly && process.argv.slice(2).some((a) => a === '--help' || a === '-h')) {
   const src = readFileSync(new URL(import.meta.url).pathname, 'utf8');
   const block = src.match(/\/\*\*([\s\S]*?)\*\//)
     ? src.match(/\/\*\*([\s\S]*?)\*\//)[1].split('\n').map((l) => l.replace(/^\s*\* ?/, ''))
@@ -96,10 +108,8 @@ export async function searchAll(q, { pages = 1, ...opts } = {}) {
   return { skills: out, quota, anonymous };
 }
 
-let isMain = false;
-try {
-  isMain = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
-} catch { /* argv[1] 缺失或不可解析 → 视为被 import */ }
+// 与文件顶部 help 守卫用的是同一个判断（那里必须早于 import 提升，所以先算了一次）。
+const isMain = invokedDirectly;
 
 if (isMain) {
   const argv = process.argv.slice(2);
