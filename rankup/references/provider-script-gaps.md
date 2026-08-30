@@ -57,7 +57,7 @@
 | `semrush-overview.mjs` / `semrush-batch.mjs` | 域名概览 | **没有全球选项**，`organicTraffic` 恒为某一个国家库；`db: null` 只表示"不知道是哪个库" |
 | `semrush-report.mjs` | organic-overview / organic-positions / organic-pages / backlinks-list / backlinks-overview / keyword-overview | positions/pages 支持翻页；词维度刻意只留一张，指向 `semrush-keyword.mjs` |
 | `semrush-keyword.mjs` | 关键词概览 | **唯一有 `globalVolume` 的口径**；`--db` 默认 `jp`（历史包袱）；**bulk 模式下 `globalVolume`/`byCountry` 恒为 `null`**；`byCountry` 只是页面 Top-N，加总 ≠ `globalVolume` |
-| `similarweb-query.mjs` / `similarweb-batch.mjs` | performance / channels / similar-sites | **只有 performance 有结构化 metrics**；`similar-sites` 只给 bodyText；`belowFloor` **是结论不是失败** |
+| `similarweb-query.mjs` / `similarweb-batch.mjs` | performance / channels / similar-sites | **只有 performance 有结构化 metrics**；`similar-sites` 只给 bodyText；`noDataTextObserved` **是观测事实（页面正面写了那句话），既不是失败也不是判决**，它意味着什么由 AI 读证据判（旧字段名 `belowFloor` 已移除） |
 | `payment-referrers.mjs similarweb` | 引荐域名 | **焊死在支付网关场景**，不是通用引荐域脚本；份额配对已知失败（29 个域名对 37 个百分比） |
 
 ---
@@ -213,7 +213,7 @@ innerText、指标可以整格「不可用」——同一页里第 1 行有 8 �
 ```
 --domain example.com [--report geography|demographics] [--window 28d] [--out geo.json]
 ```
-输出：`{version, domain, window, scope:'global', countries:[{code,name,visits,sharePercent}], top1Share, retrievedAt, belowFloor}`
+输出：`{version, domain, window, scope:'global', countries:[{code,name,visits,sharePercent}], top1Share, retrievedAt, noDataTextObserved}`
 难点：份额**由绝对值自己算**，别去页面捞百分比串；中文国家名 → ISO 映射，映射不上保留原文不要丢弃。
 **这个脚本的价值全在下游**——同时给 `revenue-site-audit.mjs` 加可选入参，让地理错配自动算出来而不是靠人记。
 

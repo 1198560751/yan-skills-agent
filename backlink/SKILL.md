@@ -82,9 +82,15 @@ backlink/
 │   │                               only the first is worth re-reading.
 │   │                               See <law-ref id="hidden-tabs-do-not-hydrate"/>
 │   ├── traffic-crosscheck.mjs      offline: eats one semrush-traffic.mjs JSON and one
-│   │                               similarweb-query.mjs JSON and reports whether the two
-│   │                               platforms agree; never touches a page itself
-│   ├── tools-share-evidence.mjs    rendered, redacted evidence bundle for one report
+│   │                               similarweb-query.mjs JSON and reports the DIFFERENCES
+│   │                               between them — never an agree/diverge/conflict verdict,
+│   │                               never a non-zero exit for a big diff. How to read a gap:
+│   │                               references/traffic-screen.md. Never touches a page itself
+│   ├── tools-share-evidence.mjs    rendered, redacted evidence bundle for one report.
+│   │                               For a NEW capture prefer scripts/ground-truth.mjs (the
+│   │                               two-witness collector); come here for the REPORTS route
+│   │                               registry (which URL is which report) and for the wider
+│   │                               artifact set (html / ax / network / app-json)
 │   ├── page-read.mjs               render a public page → text, prices, paywall signal
 │   │                               spans (matched text + context, never verdict booleans)
 │   ├── apply-traffic-screen.mjs    write measured numbers + evidence paths back (never verdicts)
@@ -142,16 +148,24 @@ backlink/
 │   │                               gatesFrom), separately unit-tested; every output is
 │   │                               `suggested: true` and the AI may overrule it against
 │   │                               the dumped raw HTML
-│   ├── merge-submission-targets.mjs fold a probe run into the two data files
+│   ├── merge-submission-targets.mjs fold a probe run into the two data files. Drops nothing
+│   │                               silently: every dead/unverified row is printed in full
+│   │                               (and written by --dropped-out) with its reason and
+│   │                               evidence, and the usable→gated downgrade is listed as
+│   │                               derived-from-the-gate-set, not applied in silence
 │   ├── lib-cohort.mjs              ★ the shared cohort/gate vocabulary — targets-select,
 │   │                               validate-data, probe and merge all read it. Change a
 │   │                               cohort name here, not in four places.
 │   ├── targets-select.mjs          pick ONE batch: --cohort open | captcha | … ; --ledger excludes submitted
 │   ├── paid-platform-registry.mjs  merge a harvest into the paid registry
 │   ├── harvest-*.{sh,mjs}          bulk table extraction from logged-in dashboards
-│   └── harvest.browser.js          ★ generic virtual-scroll table extractor: rebuilds rows
+│   └── harvest.browser.js          generic virtual-scroll table extractor: rebuilds rows
 │                                   by Y-coordinate clustering, adapts to column drift.
 │                                   NOTE the dot — the harvest-* glob above does NOT match it.
+│                                   NOT the first choice any more: scripts/ground-truth.mjs
+│                                   pierces shadow DOM, finds the inner scroll container,
+│                                   and pairs every read with a screenshot. Come here only
+│                                   when you need a whole table exported as a file.
 │
 └── references/           ← method, traps, and why the rules are the rules
     ├── browser-runtime.md     ★★ READ FIRST for any browser work. The laws + measurements.
@@ -2288,6 +2302,90 @@ per-census href (witness discipline from
 </why>
 </law>
 
+<law id="scripts-collect-ai-judges" weight="load-bearing">
+<statement>
+**A script's whole job is to collect and to leave a scene. The verdict is the
+AI's, always, and a script that ships one has manufactured evidence.** This is
+the general form of what
+<law-ref id="every-measurement-needs-two-witnesses"/> proves on quota pages; it
+binds every script in this repo, browser-driving or not, and it is the standard
+the 2026-08-30 three-wave refactor was measured against.
+
+**The three-part contract — scripts collect, the AI judges, failure leaves a
+scene:**
+
+| a script MAY emit | a script MAY NOT emit |
+|---|---|
+| a measured number, and `null` when there is none | a threshold comparison rendered as a word (`pass` / `fail` / `below-floor` / `agree` / `diverge` / `conflict`) |
+| arithmetic on measured numbers (a diff, a ratio, a median, a count) | a band name for that arithmetic (`low` / `normal` / `high`, `优秀` / `一般`) |
+| the sentence the page rendered, quoted, with the screenshot it was read from | that sentence translated into a conclusion (「没有需求」「功能不存在」「不值得做」) |
+| `stopReason`, `readyBranch`, HTTP status, headers, the raw body | an exit code that encodes disagreement rather than failure-to-run |
+| a candidate ordering, named as an ordering (`sortKey`) | a score named as quality, or a default filter that drops rows unasked |
+| an inference, **labelled as derived** and printed alongside what it derived from | the same inference applied silently to the data |
+
+**The three iron rules for any script that touches a browser** — every failure
+branch, every one, no exceptions for "it's obviously just a timeout":
+
+1. **先取证后死** — screenshot + census (<ref file="scripts/lib-evidence-scene.mjs"/>'s
+   `captureScene`) land on disk **before** any `throw`, `die()` or `process.exit`.
+   An error string is not evidence; it is a script's opinion about evidence it
+   destroyed.
+2. **先取证后关** — `finally { close(session) }` moves **after** the capture.
+   Closing the session first destroys the only witness, and then the AI is
+   handed one line of prose and asked to judge from it.
+3. **waitFor, not sleep** — poll a condition you can name; a fixed `sleep` either
+   wastes budget or reads a placeholder, and both look like success.
+
+**没查过 ≠ 测得零。** An unqueried market, a 429, a CAPTCHA, a site redesign and
+a genuine absence must be **byte-level distinguishable in the output**. The
+shapes this repo has actually shipped and had to remove: `catch { break }` →
+`[]`; `noData: true` as a *default* for a market never queried; a quota
+exhaustion rendering as an empty table; `throw new Error('CAPTCHA required')`
+with the response body discarded. Every one of them let a collection failure be
+read as a market conclusion. A never-queried thing gets its own state
+(`not-queried`), a failed capture gets a `stopReason`, and both are visible in
+the default view — not only under a flag.
+
+**Corollary — a script's verdict must never be persisted as a fact.** Once a
+verdict lands in a shared data file, every downstream reader consumes it as a
+measurement, and a single mirror hiccup becomes permanent. `traffic.verdict` in
+`data/submission-targets.json` is the worked example: it is now legacy-only,
+never written, computed at query time from the measured number instead
+(`targets-select.mjs --min-traffic`), and strippable
+(`apply-traffic-screen --strip-legacy-verdicts`).
+</statement>
+<why>
+The refactor audit read all 101 scripts in this repo against
+<ref file="scripts/ground-truth.mjs"/> and found 22 P0 and 33 P1 violations of
+exactly this contract. Three specimens, because the general rule is easy to
+nod at and easy to break:
+
+- **A threshold nobody measured, persisted as truth.** `similarweb-batch.mjs`
+  wrote `verdict: v >= 100 ? 'pass' : 'fail'` — the 100 was picked by hand, and
+  `apply-traffic-screen.mjs` wrote it into the shared data file, where
+  `targets-select`, `ledger` and `validate-data` all consumed it as a
+  measurement. mmradar.gg was filed `below-floor` while serving 351,111
+  visits/mo. The tail of that bug outlived the fix by a wave:
+  `ledger.mjs remaining --min-traffic` still required `verdict === 'pass'`, so
+  after the verdict stopped being written **every freshly re-measured domain was
+  silently filtered out** — "re-measured" and "unqualified" made identical.
+- **Bands with no measurement behind them.** `traffic-crosscheck.mjs` graded two
+  panels `agree` / `diverge` / `conflict` at 15% / 50% / 5pp / 25%, and exited
+  non-zero on `conflict`. Whether an 18% gap matters depends on window overlap,
+  metric definition, site size and what you want the number for — that is a
+  judgment, and it now lives in `references/traffic-screen.md` while the script
+  reports the diff.
+- **Silent subtraction.** `treasure.mjs` defaulted `--max-stars` to 5000 and
+  dropped everything above it; `merge-submission-targets.mjs` discarded
+  `dead`/`unverified` rows behind two counters. In both, "there were only these"
+  and "the script threw the rest away" were the same output. A count is not
+  reviewable; the rows are.
+
+The through-line is one sentence: **a script that judges puts its conclusion
+where the evidence should have been, and no law reviews it there.**
+</why>
+</law>
+
 <semrush-traffic-route-capabilities date="2026-08-29">
 <summary>
 **Route capability map for Semrush Traffic Analytics — double-witness
@@ -3236,6 +3334,13 @@ node scripts/harvest-merge.mjs         # merge by field shape, refuse duplicate 
 `scripts/harvest.browser.js` is the in-page collector. Its output arrives via a
 Blob download rather than a return value, because the execution channel
 truncates at roughly 1 KB.
+
+**Reach for it only when you need the whole table as a file.** For reading a
+report — "what does this page say", "is there data here at all" — use
+<ref file="scripts/ground-truth.mjs"/> instead: it is the collector
+<law-ref id="every-measurement-needs-two-witnesses"/> names, and harvest.browser.js
+has exactly one witness (the DOM), no manifest, and no screenshot to contradict
+it. When you do use harvest.browser.js, take the screenshots yourself.
 </note>
 </workflow>
 

@@ -13,21 +13,21 @@
  *
  * 2026-08-28 实测 `canva.com`，两个平台的总访问量落在 2.4% 以内：
  *
- *   | 指标         | Semrush .Trends（2026年7月，全球） | Similarweb | 差异   | 判定           |
- *   |--------------|-----------------------------------|------------|--------|----------------|
- *   | 总访问量     | 790,000,000                       | 771,400,000| +2.4%  | ✅ 可互校      |
- *   | 桌面占比     | 84.26%                            | 82.56%     | +1.7pp | ✅ 可互校      |
- *   | 移动占比     | 15.74%                            | 17.44%     | −1.7pp | ✅ 可互校      |
- *   | 跳出率       | 30.23%                            | 26.99%     | +3.2pp | ⚠️ 大致可比    |
- *   | 页数/访问    | 5.4                               | 6.39       | −15%   | ⚠️ 只能比大小  |
- *   | **平均访问时长** | **11:02**                     | **05:56**  | **+86%** | ❌ **不能并列** |
+ *   | 指标         | Semrush .Trends（2026年7月，全球） | Similarweb | 差异   |
+ *   |--------------|-----------------------------------|------------|--------|
+ *   | 总访问量     | 790,000,000                       | 771,400,000| +2.4%  |
+ *   | 桌面占比     | 84.26%                            | 82.56%     | +1.7pp |
+ *   | 移动占比     | 15.74%                            | 17.44%     | −1.7pp |
+ *   | 跳出率       | 30.23%                            | 26.99%     | +3.2pp |
+ *   | 页数/访问    | 5.4                               | 6.39       | −15%   |
+ *   | **平均访问时长** | **11:02**                     | **05:56**  | **+86%** |
  *
  * 两条结论，本脚本就是它们的执行体：
- *   1. **总访问量可以互相校验。** 两家用完全不同的面板和模型，落在 2.4% 以内；
- *      差到数量级就是有一边错了，这时候要的是告警，不是平均。
- *   2. **平均访问时长永远不可比。** 差了近一倍，两家对「一次访问」的定义不同。
- *      本脚本对它**永远输出 `not-comparable`，且不带任何 agree/diverge 判定**——
- *      给了判定就等于暗示它可以比。
+ *   1. **总访问量可以互相校验。** 两家用完全不同的面板和模型，落在 2.4% 以内。
+ *   2. **平均访问时长两家口径不同，不能并列。** 差了近一倍，两家对「一次访问」的
+ *      定义不同。这是**指标本身的属性**（不随某一次运行改变），所以脚本对它
+ *      `comparable: false` 并原样给两侧数值，**连 diff 都不算**——一个百分比摆在
+ *      那里，读者就会拿去用。
  *
  * ──────────────────────────────────────────────────────────────────────
  * 用法
@@ -42,22 +42,31 @@
  *   --out <file> / --json / --help
  *
  * ──────────────────────────────────────────────────────────────────────
- * 判定分档（写死在这里，改档要连着改 self-test）
+ * 本脚本**只出差值，不出判定**（第三波，2026-08-30）
  * ──────────────────────────────────────────────────────────────────────
- *   visits              相对差 ≤15% → agree；15–50% → diverge；>50% 或差一个数量级 → conflict
- *   desktop/mobile 占比 差 ≤5pp → agree；否则 diverge
- *   bounceRatePercent   差 ≤5pp → agree；否则 diverge
- *   pagesPerVisit       相对差 ≤25% → agree；否则 diverge
- *   avgVisitDuration    永远 not-comparable
+ * 以前这里有一张 `agree / diverge / conflict` 分档表，阈值写死在代码里：
+ * visits ≤15% 算「一致」、>50% 算「冲突」，占比 5pp，页数/访问 25%。那些数字
+ * 没有任何一次实测支撑——它们是**当时随手定的**，却被输出成 `verdict` 字段，
+ * 读起来像测量结论，还会让 `conflict` 把进程退成非零码。两个面板差 18% 到底
+ * 算不算一回事，取决于窗口重合度、口径、这个站的量级和你要拿它干什么，
+ * 这是**判断**，不是算术。
+ *
+ * 现在脚本只做算术：每个指标给 `{semrush, similarweb, diff, diffUnit,
+ * diffBasis}`，两侧齐全就叫 `comparable: true`，缺一侧就 `comparable: false`
+ * 加缺值原因。**没有 verdict 字段，没有阈值，没有因分歧而来的非零退出码。**
+ * 差多少算不算问题，判读指引在
+ * `backlink/references/traffic-screen.md` 的「两家数字对不上，先问哪个问题」一节。
  *
  * 相对差一律以 **Similarweb 侧为基**：`(semrush − similarweb) / similarweb × 100`。
  * 上表里的 +2.4% 和 −15% 就是这么算的，脚本和参考表用同一个基，读者不用换算。
+ * `orderOfMagnitude: true` 也只是算术事实（一侧是另一侧的 ≥10 倍或 ≤1/10 倍），
+ * 不是「有一边错了」的判决。
  *
  * ──────────────────────────────────────────────────────────────────────
  * 本仓库的硬性规则，本文件逐条遵守
  * ──────────────────────────────────────────────────────────────────────
- *  - **`null` 和 `0` 分开。** 任何一侧缺值 → 该指标 `unknown`，绝不当成 0、绝不当成 agree。
- *    `unknown` 的指标单独计数并列出 key，免得「没比成」被读成「比过了没问题」。
+ *  - **`null` 和 `0` 分开。** 任何一侧缺值 → 该指标 `comparable: false`，绝不当成 0。
+ *    缺值的指标单独计数并列出 key，免得「没比成」被读成「比过了没问题」。
  *  - **口径限度随结果一起输出**，不只写在注释里：输出带 `caveats` 数组，里面有两侧的
  *    时间窗口（读不到就写 unknown）和「窗口不完全重合时差异会被放大」这句。
  *    实测那次 Semrush 是整月、Similarweb 标的是 `Jul 2026 - Aug 2026` 和
@@ -76,7 +85,7 @@
  *    失败时顶层是 `status: 'unavailable'` 且**没有** `parsed`。
  *  - similarweb-query.mjs：指标在 `metrics` 之下，域名在顶层 `domain`（不是 `target`）。
  *    `metrics` 过了 `compact()`，**null 字段是被删掉的**，所以「缺值」表现为键不存在。
- *    `metrics` 只在 `report === 'performance'` 且 `belowFloor` 为假时才存在。
+ *    `metrics` 只在 `report === 'performance'` 且 `noDataTextObserved` 为假时才存在。
  *    时长是 `visitDuration`，`HH:MM:SS`，且**没有**秒数字段。
  */
 import { readFile, writeFile } from 'node:fs/promises';
@@ -212,10 +221,11 @@ export function readSimilarweb(doc) {
   if (d.status === 'unavailable') {
     return { unavailable: `similarweb JSON 的 status 是 unavailable（${d.error?.code || 'no code'}），没有可比的数` };
   }
-  if (d.belowFloor) {
-    // 「数据源正面说了没有这个站的数据」是结论，不是失败——但它同样没有可比的数。
-    return { unavailable: 'similarweb JSON 的 belowFloor 为真：数据源明确说没有该站数据，无从互校' };
-  }
+  // `noDataTextObserved` 是**观测事实**（页面正面渲染了「没有此网站的数据」那句话），
+  // 既不是采集失败也不是判决。以前这里把它当成「拒绝互校」的理由——那是替 AI 下判断。
+  // 现在只把它当成一条随结果输出的观察：`metrics` 本来就不会存在，各指标自然落成
+  // comparable:false，读者看得见「这一侧为什么没有数」。旧文件里的 belowFloor 同义。
+  const noDataTextObserved = Boolean(d.noDataTextObserved ?? d.belowFloor);
   const m = d.metrics || {};
   const shares = parseDeviceShares(d.rawText);
   const durationText = typeof m.visitDuration === 'string' ? m.visitDuration : null;
@@ -224,6 +234,7 @@ export function readSimilarweb(doc) {
     provider: 'similarweb',
     domain: normalizeDomain(d.domain),
     retrievedAt: d.retrievedAt ?? null,
+    noDataTextObserved,
     window: [
       windows.totalVisits ? `总访问量 ${windows.totalVisits}` : null,
       windows.engagement ? `参与度 ${windows.engagement}` : null,
@@ -239,26 +250,29 @@ export function readSimilarweb(doc) {
   };
 }
 
-// ---------- 判定 ----------
+// ---------- 算差值（**只有算术，没有判定**） ----------
 
 /** 相对差以 Similarweb 侧为基，和 provider-capabilities.md 那张表同一个算法。 */
 function relativePercent(semrush, similarweb) {
-  if (similarweb === 0) return null;                    // 0 做分母没有意义，判 unknown 而不是 Infinity
+  if (similarweb === 0) return null;                    // 0 做分母没有意义，不给 Infinity
   return round2(((semrush - similarweb) / similarweb) * 100);
 }
 
+// 这两张表只剩「这个指标怎么算差」和「中文标签是什么」。
+// 阈值字段（agree / diverge）在第三波删除：差多少算不算问题是判断，不是算术。
 const RELATIVE_METRICS = {
-  visits: { label: '总访问量', agree: 15, diverge: 50 },
-  pagesPerVisit: { label: '页数/访问', agree: 25, diverge: null },
+  visits: { label: '总访问量' },
+  pagesPerVisit: { label: '页数/访问' },
 };
 const POINT_METRICS = {
-  desktopSharePercent: { label: '桌面占比', agree: 5 },
-  mobileSharePercent: { label: '移动占比', agree: 5 },
-  bounceRatePercent: { label: '跳出率', agree: 5 },
+  desktopSharePercent: { label: '桌面占比' },
+  mobileSharePercent: { label: '移动占比' },
+  bounceRatePercent: { label: '跳出率' },
 };
 
 /**
- * 一个可比指标 → 一条结果。**任何一侧缺值一律 unknown**，不填 0、不判 agree。
+ * 一个指标 → 一条**事实记录**。两侧齐全就算差值并标 `comparable: true`；
+ * 任何一侧缺值 → `comparable: false` + 缺值原因，绝不填 0、绝不省略。
  * 这里是 null-vs-0 红线唯一会被绕过的地方，所以判空写在最前面，早于一切计算。
  */
 function compareMetric(key, a, b) {
@@ -266,49 +280,42 @@ function compareMetric(key, a, b) {
   if (a === null || b === null) {
     return {
       ...base,
-      verdict: 'unknown',
+      comparable: false,
       reason: a === null && b === null ? '两侧都没有这个值'
         : a === null ? 'Semrush 侧没有这个值' : 'Similarweb 侧没有这个值',
     };
   }
 
   if (RELATIVE_METRICS[key]) {
-    const { agree, diverge } = RELATIVE_METRICS[key];
     const rel = relativePercent(a, b);
-    if (rel === null) return { ...base, verdict: 'unknown', reason: 'Similarweb 侧是 0，相对差无意义' };
-    const magnitude = b !== 0 && (a / b >= 10 || a / b <= 0.1);
-    const abs = Math.abs(rel);
-    // `diverge` 为 null 的指标（页数/访问）没有 conflict 档：它本来就「只能比大小」，
-    // 再分一档 conflict 只是给一个粗指标假装精度。
-    const verdict = magnitude || (diverge !== null && abs > diverge) ? 'conflict'
-      : abs <= agree ? 'agree' : 'diverge';
+    if (rel === null) return { ...base, comparable: false, reason: 'Similarweb 侧是 0，相对差无意义（0 是实测值，不是缺值）' };
+    // 「一侧是另一侧的 ≥10 倍或 ≤1/10 倍」是算术事实，照报；它**不**等于「有一边错了」。
+    const magnitude = a / b >= 10 || a / b <= 0.1;
     return {
       ...base,
+      comparable: true,
       diff: rel,
       diffUnit: 'percent',
       diffBasis: '(semrush − similarweb) / similarweb',
       ...(magnitude ? { orderOfMagnitude: true } : {}),
-      verdict,
     };
   }
 
-  const { agree } = POINT_METRICS[key];
-  const points = round2(a - b);
   return {
     ...base,
-    diff: points,
+    comparable: true,
+    diff: round2(a - b),
     diffUnit: 'percentage-points',
     diffBasis: 'semrush − similarweb',
-    verdict: Math.abs(points) <= agree ? 'agree' : 'diverge',
   };
 }
 
 /**
- * 平均访问时长。**永远 not-comparable，永远不带 diff/verdict 之外的判定字段。**
+ * 平均访问时长。**永远 comparable:false，且连 diff 都不算。**
  *
- * 实测两家差 86%（11:02 vs 05:56）。给它任何 agree/diverge 都等于暗示它可以比，
- * 所以这里连 `diff` 都不给——一个百分比摆在那里，读者就会拿去用。
- * 两侧的原值照给，说明照给，剩下的交给人判断。
+ * 这不是一次运行的判断，是指标本身的属性：两家对「一次访问」的定义不同。
+ * 实测两家差 86%（11:02 vs 05:56）。算一个百分比摆在那里，读者就会拿去用，
+ * 所以这里只给两侧原值和说明，剩下的交给人判断。
  */
 function durationEntry(a, b) {
   return {
@@ -318,7 +325,8 @@ function durationEntry(a, b) {
     semrushSeconds: a.avgVisitDurationSeconds,
     similarweb: b.avgVisitDuration,
     similarwebSeconds: b.avgVisitDurationSeconds,
-    verdict: 'not-comparable',
+    comparable: false,
+    reason: 'metric-definition-differs',
     note: '两家对「一次访问」的定义不同（会话超时阈值也可能不同）。2026-08-28 实测 canva.com '
         + '相差 86%（11:02 vs 05:56），窗口不重合解释不了这个量级。不要把两家的时长放进同一张表，'
         + '也不要据此计算差异百分比。',
@@ -370,21 +378,35 @@ export function crosscheck(semrushDoc, similarwebDoc) {
     durationEntry(a, b),
   ];
 
-  const by = (v) => metrics.filter((m) => m.verdict === v);
-  const unknown = by('unknown');
+  const compared = metrics.filter((m) => m.comparable === true);
+  // 「缺值」和「口径本来就不可比」是两回事，分开数，别合成一个 unknown。
+  const missing = metrics.filter((m) => m.comparable === false && m.reason !== 'metric-definition-differs');
+  const incomparable = metrics.filter((m) => m.reason === 'metric-definition-differs');
   const extraCaveats = [];
+  if (b.noDataTextObserved) {
+    extraCaveats.push(
+      'Similarweb 侧的 JSON 带 `noDataTextObserved: true`：页面正面渲染了「没有此网站的数据」那句话。'
+      + '这是**观测事实，不是失败也不是判决**——它意味着什么（低于测量下限？域名写错？镜像抖动？）'
+      + '要读 rawText 和现场证据判。本次互校因此拿不到 Similarweb 侧的数。',
+    );
+  }
   if (b.deviceShareRejectedSum !== null && b.deviceShareRejectedSum !== undefined) {
     extraCaveats.push(
       `Similarweb 的设备占比解析出的两项之和是 ${b.deviceShareRejectedSum}%，偏离 100 过多，`
-      + '整组按解析失败作废（判 unknown），没有拿去比。',
+      + '整组按解析失败作废（记为缺值），没有拿去比。',
     );
   }
-  if (unknown.length) {
+  if (missing.length) {
     extraCaveats.push(
-      `有 ${unknown.length} 个指标因为某一侧缺值而无法比较：${unknown.map((m) => m.metric).join('、')}。`
-      + '缺值是 unknown，不是 0，也不代表两家一致。',
+      `有 ${missing.length} 个指标因为某一侧缺值而没有差值：${missing.map((m) => m.metric).join('、')}。`
+      + '缺值不是 0，也不代表两家一致。',
     );
   }
+  extraCaveats.push(
+    '本文件只给差值，不给「一致/分歧/冲突」的判定——差多少算不算问题，取决于窗口重合度、'
+    + '口径、站点量级和你要拿它干什么。判读指引在 backlink/references/traffic-screen.md '
+    + '的「两家数字对不上，先问哪个问题」一节。',
+  );
 
   return {
     version: 1,
@@ -396,16 +418,26 @@ export function crosscheck(semrushDoc, similarwebDoc) {
       similarweb: { provider: 'Similarweb', domain: b.domain, retrievedAt: b.retrievedAt, window: b.window },
     },
     metrics,
+    // 摘要只数事实：算了几条差值、几条因缺值没算、几条口径本来就不可比，
+    // 以及这批差值里最大的一个绝对相对差是多少（一个数，不是一个档位）。
     summary: {
-      comparable: metrics.length - unknown.length - by('not-comparable').length,
-      agree: by('agree').length,
-      diverge: by('diverge').length,
-      conflict: by('conflict').length,
-      // 「无法比较的指标数」单独报，免得被读成「比过了没问题」。
-      unknown: unknown.length,
-      unknownMetrics: unknown.map((m) => m.metric),
-      notComparable: by('not-comparable').length,
-      notComparableMetrics: by('not-comparable').map((m) => m.metric),
+      metrics: metrics.length,
+      compared: compared.length,
+      comparedMetrics: compared.map((m) => m.metric),
+      // 「没比成的指标」单独报，免得被读成「比过了没问题」。
+      missingValue: missing.length,
+      missingValueMetrics: missing.map((m) => m.metric),
+      incomparable: incomparable.length,
+      incomparableMetrics: incomparable.map((m) => m.metric),
+      maxAbsRelativeDiffPercent: (() => {
+        const rel = compared.filter((m) => m.diffUnit === 'percent').map((m) => Math.abs(m.diff));
+        return rel.length ? Math.max(...rel) : null;
+      })(),
+      maxAbsPointDiff: (() => {
+        const pts = compared.filter((m) => m.diffUnit === 'percentage-points').map((m) => Math.abs(m.diff));
+        return pts.length ? Math.max(...pts) : null;
+      })(),
+      orderOfMagnitudeMetrics: compared.filter((m) => m.orderOfMagnitude).map((m) => m.metric),
     },
     caveats: buildCaveats(a, b, extraCaveats),
   };
@@ -442,7 +474,7 @@ if (flags['self-test']) {
   ].join('\n');
   const similarwebDoc = {
     version: 1, report: 'performance', domain: 'canva.com',
-    retrievedAt: '2026-08-28T00:00:00.000Z', belowFloor: false,
+    retrievedAt: '2026-08-28T00:00:00.000Z', noDataTextObserved: false,
     metrics: { totalVisits: 771400000, bounceRatePercent: 26.99, pagesPerVisit: 6.39, visitDuration: '00:05:56' },
     rawText: similarwebRaw,
   };
@@ -450,10 +482,18 @@ if (flags['self-test']) {
   const report = crosscheck(semrushDoc, similarwebDoc);
   const pick = (key) => report.metrics.find((m) => m.metric === key);
 
-  // 1. visits 判 agree，差异约 +2.4%
+  // 0. **整份报告里不许再出现任何判决词。** 这一条排在最前面，因为它是第三波的核心：
+  //    agree/diverge/conflict 与 verdict 字段被彻底删除，脚本只出差值。
+  const reportJson = JSON.stringify(report);
+  check('no-verdict-vocabulary-anywhere',
+    !/"verdict"/.test(reportJson) && !/\bagree\b|\bdiverge\b|\bconflict\b/i.test(reportJson),
+    reportJson.slice(0, 400));
+
+  // 1. visits 的差值约 +2.4%，两侧原值照给，comparable 是事实不是评价
   const visits = pick('visits');
-  check('visits-agree-at-2.4-percent',
-    visits.verdict === 'agree' && Math.abs(visits.diff - 2.41) < 0.05
+  check('visits-diff-is-2.4-percent',
+    visits.comparable === true && Math.abs(visits.diff - 2.41) < 0.05
+    && visits.diffUnit === 'percent'
     && visits.semrush === 790000000 && visits.similarweb === 771400000,
     JSON.stringify(visits));
 
@@ -461,55 +501,61 @@ if (flags['self-test']) {
   check('device-shares-parsed-from-rawtext',
     pick('desktopSharePercent').similarweb === 82.56 && pick('mobileSharePercent').similarweb === 17.44,
     JSON.stringify([pick('desktopSharePercent'), pick('mobileSharePercent')]));
-  check('device-and-bounce-agree-within-5pp',
-    pick('desktopSharePercent').verdict === 'agree' && pick('desktopSharePercent').diff === 1.7
-    && pick('mobileSharePercent').verdict === 'agree' && pick('mobileSharePercent').diff === -1.7
-    && pick('bounceRatePercent').verdict === 'agree' && pick('bounceRatePercent').diff === 3.24,
+  check('point-metrics-report-点差-not-a-band',
+    pick('desktopSharePercent').diff === 1.7 && pick('desktopSharePercent').diffUnit === 'percentage-points'
+    && pick('mobileSharePercent').diff === -1.7
+    && pick('bounceRatePercent').diff === 3.24
+    && [pick('desktopSharePercent'), pick('mobileSharePercent'), pick('bounceRatePercent')]
+      .every((m) => m.comparable === true && !('verdict' in m)),
     JSON.stringify(report.metrics));
-  // 页数/访问：−15%，落在 25% 档内 → agree（表里写的「只能比大小」是给人看的口径提醒）
-  check('pages-per-visit-agree-at-minus-15-percent',
-    pick('pagesPerVisit').verdict === 'agree' && Math.abs(pick('pagesPerVisit').diff + 15.49) < 0.05,
+  // 页数/访问：−15%。以前这里会被 25% 阈值判成 agree；现在只有这个数。
+  check('pages-per-visit-diff-is-minus-15-percent',
+    pick('pagesPerVisit').comparable === true && Math.abs(pick('pagesPerVisit').diff + 15.49) < 0.05,
     JSON.stringify(pick('pagesPerVisit')));
 
-  // 2. 时长永远 not-comparable，且**整条记录里不许出现 agree/diverge 任何痕迹**
+  // 2. 时长永远不可比，且**连 diff 都不给**
   const duration = pick('avgVisitDuration');
   const durationJson = JSON.stringify(duration);
-  check('duration-is-not-comparable', duration.verdict === 'not-comparable', durationJson);
-  check('duration-has-no-agree-or-diverge',
-    !/agree|diverge/i.test(durationJson) && !('diff' in duration) && !('diffUnit' in duration),
-    durationJson);
+  check('duration-is-incomparable-by-definition',
+    duration.comparable === false && duration.reason === 'metric-definition-differs', durationJson);
+  check('duration-has-no-diff-at-all',
+    !('diff' in duration) && !('diffUnit' in duration), durationJson);
   check('duration-keeps-both-sides',
     duration.semrush === '11:02' && duration.similarweb === '00:05:56'
     && duration.semrushSeconds === 662 && duration.similarwebSeconds === 356
     && typeof duration.note === 'string' && duration.note.length > 0,
     durationJson);
-  check('summary-counts-duration-as-not-comparable',
-    report.summary.notComparable === 1 && report.summary.notComparableMetrics[0] === 'avgVisitDuration'
-    && report.summary.agree === 5 && report.summary.diverge === 0 && report.summary.conflict === 0
-    && report.summary.unknown === 0,
+  check('summary-counts-facts-only',
+    report.summary.compared === 5 && report.summary.missingValue === 0
+    && report.summary.incomparable === 1 && report.summary.incomparableMetrics[0] === 'avgVisitDuration'
+    && Math.abs(report.summary.maxAbsRelativeDiffPercent - 15.49) < 0.05
+    && report.summary.maxAbsPointDiff === 3.24
+    && report.summary.orderOfMagnitudeMetrics.length === 0
+    && !('agree' in report.summary) && !('conflict' in report.summary),
     JSON.stringify(report.summary));
 
-  // 3. 一侧 visits 缺失 → unknown，不是 0、不是 agree
+  // 3. 一侧 visits 缺失 → comparable:false + 原因，不是 0、不是「一致」
   //    similarweb 的 metrics 过了 compact()，缺值表现为**键不存在**，就照这个形态建夹具。
   const swNoVisits = { ...similarwebDoc, metrics: { bounceRatePercent: 26.99, pagesPerVisit: 6.39, visitDuration: '00:05:56' } };
   const missing = crosscheck(semrushDoc, swNoVisits);
   const missingVisits = missing.metrics.find((m) => m.metric === 'visits');
-  check('missing-visits-is-unknown-not-zero',
-    missingVisits.verdict === 'unknown' && missingVisits.similarweb === null
+  check('missing-visits-is-not-comparable-not-zero',
+    missingVisits.comparable === false && missingVisits.similarweb === null
     && missingVisits.semrush === 790000000 && !('diff' in missingVisits),
     JSON.stringify(missingVisits));
   check('missing-visits-never-becomes-zero',
-    missingVisits.similarweb !== 0 && missing.summary.unknown === 1
-    && missing.summary.unknownMetrics[0] === 'visits' && missing.summary.agree === 4,
+    missingVisits.similarweb !== 0 && missing.summary.missingValue === 1
+    && missing.summary.missingValueMetrics[0] === 'visits' && missing.summary.compared === 4,
     JSON.stringify(missing.summary));
-  check('unknown-count-is-reported-separately',
-    missing.caveats.some((c) => c.includes('无法比较') && c.includes('visits')),
+  check('missing-count-is-reported-separately',
+    missing.caveats.some((c) => c.includes('没有差值') && c.includes('visits')),
     JSON.stringify(missing.caveats));
-  // 0 必须仍然是一个可比的真值——不能被 null 检查一起吞掉。
+  // 0 必须仍然是一个实测值——不能被 null 检查一起吞掉，也不能被当成缺值报道。
   const swZeroVisits = { ...similarwebDoc, metrics: { ...similarwebDoc.metrics, totalVisits: 0 } };
   const zero = crosscheck(semrushDoc, swZeroVisits).metrics.find((m) => m.metric === 'visits');
   check('zero-is-a-value-not-a-gap',
-    zero.similarweb === 0 && zero.verdict === 'unknown' && zero.reason.includes('0'),
+    zero.similarweb === 0 && zero.comparable === false
+    && zero.reason.includes('0 是实测值'),
     JSON.stringify(zero));
 
   // 4. 域名不同 → 拒绝，且不产出任何比较结果
@@ -530,17 +576,25 @@ if (flags['self-test']) {
   check('unknown-domain-is-also-refused', noDomain instanceof Error && /读不出目标域名/.test(noDomain.message),
     String(noDomain && noDomain.message));
 
-  // 5. 差一个数量级 → conflict
+  // 5. 差一个数量级 → 仍然只是一个差值 + 一个算术标记，**不是判决、不改退出码**
   const swMagnitude = { ...similarwebDoc, metrics: { ...similarwebDoc.metrics, totalVisits: 7900000 } };
-  const conflict = crosscheck(semrushDoc, swMagnitude).metrics.find((m) => m.metric === 'visits');
-  check('order-of-magnitude-is-conflict',
-    conflict.verdict === 'conflict' && conflict.orderOfMagnitude === true && conflict.diff === 9900,
-    JSON.stringify(conflict));
-  // 中间档要真的落在 diverge，否则 conflict 那一档看不出是不是碰巧
-  const swDiverge = { ...similarwebDoc, metrics: { ...similarwebDoc.metrics, totalVisits: 600000000 } };
-  const diverge = crosscheck(semrushDoc, swDiverge).metrics.find((m) => m.metric === 'visits');
-  check('mid-band-is-diverge', diverge.verdict === 'diverge' && Math.abs(diverge.diff - 31.67) < 0.05,
-    JSON.stringify(diverge));
+  const magnitudeReport = crosscheck(semrushDoc, swMagnitude);
+  const magnitude = magnitudeReport.metrics.find((m) => m.metric === 'visits');
+  check('order-of-magnitude-is-a-fact-not-a-verdict',
+    magnitude.comparable === true && magnitude.orderOfMagnitude === true && magnitude.diff === 9900
+    && !('verdict' in magnitude)
+    && magnitudeReport.summary.orderOfMagnitudeMetrics[0] === 'visits',
+    JSON.stringify(magnitude));
+  // 以前的「中间档」（15–50%）现在什么档也不是，就是 +31.67%
+  const swMid = { ...similarwebDoc, metrics: { ...similarwebDoc.metrics, totalVisits: 600000000 } };
+  const mid = crosscheck(semrushDoc, swMid).metrics.find((m) => m.metric === 'visits');
+  check('mid-band-is-just-a-number', mid.comparable === true && Math.abs(mid.diff - 31.67) < 0.05
+    && !('verdict' in mid),
+    JSON.stringify(mid));
+  // 判读指引的去处必须写在结果里，不能只留在注释里
+  check('caveats-point-at-the-md',
+    report.caveats.some((c) => c.includes('traffic-screen.md')),
+    JSON.stringify(report.caveats));
 
   // 6. caveats 非空，且带两侧窗口
   check('caveats-carry-both-windows',
@@ -575,16 +629,30 @@ if (flags['self-test']) {
     parseDeviceShares('Desktop\nMobile Web\n17.44%').desktopSharePercent === null,
     JSON.stringify(parseDeviceShares('Desktop\nMobile Web\n17.44%')));
 
-  // 上游明说没数 → 拒绝，不要拿空壳去比
+  // 上游**采集失败**（status: unavailable）→ 拒绝，不要拿空壳去比
   for (const [name, bad] of [
     ['semrush-unavailable', () => crosscheck({ status: 'unavailable', error: { code: 'x' }, target: 'canva.com' }, similarwebDoc)],
     ['similarweb-unavailable', () => crosscheck(semrushDoc, { status: 'unavailable', error: { code: 'y' }, domain: 'canva.com' })],
-    ['similarweb-below-floor', () => crosscheck(semrushDoc, { ...similarwebDoc, belowFloor: true })],
   ]) {
     let thrown = null;
     try { bad(); } catch (e) { thrown = e; }
     check(`refuses-${name}`, thrown instanceof Error, String(thrown));
   }
+
+  // 但 `noDataTextObserved` **不是**失败，也不再是拒绝的理由：它是「页面上写了一句话」
+  // 这个观测事实。以前这里 throw，等于脚本替 AI 判了「无从互校」。现在照常出报告，
+  // Similarweb 侧各指标落成 comparable:false，并在 caveats 里把这句话是什么讲清楚。
+  const swNoData = { version: 1, report: 'performance', domain: 'canva.com', noDataTextObserved: true, rawText: 'canva.com\n没有此网站的数据' };
+  const noDataReport = crosscheck(semrushDoc, swNoData);
+  check('no-data-marker-is-observed-not-refused',
+    noDataReport.summary.compared === 0 && noDataReport.summary.missingValue === 5
+    && noDataReport.caveats.some((c) => c.includes('noDataTextObserved') && c.includes('观测事实')),
+    JSON.stringify(noDataReport.summary));
+  // 旧文件里的 belowFloor 读得懂，含义与新名一致
+  const legacy = crosscheck(semrushDoc, { version: 1, report: 'performance', domain: 'canva.com', belowFloor: true, rawText: '' });
+  check('legacy-below-floor-field-still-parses',
+    legacy.caveats.some((c) => c.includes('noDataTextObserved')),
+    JSON.stringify(legacy.caveats));
 
   check('duration-seconds-parsing',
     durationToSeconds('11:02') === 662 && durationToSeconds('00:05:56') === 356
@@ -652,11 +720,15 @@ if (typeof flags.out === 'string') await writeFile(flags.out, `${JSON.stringify(
 if (!flags.json) {
   const s = report.summary;
   console.error(
-    `[${report.domain}] agree=${s.agree} diverge=${s.diverge} conflict=${s.conflict} `
-    + `unknown=${s.unknown}${s.unknown ? `(${s.unknownMetrics.join(',')})` : ''} `
-    + `not-comparable=${s.notComparable}(${s.notComparableMetrics.join(',')})`,
+    `[${report.domain}] compared=${s.compared} `
+    + `maxRelDiff=${s.maxAbsRelativeDiffPercent === null ? 'n/a' : `${s.maxAbsRelativeDiffPercent}%`} `
+    + `maxPointDiff=${s.maxAbsPointDiff === null ? 'n/a' : `${s.maxAbsPointDiff}pp`} `
+    + `missing=${s.missingValue}${s.missingValue ? `(${s.missingValueMetrics.join(',')})` : ''} `
+    + `incomparable=${s.incomparable}(${s.incomparableMetrics.join(',')})`
+    + `${s.orderOfMagnitudeMetrics.length ? ` orderOfMagnitude=${s.orderOfMagnitudeMetrics.join(',')}` : ''}`,
   );
 }
 printJson(report);
-// 有 conflict 就非零退出：数量级级别的分歧是「有一边错了」，不该被当成一次成功的互校。
-if (report.summary.conflict > 0) process.exitCode = 1;
+// **不因差异大小改退出码。** 以前 `conflict > 0` 会退出 1，等于脚本替人下了
+// 「有一边错了」的判决，还让 CI/管道把一次成功的采集读成失败。退出码只留给
+// 「这次互校没跑成」（域名不一致、读不到文件、上游 status=unavailable）——那是事实。

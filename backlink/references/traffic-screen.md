@@ -267,3 +267,39 @@ source printed its own empty state, the capture did not complete), they are
 told apart by reading `traffic.evidence` (stopReason / screenshot / raw), and
 that reading is the AI's or a human's job. `--unmeasured` lists these rows as
 the next screening or review queue, never as a batch.
+
+## 两家数字对不上，先问哪个问题
+
+`traffic-crosscheck.mjs`（离线，吃一份 `semrush-traffic.mjs` 的 JSON 和一份
+`similarweb-query.mjs --report performance` 的 JSON）**只出差值，不出判定**。
+它给每个指标 `{semrush, similarweb, diff, diffUnit, diffBasis}`，两侧齐全标
+`comparable: true`，缺一侧标 `comparable: false` 加缺值原因。没有 `verdict`
+字段，没有 agree/diverge/conflict 分档，也**不因差异大小改退出码**。
+
+以前它有一张写死的分档表（visits ≤15% 判「一致」、>50% 判「冲突」，占比 5pp，
+页数/访问 25%），那些阈值没有任何一次实测支撑，却被输出成看起来像测量结论的
+字段，还让一次成功的采集被 CI 读成失败。判读现在在这里，按这个顺序问：
+
+| 先问 | 因为 |
+|---|---|
+| **1. 两侧窗口重合吗？** `caveats` 里逐条写着 | 实测那次 Semrush 是整月、Similarweb 的总访问量标 `Jul 2026 - Aug 2026`、参与度标 `Last 28 days`——**本来就不重合**。窗口错开一周，一个季节性站点差 30% 很正常 |
+| **2. 口径是同一个吗？** | `.Trends` 的总访问量 vs `semrush-report.mjs` / `semrush-overview.mjs` 的自然搜索流量，两者不要混用也不要相加。移动/桌面的采样面板也不同 |
+| **3. 这个站多大？** | 小站在两家的建模误差都大得多。canva.com 这个量级落在 2.4% 以内，一个月访问三千的站落在 ±60% 属于常态 |
+| **4. 你要拿这个数干什么？** | 「够不够 100 月访问，值不值得填表」和「这个站到底多少流量，写进报告」对精度的要求差一个数量级 |
+| **5. `orderOfMagnitude: true` 出现了吗？** | 这是**算术事实**（一侧是另一侧的 ≥10 倍或 ≤1/10 倍），不是「有一边错了」。最常见的成因排序：域名/子域搞错 → 一侧读到的是占位值（见上面「A rendered label is not a rendered number」）→ 窗口差太远 → 真的分歧。**先回去看那一侧的截图和 rawText**，再考虑第四种 |
+
+三条不随场景改变的硬约束，脚本会替你守住：
+
+- **平均访问时长永远不并列。** 两家对「一次访问」的定义不同，实测差 86%
+  （11:02 vs 05:56），窗口不重合解释不了这个量级。脚本对它 `comparable: false`
+  且**连 diff 都不算**——一个百分比摆在那里，读者就会拿去用。
+- **域名对不上就拒绝，读不出域名也拒绝**，输出只有一个 `status: 'refused'`
+  的壳、一条 metrics 都没有。2026-08-28 差点把 engineeringhardware.com 的数据
+  记成 canva.com；「就当是同一个」比下去，产出的是一份看起来很像真的假报告。
+- **缺值是缺值，不是 0，也不代表两家一致。** `missingValueMetrics` 单独列出，
+  免得「没比成」被读成「比过了没问题」。
+
+`noDataTextObserved: true`（Similarweb 侧页面正面渲染了「没有此网站的数据」
+那句话）**不是拒绝互校的理由**，它是一条观测事实：脚本照常出报告，该侧各指标
+落成 `comparable: false`，并在 `caveats` 里说明这句话是什么。它意味着「低于
+测量下限」还是「域名写错了」还是「镜像抖动」，是读 rawText 和现场证据判的事。

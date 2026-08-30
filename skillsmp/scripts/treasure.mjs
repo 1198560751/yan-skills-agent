@@ -18,10 +18,21 @@
 //                    反例），而不是一句「帮你做 X」。这是最能分辨用心与否的单一信号。
 //   4. 新鲜度     —— 长期没动的多半已经烂掉。
 //
-// 这些是**启发式，不是判决**。脚本负责把候选排到你眼前，读 SKILL.md 仍然要你自己做。
+// 这些是**启发式排序，不是判决**，而且第三波（2026-08-30）把这句话落实到了输出上：
+//
+//   1. **不丢候选。** `--max-stars` 以前有个 5000 的默认值，会在你没要求的情况下
+//      悄悄滤掉一批行——「搜出来就这些」和「搜出来一批但被脚本扔了」看起来一模一样。
+//      现在**默认不过滤**；给了 `--max-stars` 也只是把超标的行折叠出默认视图，
+//      并明说折叠了几条，`--json` 里它们照样在，带 `aboveMaxStars: true`。
+//   2. **原始信号照给。** 每条候选带 `signals`（stars / repoCount / descLength /
+//      hasTriggerWording / ageDays），这些是可核对的观测值。`sortKey` 是这四项
+//      压成的一个排序用数字，**只是排序键**，不是评分、不是质量结论——
+//      `--sort stars|updated|none` 随时换一个排法，或者干脆不排。
+//   3. 排在第一不代表最好。读 SKILL.md 仍然要你自己做。
 //
 // 用法：
-//   node scripts/treasure.mjs "keyword" [--pages 5] [--lang zh] [--max-stars 2000] [--top 15] [--json]
+//   node scripts/treasure.mjs "keyword" [--pages 5] [--lang zh] [--max-stars 2000]
+//                                       [--top 15] [--sort key|stars|updated|none] [--json]
 
 import { searchAll } from './search.mjs';
 import { readFileSync } from 'node:fs';
@@ -45,26 +56,55 @@ for (let i = 0; i < argv.length; i += 1) {
   const n = argv[i + 1];
   if (n && !n.startsWith('--')) { flags[argv[i].slice(2)] = n; i += 1; } else flags[argv[i].slice(2)] = true;
 }
-if (!q) { process.stderr.write('用法：node scripts/treasure.mjs "keyword" [--pages N] [--lang xx] [--max-stars N] [--top N] [--json]\n'); process.exit(1); }
+if (!q) { process.stderr.write('用法：node scripts/treasure.mjs "keyword" [--pages N] [--lang xx] [--max-stars N] [--top N] [--sort key|stars|updated|none] [--json]\n'); process.exit(1); }
 
-const maxStars = Number(flags['max-stars'] || 5000);
+// **没有默认值。** 以前这里是 `flags['max-stars'] || 5000`，一个没人要求过的
+// 阈值在静默地扔行；「搜出来就这些」和「被扔了一半」在输出上完全同形。
+const maxStars = flags['max-stars'] === undefined ? null : Number(flags['max-stars']);
+if (maxStars !== null && !Number.isFinite(maxStars)) {
+  process.stderr.write('--max-stars 需要一个数字\n'); process.exit(1);
+}
 const top = Number(flags.top || 15);
+const SORTS = { key: 'sortKey', stars: 'stars', updated: 'updatedAt', none: null };
+const sortBy = flags.sort === undefined ? 'key' : String(flags.sort);
+if (!(sortBy in SORTS)) {
+  process.stderr.write(`--sort 只认 ${Object.keys(SORTS).join(' / ')}\n`); process.exit(1);
+}
 
 // 描述里出现这些，说明作者写清了「什么时候用」——SKILL.md 的描述字段本来就是给
 // 模型做路由判断用的，写得具体的人通常整个 Skill 都写得具体。
 const SPECIFIC = /\buse (this )?when\b|\btrigger\b|\bfor example\b|\bdo not use\b|\bnot for\b|什么时候|使用场景|触发|适用于|不适用/i;
 
-function score(s, repoCount) {
+/**
+ * 原始信号——**可核对的观测值**，每一项都能回到搜索结果里对照。
+ * 这些才是输出的主体；下面的 sortKey 只是把它们压成一个排序用的数。
+ */
+function signalsOf(s, repoCount) {
   const desc = (s.description || '').replace(/\s+/g, ' ').trim();
-  const ageDays = s.updatedAt ? (Date.now() / 1000 - s.updatedAt) / 86400 : 9999;
+  return {
+    stars: s.stars ?? null,                       // 所在仓库的星数，不是这个 Skill 的（见文件头）
+    repoCount,                                    // 同一仓库在本次结果里贡献了几条
+    descLength: desc.length,
+    hasTriggerWording: SPECIFIC.test(desc),       // 描述里写没写「什么时候该用」
+    updatedAt: s.updatedAt ?? null,
+    ageDays: s.updatedAt ? Math.round((Date.now() / 1000 - s.updatedAt) / 86400) : null,
+  };
+}
+
+/**
+ * 把四个信号压成一个数，**只用来排序**。它不是评分，不是质量结论，
+ * 也不该被写进任何报告里当证据——权重是随手定的，没有实测支撑。
+ * 换个排法（`--sort stars|updated|none`）看到的仍然是同一批候选。
+ */
+function sortKeyOf(g) {
   const parts = {
     // 星数越低越加分，但 0 星不额外奖励——0 星也可能是刚推上去还没人看过的空壳。
-    independence: Math.max(0, 30 - Math.log10((s.stars || 0) + 10) * 6),
-    focus: repoCount === 1 ? 25 : Math.max(0, 25 - (repoCount - 1) * 5),
-    specificity: (SPECIFIC.test(desc) ? 20 : 0) + Math.min(15, Math.floor(desc.length / 40)),
-    freshness: ageDays < 90 ? 15 : ageDays < 365 ? 8 : 0,
+    independence: Math.max(0, 30 - Math.log10((g.stars || 0) + 10) * 6),
+    focus: g.repoCount === 1 ? 25 : Math.max(0, 25 - (g.repoCount - 1) * 5),
+    specificity: (g.hasTriggerWording ? 20 : 0) + Math.min(15, Math.floor(g.descLength / 40)),
+    freshness: g.ageDays === null ? 0 : g.ageDays < 90 ? 15 : g.ageDays < 365 ? 8 : 0,
   };
-  return { total: Math.round(Object.values(parts).reduce((a, b) => a + b, 0)), parts };
+  return { sortKey: Math.round(Object.values(parts).reduce((a, b) => a + b, 0)), sortKeyParts: parts };
 }
 
 try {
@@ -77,29 +117,69 @@ try {
   }
 
   // 同名同作者跨多语言 = 整包机翻的文档堆，只留一条，否则一个仓库能刷满整页。
+  // **去重是唯一会减少候选数的一步，而且减了多少要报出来。**
   const seen = new Set();
-  const ranked = r.skills
+  let deduped = 0;
+  const candidates = r.skills
     .filter((s) => {
       const k = `${s.author}/${s.name}`;
-      if (seen.has(k)) return false;
+      if (seen.has(k)) { deduped += 1; return false; }
       seen.add(k); return true;
     })
-    .filter((s) => (s.stars ?? 0) <= maxStars)
-    .map((s) => ({ ...s, repoCount: byRepo.get((s.githubUrl || '').split('/tree/')[0]) || 1 }))
-    .map((s) => ({ ...s, ...score(s, s.repoCount) }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, top);
+    .map((s) => {
+      const repoCount = byRepo.get((s.githubUrl || '').split('/tree/')[0]) || 1;
+      const signals = signalsOf(s, repoCount);
+      return {
+        ...s,
+        repoCount,
+        signals,
+        ...sortKeyOf(signals),
+        // 过滤器只**标记**，不删行。超标的行在 --json 里照样在。
+        aboveMaxStars: maxStars !== null && (s.stars ?? 0) > maxStars,
+      };
+    });
 
-  if (flags.json) { process.stdout.write(JSON.stringify({ query: q, scanned: r.skills.length, ranked }, null, 1) + '\n'); }
-  else {
-    process.stdout.write(`扫了 ${r.skills.length} 条，去重并滤掉 >${maxStars}★ 后取前 ${ranked.length}\n\n`);
-    for (const s of ranked) {
+  const sortField = SORTS[sortBy];
+  const sorted = sortField === null ? candidates
+    : [...candidates].sort((a, b) => (b[sortField] ?? -Infinity) - (a[sortField] ?? -Infinity));
+  const hidden = sorted.filter((s) => s.aboveMaxStars);
+  const shown = sorted.filter((s) => !s.aboveMaxStars).slice(0, top);
+
+  if (flags.json) {
+    // JSON 出**全量候选**，一条不少：过滤是 aboveMaxStars 这个标记，不是删除。
+    process.stdout.write(JSON.stringify({
+      query: q,
+      scanned: r.skills.length,
+      dedupedAway: deduped,
+      candidates: candidates.length,
+      maxStars,
+      aboveMaxStars: hidden.length,
+      sortedBy: sortBy,
+      note: 'sortKey 只是排序键，不是评分也不是质量判断；signals 才是可核对的观测值。'
+        + 'aboveMaxStars 的行没有被删除，只是不进默认视图。',
+      shown: shown.map((s) => s.githubUrl),
+      candidateList: candidates,
+    }, null, 1) + '\n');
+  } else {
+    process.stdout.write(
+      `扫了 ${r.skills.length} 条，同名同作者去重掉 ${deduped} 条，剩 ${candidates.length} 条候选`
+      + `${maxStars === null ? '（未设 --max-stars，没有任何行被过滤）' : `，其中 ${hidden.length} 条 >${maxStars}★ 折叠出默认视图（--json 里仍在）`}`
+      + `；按 ${sortBy} 排，显示前 ${shown.length} 条\n\n`);
+    for (const s of shown) {
       const age = s.updatedAt ? new Date(s.updatedAt * 1000).toISOString().slice(0, 10) : '?';
-      process.stdout.write(`[${String(s.total).padStart(2)}] ${s.author}/${s.name}  ${s.stars}★  ${age}  [${s.contentLanguage}]  该仓库贡献 ${s.repoCount} 条\n`);
+      process.stdout.write(`[排序键 ${String(s.sortKey).padStart(2)}] ${s.author}/${s.name}  ${s.stars}★  ${age}  [${s.contentLanguage}]  该仓库贡献 ${s.repoCount} 条\n`);
       process.stdout.write(`     ${(s.description || '').replace(/\s+/g, ' ').slice(0, 160)}\n`);
       process.stdout.write(`     ${s.githubUrl}\n\n`);
     }
-    process.stdout.write('这是启发式排序，不是判决——真正决定要不要用，仍然得打开 SKILL.md 读一遍。\n');
+    if (hidden.length) {
+      process.stdout.write(`被 --max-stars ${maxStars} 折叠的 ${hidden.length} 条（没有被丢弃，加 --json 或抬高阈值可见）：\n`);
+      for (const s of hidden.slice(0, 10)) process.stdout.write(`     ${s.author}/${s.name}  ${s.stars}★  ${s.githubUrl}\n`);
+      if (hidden.length > 10) process.stdout.write(`     …还有 ${hidden.length - 10} 条\n`);
+      process.stdout.write('\n');
+    }
+    process.stdout.write('「排序键」是四个信号压出来的一个排序用数字，**不是评分、不是判决**——\n');
+    process.stdout.write('换 --sort stars/updated/none 看到的是同一批候选，只是顺序不同。\n');
+    process.stdout.write('真正决定要不要用，仍然得打开 SKILL.md 读一遍。\n');
     process.stdout.write(`今日剩余配额 ${r.quota?.dailyRemaining ?? '?'}/${r.quota?.dailyLimit ?? '?'}${r.anonymous ? '（匿名）' : ''}\n`);
   }
 } catch (e) { process.stderr.write(`${e.message}\n`); process.exit(1); }

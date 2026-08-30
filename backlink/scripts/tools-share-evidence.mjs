@@ -1,6 +1,29 @@
 #!/usr/bin/env node
 /**
  * Rendered, redacted Tools Share evidence capture.
+ *
+ * ⚠️ **For a new capture, reach for `scripts/ground-truth.mjs` first.**
+ * (Third refactor wave, 2026-08-30.) That script is the reference collector for
+ * this Skill's `every-measurement-needs-two-witnesses` law: it pairs a
+ * shadow-DOM-piercing census with a screenshot **at every dwell position**,
+ * scrolls the real (possibly inner) scroll container, writes a manifest with a
+ * `stopReason` and a `readyBranch`, holds the machine-wide per-tool lock, and
+ * checks its own landing URL after every read so another session's takeover
+ * cannot be mistaken for your data. None of that is in this file.
+ *
+ * **This file is kept, not retired**, because it still owns two things
+ * ground-truth.mjs does not:
+ *   - the `REPORTS` route registry below — the actual URL shapes and readiness
+ *     regexes for 3 Similarweb and 6 Semrush reports. ground-truth.mjs takes a
+ *     URL; something has to know what URL. Read routes from here.
+ *   - the wider artifact set (page.html / page.ax.json / page.network.json /
+ *     page.app-json.json), which is the right tool when the question is about
+ *     the page's *plumbing* rather than its rendered numbers.
+ * It is also published in package.json `files`, so its path is part of the
+ * installed surface — do not move or delete it without a version bump.
+ *
+ * Either way the rule is unchanged: **this script collects, it does not judge.**
+ *
  * node scripts/tools-share-evidence.mjs --tool semrush --report organic-pages --domain example.com --out-dir evidence/example
  * node scripts/tools-share-evidence.mjs --tool semrush --report custom --path /analytics/ --page-kind table --out-dir evidence/example
  * node scripts/tools-share-evidence.mjs --self-test

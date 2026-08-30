@@ -123,8 +123,25 @@ if (command === 'init') {
   const targets = JSON.parse(await readFile(TARGETS_FILE, 'utf8'));
   let eligible = targets.targets.filter((t) => t.status === 'usable' || t.status === 'gated');
   if (flags['min-traffic']) {
+    // 门槛**在这里对实测数字现算**，和 targets-select.mjs --min-traffic 同一条规矩。
+    // 这里以前还要求 `t.traffic.verdict === 'pass'`，那是 2026-08-30 之前脚本自铸的
+    // 判决字段；第一波之后新写入的行**根本没有 verdict**，于是每一个重新测过的
+    // 域名都被这个条件静默筛掉——「重测过」和「不合格」在输出上完全同形。
     const min = Number(flags['min-traffic']);
-    eligible = eligible.filter((t) => t.traffic && t.traffic.verdict === 'pass' && (t.traffic.monthlyVisits ?? 0) >= min);
+    const measured = (t) => (t.traffic && typeof t.traffic.monthlyVisits === 'number' ? t.traffic.monthlyVisits : null);
+    const before = eligible.length;
+    const noNumber = eligible.filter((t) => measured(t) === null);
+    eligible = eligible.filter((t) => (measured(t) ?? -1) >= min);
+    if (noNumber.length) {
+      // 没数字**不等于不达标**：可能没测过、数据源明说没数据、或采集没跑完。
+      // 分辨这三者要读 traffic.evidence，脚本不替 AI 下这个判断。
+      process.stderr.write(
+        `min-traffic: ${before} 行里有 ${noNumber.length} 行没有实测数字，未进本批。`
+        + `**没数字不是「流量不达标」的判决**——它可能是没测过、数据源正面说了没数据、`
+        + `或采集没完成；读 traffic.evidence（stopReason/截图/原文）再决定。`
+        + `用 targets-select.mjs --unmeasured 把它们列出来。\n`,
+      );
+    }
   }
   if (flags['free-only']) eligible = eligible.filter((t) => t.payment !== 'required');
   if (flags.cohort) eligible = eligible.filter((t) => t.cohort === flags.cohort);

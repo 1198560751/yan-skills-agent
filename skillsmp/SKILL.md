@@ -18,7 +18,8 @@ skillsmp/
 ├── .env.example        ← 复制成 .env 填 API Key（可选；.env 已被忽略，绝不提交）
 └── scripts/
     ├── search.mjs      直搜。可翻页、可按分类/职业/语言过滤，可 --json
-    └── treasure.mjs    ★ 挖宝。故意不按星数排，理由见下
+    └── treasure.mjs    ★ 挖宝。故意不按星数排，理由见下。出全量候选 + 原始信号，
+                          排序键只是排序键，不丢行也不下判决
 ```
 
 ## 先跑起来
@@ -63,23 +64,36 @@ Key 从 <https://skillsmp.com/docs/api> 生成。它是凭据，**只放 `.env`�
 
 ## 挖宝：找「写得好但没人知道」的
 
-既然星数不是质量信号，就别用它排。`treasure.mjs` 用四个跟仓库名气无关的信号：
+既然星数不是质量信号，就别用它排。`treasure.mjs` 采集四个跟仓库名气无关的信号：
 
 ```bash
-node scripts/treasure.mjs "关键词" --pages 5 --max-stars 2000 --top 15
+node scripts/treasure.mjs "关键词" --pages 5 --top 15
+node scripts/treasure.mjs "关键词" --pages 5 --sort stars --json   # 换个排法，同一批候选
 ```
 
-| 信号 | 想法 |
+| 信号（`signals` 里的原始观测值） | 想法 |
 |---|---|
-| **独立性** | 所在仓库星数越低，越说明这个 Skill 靠自己站住，不是搭便车 |
-| **专注度** | 同一仓库在本次结果里出现几条。一个仓库刷出几十条，通常是批量生成或整包翻译的文档堆 |
-| **描述具体度** | 好的描述会写清**什么时候该用**（触发条件、场景、反例），而不是「帮你做 X」。这是分辨用不用心最单一有效的信号 |
-| **新鲜度** | 长期没动的多半已经烂掉 |
+| **`stars` / 独立性** | 所在仓库星数越低，越说明这个 Skill 靠自己站住，不是搭便车 |
+| **`repoCount` / 专注度** | 同一仓库在本次结果里出现几条。一个仓库刷出几十条，通常是批量生成或整包翻译的文档堆 |
+| **`descLength` + `hasTriggerWording` / 描述具体度** | 好的描述会写清**什么时候该用**（触发条件、场景、反例），而不是「帮你做 X」。这是分辨用不用心最单一有效的信号 |
+| **`ageDays` / 新鲜度** | 长期没动的多半已经烂掉 |
 
 同名同作者跨多语言的条目会被去重——那是整包机翻，一个仓库能刷满整页。
+**去重是唯一会减少候选数的一步，而且减了几条会报出来。**
+
+### 排序键不是判决，脚本也不替你丢行
+
+| 规矩 | 落实在哪 |
+|---|---|
+| **`sortKey` 只是排序键**，不是评分、不是质量结论 | 输出里叫 `sortKey`/`sortKeyParts`，权重是随手定的、没有实测支撑；`--sort key\|stars\|updated\|none` 随时换排法或不排 |
+| **原始信号照给**，可回到搜索结果核对 | 每条候选带 `signals`，报告里要引用就引用它，不要引用 `sortKey` |
+| **`--max-stars` 没有默认值** | 不给就**一条不过滤**。以前默认 5000 会在你没要求时静默扔行，「搜出来就这些」和「被扔了一半」在输出上完全同形 |
+| **给了 `--max-stars` 也只折叠不删除** | 超标行标 `aboveMaxStars: true`，`--json` 里照样在，人读视图会明说折叠了几条并列出前十条 |
+| **`--json` 出全量候选** | `candidateList` 是全部候选，`shown` 只是默认视图选了谁 |
 
 **这是启发式排序，不是判决。** 脚本只负责把候选排到你眼前；
-要不要用，仍然得打开那个 `SKILL.md` 读一遍。别把分数当成质量结论报给用户。
+要不要用，仍然得打开那个 `SKILL.md` 读一遍。
+**别把排序键当成质量结论报给用户**，也别把「默认视图里没有」说成「没有这样的 Skill」。
 
 ## 过滤参数
 
@@ -89,7 +103,9 @@ node scripts/treasure.mjs "关键词" --pages 5 --max-stars 2000 --top 15
 |---|---|
 | `--pages N` | 翻几页（search 默认 1，treasure 默认 5） |
 | `--limit N` | 每页几条，上限 100 |
-| `--sort stars\|recent` | 只有 search 有。**先读上面那条坑再决定用不用 stars** |
+| `--sort stars\|recent` | search 的排序参数。**先读上面那条坑再决定用不用 stars** |
+| `--sort key\|stars\|updated\|none` | treasure 的排序参数。`key` 是默认的启发式排序键，`none` 保持原顺序 |
+| `--max-stars N` | 只有 treasure 有，**无默认值**。不给就不过滤；给了也只折叠不删除 |
 | `--category <slug>` | 如 `data-ai`、`devops` |
 | `--occupation <slug>` | SOC 职业，如 `software-developers` |
 | `--lang <code>` | `en` / `zh` / `ja` 等 ISO 码；`mul` 混合，`und` 判不出 |

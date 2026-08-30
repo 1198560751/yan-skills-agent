@@ -14,13 +14,27 @@
  * Nothing is dropped for being low-DR, off-topic, obscure, or ugly. Per
  * references/acquisition-doctrine.md those rank targets, they never gate them.
  *
+ * NOTHING IS DROPPED SILENTLY (third refactor wave, 2026-08-30). This script
+ * used to print two counters — "dropped 41 dead, 12 unverified" — and throw the
+ * rows away. A count is not reviewable: `unverified` in particular means "the
+ * probe could not establish a route", which is a statement about **the probe**,
+ * not about the domain, and a 403 from a WAF looks exactly like a domain that
+ * has no submission form. Now every dropped row is emitted in full, with its
+ * reason and whatever evidence the probe collected, on stdout and — with
+ * `--dropped-out <file>` — as JSON you can re-probe from. The same goes for the
+ * `usable` → `gated` downgrade: it is an inference this script draws from the
+ * gate set, so it is listed as such, not applied in silence.
+ *
+ * Neither the drop nor the downgrade is a verdict on the domain. They are this
+ * run's bookkeeping, and the rows come back out so a human or the AI can look.
+ *
  * Usage:
  *   node scripts/merge-submission-targets.mjs \
  *     --probe /tmp/probe/all.json \
  *     --resolved /tmp/probe/resolved-1.json --resolved ... \
  *     --priced /tmp/probe/priced-1.json --priced ... \
  *     --source-list 'flaqai/backlink_skills Free-backlink-list.md' \
- *     [--dry-run]
+ *     [--dropped-out /tmp/probe/dropped.json] [--dry-run]
  */
 
 import fs from 'node:fs';
@@ -33,7 +47,7 @@ helpGuard(import.meta.url);
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DATA = join(HERE, '..', 'data');
 
-const args = { probe: null, resolved: [], priced: [], sourceList: null, dryRun: false };
+const args = { probe: null, resolved: [], priced: [], sourceList: null, dryRun: false, droppedOut: null };
 for (let i = 2; i < process.argv.length; i++) {
   const f = process.argv[i];
   const v = () => process.argv[++i];
@@ -41,6 +55,7 @@ for (let i = 2; i < process.argv.length; i++) {
   else if (f === '--resolved') args.resolved.push(v());
   else if (f === '--priced') args.priced.push(v());
   else if (f === '--source-list') args.sourceList = v();
+  else if (f === '--dropped-out') args.droppedOut = v();
   else if (f === '--dry-run') args.dryRun = true;
   else throw new Error(`unknown flag ${f}`);
 }
@@ -118,18 +133,53 @@ for (const f of args.priced) {
 
 const today = new Date().toISOString().slice(0, 10);
 const kept = [];
-const dropped = { dead: 0, unverified: 0 };
+// Not counters. Every dropped row is kept in full so it can be reviewed and
+// re-probed — see the header: `unverified` is a fact about the probe, not
+// about the domain, and a count cannot be told apart from a WAF block.
+const dropped = [];
+const downgraded = [];
+const DROP_REASON = {
+  dead: 'probe/resolver reported status=dead — the domain is no longer a submission surface',
+  unverified: 'probe/resolver reported status=unverified — no route could be established. '
+    + 'This describes the probe, not the domain: a 403/WAF block, a timeout and a genuine '
+    + 'absence of any form all land here. Re-probe before concluding anything.',
+};
 for (const t of byDomain.values()) {
-  if (t.status === 'dead') { dropped.dead++; continue; }
-  if (t.status === 'unverified') { dropped.unverified++; continue; }
+  if (t.status === 'dead' || t.status === 'unverified') {
+    dropped.push({
+      domain: t.domain,
+      status: t.status,
+      reason: DROP_REASON[t.status],
+      route: t.route ?? null,
+      name: t.name ?? null,
+      kind: t.kind ?? null,
+      gates: t.gates ?? null,
+      sourceList: t.sourceList ?? null,
+      lastProbedAt: t.lastProbedAt ?? null,
+      evidence: t.evidence ?? null,
+    });
+    continue;
+  }
   // Recompute the single gate and the cohort from the full gate set, once, here.
   // Any layer may have written a stale `gate`; `gates` is the ground truth.
   t.gates = [...new Set((t.gates && t.gates.length ? t.gates : [t.gate || 'unknown']).filter((g) => GATE.has(g)))];
   if (!t.gates.length) t.gates = ['unknown'];
   t.gate = primaryGate(t.gates);
   t.cohort = cohortOf(t.gates);
-  // a human-only gate is never `usable`, whatever a layer claimed
-  if (t.status === 'usable' && t.gates.some((g) => HUMAN_GATE.has(g))) t.status = 'gated';
+  // A human-only gate is never `usable`, whatever a layer claimed — but that is
+  // an *inference from the gate set*, so say so instead of rewriting in silence.
+  if (t.status === 'usable' && t.gates.some((g) => HUMAN_GATE.has(g))) {
+    downgraded.push({
+      domain: t.domain,
+      from: 'usable',
+      to: 'gated',
+      because: t.gates.filter((g) => HUMAN_GATE.has(g)),
+      reason: 'a gate in this row needs a human (captcha-interactive / account / reciprocal / personal-contact), '
+        + 'so the row cannot be handed to an unattended batch. The gate observation is the fact; '
+        + 'this status is derived from it.',
+    });
+    t.status = 'gated';
+  }
   if (t.price && !t.priceCheckedAt) t.priceCheckedAt = today;
   if (!t.price) t.priceCheckedAt = null;
   kept.push({
@@ -177,14 +227,56 @@ for (const [host, p] of paidRows) {
 }
 paid.updatedAt = new Date().toISOString();
 
+const droppedReport = {
+  version: 1,
+  generatedAt: new Date().toISOString(),
+  note: 'Rows this merge did NOT write into submission-targets.json, in full, with the reason. '
+    + 'A drop is bookkeeping, not a verdict on the domain: `unverified` in particular says the '
+    + 'probe established no route, which a WAF block, a timeout and a genuine absence of any '
+    + 'form all produce identically. Re-probe from here rather than treating the absence as fact.',
+  droppedBy: { dead: dropped.filter((d) => d.status === 'dead').length, unverified: dropped.filter((d) => d.status === 'unverified').length },
+  dropped,
+  statusDowngrades: downgraded,
+};
+if (args.droppedOut) fs.writeFileSync(args.droppedOut, JSON.stringify(droppedReport, null, 2) + '\n');
+
+/** Print every dropped row and every downgrade. Counts alone are unreviewable. */
+function reportDroppedAndDowngraded() {
+  if (dropped.length) {
+    console.log(`\ndropped ${dropped.length} row(s) — listed in full, nothing is thrown away silently:`);
+    for (const d of dropped) {
+      const http = d.evidence?.httpStatus ?? '—';
+      console.log(`  · [${d.status}] ${d.domain}  http=${http}  route=${d.route || '—'}  source=${d.sourceList || '—'}`);
+      if (d.evidence?.what) console.log(`      evidence: ${String(d.evidence.what).slice(0, 160)}`);
+    }
+    if (dropped.some((d) => d.status === 'unverified')) {
+      console.log('  ⓘ unverified 说的是「这次探测没能建立路由」，不是「这个站没有提交入口」——'
+        + '403/WAF、超时和真的没有表单在这里长得一模一样。重新探测过再下结论。');
+    }
+    if (!args.droppedOut) console.log('  ⓘ 加 --dropped-out <file> 可以把这些行连证据一起落盘，直接拿去重探。');
+  }
+  if (downgraded.length) {
+    console.log(`\nstatus downgraded usable → gated for ${downgraded.length} row(s) (derived from the gate set, not observed):`);
+    for (const d of downgraded) console.log(`  · ${d.domain}  because: ${d.because.join(', ')}`);
+  }
+}
+
 if (args.dryRun) {
-  console.log(JSON.stringify({ kept: kept.length, dropped, resolvedApplied, pricedApplied, paidNew, paidUpdated }, null, 2));
+  console.log(JSON.stringify({
+    kept: kept.length,
+    droppedBy: droppedReport.droppedBy,
+    dropped,
+    statusDowngrades: downgraded,
+    resolvedApplied, pricedApplied, paidNew, paidUpdated,
+  }, null, 2));
 } else {
   fs.writeFileSync(join(DATA, 'submission-targets.json'), JSON.stringify(out, null, 2) + '\n');
   fs.writeFileSync(paidFile, JSON.stringify(paid, null, 2) + '\n');
   const byCohort = kept.reduce((m, t) => ((m[t.cohort] = (m[t.cohort] || 0) + 1), m), {});
-  console.log(`submission-targets: ${kept.length} kept (dropped ${dropped.dead} dead, ${dropped.unverified} unverified)`);
+  console.log(`submission-targets: ${kept.length} kept (dropped ${droppedReport.droppedBy.dead} dead, ${droppedReport.droppedBy.unverified} unverified)`);
   console.log(`  cohorts: ${Object.entries(byCohort).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(' · ')}`);
   console.log(`paid-platforms: +${paidNew} new, ${paidUpdated} updated`);
   console.log(`overlays applied: resolved ${resolvedApplied}, priced ${pricedApplied}`);
+  reportDroppedAndDowngraded();
+  if (args.droppedOut) console.log(`\ndropped rows written to ${args.droppedOut}`);
 }

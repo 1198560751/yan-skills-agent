@@ -248,7 +248,8 @@ Blob 下载不是同步完成的，最后一个文件常常晚几秒落盘。
 
 | 脚本 | 用途 |
 |---|---|
-| [`scripts/harvest.browser.js`](../scripts/harvest.browser.js) | 贴进浏览器执行工具：坐标重建行、列位自适应、批量导航、Blob 导出 |
+| [`scripts/ground-truth.mjs`](../scripts/ground-truth.mjs) | **先看这个。** 双证人采集（穿透 shadow DOM 的读数 + 每屏截图）、内层滚动容器自动定位、manifest/stopReason、工具锁、落点自检、剥敏 |
+| [`scripts/harvest.browser.js`](../scripts/harvest.browser.js) | 贴进浏览器执行工具：坐标重建行、列位自适应、批量导航、Blob 导出。**只有 DOM 一个证人、没有 manifest**，留着是因为它仍是「把整张表导成文件」的唯一路子；用它就自己补截图 |
 | [`scripts/harvest-collect.sh`](../scripts/harvest-collect.sh) | 等下载齐、拦重复文件、收拢到项目目录 |
 | [`scripts/harvest-merge.mjs`](../scripts/harvest-merge.mjs) | 合并 TSV → CSV：重复文件守卫、脏行过滤、字段保留式去重 |
 

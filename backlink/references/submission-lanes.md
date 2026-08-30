@@ -107,9 +107,11 @@ node scripts/third-party-list-ingest.mjs --input THEIR-LIST.md --out .backlink/l
 node scripts/probe-submission-targets.mjs --input .backlink/leads.json \
   --out .backlink/probed.json --concurrency 12 --resume
 
-# 3. fold in (paid rows route themselves into paid-platforms.json)
+# 3. fold in (paid rows route themselves into paid-platforms.json).
+#    --dropped-out keeps every row the merge did not write, in full, with its
+#    reason and evidence — re-probe from that file instead of losing the row.
 node scripts/merge-submission-targets.mjs --probe .backlink/probed.json \
-  --source-list 'where this came from' --dry-run
+  --source-list 'where this came from' --dropped-out .backlink/dropped.json --dry-run
 
 # 4. pick a batch and run it
 node scripts/targets-select.mjs --cohort open --free-only
@@ -117,7 +119,13 @@ node scripts/targets-select.mjs --cohort open --free-only
 
 Step 2 is anonymous HTTP, so it is honest only about what **is** present. Rows it
 cannot resolve come out `unverified` and need a browser or a human before they
-mean anything; the merge drops them rather than letting them pad a count.
+mean anything; the merge keeps them out of the target table rather than letting
+them pad a count — but **it does not throw them away**. Every dropped row is
+printed in full and, with `--dropped-out`, written back out with its reason and
+evidence, because `unverified` is a statement about **the probe**: a 403 from a
+WAF, a timeout, and a domain that genuinely has no form all produce it. The same
+listing covers the `usable` → `gated` downgrade, which the merge *derives* from
+the gate set rather than observing, and therefore names as derived.
 
 Since 2026-08-30 step 2 is split in two layers: the probe itself only fetches
 and **dumps each domain's raw HTML into `<out>.evidence/<domain>.html`**; the

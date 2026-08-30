@@ -181,7 +181,8 @@ async function fileBytes(filepath) {
 }
 
 async function checkLifecycle(rankupDir) {
-  // 先判断项目是否已上线:有 infrastructure/integrations/agentic 任一即认为上线
+  // 上线与否这里**猜不准，也不假装准**：只看有没有 infrastructure/integrations/agentic
+  // 三个证据之一，据此决定要不要把「上线后」那组检查点纳进来。报告里会写明这是推断。
   const looksLive =
     (await fileBytes(path.join(rankupDir, "infrastructure.md"))) > 0 ||
     (await fileBytes(path.join(rankupDir, "integrations.md"))) > 0 ||
@@ -390,15 +391,20 @@ function renderText(report, days) {
     const passed = lcChecks.filter((c) => c.done);
 
     lines.push(
-      `## 生命周期检查点${looksLive ? "（已上线项目）" : ""}`,
+      // looksLive 是从「有没有 infrastructure/integrations/agentic 证据」推出来的**猜测**，
+      // 不是观测到的上线状态，所以标出它是怎么推的。
+      `## 生命周期检查点${looksLive ? "（按 infrastructure/integrations/agentic 的存在推断为已上线，上线后那组检查点因此纳入）" : ""}`,
       "",
     );
 
+    // 措辞刻意保守：`done` 测的是**证据文件在不在、够不够大、含不含指定字样**，
+    // 不是「这一项真的做了」。文件在而内容是占位符、或者做了但没记下来，
+    // 在这里长得一模一样——所以只说「有/没有证据文件」，做没做由读的人判。
     if (missing.length === 0) {
-      lines.push("✓ 全部检查点已有证据。", "");
+      lines.push("✓ 每个检查点都找到了对应的证据文件（文件在 ≠ 这一项真的做完了，还得打开看）。", "");
     } else {
       lines.push(
-        `${passed.length}/${lcChecks.length} 已完成，${missing.length} 项待补：`,
+        `${lcChecks.length} 个检查点里 ${passed.length} 个找到了证据文件，${missing.length} 个没找到：`,
         "",
       );
 

@@ -314,16 +314,16 @@ function printCompare(result, scanPath) {
       console.log(`✗ [${issue.tier}] ${issue.name}`);
       console.log(`  站点现状：${issue.result}`);
       console.log(`  全网通过率：${baseline.pct.toFixed(1)}%（${baseline.count}/${baseline.denom} 个域名）`);
-      if (baseline.pct < 15) {
-        console.log(`  → 全网本就极少通过，这项优先级应该让位给下面「不适用」以外的其他修复。`);
-      } else {
-        console.log(`  → 全网多数站点都过了这项，是真实的差距，值得修。`);
-      }
       console.log();
     }
   } else {
     console.log(`没有一条待修项能对照到这个端点的检查项——见下方「未能对照」。\n`);
   }
+
+  // 这里以前有一句 `pct < 15 → 这项应该让位 / 否则值得修` 的判决，2026-08-30 第三波删除。
+  // 一个通过率**不能**推出优先级：全网 8% 通过可能是这项难做（那就该让位），
+  // 也可能是所有人都还没做（那就是先发优势）；而 90% 通过的项若对你的站型不适用，
+  // 修了也没有收益。脚本给通过率这个事实，「先修哪个」交给读证据的人/AI。
 
   console.log(`未能对照（${unmapped.length} 项，Radar 这个端点不测这些，映射表故意留空，不做`);
   console.log(`凑数假映射）：`);

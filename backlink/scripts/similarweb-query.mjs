@@ -30,8 +30,8 @@
  *
  * `noDataTextObserved: true` 是**观测事实**（页面正面渲染出「没有此网站的数据」这句话，
  * 且连读三次一致），不是失败，别和「查不到」混为一谈；「该不该当没数据处理」由 AI
- * 拿 rawText + 现场证据判。旧字段名 belowFloor 暂留作兼容别名（traffic-crosscheck
- * 还在读），第三波移除。
+ * 拿 rawText + 现场证据判。（旧字段名 `belowFloor` 已于第三波移除——它读起来像一个
+ * 判决「这个站在门槛以下」，而实际发生的事只是「页面上写了一句话」。）
  * 只有 performance 报表有 metrics：在渠道页上跑 deriveMetrics 会把筛选器文字当数值抓
  * （实测 globalRank 抓成 1），宁可不给也不要给错的。
  *
@@ -292,15 +292,14 @@ try {
   }
   const captured = settled.capture;
   const noDataTextObserved = settled.fingerprint === 'no-data';
-  const belowFloor = noDataTextObserved; // 兼容别名，第三波移除
   const lines = captured.bodyText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
   // audience-geo 的「总数」（totalRowsOnPage）就是这张表的行总数，和 rowsRead
   // 说的是同一件事。site-keywords 的表头总数（pageReportedKeywordTotal）是这个
   // 站点全站收录的关键词数，跟这次读到多少行是两回事——两张报表的「总数」字段
   // 名字不同就是因为它们数的不是同一种东西，见 lib-similarweb.mjs 里对应函数
   // 顶部的注释。
-  const geoResult = report === 'audience-geo' && !belowFloor ? deriveGeoRows(captured.cells) : null;
-  const keywordsResult = report === 'site-keywords' && !belowFloor ? deriveSiteKeywordRows(captured.cells) : null;
+  const geoResult = report === 'audience-geo' && !noDataTextObserved ? deriveGeoRows(captured.cells) : null;
+  const keywordsResult = report === 'site-keywords' && !noDataTextObserved ? deriveSiteKeywordRows(captured.cells) : null;
   // site-keywords 是否被截断，问的是「这张表本身还有没有下一页」，不是关键词总数
   // 减去 rowsRead——那个数字根本不是同一种东西（见上面的注释）。只有在提取器
   // 真的在页面上看到了未禁用的「下一页」按钮时才报；`morePagesAvailable === null`
@@ -417,13 +416,12 @@ try {
     reads: settled.reads,
     // 数据源正面渲染了「没有此网站的数据」这句话，且连着三次都这么说。**这是观测
     // 事实，不是失败**——它和「查不到」必须区分开，所以单独一个字段，而不是一个空的
-    // metrics。「该不该当没数据处理」由 AI 判；belowFloor 是旧名兼容别名（第三波移除）。
+    // metrics。「该不该当没数据处理」由 AI 判。（旧别名 belowFloor 已移除。）
     noDataTextObserved,
-    belowFloor,
     // 只有「网站表现」页有总访问量/排名/跳出率这些指标。在渠道页上跑 deriveMetrics
     // 会把筛选器里的字当成数值抓（实测 globalRank 抓成 1），宁可不给也不要给错的。
-    ...(report === 'performance' && !belowFloor ? { metrics: compact(deriveMetrics(lines)) } : {}),
-    ...(report === 'channels' && !belowFloor ? { channels: deriveChannels(lines) } : {}),
+    ...(report === 'performance' && !noDataTextObserved ? { metrics: compact(deriveMetrics(lines)) } : {}),
+    ...(report === 'channels' && !noDataTextObserved ? { channels: deriveChannels(lines) } : {}),
     ...(geoResult ? { geo: geoResult } : {}),
     ...(keywordsResult ? { keywords: keywordsResult } : {}),
     sparse: /没有足够的数据|Not enough data|N\/A/i.test(captured.bodyText),
