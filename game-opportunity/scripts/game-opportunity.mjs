@@ -46,6 +46,7 @@ const HELP = `game-opportunity.mjs — 每日小游戏机会发现、筛选与�
   --date YYYY-MM-DD       报告日期（默认今天）
   --limit <n>             每个平台/来源最多读取条数（默认 30）
   --evaluation <file>     人工或外部量化结果；数组或 {candidates:[...]}
+  --semrush-node <n>      指定 Semrush 网页节点（节点故障时重试）
   --project-root <dir>    .rankup 所在项目（默认当前目录）
   --no-social             radar 不调用 Reddit、YouTube、X（离线检查用）
   --check-only            只检查已有产物，不重新取数
@@ -69,6 +70,7 @@ function parseArgs(argv) {
     else if (a === '--date') out.date = next();
     else if (a === '--limit') out.limit = Number(next());
     else if (a === '--evaluation') out.evaluation = path.resolve(next());
+    else if (a === '--semrush-node') out.semrushNode = String(next()).trim();
     else if (a === '--project-root') out.root = path.resolve(next());
     else if (a === '--no-social') out.noSocial = true;
     else if (a === '--check-only') out.checkOnly = true;
@@ -846,6 +848,7 @@ async function plan(o) {
 
 async function demand(o) {
   const f = files(o);
+  const semrushNodeArgs = o.semrushNode ? ['--node', o.semrushNode] : [];
   const planned = buildDemandPlan(o);
   if (!planned.plan.globalKeywords.length) return { ok: false, error: '没有可查询的真实游戏关键词' };
   if (o.dryRun) return { ok: true, dryRun: true, plan: planned.plan, outputs: [f.globalSemrush, f.demandResults] };
@@ -853,7 +856,7 @@ async function demand(o) {
   const globalKeys = new Set(globalRows.filter((row) => row.status !== 'error').map((row) => normalizeName(row.keyword)));
   const canReuseGlobal = planned.plan.globalKeywords.every((keyword) => globalKeys.has(normalizeName(keyword)));
   if (!canReuseGlobal) {
-    const globalRun = await runNode(SEMRUSH_KEYWORD, ['--kw-file', f.globalKeywords, '--db', 'us', '--out', f.globalSemrush], o.root);
+    const globalRun = await runNode(SEMRUSH_KEYWORD, ['--kw-file', f.globalKeywords, '--db', 'us', '--no-follow-top-country', ...semrushNodeArgs, '--out', f.globalSemrush], o.root);
     if (!globalRun.ok) return { ok: false, stage: 'global', error: globalRun.error, stderr: globalRun.stderr, plan: planned.plan };
     globalRows = readJsonLines(f.globalSemrush);
   }
@@ -888,13 +891,19 @@ async function demand(o) {
       countryRows.push(...cachedCountryRows);
       countries.count = cachedCountryRows.length;
     } else {
-      const run = await runNode(SEMRUSH_KEYWORD, ['--bulk-plan', f.countryPlan, '--out', f.countrySemrush], o.root);
-      countries = { ...countries, ok: run.ok, error: run.error };
-      if (run.ok) {
-        const rows = readJsonLines(f.countrySemrush);
-        countryRows.push(...rows);
-        countries.count = rows.length;
+      const rows = [];
+      const errors = [];
+      for (const [db] of countryKeywords) {
+        const input = path.join(o.reviewDir, `${o.date}-keywords-country-${db}.txt`);
+        const output = path.join(o.reviewDir, `${o.date}-semrush-country-${db}.jsonl`);
+        fs.rmSync(output, { force: true });
+        const run = await runNode(SEMRUSH_KEYWORD, ['--kw-file', input, '--db', db, '--no-follow-top-country', ...semrushNodeArgs, '--out', output], o.root);
+        if (!run.ok) errors.push(`${db}: ${run.error}`);
+        rows.push(...readJsonLines(output));
       }
+      writeText(f.countrySemrush, rows.map((row) => JSON.stringify(row)).join('\n') + (rows.length ? '\n' : ''));
+      countries = { ...countries, ok: !errors.length, error: errors.join('; ') || null, count: rows.length };
+      countryRows.push(...rows);
     }
   }
   const overlay = demandOverlay(o, planned.plan, globalRows, countryRows);

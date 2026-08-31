@@ -338,7 +338,7 @@ async function launchToolInner({
   // 2026-08-21 实测：连抛两次，reload 一次之后面板正常显示订阅到期 2027-02-21。
   // 所以先轮询等「渲染完成」，只有渲染完了才允许判断登录态。
   const readPanel = () => evalPage(`(() => {
-    const text = document.body.innerText.replace(/\\s+/g, ' ');
+    const text = (document.body?.innerText || '').replace(/\\s+/g, ' ');
     return JSON.stringify({ len: text.trim().length, hasCard: /打开/.test(text), text: text.slice(0, 200) });
   })()`);
   {
