@@ -146,7 +146,7 @@
 |---|---|---|---|
 | 上线前闸门七行 | 阶段 7.5 的七条硬性判据 | [`references/checklists.md`](checklists.md) 阶段 7.5 | 「能不能上线了」 |
 | 全站 SEO 审计 | 全页 TDK/canonical/robots/lang/h1/OGP/结构化数据/alt/hreflang + 关键词密度（1/2/3-gram，日文 `Intl.Segmenter`）；`--sitemap` 全站。**2026-08-30 起只出观察记录 `{code, observed}`，不带分级也不带修复建议**；`--fix-report` 现在只是把原始 `issues` dump 成机器可读格式，分级表在 [`seo-box.md`](seo-box.md)「seo-audit 判读指引」 | `scripts/seo-audit.mjs` | 「TDK 都对吗」「标题写好没」 |
-| 性能双读数 | 一次同时拿实验室（Lighthouse）与现场（CrUX）；闸门 6 要的就是两套 | `scripts/pagespeed.mjs`（需 `PAGESPEED_API_KEY`） | 「站慢不慢」「Core Web Vitals」 |
+| 性能双读数 | 一屏同时拿实验室（Lighthouse）与现场（CrUX）；闸门 6 要的就是两套 | `scripts/pagespeed.mjs`（走网页版，**零 key 零配额**；`collect` 需标签页可见） | 「站慢不慢」「Core Web Vitals」 |
 | 托管方分析 | 开通 Cloudflare Web Analytics 并读回 beacon；应排在 GSC/GA 之前 | `scripts/cf-analytics-setup.mjs` | 「先接个统计」 |
 | 行为分析 | 在 Microsoft Clarity 建项目拿 project ID（会话录制 / 热图） | `scripts/clarity-setup.mjs` | 「想看用户怎么点的」 |
 | Ahrefs 项目接入 | 建项目、经 GSC 验证所有权、启用 Web Analytics 取回 `data-key` | `scripts/ahrefs-setup.mjs` | 「接下 Ahrefs」 |

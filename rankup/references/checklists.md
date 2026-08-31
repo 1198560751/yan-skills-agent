@@ -173,7 +173,7 @@
 | 闸门 3 · 关键词密度 | 密度在自然区间，且**「声明的短语」与「测量的短语」逐页是同一个字符串** | `.rankup/audit.md` | `seo-audit.mjs --sitemap <url> --density-only`。实测过 8 个页面在构建绿灯下全过，逐页核对才发现每页测的都不是自己声明的短语 | 动了 URL |
 | 闸门 4 · GEO / AI Agent 就绪度 | 有带分数与逐项结果的基线报告，且**每条 `partial`/`failed` 都独立核实过**（成立则改，误报则记驳回理由） | `.rankup/agentic/<domain>/<date>.json` + 核实结论进 `audit.md` | `is-agentic.mjs scan <domain> --save` | 每轮 |
 | 闸门 5 · 哥飞 AI 审阅 | 每条建议有采纳/拒绝记录，拒绝附理由；**`done` 事件的 `toolCalls`、`rounds`、`charged` 已打印并记录** | `.rankup/audit.md` | `seo-webcafe.mjs chat --ask "审阅 https://<域名> …"`，见 [`seo-webcafe.md`](seo-webcafe.md) | 动了 URL |
-| 闸门 6 · 性能 / CWV | 首页、工具页、内容页三类都达到**项目自设下限**；实验室与现场数据都记录，不一致以现场为准；**先验仪器再信读数** | `.rankup/baseline.md` | `pagespeed.mjs <三类页面 URL> --strategy both --md`——**这个脚本一次调用就同时给实验室（Lighthouse）与现场（CrUX）**；Lighthouse 只给实验室，单跑它这条闸门只能过一半而表面是绿的。`--strategy both` 另指移动端 + 桌面端都跑。现场返回「无数据」时原样记，别留空（见 [`seo-box.md`](seo-box.md)「一 · PageSpeed Insights → 补上闸门 6 缺的那一半」） | 每轮 |
+| 闸门 6 · 性能 / CWV | 首页、工具页、内容页三类都达到**项目自设下限**；实验室与现场数据都记录，不一致以现场为准；**先验仪器再信读数** | `.rankup/baseline.md` | `pagespeed.mjs plan <三类页面 URL> --strategy both` 出链接与读数清单，再**在浏览器里打开 pagespeed.web.dev 读数**（2026-08-31 起走网页版，零 key 零配额；也可 `pagespeed.mjs collect …` 采双证人）——**网页版一屏同时给实验室（Lighthouse）与现场（CrUX）**；单跑 Lighthouse 只给实验室，这条闸门只能过一半而表面是绿的。`--strategy both` 另指移动端 + 桌面端都跑。**现场那一块不存在 = CrUX 流量不足，原样记「现场无数据（流量不足）」，不是 0、不等于通过，更别留空**（见 [`seo-box.md`](seo-box.md)「一 · PageSpeed 网页版 → 补上闸门 6 缺的那一半」） | 每轮 |
 | 分析通道在采集 | **线上原始 HTML 里 grep 得到 beacon**。控制台显示「已启用」不算 | `.rankup/integrations.md` | `cf-analytics-setup.mjs status <domain>` | 每轮 |
 | IndexNow | 密钥文件正文逐字节等于密钥，首次推送已被接受并记下条数与 HTTP 状态 | `.rankup/integrations.md` | `indexnow-submit.mjs`。**密钥不可达时整批被丢弃而接口照样回 200** | 动了 URL |
 | 两边 sitemap 已提交 | GSC 与 Bing 都提交过，记的是**快照日期**不是实时值；**记的是资源 ID 不是资源名字** | `.rankup/integrations.md` | `webmaster-sitemap.mjs <gsc\|bing> submit` | 动了 URL |
@@ -189,7 +189,7 @@
 | 线上技术信号已核实 | 改了什么就在线上核过什么，不是本地看着对 | `.rankup/audit.md` | `seo-audit.mjs --sitemap <url>` | 每轮 |
 | 本轮改过的旧 URL 跳转正确 | 每个被改/被删的旧 URL 都 301 到新址，**不是 302，也不是软 404 落回首页** | `.rankup/audit.md` | `curl -sIL <旧 URL>`，见 [`seo-box.md`](seo-box.md) 二 | 动了 URL |
 | 目标词首页复看 | 本轮动过的目标词，在 Google 与 Bing 各重看一次首页：自己的页面进没进、AI 答案引用名单变没变、盘面有没有新进入者 | `.rankup/experiments.md` | 同 [`demand-sources.md`](demand-sources.md) 第一·五节的七样，只记变化 | 每轮 |
-| 实验有基线、目标指标、回看日期 | 三样齐全。**没有观察窗口就没有结论** | `.rankup/experiments.md` | `is-agentic.mjs diff` + `pagespeed.mjs --strategy both` 重测（**不是单跑 Lighthouse**，那只有实验室一半） | 每轮 |
+| 实验有基线、目标指标、回看日期 | 三样齐全。**没有观察窗口就没有结论** | `.rankup/experiments.md` | `is-agentic.mjs diff` + `pagespeed.mjs plan --strategy both` 出链接后重读网页版（**不是单跑 Lighthouse**，那只有实验室一半） | 每轮 |
 | AI 搜索合规项已检查 | Back Button、FAQ schema 现状、非大众化内容审计三项都查过并记录 | `.rankup/audit.md` | 对照 [`seo-growth.md`](seo-growth.md) 三-B | 每轮 |
 | 没有承诺未经观察窗口的结果 | 结论都带观察窗口；排名没稳（连续 5 天不动）之前只做加法 | `.rankup/iterations.md` | 自查，判据见 [`webcafe-experiences.md`](experiences/webcafe-experiences.md) 十七~十九 | 每轮 |
 

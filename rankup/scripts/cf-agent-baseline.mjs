@@ -11,10 +11,21 @@
  * 「全网基本没人做」。这份基线告诉你：webMcp 通过率是 0/107985——
  * 一个都没有。追一项全网 0.3% 都不到的检查，价值几乎总是低于它挤占的工作。
  *
- * 认证：**不是零配置**（2026-08-23 订正，原文这么写过，是错的）。按以下顺序取 token：
- *   1. --token 参数
- *   2. CLOUDFLARE_API_TOKEN 环境变量
- *   3. 本机 wrangler OAuth token —— **多数情况下这条走不通**，见下。
+ * 认证：**不是零配置**（2026-08-23 订正，原文这么写过，是错的）。按以下顺序取凭据：
+ *   1. --token 参数（邮箱用 --email）
+ *   2. CLOUDFLARE_API_TOKEN 环境变量（邮箱用 CLOUDFLARE_EMAIL）
+ *   3. 本 Skill 根目录 .env 里的 CLOUDFLARE_API_TOKEN= / CLOUDFLARE_EMAIL=
+ *   4. 本机 wrangler OAuth token —— **多数情况下这条走不通**，见下。
+ * 不读任何项目内的凭据文件：本 Skill 必须项目中立，不能写死别人仓库的落点。
+ *
+ * **两种凭据格式的 header 完全不同，认错会得到极具误导性的报错。** 按长度判别：
+ *   - Global API Key（37 位十六进制）→ `X-Auth-Email` + `X-Auth-Key` 两个头，
+ *     必须同时给账号邮箱。**它能调 Radar**（2026-08-31 实测 success:true）。
+ *     用 Bearer 发它会回 `[6111] Invalid format for Authorization header`——
+ *     那不是「权限不够」，是 header 用错了，去建新 token 是白费一步。
+ *   - API Token（更长，通常 40 位）→ `Authorization: Bearer <token>`，需带 Radar:Read。
+ * Global Key 是全账号权限、不能限定范围，泄露即等于整个账号；能用 scoped token
+ * 就用 scoped token。但**用户手上已有 Global Key 时不必再去新建一枚**。
  *
  * **wrangler 的 OAuth 凭据通常不能调 Radar。** 它的 scopes 是围绕部署发的
  * （workers:*、d1、pages、zone:read…），里面**没有 Radar 相关的 scope**，
@@ -41,8 +52,9 @@
  *                                                           把失败项和全网通过率并排显示
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 
 const API = "https://api.cloudflare.com/client/v4/radar/agent_readiness/summary/CHECK";
 const UA = "rankup-skill/1.0 (+cf-agent-baseline.mjs)";
@@ -101,7 +113,8 @@ function usage() {
   --save            结果写入当前目录下 .rankup/agentic/baseline/<date>.json
   --category <name> 按 domainCategory 过滤（如 Technology）
   --json            原始 JSON 输出
-  --token <token>   显式传 Cloudflare API token（否则按 env → wrangler 配置的顺序找）
+  --token <token>   显式传 Cloudflare 凭据（否则按 env → Skill 的 .env → wrangler 配置的顺序找）
+  --email <email>   账号邮箱；只有凭据是 37 位 Global API Key 时需要（也可用 CLOUDFLARE_EMAIL）
   --project <dir>   项目根目录（默认 cwd），配合 --save 使用
   --help            显示帮助
 
@@ -136,31 +149,87 @@ function findWranglerToken() {
   return null;
 }
 
-function resolveToken(args) {
-  const fromFlag = flagValue(args, "--token");
-  if (fromFlag) return fromFlag;
-  if (process.env.CLOUDFLARE_API_TOKEN) return process.env.CLOUDFLARE_API_TOKEN;
-  const fromWrangler = findWranglerToken();
-  if (fromWrangler) return fromWrangler;
-  console.error(
-    `没找到 Cloudflare API token。三种方式任选一种：\n` +
-    `  1. --token <token>\n` +
-    `  2. 设置环境变量 CLOUDFLARE_API_TOKEN\n` +
-    `  3. 本机登录过 wrangler（~/.wrangler 或 ~/Library/Preferences/.wrangler 下\n` +
-    `     的 config/default.toml 里要有 oauth_token 字段）`
-  );
-  process.exit(1);
+/**
+ * Skill 根目录的 .env（KEY=value，每行一个）。这是本 Skill 唯一允许读的凭据落点，
+ * 因为它属于 Skill 自己；**不读任何项目内的路径**（如 <repo>/.cf-token），
+ * 那会让这个 Skill 绑死在某个人的仓库布局上，validate-rankup 也会拦。
+ */
+function fromSkillEnv(key) {
+  const envFile = join(dirname(dirname(fileURLToPath(import.meta.url))), ".env");
+  try {
+    for (const line of readFileSync(envFile, "utf8").split("\n")) {
+      const m = line.match(new RegExp(`^\\s*${key}\\s*=\\s*(.+?)\\s*$`));
+      if (m) return m[1].replace(/^["']|["']$/g, "");
+    }
+  } catch {
+    /* 没有 .env 是正常状态 */
+  }
+  return null;
+}
+
+function resolveCredential(args) {
+  const token =
+    flagValue(args, "--token") ||
+    process.env.CLOUDFLARE_API_TOKEN ||
+    fromSkillEnv("CLOUDFLARE_API_TOKEN");
+  if (!token) {
+    console.error(
+      `没找到 Cloudflare 凭据。四种方式任选一种：\n` +
+      `  1. --token <凭据>\n` +
+      `  2. 设置环境变量 CLOUDFLARE_API_TOKEN\n` +
+      `  3. 写进本 Skill 根目录的 .env：CLOUDFLARE_API_TOKEN=...\n` +
+      `  4. 本机登录过 wrangler（~/.wrangler 或 ~/Library/Preferences/.wrangler 下\n` +
+      `     的 config/default.toml 里要有 oauth_token 字段）——**但它多半调不通 Radar**，\n` +
+      `     scopes 里没有 Radar，见文件头部注释。\n\n` +
+      `两种凭据都收：37 位十六进制的 Global API Key（还需邮箱，见 --email），\n` +
+      `或带 Radar:Read 的 API Token（更长）。`
+    );
+    process.exit(1);
+  }
+  const email =
+    flagValue(args, "--email") || process.env.CLOUDFLARE_EMAIL || fromSkillEnv("CLOUDFLARE_EMAIL");
+  return { token: token.trim(), email: email ? email.trim() : null };
+}
+
+/**
+ * 按长度判别凭据类型，两种的 header 完全不同：
+ *   37 位十六进制 → Global API Key → X-Auth-Email + X-Auth-Key（必须带邮箱）
+ *   其余（通常 40 位）→ API Token → Authorization: Bearer
+ * 认错的后果不是「权限不足」而是格式错：Bearer 发 Global Key 会回
+ * `[6111] Invalid format for Authorization header`，那条报错很容易被误读成
+ * 「token 无效，去建一枚新的」——其实只要换个 header 就通。
+ */
+function isGlobalApiKey(token) {
+  return token.length === 37 && /^[0-9a-f]+$/i.test(token);
+}
+
+function authHeaders({ token, email }) {
+  if (isGlobalApiKey(token)) {
+    if (!email) {
+      console.error(
+        `检测到 Global API Key（37 位十六进制）。它必须配合账号邮箱才能用：\n` +
+        `  --email <你的 Cloudflare 账号邮箱>\n` +
+        `  或 export CLOUDFLARE_EMAIL=...\n` +
+        `  或写进本 Skill 根目录的 .env：CLOUDFLARE_EMAIL=...\n\n` +
+        `（Global Key 已经能调 Radar，不需要再去新建 token。只是它是全账号权限、\n` +
+        ` 不能限定范围，长期更推荐一枚只带 Radar:Read 的 scoped API Token。）`
+      );
+      process.exit(1);
+    }
+    return { "X-Auth-Email": email, "X-Auth-Key": token };
+  }
+  return { Authorization: `Bearer ${token}` };
 }
 
 // ── API ──────────────────────────────────────────────────────────────────
 
-async function fetchBaseline(token, { category } = {}) {
+async function fetchBaseline(cred, { category } = {}) {
   const url = new URL(API);
   if (category) url.searchParams.set("domainCategory", category);
 
   const res = await fetch(url, {
     headers: {
-      Authorization: `Bearer ${token}`,
+      ...authHeaders(cred),
       Accept: "application/json",
       "User-Agent": UA, // 缺这个头会拿到 HTML 错误页而不是 JSON，解析失败还很难定位
     },
@@ -176,23 +245,51 @@ async function fetchBaseline(token, { category } = {}) {
 
   if (!res.ok || body.success === false) {
     const errs = body.errors || [];
+    const codes = new Set(errs.map(e => e.code));
     const msg = errs.map(e => `[${e.code}] ${e.message}`).join("; ") || `HTTP ${res.status}`;
     console.error(`Cloudflare API 返回失败：${msg}`);
-    // 10000/1000 都会以「Authentication error」的面貌出现，而它最常见的成因
-    // 不是过期，是**用了 wrangler 的 OAuth 凭据**——那套 scopes 里没有 Radar。
-    // 不点破的话，人会反复 wrangler login，而那条路永远走不通。
-    if (errs.some(e => e.code === 10000 || e.code === 1000)) {
+
+    // 三种成因、三种说法。以前一律引导「去新建一枚 Radar:Read token」，
+    // 而其中两种根本不需要新 token——那是白费一步。
+    if (codes.has(6111) || codes.has(6003)) {
+      // header 格式不对：几乎总是「拿 Global API Key 走了 Bearer」。
       console.error(
-        `\n认证失败最常见的成因不是 token 过期，而是**凭据类型不对**：\n` +
-        `  wrangler 的 OAuth 凭据是为部署发的，scopes 里没有 Radar 相关权限，\n` +
-        `  所以再怎么 wrangler login 也调不通这个端点。\n\n` +
-        `确认办法（把同一枚 token 打到验证端点）：\n` +
-        `  curl -s -H "Authorization: Bearer <token>" \\\n` +
-        `    https://api.cloudflare.com/client/v4/user/tokens/verify\n\n` +
-        `解决办法：在 Cloudflare 控制台新建一枚 **带 Radar:Read 权限的 API token**，\n` +
-        `然后用 --token 传入，或设进 CLOUDFLARE_API_TOKEN。\n` +
-        `（这一步需要账号持有者本人操作，不要代为创建。）`
+        `\n这是**凭据格式**错，不是权限不够，不需要去建新 token：\n` +
+        `  37 位十六进制的 Global API Key 必须走 X-Auth-Email + X-Auth-Key 两个头，\n` +
+        `  不能走 Authorization: Bearer。本脚本按长度自动判别——\n` +
+        `  会看到这条，说明凭据长度不是 37 位、也不被当作合法 Bearer token，\n` +
+        `  多半是复制时混进了空白/换行，或者传成了 Account ID 之类的别的东西。`
       );
+    } else if (codes.has(9106)) {
+      console.error(`\n一个认证头都没带上。检查凭据是不是空字符串。`);
+    } else if (codes.has(10000) || codes.has(1000)) {
+      // 认证/权限面：凭据格式对，但这枚凭据调不通。两种凭据的成因完全不同，
+      // 说法必须分开——以前一律讲 wrangler 的故事，对 Global Key 用户是错的。
+      if (isGlobalApiKey(cred.token)) {
+        console.error(
+          `\nGlobal API Key 的两个头都发出去了，被拒的是**凭据内容本身**：\n` +
+          `  · 邮箱与 key 不属于同一个账号（最常见——邮箱填错、或 key 是另一个账号的）；\n` +
+          `  · key 已在控制台轮换/吊销；\n` +
+          `  · 复制时混进了空白或换行。\n` +
+          `Global Key 是全账号权限，**不存在「scope 不够」这回事**——所以不要因为这条\n` +
+          `报错去新建 token，先核对邮箱与 key 是不是同一个账号的。`
+        );
+      } else {
+        console.error(
+          `\n凭据格式是对的，问题在**权限面**（不是新鲜度，重登 wrangler 没用）：\n` +
+          `  wrangler 的 OAuth 凭据是为部署发的，scopes 里没有 Radar，永远调不通这个端点。\n\n` +
+          `确认办法（把同一枚凭据打到验证端点）：\n` +
+          `  curl -s -H "Authorization: Bearer <token>" \\\n` +
+          `    https://api.cloudflare.com/client/v4/user/tokens/verify\n` +
+          `  回 [1000] Invalid API Token → 这枚凭据根本不被当作 API token；\n` +
+          `  回成功但 Radar 仍 10000 → 是 scope 不够。\n\n` +
+          `两条出路，任选其一：\n` +
+          `  A. 用账号已有的 **Global API Key**（37 位）+ CLOUDFLARE_EMAIL —— 它是全账号\n` +
+          `     权限，实测能调 Radar，**不需要新建任何 token**；\n` +
+          `  B. 在控制台新建一枚带 **Radar:Read** 的 scoped API Token（更安全，长期推荐）。\n` +
+          `（两条都需要账号持有者本人操作，不要代为创建。）`
+        );
+      }
     }
     process.exit(1);
   }
@@ -348,8 +445,8 @@ async function main() {
   const asJson = args.includes("--json");
   const shouldSave = args.includes("--save");
 
-  const token = resolveToken(args);
-  const result = await fetchBaseline(token, { category: category || undefined });
+  const cred = resolveCredential(args);
+  const result = await fetchBaseline(cred, { category: category || undefined });
 
   // 客户端校验 domainCategory：这个端点对未知取值不报错，只是静默忽略过滤，
   // 会让人误以为筛选生效了。自己拿 meta.domainCategories 校验一遍。

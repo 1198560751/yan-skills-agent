@@ -80,7 +80,7 @@ metadata:
 | **「怎么一直不收录」「新页面多久能进索引」「提交下 sitemap」** | `scripts/indexnow-submit.mjs`（零账号，**排在站长工具前面**）→ `scripts/webmaster-sitemap.mjs gsc\|bing submit` → 平台顺序看 [`search-platforms.md`](references/search-platforms.md)；排查看 [`webcafe-experiences.md`](references/experiences/webcafe-experiences.md) 十七 ~ 十九 |
 | 「废弃页面从谷歌撤下来」 | `node rankup/scripts/gsc-remove-urls.mjs --property sc-domain:xxx <urls>`（GSC 无公开 API，脚本驱动已登录浏览器逐条提交并截图留证） |
 | **「能不能上线了」「上线前还差什么」「这个环节能过吗」** | [`checklists.md`](references/checklists.md) 阶段 7.5 那七行 + 项目 `.rankup/checks.md` → 取数用 `scripts/seo-audit.mjs` + `scripts/pagespeed.mjs` + `scripts/is-agentic.mjs` → **证据是必填的**，控制台绿图标不算 |
-| **「站慢不慢」「跑个性能」「Core Web Vitals」** | `node rankup/scripts/pagespeed.mjs --strategy both`（**必须自带 `PAGESPEED_API_KEY`**，匿名常年 429）→ 判读 [`seo-box.md`](references/seo-box.md) 一。**现场返回「无数据」= CrUX 流量不足，不是 0、不等于通过** |
+| **「站慢不慢」「跑个性能」「Core Web Vitals」** | `node rankup/scripts/pagespeed.mjs plan <URL…> --strategy both` 出链接与读数清单 → **在浏览器里打开 pagespeed.web.dev 读数**（走网页版，**不需要 key、不占配额**；也可 `pagespeed.mjs collect …` 采双证人，但**标签页必须可见**）→ 判读 [`seo-box.md`](references/seo-box.md) 一。**现场那一块不存在 = CrUX 流量不足，不是 0、不等于通过** |
 | 「全站有多少内链失效」「有没有第二台爬虫」 | `node rankup/scripts/ahrefs-site-audit.mjs projects` → `report <id> links\|redirects\|html-tags\|indexability\|localization` → 档位边界看 [`seo-box.md`](references/seo-box.md)「会员实测」。会话名固定 `ahrefs-nav`，不要传 `--session` |
 | **「抓一下后台数据」「导出这个报表」「这站没有 API」** | 先看 [`provider-capabilities.md`](references/provider-capabilities.md) 有没有现成脚本 → 有就跑（`backlink/scripts/*`）；没有才 `/backlink` 读 `harvest.md`（虚拟滚动、节流、静默丢行的陷阱全在那）→ 落盘规则见本文「抓到的数据不许留在下载目录」 |
 | **「群里怎么说的」「论坛里搜一下」「哥飞讲过这个吗」** | `node rankup/scripts/webcafe-forum.mjs chat-search "词"`（14 个群归档原文，零 AI 额度，**优先于 ask**）→ 单条内容用 `get <url>` → **匿名不报错，只把正文抹成空串**，先读 [`webcafe-forum.md`](references/webcafe-forum.md) 第一节 |
@@ -277,7 +277,7 @@ opencli browser "$S" eval '(async()=>{ /* fetch(..., {credentials:"include"}) */
 | `scripts/naver-setup.mjs` | **在 Naver Search Advisor 里注册站点、获取验证 meta 标签、提交 sitemap**。`status` / `register` / `submit-sitemap`。CAPTCHA 无法自动化，需要用户手动完成验证 | 韩国市场站点上线后接 Naver 站长工具时。Naver 内部 API 有 CSRF 保护，注册和 sitemap 提交走 UI 更稳定。每步截图留证；**eval 超时不再被当成提交成功**，submit 输出事实+suggested，判读看截图 |
 | `scripts/ahrefs-setup.mjs` | **在 Ahrefs 里建项目、经 GSC 验证所有权、启用 Web Analytics 并取回 `data-key`**。`status` / `create` / `verify` / `enable-wa` | 上线后接外链视角与总访问量时。Ahrefs API v3 只有数据查询，项目管理只能走 UI。向导每步截图落 `.rankup/evidence/ahrefs-setup-<ts>/`；create 只报「流程走完」的事实，成没成以最后截图为准 |
 | `scripts/seo-audit.mjs` | **AITDK 相当の全ページ SEO 監査**（零依赖、Node 20+）。title/desc/keywords/canonical/robots/charset/lang/h1/OGP/Twitter Card/構造化データ/画像 alt/リンク分析/hreflang、**キーワード密度（1/2/3-gram、日本語 `Intl.Segmenter` 対応）**。`--sitemap <url>` で全ページ一括、`--json` で機械可読、`--density-only` で密度のみ、`--fix-report` は原始 `issues` の dump（2026-08-30 去判决化后**不再产出修复建议**，建议归判读者） | **構建完成後の SEO 検証に必須**。阶段 7.5 闸门第 2、3 行（TDK + 关键词密度）的取数工具；阶段 8 每轮新页面上线后重跑。零配额、零登录、纯 HTTP fetch，可对 localhost dev server 或线上域名跑。**只出事实**（存在/长度/计数/密度 + 每页抓取失败记录），error/warning 分级与阈值判读表在 [`seo-box.md`](references/seo-box.md)「seo-audit 判读指引」；抓取失败 ≠ 页面没问题 |
-| `scripts/pagespeed.mjs` | **PageSpeed Insights 取数：一次同时拿实验室(Lighthouse)与现场(CrUX)两套数据**，对应阶段 7.5 闸门 6「实验室与现场都要记录」。`--strategy both`、`--md`、`--out` | 上线前跑性能基线、每轮回看。**必须自带免费 key**（`PAGESPEED_API_KEY`，Google Cloud 免费 25k/日）——匿名走的是共享项目配额，实测常年 429，那不是偶发。现场返回「无数据」= CrUX 流量不足，**不是 0、不等于通过** |
+| `scripts/pagespeed.mjs` | **PageSpeed 取数：走网页版 pagespeed.web.dev，一屏同时给实验室(Lighthouse)与现场(CrUX)两套数据**，对应阶段 7.5 闸门 6「实验室与现场都要记录」。`plan`（默认，出链接+读数清单，零依赖）/ `collect`（opencli 双证人采集）；`--strategy both`、`--hl`、`--budget` | 上线前跑性能基线、每轮回看。**不需要任何 key，不占配额**（2026-08-31 起停用带 key 的 PSI API）。**网页版只在 Chrome 标签页真的可见时才出得了分**——后台标签页会一直停在「Running analysis」，所以默认是人跑，`collect` 只是加速；它报 `tab-hidden`/`budget-exhausted` 时**不许**记成「性能没问题」。现场那一块不存在 = CrUX 流量不足，**不是 0、不等于通过** |
 | `scripts/ahrefs-site-audit.mjs` | **读 Ahrefs Site Audit 已有的抓取结果**（驱动已登录浏览器）：`projects` 列项目与健康分，`report <id> <报告>` 取 **15 个**分类报告中的一个（`links` 内链失效 / `redirects` 全站重定向链 / `html-tags` TDK / `indexability` / `localization` hreflang …），`routes` 列清单（2026-08-30 实跑 `routes` 数出来的是 15，别照旧说 20） | 闸门 1、闸门 2 的**第二双眼睛**，以及阶段 3/8 的全站 301 检查。**免费 AWT 档就够**（只能看自己已验证的站，但那正是我们要的），零按次配额。会话名固定 `ahrefs-nav`，不要传 `--session`。判定与边界见 [`seo-box.md`](references/seo-box.md)「会员实测」。失败分支退出前落截图+页面文本+manifest(stopReason) 进 `.rankup/evidence/`，「没解析到项目」「疑似 404」这类不可分辨态由判读者对着截图判 |
 | `scripts/registry.mjs` | 扫描各项目 `.rankup/` 重建跨项目资产登记表 | 开工前查「别的项目有没有现成的」；收工时刷新 |
 | `scripts/review.mjs` | 项目记忆体检：缺失文件、超期记录、脚本体检、**生命周期检查点**（查漏补缺——哪些工具和环节还没跑过）、经验库信号 | `rankup review` 第一步；新引入 Skill 的老站第一件事就跑它 |
@@ -646,7 +646,7 @@ node "<rankup-skill-dir>/scripts/registry.mjs" list
 Meta 和 SERP 有没有问题、市场还有多大、站有多快——**文件层缺口只是其中一组**。
 
 **完整编排在 [`references/playbooks/site-review.md`](references/playbooks/site-review.md) 第一节**：
-阶段 0 摸前提（项目记忆 / 站在不在线 / sitemap / 配额档位 / PageSpeed key / 登录态），
+阶段 0 摸前提（项目记忆 / 站在不在线 / sitemap / 配额档位 / 性能取数由谁跑 / 登录态），
 阶段 1 **一条消息并行派七组 sub agent**，阶段 2 汇总判读并回写。
 它还写死了三个必须处理的分支——**`.rankup/` 还不存在**（新项目里跑 review 是常态，
 体检结果本身就是 `audit.md`/`baseline.md`/`keywords.md` 的第一版，不要先停下来做完整 init）、
@@ -657,7 +657,7 @@ Meta 和 SERP 有没有问题、市场还有多大、站有多快——**文件�
 | 组 | 查什么 | 主力工具 |
 |---|---|---|
 | **A · 技术与内容 SEO** | 全站逐 URL 的 TDK / 密度 / 结构化 / hreflang、重定向链、全站内链失效 | `seo-audit.mjs --sitemap`、`curl -sIL`、`ahrefs-site-audit.mjs` |
-| **B · 速度** | 实验室 + 现场双读数（闸门 6 要的是两套） | `pagespeed.mjs --strategy both` |
+| **B · 速度** | 实验室 + 现场双读数（闸门 6 要的是两套） | `pagespeed.mjs plan --strategy both` 出链接，再读网页版 |
 | **C · GEO / AI 就绪度** | 分数 + 逐项失败项 + 全网分母；内容侧怎么改才会被引用 | `is-agentic.mjs scan --save`、`cf-agent-baseline.mjs --compare`、`seo-growth.md` 三-B、`ai-seo` Skill |
 | **D · 关键词、长尾与 SERP** | 现有词表体检、长尾扩展、竞品词库差集、首页实勘 | `seo-webcafe.mjs kd/mine*`、`semrush-keyword.mjs`、`gt.py`、`demand/`、`keyword-research` Skill 做意图分类与聚簇 |
 | **E · 哥飞 AI 二次意见** | 把 A/B/D 的**实际读数**喂进去问：选词、TDK、SERP 盘面有没有问题 | `seo-webcafe.mjs chat` 或 `gefei-ask.mjs`（选哪条见 [`seo-webcafe.md`](references/seo-webcafe.md)） |
@@ -688,7 +688,7 @@ node "<rankup-skill-dir>/scripts/review.mjs" --project-root . --days 30
    | 路线图 | `roadmap.md` ≥50B | 手写 |
    | AI Agent 就绪度基线 | `agentic/*/` 有 JSON | `is-agentic.mjs scan --save` |
    | 技术审计（闸门 7 项）| `audit.md` ≥500B | `is-agentic.mjs` + `seo-webcafe.mjs audit/chat` |
-   | 性能与流量基线 | `baseline.md` ≥200B | `pagespeed.mjs --strategy both`（**不是单跑 Lighthouse**，那只有实验室一半） |
+   | 性能与流量基线 | `baseline.md` ≥200B | `pagespeed.mjs plan --strategy both` 出链接后读网页版（**不是单跑 Lighthouse**，那只有实验室一半） |
    | 平台接入记录 | `integrations.md` ≥100B | `cf-analytics-setup.mjs status` |
    | IndexNow 已接 | `integrations.md` 提到 IndexNow | `indexnow-submit.mjs --generate-key` |
    | 两边 sitemap 已提交 | `integrations.md` 记了提交状态 | `webmaster-sitemap.mjs <gsc\|bing> submit` |
@@ -813,7 +813,7 @@ node "<rankup-skill-dir>/scripts/sessions.mjs" --project-root . --days 14 --mark
 | **发 Product Hunt / 产品发布平台、排期上线、画廊图上传** | [`product-launch.md`](references/product-launch.md) | 需要能设置 file input 的浏览器连接器；**不要点上传按钮**（会弹系统对话框冻死标签页） |
 | 外链、分发、竞品引用域 | [`integrations.md`](references/integrations.md)、[`seo-growth.md`](references/seo-growth.md) | **加载 backlink**（`/backlink`）。未安装：`npx skills add yan-labs/yan-skills --skill backlink -g -y` |
 | 付费外链平台、「竞品在哪买的链接」、投放平台估价 | [`integrations.md`](references/integrations.md) | **加载 backlink**（读 `references/paid-platforms.md`，喂 `data/paid-platforms.json`） |
-| **性能基线、Core Web Vitals、Lighthouse 跑分、「站慢不慢」、闸门 6** | [`seo-box.md`](references/seo-box.md) 一 | `scripts/pagespeed.mjs`。**Lighthouse 单跑只给实验室数据，闸门 6 要的是实验室+现场两套** |
+| **性能基线、Core Web Vitals、Lighthouse 跑分、「站慢不慢」、闸门 6** | [`seo-box.md`](references/seo-box.md) 一 | `scripts/pagespeed.mjs`（网页版，零 key）。**Lighthouse 单跑只给实验室数据，闸门 6 要的是实验室+现场两套** |
 | **重定向查不查得清：裸域/www 几跳、旧 URL 是 301 还是 302、外链中转跳什么码** | [`seo-box.md`](references/seo-box.md) 二 | `curl -sIL`。判据（302/307 不传权重）在 [`webcafe-topics.md`](references/experiences/webcafe-topics.md) 五 |
 | **竞品用什么建站、挂了哪些分析/广告/支付、他靠什么赚钱** | [`seo-box.md`](references/seo-box.md) 三 + [`lifecycle.md`](references/lifecycle.md) 6.3 | 一次 `curl` + grep 指纹；站群反查用 `scripts/demand/site-network.mjs` |
 | **有人推荐了一个「很全的 SEO 工具站/工具清单/awesome 列表」，要不要接** | [`seo-box.md`](references/seo-box.md) 开头 | **不接入，只对账**：逐条判 ✅ 已覆盖 / ➕ 值得接 / ❌ 不接（附裁决依据）。seo.box 那 28 条已判完，别重判 |
@@ -939,7 +939,7 @@ pnpm dlx shadcn@latest init \
 
 | | 放什么 | 例子 |
 |---|---|---|
-| Skill 的 `.env` | **跨项目的工具账号令牌真实值** | 关键词/SERP 服务的 API 令牌（`KD_TOKEN`）、PageSpeed Insights 的免费 key（`PAGESPEED_API_KEY`） |
+| Skill 的 `.env` | **跨项目的工具账号令牌真实值** | 关键词/SERP 服务的 API 令牌（`KD_TOKEN`）、Cloudflare 凭据（`CLOUDFLARE_API_TOKEN`，若是 37 位 Global API Key 还要 `CLOUDFLARE_EMAIL`） |
 | 项目的 `secrets.md` | **本项目专属凭据的名称、用途、保管位置**，绝不写真实值 | 站点的部署密钥、支付密钥 |
 
 规则：

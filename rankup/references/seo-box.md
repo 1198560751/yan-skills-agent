@@ -36,8 +36,8 @@
 | Google Analytics（清单里重复了两次） | ✅ | 接入清单里的 GA4 一行，验证方式 `curl` grep `gtag` |
 | Microsoft Clarity | ✅ | `scripts/clarity-setup.mjs`，见 [`analytics-platforms.md`](analytics-platforms.md) 第 1 节 |
 | Google Tag Manager | ❌ | 本栈是 TanStack Start SSR，埋点直接进 `<head>`，**引入 GTM 等于多一层「线上到底加载了什么」的不确定性**，而接入清单的验证方式恰恰是 `curl` 线上 HTML grep beacon——GTM 会让这条验证失效 |
-| PageSpeed Insights | ➕ | **本轮补上**：`scripts/pagespeed.mjs`。理由见下一节 |
-| GTmetrix | ❌ | REST API 要登录拿 key，免费账号只给 **5 个 trial credit**，之后按 plan 日额度补（实测 2026-08-29 读其 API 文档）。同样的指标 PSI 免费 25k/日就给了，且 PSI 还多给 CrUX 现场数据 |
+| PageSpeed Insights | ➕ | **本轮补上**：`scripts/pagespeed.mjs`，**走网页版 pagespeed.web.dev，不走带 key 的 API**（2026-08-31 改）。理由见下一节 |
+| GTmetrix | ❌ | REST API 要登录拿 key，免费账号只给 **5 个 trial credit**，之后按 plan 日额度补（实测 2026-08-29 读其 API 文档）。同样的指标 PageSpeed 网页版**连 key 都不要**就给了，还多给 CrUX 现场数据与样本量档位 |
 | WhereGoes（重定向追踪） | ➕ | **能力值得要，网站不值得用**：`curl -sIL` 本地就能完整打印跳转链，零网络依赖、可进 CI、可批量。见下方「重定向链」一节 |
 | Similarweb（重复出现于扩展区） | ✅ | 同上 |
 
@@ -118,37 +118,53 @@
 
 对账的产出不是 28 条摘要，是下面三个**能挂进环节**的东西。其余 25 条要么已覆盖、要么已判死。
 
-### 一 · PageSpeed Insights → 补上闸门 6 缺的那一半
+### 一 · PageSpeed 网页版 → 补上闸门 6 缺的那一半
 
 [`checklists.md`](checklists.md) 阶段 7.5 闸门 6 的判据是
 「**实验室与现场数据都记录，不一致以现场为准**」。在此之前那一行的「怎么做」只写了
 「跑 Lighthouse」——Lighthouse 只给实验室数据，**现场那一半没有任何工具**，
 于是这个闸门长期只能过一半，而表面上是绿的。这正是本 Skill 反复警告的失败形态。
 
-`scripts/pagespeed.mjs` 一次调用同时返回两者：
+**取数走网页版 `pagespeed.web.dev`，不走带 key 的 PSI API**（2026-08-31 改）。
+网页版零 key、零配额、零账号，而且比 API 多给两样东西：CrUX 的**样本量档位**
+（「许多样本 / 少量样本」）和新的**「智能体浏览」类别**——API 都不返回。
 
 ```bash
-node <rankup-skill-dir>/scripts/pagespeed.mjs \
+# 出链接与读数清单（零依赖，随时能跑）
+node <rankup-skill-dir>/scripts/pagespeed.mjs plan \
   https://example.com https://example.com/tool https://example.com/blog/x \
-  --strategy both --md --out .rankup/psi-2026-08-29.md
+  --strategy both
+
+# 可选：驱动本机 Chrome 采双证人（截图 + 页面文本）进 .rankup/evidence/
+node <rankup-skill-dir>/scripts/pagespeed.mjs collect <同样三个 URL> --strategy both
 ```
 
-三条必须知道的（前两条实测 2026-08-29）：
+四条必须知道的（2026-08-31 实测）：
 
-1. **不带 key 是假的能跑。** 匿名调用走 Google 那个所有人共用的项目，
-   实测返回 `429 RESOURCE_EXHAUSTED`（`project_number:583797351490`），**常年如此，不是偶发**。
-   脚本在这种情况下直接终止并教你怎么拿 key，不会退回一个空结果——
-   因为「空结果 + 绿灯」正是这套清单唯一致命的失败形态。
-   key 免费：Google Cloud 启用 PageSpeed Insights API，25000 次/日，
-   `export PAGESPEED_API_KEY=...` 或写进本 Skill 目录的 `.env`（规则见 SKILL.md「令牌统一放 `.env`」）。
-2. **现场数据缺失是正常返回，不是错误。** 响应里直接没有 `loadingExperience` 字段——
-   新站流量不够进 CrUX 就长这样。脚本把它渲染成
-   「**现场：无数据（CrUX 流量不足）— 不是 0，也不等于通过**」。
-   记进 `baseline.md` 时必须原样保留这句话：留空会在下一轮被读成「查过了，没问题」。
-3. **固定串行。** PSI 单次 10–30 秒，并发触发 429。三类页面 × 两端 = 6 次，预期两三分钟。
+1. **网页版跑分只在标签页真的可见时才渲染得完。** 同一个 URL：标签页处于后台
+   （`document.visibilityState === "hidden"`）时页面停在「Running analysis」，
+   连测 4 轮、每轮 60–80 秒**一次都没出分**；标签页一变可见，报告立刻从 179 个
+   元素涨到 8559 个、分数当场出现。数据其实早到了（后台也能看到报告外壳），
+   卡住的是**重报告的渲染**——后台标签页拿不到 rAF/空闲回调。
+   **伪造可见性无效**：改写 `document.visibilityState`/`hidden`、把 rAF 垫成
+   `setTimeout`、补发 `visibilitychange` 都试过，页面读到的确实变 visible，
+   渲染纹丝不动——节流在浏览器层，不在页面读的那个标志位。
+   `opencli --window foreground` 同样不保证（Chrome 整个 app 不在最前时仍是 hidden）。
+   **所以默认是人跑；`collect` 是加速手段，不是无人值守方案。**
+2. **跑不出来 ≠ 没有数据。** `collect` 把两种卡住分开报：`tab-hidden`（标签页
+   没在前台）与 `budget-exhausted`（可见但没跑完——实测有站跑满 240 秒仍在跑）。
+   两种都**不许**被写成「性能没问题」或「这个站没有数据」。
+3. **现场数据缺失是正常形态，不是错误。** 页面上「了解您的真实用户的体验」
+   那一整块直接不出现——新站流量不够进 CrUX 就长这样。
+   记进 `baseline.md` 必须原样写「**现场无数据（CrUX 流量不足）— 不是 0，也不等于通过**」：
+   留空会在下一轮被读成「查过了，没问题」。
+4. **读数时把作用域和样本量一起记。** 网页版会标这份现场数据是「这个 URL」还是
+   「整个源」，还会标样本量档位。两者混记会让下一轮对不上——同一个站的 origin 级
+   数据和 page 级数据本来就不是一回事。
+   另外别忘了跑分环境那行（Lighthouse 版本、节流档位）：**换了环境的绝对值不可比**。
 
-**已验证边界**：脚本的无 key 失败路径与参数解析已实测；**成功路径（带 key 返回真实评分）
-尚未实测**，因为本机没有配 key。首次拿到 key 的人跑通后，请把已验证日期补进脚本头部注释。
+**不要试图直接调网页版的内部接口**：它的跑分请求走 `_/PagespeedUi/data/batchexecute`，
+参数混淆、没有契约、随时会变。要么人读页面，要么按双证人采下来让 AI 判读。
 
 ### 二 · 重定向链：要能力，不要那个网站
 
@@ -217,7 +233,7 @@ grep -oiE '(gtag|googletagmanager|clarity\.ms|cloudflareinsights|plausible|umami
 |---|---|
 | 阶段 1 · 竞品拆解与变现反推 | 第三节「技术栈指纹」；Detailed SEO Extension 用于人工复看首页 |
 | 阶段 3 · 域名与 DNS 接入完成后 | 第二节「重定向链」——裸域/www/https 到底几跳、是不是 301 |
-| 阶段 7.5 · 闸门 6 性能 | 第一节 `pagespeed.mjs`，**实验室与现场都要有** |
+| 阶段 7.5 · 闸门 6 性能 | 第一节 PageSpeed 网页版，**实验室与现场都要有** |
 | 阶段 8 · 改过 URL 之后 | 第二节「重定向链」 |
 | 阶段 8 · 排障定位算法更新 | 博客区：只信 Google Search Central Blog，不信厂商博客 |
 | 阶段 9 · 外链验收 | 第二节「重定向链」 |

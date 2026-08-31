@@ -93,7 +93,7 @@ a–c 必然全空，而 d 档的 `git remote -v` 会拿当前仓库的名字拼
 | 0.2 站在不在线 | 串行 | `curl -sIL -A 'Mozilla/5.0' <site> \| grep -v 'Connection established' \| grep -iE '^(HTTP/\|location:)'` | 首页状态码 + 跳转链（阶段 3 闸门要的那条） | 连不上 / DNS 没解析 → 走下方「站还没上线分支」。**必须滤掉 `Connection established`**，否则走代理时零跳首页会被读成两跳（见阶段 0.0 末尾） |
 | 0.3 有没有 sitemap | 串行 | `curl -s <site>/sitemap.xml \| head -20`；再 `curl -s <site>/robots.txt` | `<sitemap>` 的真实地址；robots 有没有误挡 | 404 → A 组改成「逐个已知页面」模式：`seo-audit.mjs <url1> <url2> …`，并把「缺 sitemap」记成必修项 |
 | 0.4 配额档位 | 串行 | `node <rankup>/scripts/seo-webcafe.mjs translateMe` | seo.web.cafe 是匿名 10/日还是会员档（脚本开头那行 `· 配额 …`）→ **当场把它切成一张预算表**（模板见阶段 1「波次 1b 的预算怎么定」），覆盖 D1 / D4 / E2 / E5 / F5 / F6 全部会扣配额的格 | 打不出档位 = 网络或站点问题，不是「匿名」。重跑一次再判。**不出预算表就不许派波次 1b 的 agent**——它们能并行，所以没人会撞车报错，只会一起把额度花光 |
-| 0.5 性能 key | 串行 | `grep -c PAGESPEED_API_KEY <rankup>/.env 2>/dev/null; echo "env=${PAGESPEED_API_KEY:+set}"` | B 组能不能出真读数 | 两处都没有 → B 组标 ⏸，在收尾里明确写「需要用户去 Google Cloud 开一个免费 key」。**纪律由脚本执行**：`pagespeed.mjs` 无 key 时直接退出（码 1）且**一个请求都不发**，只有显式加 `--allow-anonymous` 才走共享配额（实测常年 429）——**任何情况下都不要加这个开关来「先跑跑看」**，它只能证明网络通不通，出不了可用读数 |
+| 0.5 性能取数路子 | 串行 | `node <rankup>/scripts/pagespeed.mjs plan <首页> --strategy both` | B 组要开的 pagespeed.web.dev 链接 + 读数清单 | **不再需要任何 key**（2026-08-31 起走网页版，零配额）。真正要判的是**谁来跑**：网页版跑分只在 Chrome 标签页真的可见时才渲染得完（实测后台标签页一直停在「Running analysis」，伪造 visibilityState 与 `--window foreground` 都无效）。人在电脑前 → B 组照跑；无人值守 → B 组标 ⏸ 并写「需要用户本人打开这几个链接读数」，**不要把跑不出来记成「性能没问题」** |
 | 0.6 登录态 | 串行 | `opencli doctor` | D/E/F 组里走浏览器的那几条能不能用 | 红 → 这几条标 ⏸ 并写清卡在哪；其余组照跑，**不要因此取消整场体检** |
 
 #### 阶段 1 · 七组诊断（**先按配额分波次，再派 sub agent**）
@@ -201,14 +201,15 @@ D1 / D4 的 `mineSearch`、E2 / E5、F5 的 `translateSearch`、F6 的 `worth` �
 
 | 阶段 | 并行/串行 | 跑什么 | 拿到什么 | 卡住了怎么办 |
 |---|---|---|---|---|
-| B1 | 串行（PSI 并发触发 429） | `node <rankup>/scripts/pagespeed.mjs <首页> <一个工具/功能页> <一个内容页> --strategy both --md --out .rankup/psi-<date>.md` | 三类页面 × 实验室 + 现场（`--out` 的父目录**必须先存在**，见 A1 那条落点纪律） | 无 key 时脚本**在发出任何请求之前就退出（码 1）并打印怎么领免费 key**，这是设计；照阶段 0.5 的分支把 B 组标 ⏸，**不要用 `--allow-anonymous` 绕过去**。返回「现场：无数据（CrUX 流量不足）」时**原样抄进 baseline.md**，留空会在下一轮被读成「查过了没问题」 |
+| B1 出清单 | 串行 | `node <rankup>/scripts/pagespeed.mjs plan <首页> <一个工具/功能页> <一个内容页> --strategy both` | 六个 pagespeed.web.dev 链接（三类页面 × 两端）+ 逐项读数清单 + `baseline.md` 的表格列 | 零依赖、零配额，不会失败 |
+| B2 取数 | 串行 | 两条路，按阶段 0.5 的判断选：<br>**人跑**（默认、最可靠）——按 B1 的链接逐个在浏览器里打开，页面自己跑完再读；<br>**脚本采**——`node <rankup>/scripts/pagespeed.mjs collect <同样三个 URL> --strategy both --budget 300`，双证人（截图 + 页面文本）落 `.rankup/evidence/pagespeed-<ts>/`，判读仍由 AI 做 | 每页：现场 CWV + LCP/INP/CLS + **样本量档位** + **作用域（本 URL 还是整个源）**；实验室四项分数 + 指标区 + 跑分环境 | `collect` 报 `tab-hidden` = **标签页没在前台，不是这个站没有数据**——把 Chrome 切到最前重跑，或退回人跑。报 `budget-exhausted` = 慢站还没跑完（实测有站跑满 240 秒仍在跑），加大 `--budget`，**超时同样不等于没有数据**。页面上**现场那一整块不存在 = CrUX 流量不足**，原样抄「现场无数据（流量不足）」进 `baseline.md`——不是 0、不等于通过，留空会在下一轮被读成「查过了没问题」 |
 
 **C 组 · GEO / AI 就绪度**
 
 | 阶段 | 并行/串行 | 跑什么 | 拿到什么 | 卡住了怎么办 |
 |---|---|---|---|---|
 | C1 单站分数 | 串行 | `node <rankup>/scripts/is-agentic.mjs scan <domain> --save --project .` | 分数 + 逐项 pass/partial/failed，快照进 `.rankup/agentic/`。**注意它返回的是缓存报告，不是一次即时重扫**：上游同域名会直接回上一份结果，报告里的 `scanned_at`（终端第二行「扫描时间」、`--save` 落盘的文件名日期）可能是几天前的 | 原始响应无条件落 `agentic/<domain>/raw/`；429 与「这个站真的没数据」只能靠原始件区分，先看它再下结论。**结论落笔前先把报告里的扫描时间和今天比一遍**——不是今天的，站上任何改动都不在里面。**每一条 failed / partial 都要用一次 `curl -s <site>/<路径> \| grep …` 复核过才允许写进必修项**（实跑里「找不到 agent 指引 / when-to-use」就是这样的误报：报告是几天前的，当天 curl 一验，章节和 `/agents.md` 都在）。这与判读表 A 组那条「Ahrefs 与自家脚本不一致时先看抓取日期」是同一个陷阱，C 组同样适用 |
-| C2 配分母 | 串行 | `node <rankup>/scripts/cf-agent-baseline.mjs --compare .rankup/agentic/<domain>/<date>.json` | 本站失败项 vs 全网通过率并排 | 需要 Cloudflare token（env 或 wrangler 配置）；没有就只报单站分数，**不要把「拿不到基线」写成「本站正常」** |
+| C2 配分母 | 串行 | `node <rankup>/scripts/cf-agent-baseline.mjs --compare .rankup/agentic/<domain>/<date>.json` | 本站失败项 vs 全网通过率并排 | 需要 Cloudflare 凭据（`--token` / `CLOUDFLARE_API_TOKEN` / Skill 的 `.env` / wrangler 配置）。**两种格式都收**：37 位 Global API Key（还要 `CLOUDFLARE_EMAIL` 或 `--email`）或带 `Radar:Read` 的 API Token——脚本按长度自动判别，报错会分开说「缺邮箱 / 格式不符 / 权限不足」。没有凭据就只报单站分数，**不要把「拿不到基线」写成「本站正常」** |
 | C3 内容侧怎么改 | 并行 | 读 [`../seo-growth.md`](../seo-growth.md) 三-B「2026 AI 搜索范式」；再加载 `ai-seo` Skill 读它的 `references/content-patterns.md` 与 `okf.md` | 「被引用」这件事的内容形态判据、llms.txt / OKF 的现状裁决 | `ai-seo` 未装时按 [`../integrations.md`](../integrations.md) 用 find-skills 装；装不上就只用 `seo-growth.md`，**结论不打折但记一句缺了外部对照** |
 | C4 结构化数据模板 | 并行 | 加载 `seo-geo` Skill，只读 `references/schema-templates.md` 与 `references/platform-algorithms.md` | JSON-LD 模板与各 AI 平台取源差异 | **不要跑 `seo-geo/scripts/*.py`**：它们走 DataForSEO，要 `DATAFORSEO_LOGIN`/`DATAFORSEO_PASSWORD` 付费凭据，且与 D 组的取数口径重复（会制造第三个对不上的数字）。裁决理由同 [`../seo-box.md`](../seo-box.md) 对 Ahrefs KD Checker 的判死 |
 
@@ -296,7 +297,7 @@ D1 / D4 的 `mineSearch`、E2 / E5、F5 的 `translateSearch`、F6 的 `worth` �
 
 | 档位 | 有哪些 | 纪律 |
 |---|---|---|
-| **零配额、零登录，放开跑** | `seo-audit.mjs`（纯 HTTP）、`pagespeed.mjs`（自带 key 后 25k/日）、`curl`、`is-agentic.mjs`、`indexnow-submit.mjs`、`seo-webcafe.mjs` 的四个本地命令 `kgr` / `string` / `money` / `email`、`seo-webcafe.mjs endpoints` / `tools` / `translateMe` / `translateAggregate` / `translatePage` / `minePage` / `mineSeed` / `mineReport` / `referring*` | 不需要省，也不要因为「怕花配额」而少跑 |
+| **零配额、零登录，放开跑** | `seo-audit.mjs`（纯 HTTP）、`pagespeed.mjs`（网页版，零 key 零配额；但 `collect` 要标签页可见）、`curl`、`is-agentic.mjs`、`indexnow-submit.mjs`、`seo-webcafe.mjs` 的四个本地命令 `kgr` / `string` / `money` / `email`、`seo-webcafe.mjs endpoints` / `tools` / `translateMe` / `translateAggregate` / `translatePage` / `minePage` / `mineSeed` / `mineReport` / `referring*` | 不需要省，也不要因为「怕花配额」而少跑 |
 | **有配额，先看档位再规划规模** | `seo-webcafe.mjs` 的 `kd` / `serp` / `audit` / `mineSearch` / `mineDomain` / `translateSearch` / `translateDomain` / `chat` / `worth` / `backlink` / `adsense` / `history`。**判据不靠背这张表**：`--help` 里描述**没写「不计配额」的一律按计配额**（写了「计 1」的更是明说） | 阶段 0.4 已经读过档位并出了预算表；**整场体检的规模在开工时定死**，不要边跑边加词。这些格分布在 D4 / E5 / F5 / F6 里，**按功能分组派 agent 就会把它们拆到几个并行 agent 上，每个都不知道总预算**——所以它们统一归波次 1b，prompt 里必须带次数上限 |
 | **配额站，固定会话名，串行** | Semrush（`semrush-nav`）、Similarweb（`similarweb-nav`）、Ahrefs（`ahrefs-nav`） | **不要传 `--session`**，也不要每个 sub agent 一个会话名——会话名就是并发度，同时加载会触发上限。这三家的调用放进**同一个** sub agent 里串行跑，顺序照抄阶段 1「[波次 2 的合并执行顺序](#派活之前先按配额分组)」那五步（A4 → D2 → D6 → F2 → F1）。**A4/D2/D6/F1/F2 分散在四个功能组里，按组派 agent 就会把它们拆到四个并发 agent 上**——那正是这条纪律要拦的事故 |
 | **按次计费/需登录** | `gefei-ask.mjs` / `seo-webcafe.mjs chat` | 一轮体检只问一次，把 A/B/D 的读数一次性喂完（E4） |
