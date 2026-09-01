@@ -909,7 +909,7 @@ pnpm dlx shadcn@latest init \
 
 | 类别 | 平台 | 验证方式 |
 |---|---|---|
-| 托管方分析 | Cloudflare Web Analytics | `curl` 线上 HTML grep `cloudflareinsights` |
+| 托管方分析 | Cloudflare Web Analytics | `curl` 线上 HTML grep `cloudflareinsights` **只证明脚本在，不证明数据在流**；必须再用 GraphQL `rumPageloadEventsAdaptiveGroups(filter:{siteTag})` 查 `count > 0`。手动嵌的 beacon 里 `token` 必须是 `site_token`，不是 `site_tag`——两者同形（32 位 hex），填错不报错，脚本照样 200，只是永远 0 数据（一个站这样空跑了 45 天才被查出来） |
 | 产品分析 | GA4 | `curl` 线上 HTML grep `gtag` 或 `googletagmanager` |
 | 行为分析 | Microsoft Clarity | `curl` 线上 HTML grep `clarity.ms` |
 | 外链视角 | Ahrefs Site Explorer | Ahrefs 后台查项目验证状态 |

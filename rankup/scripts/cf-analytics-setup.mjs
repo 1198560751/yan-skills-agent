@@ -94,15 +94,23 @@ function reportZone(z) {
 
 
 function reportSite(s) {
-  console.log(`site tag     ${s.site_tag}`)
+  console.log(`site tag     ${s.site_tag}   （这是查询/面板用的 ID，不是 beacon 里的 token）`)
+  console.log(`site token   ${s.site_token || "(API 未返回，去面板取 snippet)"}   ← 手动嵌 beacon 时只能用这个`)
   console.log(`auto_install ${s.auto_install}`)
   console.log(`zone         ${s.ruleset?.zone_name || "(未绑定 zone)"}`)
   console.log(`规则启用     ${s.ruleset?.enabled}`)
+  if (s.snippet) console.log(`snippet      ${s.snippet}`)
   if (!s.auto_install) {
-    console.log(`\n⚠️ auto_install 为 false —— 需要手动把 beacon 片段嵌进页面。`)
+    console.log(`\n⚠️ auto_install 为 false —— 需要手动把上面的 snippet 嵌进页面。`)
   } else {
     console.log(`\n✅ 边缘自动注入。无需改代码、无需发版。`)
+    console.log(`   如果 zone 上有 disable_rum 的 Configuration Rule（为保 PSI 关掉自动注入），`)
+    console.log(`   那就必须手动嵌 snippet，且 data-cf-beacon 里填 site_token，不是 site_tag。`)
+    console.log(`   两个都是 32 位十六进制，填错不报错、beacon 照样 200 加载，只是永远 0 数据。`)
   }
+  console.log(`\n验收不能停在「HTML 里有 cloudflareinsights」。用 GraphQL 查 count：`)
+  console.log(`  rumPageloadEventsAdaptiveGroups(filter:{siteTag:"${s.site_tag}", date_geq:"<7 天前>"}) { count }`)
+  console.log(`  上线后一天仍是 [] 就是 token 填错或注入没生效。`)
 }
 
 const [cmd, domain] = process.argv.slice(2)
