@@ -31,7 +31,7 @@ metadata:
 | 「能不能上线了」「上线前还差什么」「TDK」「关键词密度」「标题描述怎么写」 | 4 | `checklists.md` 段 4 + [`seo-box.md`](references/seo-box.md) |
 | 「怎么被 AI 引用」「llms.txt」「对 AI 代理友好吗」「AEO/GEO」 | 4 | [`seo-growth.md`](references/seo-growth.md) 三-B |
 | 「帮我生成 logo / 配图 / 封面 / 海报」「要张 og 图」「画个吉祥物」 | 3–4 | `/imagegen`：图片必须真实生成，不允许占位图 |
-| 「写一下这页的文案」「这稿子 AI 味太重」「帮我改稿」「语言结构理顺一点」「怎么写才会被 AI 引用」 | 4 | 中文：`/human-writing` 起稿 → `/shuorenhua` 去 AI 味（`/write` 只在它的五个附属 Skill 装齐时才用，见 [`skill-ecosystem.md`](references/skill-ecosystem.md)）；内容形状按 `/ai-seo` 的 content-patterns；JSON-LD 只取 `/seo-geo` 的模板 |
+| 「写一下这页的文案」「这稿子 AI 味太重」「帮我改稿」「语言结构理顺一点」「怎么写才会被 AI 引用」 | 4 | 中文：`/write`（先确认它的五个附属 Skill 都在，缺的用 `find-skills` 装齐；装不上才退到 `/human-writing` 起稿 → `/shuorenhua` 去 AI 味，见 [`skill-ecosystem.md`](references/skill-ecosystem.md)）；内容形状按 `/ai-seo` 的 content-patterns；JSON-LD 只取 `/seo-geo` 的模板 |
 | 「文案怎么写才有人点」「定价页怎么排」「用户为什么不买」「还有什么渠道能推」 | 7 | `/marketing-psychology`（锚定、社会认同、损失厌恶等用在页面与定价上）+ `/marketing-ideas`（渠道清单）；判据仍以 [`conversion.md`](references/experiences/conversion.md) 为准 |
 | 「站慢不慢」「跑个性能」「Core Web Vitals」 | 4 | `seo-box.md` 一，`scripts/pagespeed.mjs plan --strategy both` |
 | 「这个域名能不能用」「域名前世」「域名黑历史」 | 5 | `lifecycle.md` 段 5 黑历史闸门 + [`seo-webcafe.md`](references/seo-webcafe.md) `history` |
@@ -49,6 +49,7 @@ metadata:
 | 「我看到一个帖子分享 SEO 的东西，你把这东西记下来更新到源码里」「把这个经验写进 rankup」 | 维护 | 维护 Skill 本身：按 [`experiences/INDEX.md`](references/experiences/INDEX.md) 收录规则与 [`evolution.md`](references/evolution.md) 晋升门写进**对应的现有文件**，不新建文件；见文末「经验回流」 |
 | 「抓一下后台数据」「导出报表」「数据面板」「Semrush 能查这个吗」 | 取数 | [`discipline.md`](references/discipline.md) 六 + [`provider-capabilities.md`](references/provider-capabilities.md)：有脚本先跑，没有才加载 `backlink` |
 | 说的事这张表没有 | — | [`capability-map.md`](references/capability-map.md) → [`skill-ecosystem.md`](references/skill-ecosystem.md) → `/skillsmp` → 最后才按 [`integrations.md`](references/integrations.md) 用 find-skills；不要现写等价实现 |
+| 本文点名的任何兄弟 Skill 本机没装 | — | 加载 `find-skills` 搜索并安装，装完再继续；不跳过、不现写替代。每台机器装的不一样，文档只保证「该用什么」（[`skill-ecosystem.md`](references/skill-ecosystem.md)「缺 Skill 的处置」） |
 
 越模糊越不要盲跑全套：有明确对象就先跑最便宜的那个脚本；只有方向没对象就先 `rankup check`；连站都没有只问一个问题（有没有想好的词），不要连问三个。
 

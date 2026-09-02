@@ -161,12 +161,23 @@ rankup 自己只保留 `cf-zone-setup.mjs`（zone onboarding，**Wrangler 没有
 `seo-audit.mjs --sitemap` → `pagespeed.mjs plan` 后读 pagespeed.web.dev（实验室+现场两套）→ `ahrefs-site-audit.mjs report`（第二双眼睛）
 → 判读对 [`seo-box.md`](seo-box.md) + [`checklists.md`](checklists.md) 段 4。
 
-### `/write` —— 不要加载，它的下游在本机不存在
+### `/write` —— 附属 Skill 装齐才加载，缺就用 find-skills 装齐
 
 `write` 是中文写作的**路由入口**，它把任务分派给 `writing-fragments`、`writing-shape`、
-`writing-beats`、`edit-article`、`humanizer-zh` 五个附属 Skill。**这五个在本机全局 Skill 目录里一个都没有。**
-加载它只会让 AI 去调用不存在的下游然后卡住。要中文写作直接用 `/human-writing`（自带 `references/` 五份，
-不依赖任何外部 Skill）+ `/shuorenhua`。
+`writing-beats`、`edit-article`、`humanizer-zh` 五个附属 Skill。它们不一定装在当前机器上：
+加载 `write` 之前先 `ls` 全局 Skill 目录确认五个都在；缺任何一个就按下面「缺 Skill 的处置」用
+`find-skills` 装上，再加载 `write`。装不上（源不存在、网络不通）时才退到 `/human-writing`（自带
+`references/` 五份，不依赖外部 Skill）+ `/shuorenhua`，并把退路原因写进回复。
+
+### 缺 Skill 的处置：一律 find-skills 安装，不跳过、不现写替代
+
+本 Skill 点名的任何兄弟 Skill（`agent-reach`、`anysearch`、`deep-research`、`tuner`、`human-writing`、
+`shuorenhua`、`ai-seo`、`seo-geo`、`marketing-psychology`、`marketing-ideas`、`imagegen`、`backlink`、
+`opencli`、`keyword-research`、`skillsmp`……）在当前机器上不存在时，处置只有一种：加载 `find-skills`，
+按名字搜索并安装（它会给出 `npx skills add <owner/repo> --skill <name> -g -y` 这类命令），装完再继续。
+为什么写死：每台机器、每个用户装的 Skill 集合都不一样，本文件只能保证「该用什么」，不能保证「已经装了」；
+遇缺就跳过会让流水线静默少一条腿（社区验证没跑、文案没去 AI 味），现写替代又回到「重造轮子」。
+装完的 Skill 若是 yan-labs 自家的，`node scripts/link-skills.mjs` 会把它链回仓库真源。
 
 ### 其余：明确不接的清单
 
@@ -199,3 +210,5 @@ rankup 自己只保留 `cf-zone-setup.mjs`（zone onboarding，**Wrangler 没有
    开场的 Skill 都会把这条纪律带偏。
 5. **接了就要登记。** 判定为「接」的必须同时进 [`capability-map.md`](capability-map.md)
    的「兄弟 Skill 提供的能力」一节，否则它对用户等于不存在。
+6. **登记的是「该用什么」，不是「已经装了」。** 本机没装的一律用 `find-skills` 装，见第三节前的
+   「缺 Skill 的处置」；文档里不许再出现「本机没有所以不要加载」这种把一台机器的状态写成规则的话。

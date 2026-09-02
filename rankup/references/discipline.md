@@ -195,6 +195,10 @@ npx @yan-labs/rankup audit similarweb --manifest .rankup/provider-audit/similarw
 取舍写在 [`skill-ecosystem.md`](skill-ecosystem.md)。**加载 Skill 有上下文成本，不是越多越好**，接入的唯一理由是
 「rankup 现在做不到或做得差」。找不到能力的顺序：[`capability-map.md`](capability-map.md) → `skill-ecosystem.md` → `/skillsmp` 搜 → 最后才按 [`integrations.md`](integrations.md) 用 find-skills。
 
+**已点名的兄弟 Skill 本机没装 → 用 `find-skills` 装上再继续，不跳过、不现写替代。** 每台机器装的
+Skill 集合不一样，文档只保证「该用什么」；遇缺就跳过会让流水线静默少一条腿（社区验证、去 AI 味、生图），
+现写替代又回到重造轮子。处置细则见 `skill-ecosystem.md`「缺 Skill 的处置」。
+
 两条会当场出事的边界：
 
 | 陷阱 | 判据 |
