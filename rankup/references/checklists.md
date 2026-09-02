@@ -168,7 +168,7 @@
 | 检查项 | 客观通过条件 | 证据落点 | 怎么做 | 复查 |
 |---|---|---|---|---|
 | 闸门 0 · 站点身份 | OG 元数据（`og:image` ≥1200px）与图标全集线上 200，`manifest.json` 引用全部命中真实文件，标记经 16px 实测 | `.rankup/integrations.md` | curl 各路径 + 人工核对线上 HTML | 动了 URL |
-| 闸门 1 · 技术 SEO | sitemap 条目与真实 URL 集合一致且零 404；内链零 404；`llms.txt` 列出的路径与真实 URL 一致（不是模板占位）；robots 未误挡应收录路径 | `.rankup/audit.md` | 抓 sitemap 逐条请求 + 抓全站内链逐条请求 + 请求 `/robots.txt`。站点已在 Ahrefs 里验证过所有权时，`ahrefs-site-audit.mjs report <id> links` 是**第二双眼睛**——**两边都说没问题才算数，且必须一起记下 Ahrefs 那次抓取的日期**（它抓的可能是几天前的站） | 动了 URL |
+| 闸门 1 · 技术 SEO | sitemap 条目与真实 URL 集合一致且零 404；内链零 404；`llms.txt` 列出的路径与真实 URL 一致（不是模板占位）；robots 未误挡应收录路径 | `.rankup/audit.md` | 抓 sitemap 逐条请求 + 抓全站内链逐条请求 + 请求 `/robots.txt`。站点已在 Ahrefs 里验证过所有权时，`ahrefs-site-audit.mjs report <id> links` 是**第二双眼睛**——**两边都说没问题才算数，且必须一起记下 Ahrefs 那次抓取的日期**（它抓的可能是几天前的站）。Ahrefs 报的每条问题要用 `issues --json` 里的 data-explorer 链接拿逐 URL 清单，与本地 `seo-audit.mjs` 的结果对上再修，修完手动重抓核销 | 动了 URL |
 | 闸门 2 · TDK | 全站 title 互不重复、description 互不重复且长度在截断阈值内；**每页恰好一个 `h1`**；必修观察项清零（seo-audit 已改为只出事实记录，哪些算必修按 [`seo-box.md`](seo-box.md)「seo-audit 判读指引」判：NO_TITLE / NO_DESCRIPTION / NO_VIEWPORT / NO_H1 / NOINDEX 等为零，`fetchError` 为零——抓取失败 ≠ 通过）。**覆盖全站每一个 URL，不是抽样** | `.rankup/audit.md`（逐 URL，不是一条总述） | `seo-audit.mjs --sitemap <url> --json`，逐条读 `issues` | 动了 URL |
 | 闸门 3 · 关键词密度 | 密度在自然区间，且**「声明的短语」与「测量的短语」逐页是同一个字符串** | `.rankup/audit.md` | `seo-audit.mjs --sitemap <url> --density-only`。实测过 8 个页面在构建绿灯下全过，逐页核对才发现每页测的都不是自己声明的短语 | 动了 URL |
 | 闸门 4 · GEO / AI Agent 就绪度 | 有带分数与逐项结果的基线报告，且**每条 `partial`/`failed` 都独立核实过**（成立则改，误报则记驳回理由） | `.rankup/agentic/<domain>/<date>.json` + 核实结论进 `audit.md` | `is-agentic.mjs scan <domain> --save` | 每轮 |

@@ -224,6 +224,14 @@ Cloudflare 后台点"用该身份登录"会失败，表现为**控制台整个�
 此时应分别探测身份提供商与 Cloudflare 各自的可达性，而不是断定 Cloudflare 不可用——
 改用邮箱密码登录通常即可解决。
 
+### www / http 收敛
+
+「从 WWW 重定向到根」这类 Single Redirects 模板默认只匹配 `https://www.*`，
+`http://www` 入口会先被「Always Use HTTPS」接走再撞规则，多跳一次而不是一跳到位。
+**结论**：改成按主机名匹配（不含协议）+ `concat` 拼目标 URL，不要靠关闭
+「Always Use HTTPS」解决——判据与具体规则写法见
+[`seo-box.md`](seo-box.md)「二 · 重定向链：要能力，不要那个网站」。
+
 ## 8.6 品牌邮箱：Cloudflare Email Routing
 
 域名在 Cloudflare 上之后，用 **Email Routing** 给站点加一个官方邮箱（如 `hello@<domain>`），
