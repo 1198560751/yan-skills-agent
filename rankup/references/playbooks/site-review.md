@@ -92,7 +92,7 @@ a–c 必然全空，而 d 档的 `git remote -v` 会拿当前仓库的名字拼
 | 0.1 项目记忆 | 串行 | `node <rankup>/scripts/review.mjs --project-root . --json` | 缺失文件、陈旧记录、生命周期检查点待补清单 | **`.rankup/` 不存在时脚本只打印「未找到 `.rankup/`，先运行 `rankup init`」就退出**，不出任何检查点——这不是错误，是新项目的正常返回，走下方「新项目分支」建完最小骨架再回来跑一次 |
 | 0.2 站在不在线 | 串行 | `curl -sIL -A 'Mozilla/5.0' <site> \| grep -v 'Connection established' \| grep -iE '^(HTTP/\|location:)'` | 首页状态码 + 跳转链（阶段 3 闸门要的那条） | 连不上 / DNS 没解析 → 走下方「站还没上线分支」。**必须滤掉 `Connection established`**，否则走代理时零跳首页会被读成两跳（见阶段 0.0 末尾） |
 | 0.3 有没有 sitemap | 串行 | `curl -s <site>/sitemap.xml \| head -20`；再 `curl -s <site>/robots.txt` | `<sitemap>` 的真实地址；robots 有没有误挡 | 404 → A 组改成「逐个已知页面」模式：`seo-audit.mjs <url1> <url2> …`，并把「缺 sitemap」记成必修项 |
-| 0.4 配额档位 | 串行 | `node <rankup>/scripts/seo-webcafe.mjs translateMe` | seo.web.cafe 是匿名 10/日还是会员档（脚本开头那行 `· 配额 …`）→ **当场把它切成一张预算表**（模板见阶段 1「波次 1b 的预算怎么定」），覆盖 D1 / D4 / E2 / E5 / F5 / F6 全部会扣配额的格 | 打不出档位 = 网络或站点问题，不是「匿名」。重跑一次再判。**不出预算表就不许派波次 1b 的 agent**——它们能并行，所以没人会撞车报错，只会一起把额度花光 |
+| 0.4 配额档位 | 串行 | `node <rankup>/scripts/seo-webcafe.mjs translateMe` | seo.web.cafe 现在是哪一档、剩多少（只信脚本开头那行 `· 配额 …`，不信文档里的数字）→ **当场把它切成一张预算表**（模板见阶段 1「波次 1b 的预算怎么定」），覆盖 D1 / D4 / E2 / E5 / F5 / F6 全部会扣配额的格 | 打不出档位 = 网络或站点问题，不是「匿名」。重跑一次再判。**不出预算表就不许派波次 1b 的 agent**——它们能并行，所以没人会撞车报错，只会一起把额度花光 |
 | 0.5 性能取数路子 | 串行 | `node <rankup>/scripts/pagespeed.mjs plan <首页> --strategy both` | B 组要开的 pagespeed.web.dev 链接 + 读数清单 | **不再需要任何 key**（2026-08-31 起走网页版，零配额）。真正要判的是**谁来跑**：网页版跑分只在 Chrome 标签页真的可见时才渲染得完（实测后台标签页一直停在「Running analysis」，伪造 visibilityState 与 `--window foreground` 都无效）。人在电脑前 → B 组照跑；无人值守 → B 组标 ⏸ 并写「需要用户本人打开这几个链接读数」，**不要把跑不出来记成「性能没问题」** |
 | 0.6 登录态 | 串行 | `opencli doctor` | D/E/F 组里走浏览器的那几条能不能用 | 红 → 这几条标 ⏸ 并写清卡在哪；其余组照跑，**不要因此取消整场体检** |
 
@@ -143,7 +143,7 @@ D1 / D4 的 `mineSearch`、E2 / E5、F5 的 `translateSearch`、F6 的 `worth` �
 所以最多可以拆成三个 agent（`ahrefs-nav` / `semrush-nav` / `similarweb-nav` 各一）并行；
 但**同一个工具内部绝不许并发**，也**不许给任何一条传 `--session`**——会话名就是并发度。
 
-**波次 1b 的预算怎么定**：阶段 0.4 `translateMe` 打出的档位（匿名 10/日 · 登录 100/日 · VIP 500/日）
+**波次 1b 的预算怎么定**：阶段 0.4 `translateMe` 打出的档位与剩余次数（数字以那一行为准）
 是**整场体检的总额**，在派活之前就把它切成一张表写进 `.rankup/`，并原样抄进每个 agent 的 prompt：
 
 | 花在哪 | 匿名档 10/日 | 登录档 100/日 | 定死的规则 |

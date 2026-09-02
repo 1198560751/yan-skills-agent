@@ -71,7 +71,7 @@ npx skills add yan-labs/yan-skills -g --all
 
 ## `rankup` — 网站全生命周期总控
 
-版本 `3.0.0`。它不重复实现 Wrangler、Stripe 或趋势工具，它负责把这些能力串成一条长期可维护的工作流，并且记住你在每个项目上做过什么。小游戏站另有一条从新词监控、iframe 供给、可玩页面、广告到持续迭代的[专用链路](rankup/references/game-sites.md)。
+版本 `3.1.0`。它不重复实现 Wrangler、Stripe 或趋势工具，它负责把这些能力串成一条长期可维护的工作流，并且记住你在每个项目上做过什么。小游戏站另有一条从新词监控、iframe 供给、可玩页面、广告到持续迭代的[专用链路](rankup/references/game-sites.md)。
 
 登录态数据平台可以直接走薄 CLI，把一次探路沉淀成可续跑清单：
 
@@ -408,7 +408,7 @@ candidate → qualified → filled → submitted → public → indexed@<engine>
 
 ---
 
-## 另外五个 Skill
+## 另外六个 Skill
 
 ### [`autopilot`](autopilot/) — 一句话到无人值守执行完
 
@@ -446,6 +446,18 @@ Skill 装多了以后，「为什么这个 Skill 没生效」十次里有八次�
 ---
 
 # 使用说明
+
+### [`imagegen`](imagegen/) — 网站视觉素材的真实生成
+
+版本 `1.0.0`。借 Codex agent 内置的图像生成能力出图：logo、吉祥物、og:image 分享图、内页配图、用户场景真人图、手绘/蜡笔风插画、海报。本 Skill 只管五件事——把需求翻成好提示词、把命令跑通、验收（缩略图接触印相、alpha 包围盒占比、独立盲评）、压缩、放进项目该在的目录。`rankup` 段 3/4 的「不许占位图、每页独立 og:image 必须有图」就靠它落地。
+
+前置：`codex` CLI 已装并登录（`codex --version`），ImageMagick 可选（透明抠底与占比修正）。
+
+```bash
+npx skills add yan-labs/yan-skills --skill imagegen -g -y
+```
+
+2026-09-02 实跑：一张 1024×1024 透明 logo 加一张 1200×630 og 图，约 5 分钟，原图落 `~/.codex/generated_images/`，压缩后 og 图 JPEG 92 KB / WebP 27 KB。
 
 ## 安装
 

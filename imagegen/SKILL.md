@@ -1,5 +1,7 @@
 ---
 name: imagegen
+metadata:
+  version: "1.0.0"
 description: 生成网站与内容所需的一切视觉素材——用户说 生成图片、配图、插图、画一张、出一套图、logo、吉祥物、封面、海报、og 图、分享图、favicon 源图、用户场景图、真人图（"一个人坐在电脑前"）、手绘/蜡笔/水彩风插画、产品宣传图、电影感画面、"网站需要配图"、image gen、imagegen 时必用。也覆盖 rankup 建站流程里的"页面缺图、还是占位图、og:image 没图、每页要独立分享图、favicon 还没做"——这些场景不许用占位图，必须真实生成，一律加载本 Skill。底层走 Codex 内置的 OpenAI 图像生成工具；本 Skill 负责把需求翻成好提示词、跑通、验收、压缩、落盘。
 ---
 
@@ -22,7 +24,7 @@ cat <outdir>/prompt.md | codex exec --skip-git-repo-check \
 | 要点 | 说明 |
 |---|---|
 | 后台跑 | `Bash` 的 `run_in_background: true`，两张图约 2–3 分钟，成套图更久；等完成通知，不要轮询 |
-| `--sandbox danger-full-access` | 生图要走网络。本机对这个 flag 有常设授权，**直接跑，不要问**；启动那一行说明用了哪个 sandbox 即可 |
+| `--sandbox danger-full-access` | 生图要走网络。这个 flag 是否需要确认取决于当前机器的授权设置：有常设授权就直接跑，没有就按该机器的规则确认一次；无论哪种，启动那一行都要说明用了哪个 sandbox |
 | `-o <outdir>/final.md` | 最终报告写进文件，从这里读路径与方法；stdout 是进度噪音，别去解析 |
 | `2>/dev/null` | 压掉 stderr 的思考流；调试 Codex 本身时才拿掉 |
 | effort | `medium` 够用，这不是推理任务 |
@@ -131,7 +133,7 @@ sips -Z 512 logo.png --out icon-512.png                         # 等比缩最�
 sips -z 630 1200 og.png --out og.png                            # 精确到像素（先高后宽）
 ```
 
-透明没做出来、或主体占比不达标时，用 ImageMagick 二次处理（本机有 `magick`）：
+透明没做出来、或主体占比不达标时，用 ImageMagick 二次处理（先 `which magick`，没有就 `brew install imagemagick`）：
 
 ```bash
 magick in.png -fuzz 8% -transparent '#0F172A' out.png          # 纯色底抠透明（换成实际底色 hex）
@@ -147,7 +149,7 @@ magick out.png -format 'alpha_min=%[fx:minima.a] colors=%k\n' info:   # alpha_mi
 | 页内配图 / 场景图 | WebP（同图 175 KB→56 KB），`<img>` 写真实 width/height | `<project>/public/images/<section>/` |
 | 原始生成物与 prompt.md | 原样留档，不进 `public/` | `<project>/design/imagegen/<batch>/` |
 
-- 多文件循环、等待轮询一律用 `python3` heredoc 驱动：本环境里裸 `for f in *.png; do …; done` 和 `until [ -f x ]; do sleep 2; done` 都会报 `parse error near 'done'`（2026-09-02 实测）。
+- 多文件循环、等待轮询一律用 `python3` heredoc 驱动：Claude Code 的 Bash tool 里裸 `for f in *.png; do …; done` 和 `until [ -f x ]; do sleep 2; done` 可能报 `parse error near 'done'`（2026-09-02 在一台 macOS zsh 环境实测），用 heredoc 最稳。
 - 亮底插画进深色主题要压暗：`filter: brightness(.84) saturate(.92)`。
 - 页面接线后 `curl -I` 每张图 200；仓库结构迁移后 favicon/og 静默 404 是踩过的坑。
 
@@ -162,13 +164,13 @@ magick out.png -format 'alpha_min=%[fx:minima.a] colors=%k\n' info:   # alpha_mi
 
 - 翻 `codex --help` 找不到 image flag 就宣布"Codex 不能生图"。
 - 前台跑 `codex exec` 让用户干等；或紧密轮询后台 shell。
-- 为 `--sandbox danger-full-access` 问一遍权限——本机有常设授权，启动行披露即可。
+- 有常设授权的机器上还为 `--sandbox danger-full-access` 反复请示——按该机器的规则处理一次，启动行披露即可。
 - 提示词里让模型画文字、标语、品牌名。
 - 没用 `Read` 打开过就把图接进页面；或把未压缩的多 MB 原图提交进仓库。
 - 一页一图全站共用同一张 og:image；或先塞一张灰块"以后再换"。
 - 用单张他人作品做参考并在提示词里点名角色。
 - 只做一两道验收就往下走；非盲判断直接写进结论。
-- 为"省配额"缩小批量或不敢重生成——本机计划实际上不限量，第一版差一点就再跑。
+- 为"省配额"缩小批量或不敢重生成——先看当前账号的计划；额度充足时第一版差一点就再跑，不要拿猜测的配额限制自己。
 
 ## 已验证（2026-09-02，codex-cli 0.149.0）
 

@@ -285,8 +285,8 @@ rankup 只判「什么时候发、发多少」（SKILL.md 段 6 一行指回这�
 - `rankup/references/` 顶层 **23 个 md**（3.0 新增 `discipline.md`、`monetization.md`），另加
   `experiences/` **6 个**（合计 27），
   外加 `playbooks/` 目录；
-- 生命周期 **12 个阶段**（0–10 共 11 个，**外加 7.5**）× 闸门表——`lifecycle.md` 里
-  `## 阶段` 一级标题正好 12 个，「步骤 check」小节也是 12 个，一一对应；
+- 生命周期 **七段**（每段开头先对账）× 闸门表——`lifecycle.md` 与 `checklists.md` 段编号一一对应，
+  旧的 0–10 与 7.5 编号见 `lifecycle.md` 顶部映射表；
 - 专项 / 底座 Skill：`backlink`（必要时加载）、`game-opportunity`（游戏专项）、`opencli`（浏览器底座）；
 - 兄弟 Skill：判定「值得接」的 12 项见上方 §十四，判定「不接」的与理由见
   [`skill-ecosystem.md`](skill-ecosystem.md)。
