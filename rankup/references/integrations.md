@@ -38,6 +38,7 @@ npx skills add vercel-labs/skills --skill find-skills -g -y
 | Cloudflare 登录、资源查询、bindings、D1 migrations、R2、Worker Secrets、日志 tail、发布与回滚 | `wrangler` | 任何 Cloudflare 控制面或 CLI 操作 | `infrastructure.md`、`secrets.md` 元数据、`releases.md`、日志 |
 | Worker 代码、运行时 API、资源限制、性能、安全和代码审查 | `workers-best-practices` | 编写或审查 Worker、SSR 服务端和 bindings 使用方式 | `architecture.md`、`audit.md`、决策 |
 | 支付、订阅、Checkout、Billing、Webhook 或 Stripe 数据模型 | `stripe-best-practices` | 仅当支付或计费明确进入任务范围 | `integrations.md`、`secrets.md` 元数据、`releases.md` |
+| PayPal Checkout / Subscriptions、与 Stripe 并存的对账 | 本文「PayPal 路由」+ [`monetization.md`](monetization.md) 二 | Stripe 主通道接通之后，作为关户备份 | `integrations.md`、`secrets.md` 元数据 |
 | 趋势方向、关键词热度、区域或时间变化证据 | 本 Skill 的 [`trends.md`](trends.md) 加 `scripts/gt.py` | 机会调研、内容选题和关键词复核 | `keywords.md`、`baseline.md`、实验 |
 | 外链盘点、质量评估、差距和风险 | `backlink`（`references/link-quality-rubric.md`） | 任何外链执行之前，以及周期性复查时 | `audit.md`、`baseline.md`、计划 |
 | 已批准的外链获取、提交和结果验证 | `backlink` | 分析完成、目标和风险经用户确认后 | `plan.md`、日志、实验 |
@@ -68,6 +69,44 @@ npx skills add vercel-labs/skills --skill find-skills -g -y
 - 成功、失败、重试和退款的验证标准。
 
 真实凭据和 Webhook 签名材料绝不写入 `.rankup/`。项目记忆只记录非敏感对象标识、环境、集成状态、验证证据和密钥元数据。任何从测试模式到生产模式的切换都视为独立发布，需重新核对资源、回调地址、监控和回滚方案。
+
+## PayPal 路由
+
+PayPal 没有专项 Skill；接入路径、确认项与「同一订单只走一条通道」等并存规则全部在
+[`monetization.md`](monetization.md) 二，此处只放一行路由：**Stripe 主通道跑通之后再接，
+一次性付费走 Checkout（Orders API），续费走 Subscriptions API，webhook 必须验签。**
+
+执行前确认（与 Stripe 路由同一份纪律，逐条对照）：
+
+- 沙箱还是生产——两套 App、两套凭据、两个 webhook 地址，切换视为独立发布；
+- 一次性还是订阅——Orders 与 Subscriptions 是两套 API，Plan 建了就改不了价；
+- 回跳地址与 webhook 地址在预览域和正式域各是什么，段 5 域名定稿后要换一遍；
+- Client ID 可以进页面，Secret 与 Webhook ID 走 Worker Secrets，与 Stripe 同一条纪律；
+- 验收标准：沙箱一次成功、一次失败、一次退款，三条 webhook 都落到处理器并写回订单状态。
+
+## 三方库与现成服务优先
+
+开发任何功能之前先按这个顺序查一遍，能接就不自写：
+
+1. **Cloudflare 原生能力**——Email Routing、Web Analytics、Zaraz、Turnstile、Images、R2 预签名 URL、
+   Queues、Cron Triggers。已经在账号里、零依赖、零运维，先看 [`cloudflare-stack.md`](cloudflare-stack.md)。
+2. **现成 SaaS**——支付（Stripe / PayPal）、分析（GA4 / Clarity）、邮件发送、错误上报、
+   搜索、评论。它们的免费档通常覆盖一个新站的前几个月。
+3. **npm 上的成熟库**——看周下载量、最近发布日期、open issue 里有没有「维护者失联」的迹象；
+   三项有一项不对就换一个。
+4. **自写**——只剩这一步时才写，且写之前先 `grep` 仓库与跨项目资产登记表，
+   确认别的项目没有已经写过一份。
+
+为什么这么排：**独立开发者最贵的成本是时间，自写的轮子没人维护。** 一个自写的邮件发送、
+一个自写的验证码、一个自写的图片裁剪，各自只花一天，但半年后每个都会在某次依赖升级或
+平台改动时坏掉，而那时已经没人记得它是怎么写的；现成服务坏了有人修，自写的只有你修。
+同一条道理在数据侧已经写过一遍（「有 HTTP 就走 HTTP，没才用 MCP」「动手抓之前先找官方 API」），
+这里是它在产品功能侧的版本。
+
+两个例外，都必须写进 `.rankup/decisions.md` 才算成立：
+
+- 三方服务把**核心数据**握在它手里且导不出来（用户表、订单表）——这类自持；
+- 三方库为一个小功能拖进整套运行时（几百 KB 的日期库为了格式化一个日期）——这类手写十行。
 
 ## 趋势、SEO 与外链路由
 

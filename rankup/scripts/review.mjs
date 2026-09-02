@@ -57,7 +57,7 @@ const LIFECYCLE_CHECKS = [
     group: "上线后",
     evidence: "audit.md",
     minBytes: 500,
-    fix: "执行 lifecycle.md 阶段 7.5 D 节 0-6 检查项",
+    fix: "执行 lifecycle.md 段 4 C 节「上线前闸门」0–6 + 4b 逐行留证据",
     tool: "is-agentic.mjs + seo-webcafe.mjs audit/chat",
     why: "站点身份/SEO/TDK/密度/GEO/哥飞审阅/性能——逐项要证据",
   },

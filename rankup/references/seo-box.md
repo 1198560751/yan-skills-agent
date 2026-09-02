@@ -24,7 +24,7 @@
 
 | 工具 | 判定 | 依据 |
 |---|---|---|
-| Google Search | ✅ | [`demand-sources.md`](demand-sources.md) 第一·五节的「亲眼看首页」已经是阶段 1 硬 check，且规定了地区与语言必须显式指定 |
+| Google Search | ✅ | [`demand-sources.md`](demand-sources.md) 第一·五节的「亲眼看首页」已经是段 1 硬 check，且规定了地区与语言必须显式指定 |
 | Similarweb | ✅ | `backlink/scripts/similarweb-query.mjs` / `similarweb-batch.mjs`，能力边界见 [`provider-capabilities.md`](provider-capabilities.md) |
 | Semrush | ✅ | `backlink/scripts/semrush-*.mjs` 一组 |
 | Ahrefs（主站） | ✅ **且被低估了** | 见下方「会员实测」一节：免费 AWT 档的 Site Audit 是完整的，`scripts/ahrefs-site-audit.mjs` 取它 |
@@ -49,14 +49,14 @@
 
 | 扩展 | 判定 | 依据 |
 |---|---|---|
-| Detailed SEO Extension | ➕ 建议用户装 | 免费。在**人工复看 SERP 首页**（阶段 1 与阶段 8 都有这条 check）时，一眼看到对方的 TDK / H 结构 / schema，比开脚本快得多。属于「省人的时间」，不属于取数链路 |
+| Detailed SEO Extension | ➕ 建议用户装 | 免费。在**人工复看 SERP 首页**（段 1 与段 7 都有这条 check）时，一眼看到对方的 TDK / H 结构 / schema，比开脚本快得多。属于「省人的时间」，不属于取数链路 |
 | Ahrefs SEO Toolbar | ❌ | 要 Ahrefs 账号，且给的 DR/UR 与上面「不引第三方权重分」的裁决冲突 |
 | Similarweb Website Traffic Rank | ❌ | 数据与 `similarweb-query.mjs` 同源，脚本已覆盖且可复现 |
 | Similarsites Finder | ❌ | 同类站发现走 `similarweb-query.mjs` 的 similar sites 字段，已在脚本里 |
 | Keywords Everywhere | ❌ | 付费按量。其站点确实有 API 与 MCP Server 入口（实测 2026-08-29），但我们的词量口径已经是 Semrush + seo.web.cafe 双源，**第三个付费口径的边际价值为负** |
 | WooRank Extension | ❌ | 同 WooRank 主站 |
-| AITDK Extension | ✅ | AITDK 的能力已被 `scripts/seo-audit.mjs` 复刻（它的头部注释就写着「AITDK 相当」），且脚本能跑全站，扩展只能看当前页 |
-| Wappalyzer | ➕ 能力值得要 | **技术栈识别在阶段 1 的竞品拆解里有真实用途**（对方用什么建站、挂了哪些分析/广告/支付 → 反推变现方式，直接喂 [`lifecycle.md`](lifecycle.md) 6.3 竞品变现分析）。但其 API 是付费 `x-api-key`（实测 2026-08-29），**免费替代见下方「技术栈指纹」一节** |
+| AITDK Extension | ✅（SEO 标签页）/ ⚠️（GEO 标签页） | AITDK **SEO** 标签页的能力已被 `scripts/seo-audit.mjs` 复刻（它的头部注释就写着「AITDK 相当」），且脚本能跑全站，扩展只能看当前页。**GEO 标签页**（引用 / 表格 / 数字 / 作者 / 日期 / sameAs / H3，2026-09-02 在 vidown 实测 76/100）脚本不覆盖，判据在 `checklists.md` 闸门 4b，报告靠用户贴回 |
+| Wappalyzer | ➕ 能力值得要 | **技术栈识别在段 1 的竞品拆解里有真实用途**（对方用什么建站、挂了哪些分析/广告/支付 → 反推变现方式，直接喂 [`lifecycle.md`](lifecycle.md) 6.3 竞品变现分析）。但其 API 是付费 `x-api-key`（实测 2026-08-29），**免费替代见下方「技术栈指纹」一节** |
 
 ### 博客区（4 条）
 
@@ -95,7 +95,7 @@
 |---|---|---|
 | 闸门 1「内链零 404」 | 自己抓全站内链逐条请求 | Site Audit 的 `links` 报告**已经在按周自动做**并保留历史 |
 | 闸门 2「TDK 全站逐 URL」 | `seo-audit.mjs --sitemap` | `html-tags` 报告作为**第二双眼睛**——两边都说没问题才算数 |
-| 阶段 3 / 阶段 8 的 301 检查 | `curl -sIL` 逐条 | `redirects` 报告给的是**全站**重定向链，不是你想起来查的那几条 |
+| 段 5 / 段 7 的 301 检查 | `curl -sIL` 逐条 | `redirects` 报告给的是**全站**重定向链，不是你想起来查的那几条 |
 
 **两边不一致时以自己的脚本为准**——Ahrefs 抓的是它上次抓取那一刻的站，
 可能是几天前；`seo-audit.mjs` 打的是此刻的线上。**日期对不上就不是矛盾**，
@@ -149,7 +149,7 @@
 
 ### 一 · PageSpeed 网页版 → 补上闸门 6 缺的那一半
 
-[`checklists.md`](checklists.md) 阶段 7.5 闸门 6 的判据是
+[`checklists.md`](checklists.md) 段 4 闸门 6 的判据是
 「**实验室与现场数据都记录，不一致以现场为准**」。在此之前那一行的「怎么做」只写了
 「跑 Lighthouse」——Lighthouse 只给实验室数据，**现场那一半没有任何工具**，
 于是这个闸门长期只能过一半，而表面上是绿的。这正是本 Skill 反复警告的失败形态。
@@ -207,9 +207,9 @@ curl -sIL -A 'Mozilla/5.0' https://example.com/old-page | grep -iE '^(HTTP/|loca
 已有一条硬结论——**302/307 不传权重**。但在此之前，rankup 里没有任何地方写「怎么查一条 URL 到底走的是 301 还是 302」。
 判据有了、量具没有，规则就只能靠人记得去查。
 
-该在这三处查：**阶段 3 域名接入后**（裸域 → www、http → https 到底几跳、是不是 301）、
-**阶段 8 改过 URL 之后**（旧页面的跳转是不是 301，链接权重有没有断在 302 上）、
-**阶段 9 验收外链时**（对方站给的链接如果经过跳转中转，跳的是什么码——见 backlink 的证据阶梯）。
+该在这三处查：**段 5 域名接入后**（裸域 → www、http → https 到底几跳、是不是 301）、
+**段 7 改过 URL 之后**（旧页面的跳转是不是 301，链接权重有没有断在 302 上）、
+**段 6 验收外链时**（对方站给的链接如果经过跳转中转，跳的是什么码——见 backlink 的证据阶梯）。
 
 **Cloudflare 的「从 WWW 重定向到根」模板会在 `http://www` 入口上多跳一次。**
 该模板的匹配条件写死 `https://www.*`，只认 https 协议；`http://www` 这个入口
@@ -233,7 +233,7 @@ grep -oiE '(gtag|googletagmanager|clarity\.ms|cloudflareinsights|plausible|umami
 
 命中 `stripe`/`paddle`/`lemonsqueezy`/`creem` → 卖订阅或买断；
 命中 `adsbygoogle`/`ezoic`/`mediavine` → 靠广告，那么**它的商业模型是流量规模**，
-定位对标时不能照抄它的功能取舍（见 [`lifecycle.md`](lifecycle.md) 阶段 1 第 8 条：
+定位对标时不能照抄它的功能取舍（见 [`lifecycle.md`](lifecycle.md) 段 1 必做动作第 8 条（1.3 节）：
 照抄一个变现方式不同、不可比的竞品是明确的失败模式）。
 
 还有一个已经在 rankup 里的更强工具：`scripts/demand/site-network.mjs`
@@ -269,10 +269,10 @@ grep -oiE '(gtag|googletagmanager|clarity\.ms|cloudflareinsights|plausible|umami
 
 | 环节 | 用它的哪一条 |
 |---|---|
-| 阶段 1 · 竞品拆解与变现反推 | 第三节「技术栈指纹」；Detailed SEO Extension 用于人工复看首页 |
-| 阶段 3 · 域名与 DNS 接入完成后 | 第二节「重定向链」——裸域/www/https 到底几跳、是不是 301 |
-| 阶段 7.5 · 闸门 6 性能 | 第一节 PageSpeed 网页版，**实验室与现场都要有** |
-| 阶段 8 · 改过 URL 之后 | 第二节「重定向链」 |
-| 阶段 8 · 排障定位算法更新 | 博客区：只信 Google Search Central Blog，不信厂商博客 |
-| 阶段 9 · 外链验收 | 第二节「重定向链」 |
+| 段 1 · 竞品拆解与变现反推 | 第三节「技术栈指纹」；Detailed SEO Extension 用于人工复看首页 |
+| 段 5 · 域名与 DNS 接入完成后 | 第二节「重定向链」——裸域/www/https 到底几跳、是不是 301 |
+| 段 4 · 闸门 6 性能 | 第一节 PageSpeed 网页版，**实验室与现场都要有** |
+| 段 7 · 改过 URL 之后 | 第二节「重定向链」 |
+| 段 7 · 排障定位算法更新 | 博客区：只信 Google Search Central Blog，不信厂商博客 |
+| 段 6 · 外链验收 | 第二节「重定向链」 |
 | 任何时候有人推荐「一个很全的 SEO 工具站」 | 开头那条规则：**不接入，只对账，三态判定写清裁决依据** |

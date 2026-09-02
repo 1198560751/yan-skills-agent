@@ -444,6 +444,13 @@ Hugging Face 的新 task tag 领先 Google 搜索 2–6 个月——这是游戏
 它是用户自己写好的一句需求 + 一个票数。**票数就是现成的排序**，
 不需要你再去猜哪条更值钱。
 
+**本节还是面板 28 天盲区的唯一补位。** Semrush / Similarweb / seo.web.cafe 给的月量是过去 28–30 天的
+滚动窗口，再滞后几天更新——昨天在 X 上炸开、前天 YouTube 出了十条教程的词，面板上要么是 0，
+要么是上个月的老量，它读不到「正在起来」。所以词根调研里社区验证与面板取量是并列的两条腿
+（[`playbooks/research.md`](playbooks/research.md) P2 阶段 5，必做）：Reddit 用 `reddit-wishes.mjs --time week`
+与 `--time month` 两个窗口对照，X / YouTube / B 站走 `/agent-reach` 取近 14 天与近 30 天；
+口径是**近 14 天有帖且 14 天日均明显高于 30 天日均（≥2 倍）才算新起话题**，此时面板 0 量不构成否决。
+
 ### 句式模板
 
 ```
@@ -699,7 +706,11 @@ node scripts/demand/word-roots.mjs expand converter \
 - 对比多个平台的建议差集——Amazon 上出现而 Google 上不出现的词往往是高购买意图词。
 - 批量操作可用 keywordtool.io，单次深挖用 alphabet soup 手动做（或 AI 通过搜索框自动化）。
 
-暂无脚本——AI 在搜索引擎中执行 alphabet soup 查询并汇总结果。
+| 源 | 拿什么 | 取数方式 | 需登录 | 脚本 |
+|---|---|---|---|---|
+| Google / Bing / DuckDuckGo 搜索框下拉 | 三引擎各自的联想串（按 `--hl` 语种 `--gl` 国家分市场，utf-8） | 纯 HTTP 公开端点，零配额零钥匙；失败引擎为 `null` 并逐引擎落 manifest | 否 | `scripts/demand/suggest.mjs "<词根>" --engine google,bing,ddg --hl <hl> --gl <gl> --json`（alphabet soup：对 `"<词根> a"`…`z` 循环跑） |
+
+keywordtool.io 那一档仍无脚本——AI 手动做或用 `/anysearch` 补 Amazon / YouTube 平台的差集。
 
 ---
 

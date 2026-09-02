@@ -9,8 +9,12 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const expectedVersion = "2.63.1";
+const expectedVersion = "3.0.0";
 const requiredReferences = [
+  "discipline.md",
+  "monetization.md",
+  "playbooks/research.md",
+  "playbooks/site-review.md",
   "checklists.md",
   "lifecycle.md",
   "cloudflare-stack.md",
@@ -182,6 +186,9 @@ async function collectTextFiles(directory = skillRoot) {
   for (const entry of entries) {
     const absolutePath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
+      // `.rankup/` 是项目侧证据目录(脚本以 Skill 目录为 cwd 试跑时会落在这里),
+      // 被 .gitignore 排除、不随 Skill 分发;它里面天然带本机路径,不该让发布门禁挂掉。
+      if (entry.name === ".rankup" || entry.name === "node_modules" || entry.name === ".git") continue;
       files.push(...(await collectTextFiles(absolutePath)));
     } else if (/\.(?:md|json|mjs)$/.test(entry.name)) {
       files.push(absolutePath);

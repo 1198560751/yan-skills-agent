@@ -4,8 +4,10 @@
 「今天弄下 SEO」「帮我看看这个词能不能做」），你需要在**不猜**的前提下知道
 ——rankup 有哪些能力、每个能力的入口在哪、判读依据在哪个文件。
 
-它是**清单**，不是路由。从人话反查入口请先看 `SKILL.md` 顶部的 `<intent-routing>`；
-本文件是那张路由表背后的全量底账，用于「路由表里没有的意图」和「盘点覆盖度」。
+它是**全量底账**，不是路由。从人话反查入口请先看 `SKILL.md` 的总路由表（3.0 起 SKILL.md
+只放路由与七段的硬规则，不再放任何能力表）；本文件是那张路由表背后的全部能力，用于
+「路由表里没有的意图」和「盘点覆盖度」。**§四的数据面板脚本速查与 §十的外链表只存在于这里**，
+SKILL.md 段 6 与取数纪律只一行指回本文件，改脚本入口时只改这一处。
 
 三条阅读约定：
 
@@ -23,7 +25,7 @@
 | 能力 | 一句话能干什么 | 入口 | 典型触发说法 |
 |---|---|---|---|
 | 环节闸门判据 | 12 个环节各一张表：检查项 / 客观通过条件 / 证据落点 / 复查口径 | [`references/checklists.md`](checklists.md) | 「这个环节能不能过」「本轮还差什么」 |
-| 生命周期步骤 | 阶段 0–10（含 7.5）每阶段的输入、必做动作、步骤 check、完成门禁，共 93 步 | [`references/lifecycle.md`](lifecycle.md) | 「到哪一步了」「下一步做什么」 |
+| 生命周期步骤 | 七段（每段开头先对账）每段的输入、必做动作、步骤 check、完成门禁 | [`references/lifecycle.md`](lifecycle.md) | 「到哪一步了」「下一步做什么」 |
 | 项目记忆结构 | `.rankup/` 该有哪些文件、各自的时效契约与提升路径 | [`references/project-memory.md`](project-memory.md) | 「给这个项目建个档」「rankup init」 |
 | 项目体检（文件层） | 缺失文件、超期记录、脚本体检、**生命周期检查点**（哪些工具还没用过） | `rankup/scripts/review.mjs` | 「rankup review」「这站还差什么没做」 |
 | 会话信号挖掘 | 把本项目的 Claude Code / Codex 会话浓缩成人话与结论，供提取经验 | `rankup/scripts/sessions.mjs` | review 第二步；「以前聊过的结论没沉淀」 |
@@ -44,7 +46,7 @@
 [`experiences/demand-discovery.md`](experiences/demand-discovery.md)（裁定集）**。
 先读路由表，不要逐个翻脚本。
 
-`rankup/scripts/demand/` 共 23 个可执行脚本 + 1 个公共库（`_lib.mjs`，不可单独运行），
+`rankup/scripts/demand/` 共 24 个可执行脚本 + 1 个公共库（`_lib.mjs`，不可单独运行），
 全部零依赖、统一支持 `--json` / `--out`，失败把 `{url,status,body}` 落证据目录。
 
 | 能力 | 一句话能干什么 | 入口 | 典型触发说法 |
@@ -71,6 +73,7 @@
 | 收入站案例复核 | 薄编排：串起 AITDK/Similarweb/Semrush/sitemap/KD，产出各源对照与倍差事实 | `scripts/demand/revenue-site-audit.mjs` | 「帖子说这站月入 X，真的假的」 |
 | SERP 取数 | serper.dev 拿 Google 第一页 organic + relatedSearches + PAA | `scripts/demand/serp-query.mjs` | 「这个词首页排的是什么」 |
 | 词根扩展 | 给词根并扩成可投喂数据平台的候选串（挖词的起手式） | `scripts/demand/word-roots.mjs` | 「我只有一个词根」 |
+| 搜索框下拉联想 | Google / Bing / DuckDuckGo 三引擎的搜索框联想，按语种带 `--hl` / `--gl`；扩树第二层的入口（词根 → 联想词 → 叶子再联想一次即停），只采集、每引擎独立落 manifest，0 条不等于没词 | `scripts/demand/suggest.mjs` | 「帮我扩树」「这个词大家还怎么搜」 |
 | CPC 折算 | 把关键词表里的 CPC 变成参与决策的信号（纯计算，不联网） | `scripts/demand/keyword-value.mjs` | 「这批词值多少钱」 |
 
 判读依据集中在 [`demand-sources.md`](demand-sources.md)：**十**（候选验证链路）、
@@ -128,30 +131,31 @@
 | 建站指纹 | 一次 `curl` + grep 看竞品用什么建站、挂了哪些分析/广告/支付 | [`references/seo-box.md`](seo-box.md) 三 | 「他靠什么赚钱」 |
 
 **两家「流量」口径不同是常态**，对不上先按地理范围 / 面板页面 / 口径定义三步对齐，
-见 `SKILL.md` 的「先查能力表，再决定开不开浏览器」一节。
+见 [`experiences/webcafe-experiences.md`](experiences/webcafe-experiences.md) 十六·五「对齐口径要对齐三样东西」。
 
 ## 五、建站与基础设施
 
 | 能力 | 一句话能干什么 | 入口 | 典型触发说法 |
 |---|---|---|---|
-| 默认建站栈 | TanStack Start Monorepo 脚手架 + Cloudflare-first 资源选型 | `SKILL.md`「默认建站栈」+ [`references/cloudflare-stack.md`](cloudflare-stack.md) | 「新建个站」「搭个工具站」 |
-| 脚手架四个坑 | 每一条都实际踩过的初始化陷阱 | [`references/lifecycle.md`](lifecycle.md) 阶段 3 | 「init 报错了」 |
+| 默认建站栈 | TanStack Start Monorepo 脚手架（shadcn 初始化命令唯一）+ Cloudflare-first 资源选型 | [`references/cloudflare-stack.md`](cloudflare-stack.md) + [`references/lifecycle.md`](lifecycle.md) 段 3 | 「新建个站」「搭个工具站」 |
+| 脚手架四个坑 | 每一条都实际踩过的初始化陷阱 | [`references/lifecycle.md`](lifecycle.md) 段 3 · 3.1 | 「init 报错了」 |
 | 域名接入 Cloudflare | zone onboarding 并读回 NS 对（Wrangler 没有 zone 命令）；`status` 只读、`create` 建 | `scripts/cf-zone-setup.mjs` | 「把域名挂到 CF」 |
-| 支付 / 邮件 / 第三方接入 | 接入方式与边界 | [`references/integrations.md`](integrations.md) | 「接个 Stripe」 |
+| 支付 / 邮件 / 第三方接入 | 接入方式与边界；三方库与现成服务优先 | [`references/integrations.md`](integrations.md) | 「接个 Stripe」「这个功能有没有现成的」 |
+| 变现路由 | 意图类型 → 变现方式、Stripe + PayPal 并存规则、广告 / 订阅 / 商店上架判据、监控读数何时回段 1 | [`references/monetization.md`](monetization.md) | 「这站怎么收钱」「接个 PayPal」 |
 | 多语言架构 | URL 结构、`<html lang>`、hreflang、繁简分治；**禁止按 IP 自动跳转语言** | [`experiences/webcafe-experiences.md`](experiences/webcafe-experiences.md) 三·五 + [`seo-growth.md`](seo-growth.md) | 「要不要上多语言」 |
 
 ## 六、上线前闸门、测量与品牌资产
 
 | 能力 | 一句话能干什么 | 入口 | 典型触发说法 |
 |---|---|---|---|
-| 上线前闸门七行 | 阶段 7.5 的七条硬性判据 | [`references/checklists.md`](checklists.md) 阶段 7.5 | 「能不能上线了」 |
+| 上线前闸门七行 | 段 4 的七行硬性判据（0–6 + 4b） | [`references/checklists.md`](checklists.md) 段 4 | 「能不能上线了」 |
 | 全站 SEO 审计 | 全页 TDK/canonical/robots/lang/h1/OGP/结构化数据/alt/hreflang + 关键词密度（1/2/3-gram，日文 `Intl.Segmenter`）；`--sitemap` 全站。**2026-08-30 起只出观察记录 `{code, observed}`，不带分级也不带修复建议**；`--fix-report` 现在只是把原始 `issues` dump 成机器可读格式，分级表在 [`seo-box.md`](seo-box.md)「seo-audit 判读指引」 | `scripts/seo-audit.mjs` | 「TDK 都对吗」「标题写好没」 |
 | 性能双读数 | 一屏同时拿实验室（Lighthouse）与现场（CrUX）；闸门 6 要的就是两套 | `scripts/pagespeed.mjs`（走网页版，**零 key 零配额**；`collect` 需标签页可见） | 「站慢不慢」「Core Web Vitals」 |
 | 托管方分析 | 开通 Cloudflare Web Analytics 并读回 beacon；应排在 GSC/GA 之前 | `scripts/cf-analytics-setup.mjs` | 「先接个统计」 |
 | 行为分析 | 在 Microsoft Clarity 建项目拿 project ID（会话录制 / 热图） | `scripts/clarity-setup.mjs` | 「想看用户怎么点的」 |
 | Ahrefs 项目接入 | 建项目、经 GSC 验证所有权、启用 Web Analytics 取回 `data-key` | `scripts/ahrefs-setup.mjs` | 「接下 Ahrefs」 |
 | 分析平台判读 | 各平台读数差异与验证方式 | [`references/analytics-platforms.md`](analytics-platforms.md) | 「两个统计对不上」 |
-| 接入清单看板 | 已上线站点至少覆盖的 15 类平台与各自验证方式 | `SKILL.md`「接入清单跟踪」→ 项目 `.rankup/integrations.md` | 「还有哪些没接」 |
+| 接入清单看板 | 已上线站点至少覆盖的平台（域名无关一批 + 域名相关一批）与各自验证方式 | [`references/lifecycle.md`](lifecycle.md) 段 5 接入清单 → 项目 `.rankup/integrations.md` | 「还有哪些没接」 |
 | 产品发布平台 | Product Hunt 等发布排期与画廊图上传（**不要点上传按钮**） | [`references/product-launch.md`](product-launch.md) | 「发个 PH」 |
 
 ## 七、收录、索引与站长平台
@@ -185,8 +189,8 @@
 
 ## 十、外链（专项 Skill：backlink）
 
-rankup 只负责路由，深入操作时 `/backlink`；未安装：
-`npx skills add yan-labs/yan-skills --skill backlink -g -y`。
+rankup 只判「什么时候发、发多少」（SKILL.md 段 6 一行指回这里），深入操作时 `/backlink`；未安装：
+`npx skills add yan-labs/yan-skills --skill backlink -g -y`。下表是外链能力的**唯一底账**，SKILL.md 不再复制。
 
 | 能力 | 一句话能干什么 | 入口 | 是否必须加载 backlink |
 |---|---|---|---|
@@ -228,11 +232,11 @@ rankup 只负责路由，深入操作时 `/backlink`；未安装：
 
 | 能力 | 一句话能干什么 | 入口 | 典型触发说法 |
 |---|---|---|---|
-| 数据获取优先级 | 现有脚本 → HTTP API → 用户浏览器 + 脚本 → 手动 OpenCLI；**跳级的唯一理由是上一级不存在** | `SKILL.md`「数据获取的强制优先级」 | 任何取数开工前 |
+| 数据获取优先级 | 现有脚本 → HTTP API → 用户浏览器 + 脚本 → 手动 OpenCLI；**跳级的唯一理由是上一级不存在** | [`references/discipline.md`](discipline.md)「取数优先级」 | 任何取数开工前 |
 | 会话纪律 | 一会话一标签页、不要硬编码会话名、Bash 里禁用 `$$`、Semrush/Similarweb 不传 `--session` | `opencli` Skill `references/session-laws.md` | 「标签页被抢了」 |
 | 落盘 SOP | 本地接收端优先，端口不能写死；退路才是下载目录 | `opencli` Skill `references/data-extraction.md` | 「数据落哪」 |
 | 网页版 AI 工具驱动 | 只有聊天网页形态、且**确认没有 HTTP API** 的工具 | `scripts/chatbot-drive.browser.js` | 罕用；先确认无 API |
-| 令牌存放 | 跨项目工具账号令牌只有一份，放 Skill 根 `.env`；项目 `secrets.md` 只记名称不记值 | `SKILL.md`「令牌统一放 Skill 根目录的 `.env`」 | 「token 放哪」 |
+| 令牌存放 | 跨项目工具账号令牌只有一份，放 Skill 根 `.env`；项目 `secrets.md` 只记名称不记值 | [`references/discipline.md`](discipline.md)「令牌 `.env`」 | 「token 放哪」 |
 
 ## 十四、兄弟 Skill 提供的能力（rankup 做不到或做得差的那些）
 
@@ -277,8 +281,8 @@ rankup 只负责路由，深入操作时 `/backlink`；未安装：
 - `rankup/scripts/` 顶层 **22 个可执行 `.mjs` + `gt.py`**，另有 4 个不单独作为能力入口的文件：
   `lib-scene.mjs`、`webcafe-transport.mjs`、`webcafe-rsc.mjs`（库）与 `gt-browser.mjs`（`gt.py` 的取数层，
   可直接跑但一般由 `gt.py` 转发）；两个 `.browser.js` 是注入页面的载荷，不单独运行；
-- `rankup/scripts/demand/` **23 个可执行 + 1 个公共库**；
-- `rankup/references/` 顶层 **21 个 md**（含本次新增的 `skill-ecosystem.md`），另加
+- `rankup/scripts/demand/` **24 个可执行 + 1 个公共库**（2026-09-02 加 `suggest.mjs`）；
+- `rankup/references/` 顶层 **23 个 md**（3.0 新增 `discipline.md`、`monetization.md`），另加
   `experiences/` **6 个**（合计 27），
   外加 `playbooks/` 目录；
 - 生命周期 **12 个阶段**（0–10 共 11 个，**外加 7.5**）× 闸门表——`lifecycle.md` 里
@@ -287,6 +291,6 @@ rankup 只负责路由，深入操作时 `/backlink`；未安装：
 - 兄弟 Skill：判定「值得接」的 12 项见上方 §十四，判定「不接」的与理由见
   [`skill-ecosystem.md`](skill-ecosystem.md)。
 
-新增能力时**同时改三处**：本文件、`SKILL.md` 的 `<intent-routing>`（若产生新意图簇）、
+新增能力时**同时改三处**：本文件、`SKILL.md` 的总路由表（若产生新意图簇）、
 以及 `SKILL.md` 的 frontmatter `description`（若用户会用新说法触发）。
 只改脚本不改这三处，等于这个能力对用户不存在。

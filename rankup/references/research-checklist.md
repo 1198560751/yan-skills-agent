@@ -1,24 +1,25 @@
-# 需求调研执行清单
+# 需求调研验收清单
 
-**本清单是阶段 1「机会与市场调研」的展开——每次调研（关键词、选题、竞品、赛道）都必须逐项走完。**
+**本清单是段 1「调研」的验收单——每次调研（词根、选题、竞品、赛道）收尾时逐项对照，勾不满不算完成。**
 
-> **本文件是验收单，不是执行顺序。** 「一句话进来 → 先跑哪条命令、哪些能并行」在
-> [`playbooks/research.md`](playbooks/research.md)（4 条预制流水线 + 1 个分流器）。
-> 先照 playbook 跑，跑完回本清单逐项打勾。
+> **本文件是验收单，不是执行顺序，也不是入口。** 「一句话进来 → 先跑哪条命令、哪些能并行、
+> 谁的产出喂给谁」在 [`playbooks/research.md`](playbooks/research.md)
+> （3 条预制流水线 P1 / P2 词根调研 / P4 + 1 个分流器）。**先照 playbook 跑，跑完回本清单逐项打勾。**
+> 下面各节的编号是勾选项的编号，不是先后顺序；只有两条硬先后写在使用规则里。
 
 > **脚本路径**：`seo-webcafe.mjs` / `gt.py` / `webcafe-forum.mjs` 在 `<rankup>/scripts/`，
 > `demand/*` 在 `<rankup>/scripts/demand/`，
-> **Semrush / Similarweb / Tools Share 那一组在 `<backlink>/scripts/`——不在 rankup 里**。
-> 下面各节为省版面写的是裸文件名，实际执行必须带上对应前缀。
+> **Semrush / Similarweb / Tools Share 那一组在 `<backlink>/scripts/`——不在 rankup 里**，
+> 第三～七节里已把它们写成 `backlink/scripts/<文件>`，照抄时把 `backlink/` 换成你机器上的 `$BACKLINK`。
 
 不是建议，不是最佳实践。跳过任何一节，调研结论就少一个维度的验证，
 而缺维度的调研最危险的失败形态是「每一项都对，结论整个是错的」。
 
 ## 使用规则
 
-1. **每次调研开工前打开本清单，做完一项勾一项。** 状态记在项目的 `.rankup/checks.md` 阶段 1 下。
-2. **节的顺序不是建议顺序，是强制顺序。** 第一节（亲眼看）必须在取数之前；
-   第六节（折成钱）必须在宣布结论之前。
+1. **每次调研收尾时打开本清单，做完一项勾一项。** 状态记在项目的 `.rankup/checks.md` 段 1 下。
+2. **执行顺序由 playbook 定，本清单只守两条硬先后**：第一节（亲眼看）必须在取数之前；
+   第六节（折成钱）必须在宣布结论之前。其余节之间没有顺序含义。
 3. **每个工具的输出都要落盘。** 跑完没存证据 = 没跑。落盘路径统一写进 `.rankup/keywords.md`
    或 `.rankup/decisions.md`，带日期。
 4. **配额前置检查。** 开工第一个动作：确认 seo.web.cafe 档位（脚本自动打印）、
@@ -41,10 +42,14 @@
 | 1.2 Bing 搜索（无痕，显式 mkt） | 沙箱浏览器 | 七样记录 | 必做 |
 | 1.3 目标市场本地引擎 | 沙箱浏览器 | 七样记录 | 非英语市场必做 |
 | 1.4 AI 搜索（AI Overviews / Perplexity） | 沙箱浏览器 | 引用了谁 | 推荐 |
+| 1.5 **意图核验**（与 [`lifecycle.md`](lifecycle.md) 6.2 同名） | 1.1–1.3 记下的**页面类型列** + 社区原话（3.7/3.8） | 一行：`真实意图=<X>（前十 <n> 条是<页面类型>），我以为=<Y>，一致/撞词` | **必做**，独立于搜索量成行；撞词时两个意思各自估量 |
 
 **「七样记录」是什么、每样回答什么问题、写进哪个文件，见
 [`demand-sources.md`](demand-sources.md) 的「每个引擎记下这七样」一节**——
 那是这张表的唯一权威版本，此处不复制，改判据只改那边。
+七样之外，**每条结果多记一列「页面类型」**（工具页 / 文章 / 商品 / 视频 / 论坛 / 维基 / 新闻），
+1.5 就是拿这一列对照词根字面——撞词案例（「宠物诊断」字面像娱乐测试，SERP 全是兽医）在
+[`playbooks/research.md`](playbooks/research.md) P2 阶段 6。
 
 **引擎之间不一致本身就是结论，必须写出来。**
 
@@ -68,15 +73,31 @@
 
 | 步骤 | 工具 | 命令 | 输出 |
 |---|---|---|---|
-| 3.1 Semrush 关键词概览（单词，含全球量） | `semrush-keyword.mjs` | `--kw "<词>" --db us` | US Volume, globalVolume, KD, CPC, 竞争密度, 意图, byCountry |
-| 3.2 Semrush 批量搜索量 | `semrush-keyword.mjs` | `--kw-file words.txt --bulk --db us` | US Volume, KD, CPC（**bulk 模式无 globalVolume**） |
-| 3.3 多国家库搜索量 | `semrush-keyword.mjs` | `--kw "<词>" --db <cc>` 逐国跑 | 入选词必须查主要国家，不能只看 US |
+| 3.1 Semrush 关键词概览（单词，含全球量） | `backlink/scripts/semrush-keyword.mjs` | `--kw "<词>" --db <目标国>` | Volume, globalVolume, KD, CPC, 竞争密度, 意图, byCountry |
+| 3.2 Semrush 批量搜索量 | `backlink/scripts/semrush-keyword.mjs` | `--kw-file words.txt --bulk --db <目标国>` | Volume, KD, CPC（**bulk 模式无 globalVolume**） |
+| 3.3 多国家库搜索量 | `backlink/scripts/semrush-keyword.mjs` | `--kw "<词>" --db <cc>` 逐国跑 | 市场是全球：入选词必须逐国查，**不默认 us** |
 | 3.4 Google Trends 趋势方向 | `gt.py` | `compare <词1> <词2> ...` | 12 个月热度曲线，判断涨还是跌 |
-| 3.5 Google Trends 地区分布 | `gt.py` | `region <词>` | 哪些国家/州有需求 |
+| 3.5 Google Trends 地区分布 | `gt.py` | `region <词>` | 哪些国家/州有需求（P2 阶段 0 定国家用它） |
 | 3.6 Google Trends 相关飙升词 | `gt.py` | `related <词>` | rising 飙升词 = 新机会信号 |
 
 **3.1 和 3.2 的区别**：单词模式有 `globalVolume` 和 `byCountry`（全球口径），bulk 模式没有。
-入选词用单词模式跑全球量，初筛阶段用 bulk 批量跑。
+入选词用单词模式跑全球量，初筛阶段用 bulk 批量跑。`--db` 不传会默默落到 `jp`，别省。
+
+---
+
+## 第三·五节 · 社区验证（补面板的 28 天盲区，必做）
+
+**面板月量是过去 28–30 天的滚动窗口，还要再滞后几天——昨天火的词在面板上要么是 0，要么是老量。**
+社区回答的是面板答不了的那个问题：这两周有没有大量人在讨论。只跑面板不跑本节，报告不许下结论。
+
+| 步骤 | 工具 | 命令 | 输出 |
+|---|---|---|---|
+| 3.7 Reddit 近 7 天 vs 近 30 天 | `demand/reddit-wishes.mjs` | `--topic "<词根>" --time week --json` 与 `--time month --json` 各跑一次 | 两个窗口的条数与日均；最高互动的 3 条原话 |
+| 3.8 X / YouTube / B 站近 14 天 | `/agent-reach` | 按词根（含本地语词根）搜近 14 天帖子/视频，再取 30 天做基线 | 每平台：`14 天条数·日均 / 30 天条数·日均 / 3 条原话带链接`；条数由你数，agent-reach 只取原话 |
+| 3.9 HN 近 14 天 | `demand/hn-signals.mjs` | `--mode ask --q "<词根>" --days 14 --json` | 痛点讨论条数 |
+
+**口径（写死）**：近 14 天有帖 **且** 14 天日均 ≥ 30 天日均的 2 倍 → **新起话题**，面板 0 量不构成否决；
+有帖但持平 → 存量需求，以面板量为准；无帖 → 先开 manifest（Reddit RSS 429 是常态），全 `ok` 才记「社区无讨论」。
 
 ---
 
@@ -86,16 +107,17 @@
 
 | 步骤 | 工具 | 命令 | 输出 |
 |---|---|---|---|
-| 4.1 Similarweb 总流量 + 渠道构成 | `similarweb-query.mjs` | `--domain <d> --report performance` | 总访问量（全球）、渠道构成、跳出率、人均页面数 |
-| 4.2 Similarweb 相似站 | `similarweb-query.mjs` | `--domain <d> --report similar-sites` | 同类站清单（扩大候选池） |
-| 4.3 Similarweb 受众地理 | `similarweb-query.mjs` | `--domain <d> --report audience-geo` | 流量国家分布 |
-| 4.4 Similarweb 站点关键词 | `similarweb-query.mjs` | `--domain <d> --report site-keywords` | 该站排了哪些词 |
-| 4.5 Similarweb 批量域名流量 | `similarweb-batch.mjs` | `--domains-file d.txt --out out.jsonl` | 批量快筛。**单域名 6-10 秒不是节流间隔，是「读数稳定」要花的时间**：脚本没有固定 sleep，它按 `--stable-interval`（默认 3 秒）反复读页面，要连续 2 次读数一致才收（判成空态要连续 3 次），所以下限约 6 秒、空态约 9 秒；渲染慢的站按 `--domain-timeout`（默认 75 秒）封顶后记成未完成 |
-| 4.6 Semrush 域名概览（自然流量） | `semrush-overview.mjs` | `--domain <d> --db us` | 自然流量估算（该国家库）、引荐域数、关键词数 |
-| 4.7 Semrush 排名词报表 | `semrush-report.mjs` | `--report organic-positions --domain <d> --db us` | 该站排了哪些词、每个词的位次 |
-| 4.8 Semrush 主要页面 | `semrush-report.mjs` | `--report organic-pages --domain <d> --db us` | 哪些页面吃了最多流量 |
-| 4.9 Semrush 反链概览 | `semrush-report.mjs` | `--report backlinks-overview --domain <d> --db us` | 外链数、引荐域分布 |
-| 4.10 Semrush 批量域名自然流量 | `semrush-batch.mjs` | `--domains-file d.txt --out out.jsonl --db us` | 批量快筛 |
+| 4.1 Similarweb 总流量 + 渠道构成 | `backlink/scripts/similarweb-query.mjs` | `--domain <d> --report performance` | 总访问量（全球）、渠道构成、跳出率、人均页面数 |
+| 4.2 Similarweb 相似站 | `backlink/scripts/similarweb-query.mjs` | `--domain <d> --report similar-sites` | 同类站清单（扩大候选池） |
+| 4.3 Similarweb 受众地理 | `backlink/scripts/similarweb-query.mjs` | `--domain <d> --report audience-geo` | 流量国家分布 |
+| 4.4 Similarweb 站点关键词 | `backlink/scripts/similarweb-query.mjs` | `--domain <d> --report site-keywords` | 该站排了哪些词 |
+| 4.5 Similarweb 批量域名流量 | `backlink/scripts/similarweb-batch.mjs` | `--domains-file d.txt --out out.jsonl` | 批量快筛。**单域名 6-10 秒不是节流间隔，是「读数稳定」要花的时间**：脚本没有固定 sleep，它按 `--stable-interval`（默认 3 秒）反复读页面，要连续 2 次读数一致才收（判成空态要连续 3 次），所以下限约 6 秒、空态约 9 秒；渲染慢的站按 `--domain-timeout`（默认 75 秒）封顶后记成未完成 |
+| 4.6 Semrush 域名概览（自然流量） | `backlink/scripts/semrush-overview.mjs` | `--domain <d> --db <目标国>` | 自然流量估算（该国家库）、引荐域数、关键词数 |
+| 4.7 Semrush 排名词报表 | `backlink/scripts/semrush-report.mjs` | `--report organic-positions --domain <d> --db <目标国>` | 该站排了哪些词、每个词的位次 |
+| 4.8 Semrush 主要页面 | `backlink/scripts/semrush-report.mjs` | `--report organic-pages --domain <d> --db <目标国>` | 哪些页面吃了最多流量 |
+| 4.9 Semrush 反链概览 | `backlink/scripts/semrush-report.mjs` | `--report backlinks-overview --domain <d> --db <目标国>` | 外链数、引荐域分布 |
+| 4.10 Semrush 批量域名自然流量 | `backlink/scripts/semrush-batch.mjs` | `--domains-file d.txt --out out.jsonl --db <目标国>` | 批量快筛 |
+| 4.11 Semrush 总访问口径（与 4.1 并排用） | `backlink/scripts/semrush-traffic.mjs` | `--domain <d>` | .Trends 总访问——和 Similarweb 同量级，`semrush-overview` 的自然流量不能和总访问裸比 |
 
 ### 口径对齐规则（强制）
 
@@ -147,12 +169,14 @@
 
 | 步骤 | 工具 | 命令 | 输出 |
 |---|---|---|---|
-| 7.1 词根扩展 | `word-roots.mjs` | `expand <词根>` | 51 条词根库 + 8 个扩展模板 |
-| 7.2 竞品排名词反查 | `semrush-report.mjs` | `--report organic-positions --domain <竞品> --db us` | 竞品前 100 词，与自己的池子做差集 |
-| 7.3 Semrush Keyword Magic | `semrush-report.mjs` | `--report keyword-magic --keyword <词> --db us` | 整包词 + 聚簇（Topics） |
-| 7.4 Similarweb 扩词 | `similarweb-keywords.mjs` | `--seed <词> --tab phraseMatch` | 匹配词（relatedKeywords 量最大） |
-| 7.5 补测差集词的量与难度 | `semrush-keyword.mjs` + `seo-webcafe.mjs kd` | 逐个补测 | 被自己判过「太难」的头词也测 |
-| 7.6 重算按量加权的 CPC | 手算或 `keyword-value.mjs` | `--in <关键词JSON>` | 扩完词后 CPC 可能掉 |
+| 7.1 词根扩展（本地模板） | `demand/word-roots.mjs` | `expand <词根>` | 51 条词根库 + 8 个扩展模板 |
+| 7.1b 三引擎搜索框下拉 | `demand/suggest.mjs` | `"<词根>" --engine google,bing,ddg --hl <hl> --gl <gl> --json` | Google / Bing / DDG 各自的联想串（按语种分国家；失败引擎为 `null`，开 manifest） |
+| 7.2 竞品排名词反查 | `backlink/scripts/semrush-report.mjs` | `--report organic-positions --domain <竞品> --db <目标国>` | 竞品前 100 词，与自己的池子做差集 |
+| 7.3 Semrush Keyword Magic | `backlink/scripts/semrush-report.mjs` | `--report keyword-magic --keyword <词> --db <目标国>` | 整包词 + 聚簇（Topics） |
+| 7.4 Similarweb 扩词 | `backlink/scripts/similarweb-keywords.mjs` | `--seed <词> --tab phraseMatch` | 匹配词（relatedKeywords 量最大） |
+| 7.5 补测差集词的量与难度 | `backlink/scripts/semrush-keyword.mjs` + `seo-webcafe.mjs kd` | 逐个补测 | 被自己判过「太难」的头词也测 |
+| 7.6 重算按量加权的 CPC | 手算或 `demand/keyword-value.mjs` | `--in <关键词JSON>` | 扩完词后 CPC 可能掉 |
+| 7.7 树只扩两层、停止条件写明 | 人工核对 | 报告第 3 节 | 每片叶子标层级；月量低于筛子阈值或 KD 高于阈值的叶子没有往下扩 |
 
 ---
 
@@ -224,11 +248,15 @@
 ## 调研 checklist（<主题>，<日期>）
 
 ### 必做项
-- [ ] 1.1 Google 首页实勘
+- [ ] 1.1 Google 首页实勘（记页面类型列）
 - [ ] 1.2 Bing 首页实勘
+- [ ] 1.5 意图核验（独立成行，晚于取量、早于裁决）
 - [ ] 2.1 KD + SERP 盘面（seo-webcafe kd）
 - [ ] 3.1 Semrush 搜索量验证
+- [ ] 3.3 多国家库搜索量（逐国，不默认 us）
 - [ ] 3.4 Google Trends 趋势方向
+- [ ] 3.7 社区验证：Reddit 近 7 天 vs 近 30 天
+- [ ] 3.8 社区验证：X / YouTube / B 站近 14 天（/agent-reach）
 - [ ] 4.1 Similarweb 竞品真实流量
 - [ ] 4.6 Semrush 竞品自然流量
 - [ ] 5.1 Stripe 引荐流量榜
@@ -237,9 +265,9 @@
 
 ### 应做项（初筛过后的入选词/站必须跑）
 - [ ] 3.2 Semrush 批量搜索量
-- [ ] 3.3 多国家库搜索量
 - [ ] 3.5 Google Trends 地区分布
 - [ ] 3.6 Google Trends 相关飙升词
+- [ ] 3.9 HN 近 14 天
 - [ ] 4.2 Similarweb 相似站
 - [ ] 4.3 Similarweb 受众地理
 - [ ] 4.4 Similarweb 站点关键词
@@ -248,8 +276,10 @@
 - [ ] 5.3 traffic.cv 流量榜
 - [ ] 6.2 域名画像
 - [ ] 6.3 竞品 sitemap 结构
-- [ ] 7.1 词根扩展
+- [ ] 7.1 词根扩展（本地模板）
+- [ ] 7.1b 三引擎搜索框下拉（suggest.mjs，按目标语种）
 - [ ] 7.2 竞品排名词反查
+- [ ] 7.7 树只扩两层、停止条件写明
 
 ### 按需项（按信号缺口选用，至少选 3 个）
 - [ ] 广告透明度

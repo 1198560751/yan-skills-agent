@@ -137,8 +137,12 @@ npx skills add cloudflare/skills --skill workers-best-practices -g -y
 
 ## 8.5 接入域名：把 zone 加进 Cloudflare
 
-新域名的第一步不是部署，是**让 Cloudflare 接管这个域名**（zone onboarding）。
-这一步不完成，`wrangler deploy` 会因为找不到 zone 而失败，custom domain 也无从绑定。
+**域名接入在生命周期的段 5，不在建站之初。** 开发与上线前体检全部在预览域
+（`workers.dev` 或预览 URL，`noindex`）上完成，域名只是代码里的一处配置留位；
+等 `lifecycle.md` 段 5 的黑历史裁决通过、域名定稿之后，绑正式域名的第一步才是
+**让 Cloudflare 接管这个域名**（zone onboarding）。
+部署到 `workers.dev` 不需要 zone；只有配置了 custom domain / routes 的 `wrangler deploy`
+会因为找不到 zone 而失败，custom domain 也无从绑定。
 
 **Wrangler 没有 zone 命令。** 实测其完整命令面覆盖 Workers / Pages / KV / R2 / D1 /
 Queues / AI / Containers / secret / email，**没有任何创建或列出 zone 的子命令**——
@@ -256,7 +260,8 @@ wrangler email routing dns get <domain>           # 验证 DNS 记录
 **只管收件**：Email Routing 只做转发，不提供发件能力。
 需要用域名邮箱发信要配付费邮箱服务。内容站通常只需收件。
 
-详见 `lifecycle.md` 阶段 7.5 A2 节的完整操作指南与注意事项。
+**地址只有一个约定：`hello@<domain>`**，不用 `contact@` / `admin@` / `info@`。
+详见 `lifecycle.md` 段 5 批 B 第 26 条的完整操作指南与注意事项。
 
 ## 9. 部署
 

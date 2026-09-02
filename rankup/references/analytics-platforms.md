@@ -1,6 +1,6 @@
-# 数据分析平台接入：Clarity · Firebase · Ahrefs
+# 数据分析平台接入：GA4 · Clarity · Firebase · Ahrefs
 
-阶段 7.5 的子环节。与 [`search-platforms.md`](search-platforms.md) 平行：
+段 4 末到段 5 的子环节。与 [`search-platforms.md`](search-platforms.md) 平行：
 搜索平台管「搜索引擎怎么看你」，分析平台管「用户怎么用你、外链怎么指向你」。
 同样是**每建一个站都要原样做一遍**，本文档记录操作步骤和自动化脚本。
 
@@ -8,6 +8,7 @@
 
 | 顺序 | 做什么 | 依赖 | 自动化程度 |
 |---|---|---|---|
+| 0 | **GA4 建媒体资源 + 拿 Measurement ID + 注入** | Google 账号 | 手动（控制台向导 → gtag 或 Zaraz 注入 → 线上 grep + 实时报告验证） |
 | 1 | **Microsoft Clarity 创建项目 + 埋追踪代码** | 微软账号 | 半自动（`clarity-setup.mjs create` 拿 ID → 手动把代码写进 `<head>`） |
 | 2 | **Firebase 创建项目 + 添加 Web 应用** | Google 账号 | 半自动（`firebase` CLI 或控制台 UI → 手动把 config 写进代码） |
 | 3 | **Ahrefs 创建项目 + 所有权验证** | Ahrefs 账号 | 半自动（`ahrefs-setup.mjs create` → `verify` 通过 GSC 自动验证） |
@@ -20,6 +21,41 @@ stopReason）必已落盘。它们**不再宣布「✅ 创建成功」**：creat
 从 URL/页面提取到 ID/data-key」这些事实——URL 命中 ≠ 创建成功，最终以
 create-final / enable-wa-final 那张截图为准。空结果或报错先看 manifest，
 不要读成「项目不存在」。
+
+## 0. GA4（域名无关，可在预览域先接）
+
+### 它属于哪一批
+
+段 5 的接入分两批：**批 A 域名无关**（GA4、Clarity、Cloudflare Web Analytics）在预览域（noindex）
+就接好并验证；批 B 域名相关（GSC、Bing、IndexNow、Ahrefs 站长版）等域名定稿后再做。
+GA4 在批 A：媒体资源的数据流 URL 只是展示用途，换域名不用重建，改一下数据流的网址即可。
+所以**不要等域名定稿才接 GA4**，那会让上线当天少一份基线。
+
+### 接入步骤
+
+1. **建媒体资源**：GA 控制台 → 管理 → 创建媒体资源（选 GA4，不是旧版 UA），时区与币种按目标市场填，
+   不按你所在地填——报表的「昨天」按这个时区切。
+2. **建网站数据流**：填当前可访问的 URL（预览域也可以），拿到 **Measurement ID**（形如 `G-XXXXXXXXXX`）。
+   这是公开值，会出现在页面 HTML 里，不是秘密；但**逐站不同，记到 `<project>/.rankup/integrations.md`**。
+3. **注入，二选一**：
+   - **gtag**：官方 snippet 原样放进 `<head>`，走同意门槛的统一加载入口（见
+     [`integrations.md`](integrations.md)「同意门槛：把不加载做成结构」）。snippet 里
+     `function gtag(){dataLayer.push(arguments)}` 那个 `arguments` 是契约，别改写成箭头函数
+     （同文件「第三方 snippet 里写法很旧的地方，往往是契约」）。
+   - **Cloudflare Zaraz**：站点已在 Cloudflare 上时，Zaraz → 添加工具 → Google Analytics 4 → 填 Measurement ID。
+     仓库零代码，埋点由边缘注入；代价是不受你的同意门槛管辖、字节要照记
+     （同文件「边缘注入型的分析」）。同意门槛做在站内的选 gtag，站内没有同意条的选 Zaraz。
+4. **验证，两条都要**：
+   - 线上 HTML 里 `curl -s <url> | grep -o 'G-[A-Z0-9]\{6,\}'` 得到你的 ID（Zaraz 注入的看资源列表，不看仓库产物）；
+   - GA 实时报告里看到**这一次访问的会话**——清 cookie 重载、点同意、等几秒，实时用户数从 0 变 1。
+   脚本加载了不算接通，实时报告有会话才算（同文件「不要用脚本加载了吗当接通的判据」）。
+5. **回写**：Measurement ID、注入方式、验证日期写进 `<project>/.rankup/integrations.md`，
+   并在隐私页点名 GA4——先改隐私声明再注入，顺序不能反。
+
+### 与 Firebase 的关系
+
+Firebase 项目可以关联这个 GA4 媒体资源（下一节），但纯 Web 站不需要为了 GA4 先建 Firebase；
+先接 GA4，Firebase 只在要用它的 SDK 功能时再建。
 
 ## 1. Microsoft Clarity
 
@@ -179,6 +215,7 @@ Project ID、measurementId、appId、`data-key`、埋码位置——这些**逐�
 每建一个新站，按此清单依次执行：
 
 ```
+□ 0. GA4：控制台建媒体资源 → 拿 Measurement ID → gtag / Zaraz 注入 → 线上 grep 到 G- ID + 实时报告有会话（预览域即可）
 □ 1. Clarity：clarity-setup.mjs create → 拿到 ID → 写进 <head>
 □ 2. Firebase：firebase projects:create → firebase apps:create web → 记录 config
 □ 3. Ahrefs：ahrefs-setup.mjs create → ahrefs-setup.mjs verify（GSC 自动验证）
@@ -187,4 +224,4 @@ Project ID、measurementId、appId、`data-key`、埋码位置——这些**逐�
 □ 6. 去各平台确认数据开始采集
 ```
 
-完成任一步骤后，**立刻回写到 `.rankup/integrations.md`** 打 ✅ 并附证据和日期。`rankup review` 会逐项线上实测验证这张清单——不记就等于没做。详见 `SKILL.md`「接入清单跟踪」。
+完成任一步骤后，**立刻回写到 `.rankup/integrations.md`** 打 ✅ 并附证据和日期。`rankup review` 会逐项线上实测验证这张清单——不记就等于没做。详见 [`lifecycle.md`](lifecycle.md) 段 5 接入清单。

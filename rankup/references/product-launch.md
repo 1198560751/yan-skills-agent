@@ -1,6 +1,6 @@
 # 产品发布平台 runbook（Product Hunt 一类）
 
-阶段 9 的一条分发渠道，单独成文是因为它**只能正经发一次**，
+段 6 · 外链的一条分发渠道，单独成文是因为它**只能正经发一次**，
 而踩坑的地方全在流程细节里，写在清单里放不下。
 
 以 Product Hunt 为准写，同类平台（BetaList、Uneed、Peerlist、Launching Next）

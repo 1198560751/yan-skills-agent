@@ -78,7 +78,7 @@
 | **anysearch 能干什么** | 带 CLI 的实时检索：`search`、`batch_search`（并行多查询）、`extract`（URL 全文抽取）、`get_sub_domains`（垂直领域检索，finance/academic/security/gaming 等）。匿名可用，有 key 则限流更松 |
 | **与 rankup 的分工** | **补充。** rankup 的 `demand/` 全是**结构化源**——榜单接口、商店 API、sitemap、SERP JSON。一旦问题变成「这个赛道 2026 年发生了什么」「这次核心更新到底改了什么」「这个平台的政策变了没」，rankup 手上一件工具都没有，只剩裸 WebSearch。deep-research 给方法，anysearch 给执行 |
 | **和 `demand/serp-query.mjs` 的区别** | 不是一回事。`serp-query.mjs` 要的是**「谁排在前面」**（organic 名次、首页/内页构成、域名命中计数——用来判竞争度），走 serper.dev，`SERPER_API_KEY` 免费 2500 次。anysearch 要的是**「这件事的事实是什么」**（正文内容）。**判竞争度不要用 anysearch，查事实不要用 serp-query** |
-| **什么时候加载** | 阶段 0/1 的赛道与市场调研；排障时要搞清某次算法更新的事实；写内容前的素材收集（这也是 human-writing「五件材料」门槛的补料通道） |
+| **什么时候加载** | 对账与段 1 的赛道与市场调研；排障时要搞清某次算法更新的事实；写内容前的素材收集（这也是 human-writing「五件材料」门槛的补料通道） |
 | **什么时候不要加载** | 已知要查的是榜单/商店/sitemap/SERP（rankup 有专用脚本，更准更快） |
 | **取舍理由** | 接。deep-research 只有一个文件，成本近乎为零；anysearch 补的是 rankup 结构性缺失的一整类通路 |
 
@@ -108,7 +108,7 @@
 |---|---|
 | **human-writing 能干什么** | 中文长内容创作与改稿（知乎回答、论坛长帖、公众号、博客、教程、评测、人物稿）。核心是一道前置门槛：**非虚构长文动笔前必须列出至少五件具体材料，并注明各自来自用户哪句话或哪份可靠来源**；列不出就先研究、追问，或缩短成六百字短答，**不许用重复解释灌字数** |
 | **shuorenhua 能干什么** | 初稿之后的去 AI 味过滤：判场景（chat/status/docs/public-writing）→ 划 protected spans（术语、系统主语、引用原文不许动）→ 判力度档位 → 改写。它明确不是敏感词替换器，保留技术性 |
-| **与 rankup 的分工** | **补一整个空白。** rankup 生命周期阶段 8 之后要持续产内容，但全仓**没有一条关于「文章怎么写」的规则**——[`seo-growth.md`](seo-growth.md) 只讲 Information Gain 要求内容含一手素材，不讲怎么落成句子。更巧的是这两件事是同一条判据的两侧：Google 的「非大众化内容才会被引用」和 human-writing 的「列不出五件材料就别写长稿」，说的是一回事 |
+| **与 rankup 的分工** | **补一整个空白。** rankup 生命周期段 7（7.2）起要持续产内容，但全仓**没有一条关于「文章怎么写」的规则**——[`seo-growth.md`](seo-growth.md) 只讲 Information Gain 要求内容含一手素材，不讲怎么落成句子。更巧的是这两件事是同一条判据的两侧：Google 的「非大众化内容才会被引用」和 human-writing 的「列不出五件材料就别写长稿」，说的是一回事 |
 | **顺序** | human-writing 起稿 → shuorenhua 过一遍 → 再按 `/ai-seo` 调结构 → 上线后 `seo-audit.mjs` 查 TDK 与密度 |
 | **硬边界** | **两个都是中文视角。** 英文站、日文站的内容两个都不适用，别硬套 |
 | **取舍理由** | 接。但只在真的要产中文长内容时加载，两个都不小 |
@@ -119,7 +119,7 @@
 |---|---|
 | **它们能干什么** | marketing-psychology：心理原理与思维模型（锚定、社会认同、稀缺、损失厌恶、框架效应、JTBD）。marketing-ideas：139 条 SaaS 营销打法，按品类索引（内容与 SEO、竞品、免费工具、投放、社群、邮件、合作、发布、PLG、平台、国际化） |
 | **与 rankup 的分工** | **补扩词角度。** rankup 的 `demand/word-roots.mjs` 只有 51 条词根 + 8 个模板，做的是**形态扩展**（`{seed} to {target} {root}`），补不出「痛点词 / 对比词 / 决策词」（心理角度）和「不同职业 / 不同平台 / 不同用例」（场景角度）。[`trends.md`](trends.md) W2 第一步已经把它们写进扩词流程，本条只是把它登记进能力底账 |
-| **什么时候加载** | 扩词卡住、只剩形态变体想不出新角度时；marketing-ideas 另可用于阶段 9/10 的增长手段盘点 |
+| **什么时候加载** | 扩词卡住、只剩形态变体想不出新角度时；marketing-ideas 另可用于段 6/7 的增长手段盘点 |
 | **什么时候不要加载** | 已经有足够词表（去 `/keyword-research` 分层）；定价与转化问题（rankup 有 [`experiences/conversion.md`](experiences/conversion.md)，是带数字的实战裁定，比通用心理学更该先看） |
 | **取舍理由** | 接（维持现状并登记）。[`trends.md`](trends.md) 里已有的那句「这些 skill 不可用时自己顶上做扩词即可，角度不变」是对的，保留 |
 
@@ -159,7 +159,7 @@ rankup 自己只保留 `cf-zone-setup.mjs`（zone onboarding，**Wrangler 没有
 
 **结论：不加载。**「帮我看看这站有什么 SEO 问题」的正确链路是
 `seo-audit.mjs --sitemap` → `pagespeed.mjs plan` 后读 pagespeed.web.dev（实验室+现场两套）→ `ahrefs-site-audit.mjs report`（第二双眼睛）
-→ 判读对 [`seo-box.md`](seo-box.md) + [`checklists.md`](checklists.md) 阶段 7.5。
+→ 判读对 [`seo-box.md`](seo-box.md) + [`checklists.md`](checklists.md) 段 4。
 
 ### `/write` —— 不要加载，它的下游在本机不存在
 

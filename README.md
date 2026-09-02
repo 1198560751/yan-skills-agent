@@ -20,13 +20,14 @@ npx skills add yan-labs/yan-skills -g --all
 
 **这个仓库要干掉的就是「从头再来一遍」。** 它把上面每一步都固化成脚本、数据文件和判定规则，让 AI Agent 直接照着执行。
 
-三个主力 Skill，分工很清楚：
+三个主力 Skill 加一个配套的生图 Skill，分工很清楚：
 
 | | 管什么 | 一句话 |
 |---|---|---|
 | [`rankup`](rankup/) | 网站的**全生命周期** | 从「这个词能不能做」到「上线三个月后该改哪一页」 |
 | [`backlink`](backlink/) | 外链与**登录态数据** | 去哪发、能不能发、发完有没有真的生效 |
 | [`opencli`](opencli/) | 浏览器与**取数的底层** | 怎么把用户那个已登录的 Chrome 开对，怎么不让两个任务抢同一个标签页 |
+| [`imagegen`](imagegen/) | 网站的**视觉素材** | logo、吉祥物、og 图、内页配图、用户场景图、手绘插画——真实生成，页面上不许留占位图 |
 
 小游戏每日自动化由 [`game-opportunity`](game-opportunity/) 的 `collect-checklist` 和
 `decision-checklist` 两种模式分别执行 10 项采集与决策验收；
@@ -54,7 +55,8 @@ npx skills add yan-labs/yan-skills -g --all
 | 「有没有现成的 skill 能做 X」「我想写个 skill，别人写过没」 | [`skillsmp`](skillsmp/) |
 | 「用我的浏览器打开」「登录后台查一下」「标签页被抢了」「doctor 报错」 | [`opencli`](opencli/) |
 | 「一句话，你自己拆解自己跑完」 | [`autopilot`](autopilot/) |
-| 「生成一张图 / 配图」「让 Codex 在后台跑一轮」 | [`codex`](codex/) |
+| 「生成 logo / 吉祥物 / og 图 / 内页配图 / 用户场景图 / 手绘插画」 | [`imagegen`](imagegen/) |
+| 「让 Codex 在后台跑一轮」 | [`codex`](codex/) |
 | 「skill 没生效 / 目录重复 / 链接坏了」 | [`skill-link-check`](skill-link-check/) |
 
 三条容易走错的边界：
@@ -69,7 +71,7 @@ npx skills add yan-labs/yan-skills -g --all
 
 ## `rankup` — 网站全生命周期总控
 
-版本 `2.63.1`。它不重复实现 Wrangler、Stripe 或趋势工具，它负责把这些能力串成一条长期可维护的工作流，并且记住你在每个项目上做过什么。小游戏站另有一条从新词监控、iframe 供给、可玩页面、广告到持续迭代的[专用链路](rankup/references/game-sites.md)。
+版本 `3.0.0`。它不重复实现 Wrangler、Stripe 或趋势工具，它负责把这些能力串成一条长期可维护的工作流，并且记住你在每个项目上做过什么。小游戏站另有一条从新词监控、iframe 供给、可玩页面、广告到持续迭代的[专用链路](rankup/references/game-sites.md)。
 
 登录态数据平台可以直接走薄 CLI，把一次探路沉淀成可续跑清单：
 
@@ -79,79 +81,72 @@ npx @yan-labs/rankup capture semrush keyword-overview --keyword "photo signature
 npx @yan-labs/rankup audit similarweb --manifest .rankup/provider-audit/similarweb.json --out-dir .rankup/provider-audit/live/similarweb --resume
 ```
 
-### 它覆盖的十二个阶段，分五个大阶段
+### 3.0 改了什么
 
-阶段号是 `0 1 2 3 4 5 6 7 7.5 8 9 10`——**7.5 是一个真实存在的独立阶段**，不是 7 的子项。它卡在「阶段 7 把站点部署上线」和「阶段 8 假设 GSC、分析已经存在」这两个假设之间，过去这段空白每个新站都要现摸一遍，现在补上了。
+- 主文件 `rankup/SKILL.md` 从 979 行压到 300 行以内：只剩总路由表、七段各一节硬规则、红线速查与三个命令；执行纪律、红线细则、事故复盘全部搬到 [`references/discipline.md`](rankup/references/discipline.md)。
+- 调研改为**词根扩树**：用户给的任何词都是词根，先直接搜再扩成树（最多两层）；原 P2「这个词能不能做」与 P3「扩词」合并为一条流水线，见 [`references/playbooks/research.md`](rankup/references/playbooks/research.md)。
+- 域名接入移到上线前最后一步（段 5），定稿前加**黑历史裁决**闸门；平台接入拆成「域名无关 / 域名相关」两批。
+- 新增 [`references/monetization.md`](rankup/references/monetization.md)：Stripe / PayPal / 广告 / 订阅 / 商店上架，只写路由与判据。
+- 新增 `scripts/demand/suggest.mjs`：Google / Bing / DuckDuckGo 下拉联想，纯 HTTP 零配额，按语种带 `--hl` / `--gl`。
+- 新红线：**任何页面不得出现占位链接 / 占位文案 / 占位图片**——Google 据此判垃圾站。
 
-| 阶段 | 覆盖 | 出口判据（一句话） |
+### 它覆盖的七段生命周期
+
+3.0 把原来的 `0 1 2 3 4 5 6 7 7.5 8 9 10` 十二个阶段重排成七段。旧号与新段的对照表在 [`references/lifecycle.md`](rankup/references/lifecycle.md) 顶部，项目里旧的 `.rankup/checks.md` 按它换算，不用重写。
+
+| 段 | 名称 | 出口判据（一句话） |
 |---|---|---|
-| 一 · 调研 | 0–1 | 每个词有量+KD+SERP 构成+**意图核实**+引荐域预算，且有做/不做的裁决 |
-| 二 · 建站 | 2–3 | 页面模板按词的意图定型；结构、内链、E-E-A-T 一次到位 |
-| 三 · 托管与开发 | 4–6 | Cloudflare 全栈按实际需要启用，不预建 |
-| 四 · 上线前门禁 | 7–7.5 | 七项硬门禁全绿 + 封板声明 |
-| 五 · 上线与增长 | 8–10 | 域名、数据面板、外链、观察调整，回到阶段 0 进入下一轮 |
+| 1 | 调研 | 任何词都是词根：直接搜 → 扩树 → 取量 → 社区验证（Reddit / X / YouTube / B 站近 14 天）→ 亲眼看 SERP 核实意图 → 折成钱；每个词有做/不做的裁决 |
+| 2 | 立项与定位 | 第一目标是拿到流量并选定语种；某语种量大竞争小就**只做单语站**；意图类型决定产品形态与变现方式 |
+| 3 | 建站与开发 | 一律 shadcn monorepo 脚手架 + GitHub 私有仓 + Cloudflare；域名做成一处配置留位；页面上零占位 |
+| 4 | 上线前 SEO/GEO | 在预览域（noindex）上过完八行闸门 + 封板声明；每次页面改动全套重跑 |
+| 5 | 上线与接入 | 批 A 域名无关接入 → 域名黑历史裁决 → 绑域名 → 批 B 域名相关接入 → 放开索引，一个不漏 |
+| 6 | 外链 | rankup 只判什么时候发、发多少，执行交给 `backlink` |
+| 7 | 变现与监控 | Stripe + PayPal 先有；监控读数触发回到段 1 开下一棵树 |
 
 ```mermaid
 flowchart LR
-  subgraph P1["一 调研"]
-    A0["0 对账"] --> A1["1 调研"]
-  end
-  subgraph P2["二 建站"]
-    B2["2 设计"] --> B3["3 初始化"]
-  end
-  subgraph P3["三 托管与开发"]
-    C4["4 Cloudflare"] --> C5["5 开发测试"] --> C6["6 专项集成"]
-  end
-  subgraph P4["四 上线前门禁"]
-    D7["7 部署验证"] --> D75["7.5 品牌与测量"]
-  end
-  subgraph P5["五 上线与增长"]
-    E8["8 SEO增长"] --> E9["9 分发外链"] --> E10["10 监控迭代"]
-  end
-  P1 --> P2 --> P3 --> P4 --> P5
-  E10 -.下一轮.-> A0
+  S1["1 调研"] --> S2["2 立项与定位"] --> S3["3 建站与开发"] --> S4["4 上线前 SEO/GEO"]
+  S4 --> S5["5 上线与接入"] --> S6["6 外链"] --> S7["7 变现与监控"]
+  S7 -.下一棵树.-> S1
 ```
 
-逐阶段展开：
+逐段展开：
 
 ```
-0    恢复项目上下文，与线上真实状态对账
-1    机会调研：趋势、关键词、竞争、意图核实、付费空间
-2    产品定义：页面、数据模型、架构、实施计划
-3    初始化 Monorepo（新站走批准过的 TanStack Start 脚手架）
-4    Cloudflare：SSR、API、D1、R2、环境与 bindings
-5    小步开发，类型 / 测试 / 构建 / 迁移四道验证
-6    按需接入 Stripe、邮件、统计、搜索平台
-7    部署并验证真实域名、SSR、API、上传、鉴权、回调
-7.5  品牌资产（图标全集）与测量接入（分析、GSC、IndexNow），外加上线前七项硬门禁
-8    技术 SEO、内容、索引、转化优化
-9    合规的分发与外链（这一步交给 backlink）
-10   监控、实验、复盘、记录，进入下一轮
+1  调研：词根扩树、取量与 KD、社区验证、SERP 意图核实、竞品变现、折成钱
+2  立项与定位：流量第一、语种裁定、意图 → 形态 → 变现、写清「1」的定义与放弃条件
+3  建站与开发：shadcn monorepo 初始化、私有仓、Cloudflare 按需启用、域名留位、hello@ 邮箱、无占位
+4  上线前 SEO/GEO：每页目标词与密度、独立 TDK/OG 含图、llms.txt、八行闸门、封板声明
+5  上线与接入：批 A（GA4、Clarity、CF WA）→ 域名黑历史裁决 → 绑域名 → 批 B（GSC、Bing、Yandex、Naver、IndexNow、Ahrefs、Email Routing）→ 放开索引
+6  外链：节奏按 KD → 引荐域对照表，执行交给 backlink
+7  变现与监控：Stripe + PayPal、广告 / 订阅 / 商店、监控读数触发下一棵树
 ```
 
-已经在跑的老站从当前阶段接入即可，不会强制你从阶段 1 重走。
+每段开头都有一个固定动作「对账」（原阶段 0）：回答「项目现在真实在哪」，答不出来不进任何一段。已经在跑的老站从当前段接入即可，不会强制从段 1 重走。
 
-### 每个阶段交给下一个阶段什么
+### 每段交给下一段什么
 
-十二个阶段不是十二件孤立的事，是一条交接链：调研阶段定下的目标词，建站阶段拿去对准页面模板，上线前门禁拿它量真实线上域名，外链投放照它瞄准，监控阶段再把结果归因回它。任何一环把这份交接漏掉，链路就断在那里，后面的阶段会拿着一份对不上号的清单继续往下做。
+七段不是七件孤立的事，是一条交接链：段 1 定下的目标词树，段 2 拿去裁定语种与形态，段 3 拿去对准页面模板，段 4 拿它逐页量密度与 TDK，段 6 的外链照它瞄准，段 7 再把排名与收入归因回它。任何一环把这份交接漏掉，链路就断在那里，后面的阶段会拿着一份对不上号的清单继续往下做。
 
 ```mermaid
 flowchart TD
-  R["一 调研<br/>产出：目标关键词清单 + 意图核实 + 链接预算"] --> B["二 建站<br/>页面模板对准每个词的意图"]
-  B --> H["三 托管与开发<br/>把页面接上真实的 Cloudflare 全栈"]
-  H --> G["四 上线前门禁<br/>拿七项硬指标量真实线上域名"]
-  G --> L["五 上线与增长<br/>外链投放瞄准调研阶段的目标词"]
-  L --> M["监控与归因<br/>排名变化回指到具体的词与页面"]
-  M -.下一轮调研.-> R
+  R["1 调研<br/>产出：词根扩树 + 意图核实 + 社区验证 + 链接预算"] --> P["2 立项与定位<br/>语种与形态跟着流量走"]
+  P --> B["3 建站与开发<br/>页面模板对准每个词的意图，域名留位"]
+  B --> G["4 上线前 SEO/GEO<br/>在预览域上拿八行闸门量每一页"]
+  G --> L["5 上线与接入<br/>域名定稿、两批接入、放开索引"]
+  L --> K["6 外链<br/>投放瞄准段 1 的目标词"]
+  K --> M["7 变现与监控<br/>排名与收入回指到具体的词与页面"]
+  M -.下一棵树.-> R
 ```
 
-每个阶段文件末尾都有一张「交给下一阶段的」表，写清楚交付物、下一阶段怎么用、缺了会怎样——这不是装饰，`rankup/references/lifecycle.md` 十二个阶段每个都有。
+每段末尾都有一张「交给下一段的」表，写清楚交付物、下一段怎么用、缺了会怎样——这不是装饰，[`references/lifecycle.md`](rankup/references/lifecycle.md) 段 1 到段 7 每段都有。
 
 这条规则还有一半藏在文件之间：`.rankup/keywords.md` 这类被多处引用的清单一旦改动，要先找出谁在引用它，尤其是判定条件和放弃条件里的引用。真实发生过的失误：一份目标词清单从 8 个词收缩到 4 个，但另外三份文件的通过/放弃判据仍然锁定在「这 8 个词」上——于是一个已经被剔除的词只要自己涨进了前 20 名，会被误判成阶段目标达成。**改一份被引用的清单前，先 grep 谁在引用它。**
 
-### 上线前的七道硬闸门（阶段 7.5）
+### 上线前的硬闸门（段 4，预览域 noindex）
 
-阶段 7.5 里最要紧的是这七行，逐行要真实线上域名的证据，不是工具清单：
+段 4 里最要紧的是这八行（闸门 0–6 加 4b），全部在预览域上做完，逐行要证据，不是工具清单。域名此时还没定稿，这些检查与域名无关：
 
 | # | 检查项 | 证明什么 |
 |---|---|---|
@@ -160,12 +155,15 @@ flowchart TD
 | 2 | TDK | 全站（不是抽样）title/description 互不重复，每页恰好一个 `h1` |
 | 3 | 关键词密度 | 声明的目标短语与实测的短语是同一个字符串 |
 | 4 | GEO / AI Agent 就绪度 | `is-agentic.mjs` 基线报告，每条 `partial`/`failed` 独立核实过 |
+| 4b | GEO 内容形状 | 内容页有带出处的 Sources 节与规格表、FAQ 是 H3、JSON-LD 带 author / datePublished / dateModified |
 | 5 | 哥飞 AI 审阅 | 每条建议有采纳/拒绝记录，拒绝必须附理由 |
 | 6 | 性能 / Core Web Vitals | 首页、工具页、内容页三类都达标，现场数据优先于实验室数据 |
 
-**命令跑了但证据没落进 `.rankup/`，不算通过。** 口头「应该没问题」或控制台一个绿色图标都不算证据，见 `rankup/references/lifecycle.md` 阶段 7.5 第 D 节。
+**命令跑了但证据没落进 `.rankup/`，不算通过。** 口头「应该没问题」或控制台一个绿色图标都不算证据，见 [`references/lifecycle.md`](rankup/references/lifecycle.md) 段 4 C 节与 [`references/checklists.md`](rankup/references/checklists.md) 段 4。每次页面改动，这八行全套重跑，不许只重跑改到的两行。
 
-### 两个命令，覆盖 90% 的日常
+### 三个命令，覆盖 90% 的日常
+
+**`rankup check`** — 「现在该做什么」「一步步来」时的唯一动作。读 `references/checklists.md` 与项目 `.rankup/checks.md`，找到第一个没过闸的段，逐项去真实代码、线上响应、后台读数核对，然后直接照着做。它保持轻量、零配额；命中升级判据（已上线但没有 `audit.md`、动过线上 URL 却超过一轮没体检）时会明说「这已经不是 check，是 review」。
 
 **`rankup init`** — 把一个项目接进来。新项目适用，做了很久却还没有项目记忆的项目更适用（这才是常态）。
 
@@ -206,7 +204,7 @@ node scripts/sessions.mjs --project-root . --days 14 --new-only --dump
 全程不碰会话 Cookie（那枚是 HttpOnly，脚本本来也读不到）。两条路径互补不是替代——
 有 Cookie 想无人值守就用 `seo-webcafe.mjs chat`，只有登录态浏览器就用这个。
 
-**零配置可跑，匿名身份每天 10 次。** 接口地图是 2026-08-07 用真实浏览器会话逐个工具点网络面板得到的，每个工具只发了一次请求，没跑循环、没登录、没绕配额，记在 [`references/seo-webcafe.md`](rankup/references/seo-webcafe.md)。
+**零配置可跑；配额档位以脚本打印为准**——早先写死的「匿名 10 次/日」已被真实事故推翻，不要再信文档默认值。接口地图是 2026-08-07 用真实浏览器会话逐个工具点网络面板得到的，每个工具只发了一次请求，没跑循环、没登录、没绕配额，记在 [`references/seo-webcafe.md`](rankup/references/seo-webcafe.md)。
 
 **`scripts/webcafe-forum.mjs`**（+ `webcafe-transport.mjs` / `webcafe-rsc.mjs`）—— [哥飞社区论坛](https://new.web.cafe)全站取数，
 `get <任意站内 URL>` 一条命令取回内容，认不出的 URL 退回通用抓取。覆盖悬赏问答（含征集型的众筹榜单与提交理由）、
@@ -220,7 +218,7 @@ node scripts/sessions.mjs --project-root . --days 14 --new-only --dump
 
 **`scripts/gt.py`** — Google Trends。热度对比、地区分布、相关飙升词、每日热搜四个子命令，首次运行自动建 venv 装 pytrends。配套 [`references/trends.md`](rankup/references/trends.md) 里有三套工作流：小语种市场探测、把模糊方向收敛成真能做站的词、新兴趋势捕捉。
 
-**`scripts/demand/` 一整组（23 个脚本）** — 需求挖掘取数，配套 [`references/demand-sources.md`](rankup/references/demand-sources.md) 那张源 → 脚本路由表；**另有十余个没有脚本的手工源**（差评矿、用户原话、CT 子域名监控等），底账见 [`references/capability-map.md`](rankup/references/capability-map.md)。
+**`scripts/demand/` 一整组（24 个脚本，含 3.0 新增的 `suggest.mjs` 三引擎下拉联想）** — 需求挖掘取数，配套 [`references/demand-sources.md`](rankup/references/demand-sources.md) 那张源 → 脚本路由表；**另有十余个没有脚本的手工源**（差评矿、用户原话、CT 子域名监控等），底账见 [`references/capability-map.md`](rankup/references/capability-map.md)。
 
 用户说「找几个关键词」「挖点需求」「最近有什么能做的」时的入口。**路由表按「你现在缺哪一类信号」组织，不按站点类型**：谁已经收到钱了 / 谁在花钱买流量 / 谁做了但没做好 / 谁在为这件事付外包费 / 正在冒出来的新产品 / 持续涌现新词的平台 / 用户的原话 / 竞品正在往哪儿下注。拿到候选之后统一走同一条验证链路（域名画像 → KD → SERP 盘面 → 流量面板 → 趋势）。
 
@@ -298,7 +296,7 @@ pnpm dlx shadcn@latest init \
 
 Cloudflare-first：SSR 与 API 走 Workers，事务数据走 D1，文件与导出物走 R2，读多写少的配置走 KV，异步多步任务走 Queues / Workflows，强一致协调走 Durable Objects，真实密钥走 Worker Secrets 或 CI Secrets。资源按实际需求启用，不因为「以后可能需要」提前创建。
 
-脚手架的四个坑每一条都实际踩过，写在 [`references/lifecycle.md`](rankup/references/lifecycle.md) 阶段 3。
+脚手架的四个坑每一条都实际踩过，写在 [`references/lifecycle.md`](rankup/references/lifecycle.md) 段 3 · 3.1「脚手架四个坑」。
 
 ---
 
@@ -543,7 +541,7 @@ node backlink/scripts/health.mjs
 # rankup/.env
 SEO_WEBCAFE_TOKEN=     # 只有 kd 命令需要，wc_mcp_ 开头，去 /kd/docs 自助生成
                        # 旧键名 KD_TOKEN= 同样识别
-SEO_WEBCAFE_COOKIE=    # 可选。给了就把配额从访客 10/日 提到登录 100/日、VIP 500/日
+SEO_WEBCAFE_COOKIE=    # 可选。给了就提高配额档位；具体档位以脚本打印为准，不要信写死的数字
                        # chat 命令强制登录，匿名会 401
 
 # backlink/.env
@@ -675,7 +673,7 @@ node scripts/link-skills.mjs --check
 能。492 条入口库、141 个付费平台、19 篇方法论、外链质量评分与外联模板，全都是纯数据和纯方法，不需要任何浏览器。只有实际驱动浏览器取数和填表才需要。
 
 **Q：不给 `rankup` 配令牌能用吗？**
-基本能。`seo-webcafe.mjs` 除 `kd` 和 `chat` 之外全部匿名可跑，配额访客 10/日。`kd` 要一个自助生成的公开 API 令牌，`chat` 要登录态。`gt.py` 完全不需要令牌。
+基本能。`seo-webcafe.mjs` 除 `kd` 和 `chat` 之外全部匿名可跑，配额档位以脚本打印为准。`kd` 要一个自助生成的公开 API 令牌，`chat` 要登录态。`gt.py` 完全不需要令牌。
 
 **Q：Skill 装了但没被触发？**
 跑 `skill-link-check`。十次里有八次是符号链接的问题。

@@ -338,7 +338,7 @@ Google 明确说 **AEO/GEO 不是独立学科，就是 SEO**。以下是官方�
 **暂无点击/CTR/查询词数据**（Google 称后续会加）。
 另有 opt-out 开关：可以阻止内容出现在 AI 功能中，且不影响传统有机排名。
 
-**对我们的影响**：阶段 8 和阶段 10 的监控清单必须加入 AI 曝光指标。
+**对我们的影响**：段 7（7.2 与 7.3）的监控清单必须加入 AI 曝光指标。
 在 `.rankup/baseline.md` 里新增 AI 曝光基线（可用时）。
 
 ### February 2026 Discover Core Update：Discover 独立算法
@@ -502,8 +502,8 @@ node <rankup-skill-dir>/scripts/is-agentic.mjs history <domain>
 
 **什么时候跑**：
 
-1. **上线后第一次**（lifecycle 阶段 7.5）：存基线，`--save`。
-2. **每轮 SEO 优化收尾时**（阶段 8/10）：`diff` 对比改进。
+1. **上线后第一次**（lifecycle 段 4 闸门 4 出基线，段 5 绑正式域名后复跑）：存基线，`--save`。
+2. **每轮 SEO 优化收尾时**（段 7 · 7.2/7.3）：`diff` 对比改进。
 3. **接入新的 AI 代理表面（MCP、OpenAPI、Skills）后**：验证得分变化。
 
 **注意**：llms.txt 对 **Google Search 无用**（Google 官方已否定），但对 AI 代理生态有用。
@@ -620,6 +620,57 @@ Markdown 内容协商），其余一律列进「未能对照」，不做凑数�
 **什么时候跑**：`is-agentic.mjs` 输出「高级集成」类低分时，先跑一次
 `--compare` 判断这是全网通病还是真实差距，再决定要不要动手修。
 
+## 三-C、无关区块（价格表、推荐位）：SSR 只输出本页目标文案
+
+### 目的
+
+密度、TDK、首屏文案这些检查都是对**一页一个目标词**做的。页面里与目标词无关的区块
+——价格表、其它产品的推荐位、全站通用的 UI 控件文案（position / px / size / shadow 这类标签）、
+每个卡片都重复一遍的免责声明——会把主题词从 top 榜里挤出去。段 4 的硬规则是：
+**SSR 输出里只有本页目标文案**，无关区块不进首屏 HTML。
+
+判据先于手法：先用 `scripts/seo-audit.mjs` 看 raw HTML 的 1/2/3-gram top15，
+主题词不在前列、榜上全是控件词或价格表词，才动手；主题词已经在前列就不要为了「更干净」去改结构。
+
+### 做法一：无关区块改客户端加载（最简单）
+
+价格表、推荐位改成 mount 后再渲染（或 `hidden` + 客户端展开）。SSR 产物里没有它们，
+密度工具立刻通过，实现只是把一个组件挪到客户端。
+
+**边界**：它只对「密度工具读 raw HTML」这一件事成立。Googlebot 的 WRS 会渲染 JS，
+DOMContentLoaded 或 mount 时注入的内容**照样进渲染后 DOM**——所以密度工具通过，不代表 Google
+看到的一样。用这个做法要接受一个前提：那块内容 Google 看见也无妨（价格表通常如此，它本来就该被索引），
+你只是不想让它压主题词的**工具读数**。反过来，如果目的是让 Google 的渲染层也不看见，这个做法不够。
+
+### 做法二：首次真实交互后再注入（更稳）
+
+Googlebot 渲染 JS 但**从不交互**。所以唯一可靠的逐出是：等到第一次真实交互
+（pointerdown / pointermove / keydown / touchstart / wheel 五事件，`once` + `passive`）才注入。
+已实证的形态：
+
+- 文案来源是 SSR 内嵌的 JSON blob，与 SSR 同一个 `t()` 调用生成——**单真源**，blob 属 script 内容不计入可见文本；
+- 注入目标是空 span（`data-i18n-lazy`，并摘掉 `data-i18n` 防运行时包提前水合）；
+- `:empty::before` 占位防 CLS，px / ° / % 后缀走 `data-unit`。
+
+实证数字：64 个 label + 16 个单位转换后，raw top15 的 position（1.88%）/ px（1.78%）/ size / shadow
+全部出榜、主题词回正；无头零输入 3s 后全空、单击后双语全对、面板高度 Δ0。
+
+**边界**：它只适用于**不该被索引的装饰性文案**——控件标签、单位、工具面板。
+把正文、FAQ、价格这类**你希望被索引**的内容放到交互后注入，等于亲手把它们从 Google 面前藏起来；
+「把结果预加载进 DOM 但首页不展示」已经吃过整域 shadow ban
+（[`experiences/webcafe-experiences.md`](experiences/webcafe-experiences.md) 十七·一），方向相反但同一条红线。
+
+### 两种做法怎么选
+
+| 区块 | Google 看见有没有问题 | 做法 |
+|---|---|---|
+| 价格表、其它产品推荐位、相关页卡片 | 无妨，甚至该被索引 | 做法一：客户端加载，只压工具读数 |
+| 控件标签、单位、面板文案、每卡重复的免责声明 | 稀释主题、无索引价值 | 做法二：首次交互后注入；重复样板提到容器层只写一次 |
+| 分月 / 分类面板的长尾正文 | **必须**被看见 | 都不用：全量 SSR + `hidden` 切换（五 2026-07-26 那条） |
+
+改完必须两处都验：raw HTML 的密度（工具视角）和无头加载 + settle 后的 DOM（Google 视角），
+只测一处会漏掉另一侧（五 2026-07-18「双真源站的运行时包」那条讲的是同一件事）。
+
 ## 四、工作流(每轮优化按此走)
 
 0. **读项目 `.rankup/`**：按 [`project-memory.md`](project-memory.md) 恢复并对账上下文；没有就初始化项目记忆。新项目、新产品线或新词族先填【机会池卡】并通过 `D+C+W+M` 门禁;已运行站点的存量优化直接从 GSC 真实数据开始。
@@ -669,7 +720,7 @@ Markdown 内容协商），其余一律列进「未能对照」，不做凑数�
 - **[2026-07-18] 类型/产品改名后旧名可能是 GSC 品牌词**:某测评站把一个类型名改掉之后,GSC 显示用户仍在搜旧名,且旧名是站内第二大品牌词。清理 prose 里的旧名残留会误伤流量;正解=改名页保留一句 legacy bridge("曾经被称为 <旧名>"),0-1 click 的旧名不做。改名决策前必查 GSC 查询表。
 - **[2026-07-18] 图片批量压缩工具链升级**:pngquant(256色)+oxipng 对插画类 PNG 比 ImageMagick 量化质量好一个档(实证 results png -80% 无可见劣化);OG 用途的 png 压不到 100KB 时保留原质量(爬虫单次抓取,不是页面权重);全幅 hero(fill 渲染)的图不可按"渲染宽×2"缩尺寸,只能重编码——**压缩 agent 的 brief 里"已验证的渲染尺寸"也要让 agent 复核**(实证 brief 里两处"事实"是错的,agent 复核后避免了 upscale 模糊)。
 - **[2026-07-18] @astrojs/sitemap 只会输出 index+chunk 双文件**(无单文件选项),协议合法、Google 认;但小站建议 postbuild 扁平化成单一 /sitemap.xml(脚本:复制 chunk → 删除 index+chunk → robots.txt 同步 → 旧 URL 加 301)。**Cloudflare Pages 的 _redirects 只在路径不命中静态文件时生效** —— 不删旧文件,重定向永远不触发。手工维护的静态 sitemap 副本是事故源(本站 5 月版本后来被当垃圾清掉导致 404 两个月),要么生成要么重定向,别手写。
-- **[2026-07-18] 词密度被 UI 控件文案稀释的根治法 = 交互门控注入**:密度工具读 raw HTML,但 Googlebot WRS 渲染 JS 却**从不交互**——DOMContentLoaded 注入只骗得过工具骗不过 Google,唯一可靠的逐出 = 首次真实交互(pointerdown/pointermove/keydown/touchstart/wheel 五事件 once+passive)才从 SSR 内嵌 JSON blob(与 SSR 同一 t() 调用生成=单真源,blob 属 script 内容不计入可见文本)注入空 span(data-i18n-lazy,并摘掉 data-i18n 防运行时包提前水合);`:empty::before` 占位防 CLS,px/°/% 后缀走 data-unit。实证:64 label+16 单位转换后 raw top15 的 position(1.88%)/px(1.78%)/size/shadow 全部出榜、主题词回正;无头零输入 3s 后全空、单击后 en/ar 双语全正确、面板高度 Δ0。配套教训:①计数断言要**数据驱动**,规格里硬编码的 27/28 这类数字连两个独立 checker 都数错(Prettier 折行的 `>--</span>px` 漏计);②代码注释声称的"build 断言"必须真实落进 build 管线并验证会咬人(故意注坏一个值看 exit 1),phantom guard 比没有更危险。
+- **[2026-07-18] 词密度被 UI 控件文案稀释的根治法 = 交互门控注入**:密度工具读 raw HTML,但 Googlebot WRS 渲染 JS 却**从不交互**——DOMContentLoaded 注入只骗得过工具骗不过 Google。完整做法、两种方案的适用边界与实证数字已合并到 **三-C「无关区块（价格表、推荐位）：SSR 只输出本页目标文案」**,这里只留索引。配套教训:①计数断言要**数据驱动**,规格里硬编码的 27/28 这类数字连两个独立 checker 都数错(Prettier 折行的 `>--</span>px` 漏计);②代码注释声称的"build 断言"必须真实落进 build 管线并验证会咬人(故意注坏一个值看 exit 1),phantom guard 比没有更危险。
 - **[2026-07-18] CF Pages 构建成功的无 dashboard 验证**:`npx wrangler pages deployment list --project-name=<name>` 出现新 commit 的 Production 行即构建成功(失败构建不产生部署行,老部署继续服务=站点健康不能证明新构建没挂);未装 GitHub 集成的 repo `commits/<sha>/status` 恒 pending 不可依赖。改动只含 build 脚本/注释时线上字节不变,这是唯一的客观信号。
 
 - **[2026-07-17] Stripe 本地币展示的决策树**(Stripe-hosted Checkout):要让访客按所在国看本地币,首选 **Adaptive Pricing**(后台一个开关、零代码、Stripe 维护汇率+四舍五入+解锁本地支付方式、官方推荐 complexity 1/5)——但它是**账户级设置**(要用户去 Dashboard 开,代理只能出指令不擅动)。代码侧能自己实现的替代 = 按国发 inline `price_data`(自担汇率、需硬编码金额)。**致命坑:IDR 在 Stripe 是 2 位小数币种**(不在 zero-decimal 名单 BIF/CLP/JPY/KRW/VND…),金额=最小单位×100(Rp 30.000 = `unit_amount:3_000_000`);别凭记忆猜,用 test-mode 会话建单开 hosted 页看渲染("IDR 30,000.00"证实)。**发货/积分逻辑只要 keyed off session `metadata`(不读金额)就天然币种无关**——presentment 换币不碰它;换任何多币种方案前先核这条成立(实证:credit 走 metadata.credits,ID→IDR / 无国→USD 两路 e2e 均对,USD 请求逐字节不变)。
