@@ -14,7 +14,7 @@
  *   1. 认「关键词难度」这类**只在数据渲染后才出现的字符串**做就绪标记，
  *      认页面标题会抓到骨架空壳；
  *   2. 「无数据」是结果不是故障——Semrush 会渲染出页面但量为空，
- *      本脚本记为 volume:0 + noData:true，不要报成脚本失败；
+ *      本脚本记为 volume:null + noData:true；只有明确显示 0 才记为零；
  *   3. 词里有空格/CJK 必须 encodeURIComponent，否则路由会被截断；
  *   4. `volume` 只是 `--db` 那一个国家的月搜量，不是全球量——不传 `--db` 会默默
  *      落到 `jp`，一个英文词查出来的是「日本市场当英文词搜」的量，看着合理，实际错了；
@@ -26,6 +26,7 @@
  *   node semrush-keyword.mjs --kw-file words.txt --db kr --out kr.jsonl
  *   node semrush-keyword.mjs --kw-file words.txt --db us --bulk --out us.jsonl
  *   node semrush-keyword.mjs --bulk-plan countries.json --out countries.jsonl
+ *   node semrush-keyword.mjs --ui-plan countries.json --out countries.jsonl
  *   # 想要全球规模：读输出里的 globalVolume 字段，不要重算 --db 或加总 byCountry
  *   # 单词模式默认自动复查第一大国家（只要它 ≠ --db）；明确不要时传 --no-follow-top-country
  *
@@ -48,6 +49,9 @@ import assert from 'node:assert/strict';
 const flags = parseFlags(process.argv.slice(2));
 showHelpIfRequested(flags, import.meta.url);
 const bulkPlanFile = typeof flags['bulk-plan'] === 'string' ? flags['bulk-plan'] : null;
+const uiPlanFile = typeof flags['ui-plan'] === 'string' ? flags['ui-plan'] : null;
+if (bulkPlanFile && uiPlanFile) throw new Error('--bulk-plan and --ui-plan cannot be used together.');
+if (flags.bulk && uiPlanFile) throw new Error('--bulk and --ui-plan cannot be used together.');
 const dbGiven = flags.db !== undefined && String(flags.db).trim() !== '';
 const db = String(flags.db || 'jp').trim().toLowerCase();
 if (flags.bulk && !bulkPlanFile && !dbGiven) throw new Error('Bulk keyword lookup requires an explicit country database, for example --db us or --db jp.');
@@ -55,7 +59,7 @@ if (flags.bulk && !bulkPlanFile && !dbGiven) throw new Error('Bulk keyword looku
 // changing it now would silently re-point their saved runs. But an English
 // keyword queried against the JP database returns real, plausible, wrong
 // numbers with nothing to signal it, so a defaulted --db announces itself.
-if (!dbGiven && !bulkPlanFile && !flags['self-test']) {
+if (!dbGiven && !bulkPlanFile && !uiPlanFile && !flags['self-test']) {
   console.error(`⚠ --db not given, defaulting to "jp". volume/KD/CPC will be Japan's numbers even for an English or global keyword — pass --db us (or uk/de/…) for any non-Japan market. Need a worldwide figure instead? Read globalVolume in the output, it doesn't depend on --db.`);
 }
 const session = resolveSession(flags, 'semrush-keyword', 'semrush');
@@ -81,7 +85,17 @@ if (bulkPlanFile) {
     }
   }
 }
-if (!keywords.length && !bulkPlanFile && !flags['self-test']) throw new Error('Need --kw "a,b", --kw-file <path>, or --bulk-plan <json>');
+let uiPlan = null;
+if (uiPlanFile) {
+  uiPlan = JSON.parse(await readFile(uiPlanFile, 'utf8'));
+  if (!uiPlan || Array.isArray(uiPlan) || typeof uiPlan !== 'object') throw new Error('--ui-plan must be a JSON object: {"us":["keyword"]}');
+  for (const [country, words] of Object.entries(uiPlan)) {
+    if (!/^[a-z]{2}$/i.test(country) || !Array.isArray(words) || !words.length || words.length > 100) {
+      throw new Error(`Invalid --ui-plan entry for ${country}; each country needs 1-100 keywords.`);
+    }
+  }
+}
+if (!keywords.length && !bulkPlanFile && !uiPlanFile && !flags['self-test']) throw new Error('Need --kw "a,b", --kw-file <path>, --bulk-plan <json>, or --ui-plan <json>');
 const minDelaySeconds = Number(flags['min-delay'] ?? 12);
 const maxDelaySeconds = Number(flags['max-delay'] ?? 25);
 if (![minDelaySeconds, maxDelaySeconds].every(Number.isFinite) || minDelaySeconds < 0 || maxDelaySeconds < minDelaySeconds) {
@@ -92,7 +106,7 @@ const maxDelayMs = maxDelaySeconds * 1000;
 const pace = () => new Promise((resolve) => setTimeout(resolve, randomInt(Math.floor(minDelayMs), Math.floor(maxDelayMs) + 1)));
 
 function parseCompact(value) {
-  const m = String(value || '').replace(/,/g, '').trim().match(/^([\d.]+)\s*([KMB])?$/i);
+  const m = String(value ?? '').replace(/,/g, '').trim().match(/^([\d.]+)\s*([KMB])?$/i);
   if (!m) return null;
   const mult = { k: 1e3, m: 1e6, b: 1e9 }[(m[2] || '').toLowerCase()] || 1;
   return Math.round(Number(m[1]) * mult);
@@ -107,7 +121,7 @@ function parseBulkApi(keywords, rows, database = db) {
     return {
       keyword,
       db: database,
-      volume: noData ? 0 : row.volume,
+      volume: noData ? null : row.volume,
       kd: row?.difficulty ?? null,
       cpc: row?.cpc == null ? null : `$${row.cpc}`,
       competition: row?.competition_level == null ? null : String(row.competition_level),
@@ -195,6 +209,29 @@ function pickCountries(lines) {
   return Object.keys(out).length ? out : null;
 }
 
+function parseOverviewMetrics(bodyText, absent = false) {
+  const all = bodyText.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const start = all.findIndex((l) => /^(关键词摘要|Keyword Summary)$/i.test(l));
+  const end = all.findIndex((l, i) => i > start && /^(关键词意见|Keyword Ideas)$/i.test(l));
+  // 同名“搜索量”还在下方相关词表中出现。摘要缺边界时不回退全页，避免借用别的词。
+  const lines = start >= 0 && end > start ? all.slice(start + 1, end) : [];
+  const volRaw = pick(lines, '搜索量', /^[\d.,]+\s*[KMB]?$/i) ?? pick(lines, 'Volume', /^[\d.,]+\s*[KMB]?$/i);
+  const kdRaw = pick(lines, '关键词难度', /^\d{1,3}%?$/) ?? pick(lines, 'Keyword Difficulty', /^\d{1,3}%?$/);
+  const volume = parseCompact(volRaw);
+  return {
+    volume,
+    kd: kdRaw === null ? null : Number(String(kdRaw).replace('%', '')),
+    cpc: pick(lines, 'CPC', /^[^\n]{1,12}$/, 3),
+    competition: pick(lines, '竞争激烈程度', /^[\d.]+$/) ?? pick(lines, 'Com.', /^[\d.]+$/),
+    results: parseCompact(pick(lines, '结果数', /^[\d.,]+\s*[KMB]?$/i) ?? pick(lines, 'Results', /^[\d.,]+\s*[KMB]?$/i)),
+    globalVolume: parseCompact(pick(lines, '全球搜索量', /^[\d.,]+\s*[KMB]?$/i)),
+    byCountry: pickCountries(lines),
+    ...pickIntent(lines),
+    noData: volume === null,
+    status: absent ? 'absent' : volume === null ? 'metrics_unavailable' : 'ok',
+  };
+}
+
 /**
  * geo-hop 只报**事实**：第一大国家是谁、占全球多少份额、两边的量各是多少。
  * 旧版的「份额 >=35% 或当前库量 <500 才追查」是 AI 级判断写死在脚本里
@@ -213,6 +250,10 @@ function geoHopFacts(row, currentDb) {
   return { followed: true, reason: 'top country differs from current db', country, share, topCountryVolume, currentDbVolume: row.volume ?? null };
 }
 
+function uiPlanJobs(plan) {
+  return Object.entries(plan).flatMap(([database, phrases]) => phrases.map((keyword) => ({ database: database.toLowerCase(), keyword })));
+}
+
 if (flags['self-test']) {
   const sample = parseBulkApi(['x', 'missing'], [{
     phrase: 'x', volume: 1400, difficulty: 29, cpc: 0.16, competition_level: 0.01,
@@ -224,6 +265,7 @@ if (flags['self-test']) {
     noData: false, status: 'ok',
   });
   assert.equal(sample[1].status, 'absent');
+  assert.equal(sample[1].volume, null);
   assert.deepEqual(geoHopFacts({ volume: 100, globalVolume: 1000, byCountry: { IN: 600, US: 100 } }, 'us'), {
     followed: true, reason: 'top country differs from current db', country: 'in', share: 60, topCountryVolume: 600, currentDbVolume: 100,
   });
@@ -232,6 +274,7 @@ if (flags['self-test']) {
   assert.equal(geoHopFacts({ volume: 5000, globalVolume: 10000, byCountry: { IN: 2000, US: 1000 } }, 'us').share, 20);
   assert.equal(geoHopFacts({ volume: 100, globalVolume: 1000, byCountry: { US: 600 } }, 'us').followed, false);
   assert.equal(geoHopFacts({ volume: 100, globalVolume: 1000, byCountry: {} }, 'us').followed, false);
+  assert.deepEqual(uiPlanJobs({ de: ['x'], jp: ['y', 'z'] }), [{ database: 'de', keyword: 'x' }, { database: 'jp', keyword: 'y' }, { database: 'jp', keyword: 'z' }]);
   console.log('semrush-keyword bulk self-test passed');
   process.exit(0);
 }
@@ -299,11 +342,12 @@ if (flags.bulk || bulkPlan) {
     await writeFile(flags.out, results.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf8');
   }
 } else {
-for (const kw of keywords) {
+const uiJobs = uiPlan ? uiPlanJobs(uiPlan) : keywords.map((keyword) => ({ database: db, keyword }));
+for (const { database, keyword: kw } of uiJobs) {
   if (results.length) await pace();
   let row;
   try {
-    const url = `${appOrigin}/analytics/keywordoverview/?q=${encodeURIComponent(kw)}&db=${encodeURIComponent(db)}`;
+    const url = `${appOrigin}/analytics/keywordoverview/?q=${encodeURIComponent(kw)}&db=${encodeURIComponent(database)}`;
     await gotoInTool(launched.evalPage, url, Number(flags.settle || 8));
 
     let cap = null;
@@ -325,23 +369,10 @@ for (const kw of keywords) {
     }
     if (!cap?.ready && !cap?.absent) throw new Error(`keyword overview never rendered for "${kw}" (db=${db}) — 页面既没出指标也没出空态标记，这是超时不是结果`);
 
-    const lines = cap.bodyText.split(/\n+/).map((l) => l.trim()).filter(Boolean);
-    const volRaw = pick(lines, '搜索量', /^[\d.,]+\s*[KMB]?$/i) ?? pick(lines, 'Volume', /^[\d.,]+\s*[KMB]?$/i);
-    const kdRaw = pick(lines, '关键词难度', /^\d{1,3}%?$/) ?? pick(lines, 'Keyword Difficulty', /^\d{1,3}%?$/);
-    const noData = volRaw === null || /我们没有要显示的数据|未找到|没有找到|no data|not found/i.test(cap.bodyText) && volRaw === null;
     row = {
       keyword: kw,
-      db,
-      volume: volRaw === null ? (noData ? 0 : null) : parseCompact(volRaw),
-      kd: kdRaw === null ? null : Number(String(kdRaw).replace('%', '')),
-      cpc: pick(lines, 'CPC', /^[^\n]{1,12}$/, 3),
-      competition: pick(lines, '竞争激烈程度', /^[\d.]+$/) ?? pick(lines, 'Com.', /^[\d.]+$/),
-      results: parseCompact(pick(lines, '结果数', /^[\d.,]+\s*[KMB]?$/i) ?? pick(lines, 'Results', /^[\d.,]+\s*[KMB]?$/i)),
-      globalVolume: parseCompact(pick(lines, '全球搜索量', /^[\d.,]+\s*[KMB]?$/i)),
-      byCountry: pickCountries(lines),
-      ...pickIntent(lines),
-      noData,
-      status: cap.absent ? 'absent' : 'ok',
+      db: database,
+      ...parseOverviewMetrics(cap.bodyText, cap.absent),
     };
     if (flags.debug) row.bodyText = cap.bodyText.slice(0, 3000);
   } catch (error) {
@@ -362,9 +393,9 @@ for (const kw of keywords) {
   }
   if (row.status === 'ok') {
     // 只报事实 + 采数据，不做显著性判断（阈值已移出，见 geoHopFacts 注释）。
-    const facts = geoHopFacts(row, db);
+    const facts = geoHopFacts(row, database);
     row.geoHop = facts;
-    if (facts.followed && !flags['no-follow-top-country']) {
+    if (facts.followed && !flags['no-follow-top-country'] && !uiPlan) {
       try {
         const [followed] = await fetchBulk(facts.country, [kw]);
         row.geoHop = { ...facts, result: followed };
@@ -373,11 +404,11 @@ for (const kw of keywords) {
         row.geoHop = { ...facts, status: 'error', error: redactSecrets(error.message) };
       }
     } else if (facts.followed) {
-      row.geoHop = { ...facts, followed: false, reason: 'disabled by --no-follow-top-country' };
+      row.geoHop = { ...facts, followed: false, reason: uiPlan ? 'disabled for --ui-plan DOM-only mode' : 'disabled by --no-follow-top-country' };
     }
   }
   results.push(row);
-  console.error(`[${results.length}/${keywords.length}] ${kw} → ${row.status !== 'error' ? `vol=${row.volume} kd=${row.kd}` : row.error}`);
+  console.error(`[${results.length}/${uiJobs.length}] ${kw} (${database}) → ${row.status !== 'error' ? `vol=${row.volume} kd=${row.kd}` : row.error}`);
   // 每查完一个就落盘，中途被打断也留得下已有结果。
   if (typeof flags.out === 'string') {
     await writeFile(flags.out, results.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf8');
@@ -387,10 +418,12 @@ for (const kw of keywords) {
 
 printJson({
   version: 1,
-  source: `Semrush keyword overview${flags.bulk || bulkPlan ? ' bulk' : ''} via authenticated Tools Share browser session`,
+  source: `Semrush keyword overview${flags.bulk || bulkPlan ? ' bulk' : uiPlan ? ' UI plan' : ''} via authenticated Tools Share browser session`,
   note: flags.bulk || bulkPlan
     ? `bulk volume/KD/CPC 是每行 db 对应国家库的数据；对筛出的候选先用单词模式读取 globalVolume 与 byCountry。`
-    : `volume 是 db=${db} 这一个国家库的月搜量，globalVolume 是全球合计，byCountry 是页面列出的 Top-N（不穷举，加总不等于 globalVolume）——三者不可互相替代。geoHop 只报事实：第一大国家 ≠ 当前库时用同一 session 复查一次并附 result；显著与否（旧阈值 35%/<500 已移出脚本）由 AI 拿 share/volume 判。`,
+    : uiPlan
+      ? 'ui-plan 逐条读取关键词概览网页 DOM，不调用 bulk RPC，也不会为 geo hop 追加接口请求。每行的 volume 是其 db 对应国家库的月搜量。'
+      : `volume 是 db=${db} 这一个国家库的月搜量，globalVolume 是全球合计，byCountry 是页面列出的 Top-N（不穷举，加总不等于 globalVolume）——三者不可互相替代。geoHop 只报事实：第一大国家 ≠ 当前库时用同一 session 复查一次并附 result；显著与否（旧阈值 35%/<500 已移出脚本）由 AI 拿 share/volume 判。`,
   retrievedAt: new Date().toISOString(),
   db,
   session,

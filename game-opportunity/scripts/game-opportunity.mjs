@@ -103,6 +103,10 @@ const exists = (file) => fs.existsSync(file);
 const nonempty = (v) => v !== null && v !== undefined && v !== '' && (!Array.isArray(v) || v.length > 0);
 const arr = (v) => Array.isArray(v) ? v : (nonempty(v) ? [v] : []);
 const validUrl = (v) => { try { return /^https?:$/.test(new URL(v).protocol); } catch { return false; } };
+const playableEmbed = (v) => {
+  try { return !/(^|\.)(?:youtube(?:-nocookie)?\.com|youtu\.be|vimeo\.com)$/i.test(new URL(v).hostname); }
+  catch { return false; }
+};
 const uniq = (xs) => [...new Set(xs.filter(nonempty))];
 const normalizeName = (v) => String(v ?? '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const normalizeUrl = (v) => {
@@ -881,28 +885,16 @@ async function demand(o) {
   const cachedCountryKeys = new Set(cachedCountryRows.map((row) => `${row.db}:${normalizeName(row.keyword)}`));
   const canReuseCountries = Object.entries(countryPlan).every(([db, words]) => words.every((word) => cachedCountryKeys.has(`${db}:${normalizeName(word)}`)));
   let countries = { ok: true, count: 0, reused: canReuseCountries, plan: f.countryPlan, output: f.countrySemrush };
-  for (const [db, words] of countryKeywords) {
-    const input = path.join(o.reviewDir, `${o.date}-keywords-country-${db}.txt`);
-    writeText(input, [...words].join('\n'));
-  }
   if (Object.keys(countryPlan).length) {
     writeJson(f.countryPlan, countryPlan);
     if (canReuseCountries) {
       countryRows.push(...cachedCountryRows);
       countries.count = cachedCountryRows.length;
     } else {
-      const rows = [];
-      const errors = [];
-      for (const [db] of countryKeywords) {
-        const input = path.join(o.reviewDir, `${o.date}-keywords-country-${db}.txt`);
-        const output = path.join(o.reviewDir, `${o.date}-semrush-country-${db}.jsonl`);
-        fs.rmSync(output, { force: true });
-        const run = await runNode(SEMRUSH_KEYWORD, ['--kw-file', input, '--db', db, '--no-follow-top-country', ...semrushNodeArgs, '--out', output], o.root);
-        if (!run.ok) errors.push(`${db}: ${run.error}`);
-        rows.push(...readJsonLines(output));
-      }
-      writeText(f.countrySemrush, rows.map((row) => JSON.stringify(row)).join('\n') + (rows.length ? '\n' : ''));
-      countries = { ...countries, ok: !errors.length, error: errors.join('; ') || null, count: rows.length };
+      fs.rmSync(f.countrySemrush, { force: true });
+      const run = await runNode(SEMRUSH_KEYWORD, ['--ui-plan', f.countryPlan, ...semrushNodeArgs, '--out', f.countrySemrush], o.root);
+      const rows = readJsonLines(f.countrySemrush);
+      countries = { ...countries, ok: run.ok, error: run.ok ? null : run.error, count: rows.length };
       countryRows.push(...rows);
     }
   }
@@ -960,7 +952,7 @@ async function evaluate(o, inheritedErrors = []) {
       const title = cleanPageTitle(first.title);
       if (title) c.names = uniq([title, ...arr(c.names)]);
     }
-    if (first?.iframeUrl) c.playLinks = uniq([first.iframeUrl, ...arr(c.playLinks)]);
+    if (first?.iframeUrl && playableEmbed(first.iframeUrl)) c.playLinks = uniq([first.iframeUrl, ...arr(c.playLinks)]);
     const remaining = uniq([...arr(c.playLinks), ...arr(c.urls)]).filter((url) => url !== primary).slice(0, 3 - checks.length);
     for (const url of remaining) checks.push(await checkUrl(url));
     // 挑战页留现场：原始 HTML 落 evidence 目录并在 check 上标记，候选不被剔除。
@@ -1146,7 +1138,7 @@ function inspectDecision(o) {
       && (strategy.entityType === 'brand' || terms.length >= 2);
   };
   const competitionReady = (row) => {
-    if (!isQuantified(row)) return row.earlyDemand?.status === 'not-yet-observed';
+    if (!isQuantified(row)) return true;
     const review = row.competitionReview ?? {};
     return typeof review.serpIntent === 'string'
       && Array.isArray(review.weakPositions)
@@ -1266,6 +1258,7 @@ function selfTest() {
     if (!errorPageTitle('404 Not Found')) throw new Error('404 title 判定失败');
     const meta = pageMeta('<title>Cute Mahjong Connect - Play Free</title><iframe src="../play/index.html"></iframe>', 'https://games.example/catalog/item/');
     if (cleanPageTitle(meta.title) !== 'Cute Mahjong Connect' || meta.iframeUrl !== 'https://games.example/catalog/play/index.html') throw new Error('title 清洗或 iframe 相对地址解析失败');
+    if (playableEmbed('https://www.youtube.com/embed/trailer') || !playableEmbed('https://games.example/play/index.html')) throw new Error('视频 iframe 被误判为可玩入口');
     if (cleanPageTitle('スネークデュエル｜対戦バトル｜無料ゲームならワウゲーム') !== 'スネークデュエル') throw new Error('全角站点后缀清洗失败');
     saveReport(o, merged, []);
     const f = files(o);

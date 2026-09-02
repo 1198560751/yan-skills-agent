@@ -55,7 +55,7 @@ function loadPlatforms(file) {
       die(`${p.id} 需要 name、languages、markets`);
     }
     if (!Array.isArray(p.sitemaps) || !p.sitemaps.length) die(`${p.id} 需要至少一个 sitemap`);
-    for (const field of ['include', 'exclude']) {
+    for (const field of ['include', 'exclude', 'excludeSitemaps']) {
       if (p[field] !== undefined && !Array.isArray(p[field])) die(`${p.id} 的 ${field} 需要数组`);
       for (const pattern of p[field] ?? []) {
         try { new RegExp(pattern); } catch { die(`${p.id} 的 ${field} 正则有误：${pattern}`); }
@@ -82,6 +82,7 @@ function runDiff(platform, options) {
     '--track-lastmod',
     ...asList(platform.include).flatMap((pattern) => ['--include', String(pattern)]),
     ...asList(platform.exclude).flatMap((pattern) => ['--exclude', String(pattern)]),
+    ...asList(platform.excludeSitemaps).flatMap((pattern) => ['--exclude-sitemap', String(pattern)]),
     '--json',
   ];
   return new Promise((resolve) => {

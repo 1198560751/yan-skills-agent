@@ -1083,7 +1083,7 @@ async function main() {
  * 而不是把同一段正则和 User-Agent 再抄一份——抄一份就意味着站点改版时要改两处，
  * 而漏改的那一处会静默失败。**导入本模块不会发任何请求。**
  */
-export { BASE, UA, toolAuth, authHeaders };
+export { BASE, UA, toolAuth, authHeaders, TOOLS };
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) {
   main().catch((e) => die(`执行失败：${e?.message || e}`));

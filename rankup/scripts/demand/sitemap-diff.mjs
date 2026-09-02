@@ -55,6 +55,7 @@ sitemap-diff.mjs — 竞品 sitemap 增量监控（新增的长尾页 = 它押�
   --name <n>         快照文件名（默认取域名）
   --include <re>     只保留匹配这个正则的 URL，可重复
   --exclude <re>     排除匹配这个正则的 URL，可重复
+  --exclude-sitemap <re> 跳过匹配这个正则的子 sitemap，可重复
   --limit <n>        最多输出多少条新增（默认 500）
   --max-sitemaps <n> 最多抓多少个子 sitemap（默认 200）
   --max-depth <n>    sitemap index 递归深度上限（默认 4）
@@ -130,7 +131,7 @@ async function fetchSitemap(url) {
 }
 
 /** 递归展开 sitemap index，返回 { urls: Map<loc, {lastmod, sitemap}>, sitemaps: [] } */
-async function crawl(startUrls, { maxSitemaps, maxDepth, delay }) {
+async function crawl(startUrls, { maxSitemaps, maxDepth, delay, excludeSitemaps }) {
   const urls = new Map();
   const sitemaps = [];
   const seen = new Set();
@@ -159,8 +160,9 @@ async function crawl(startUrls, { maxSitemaps, maxDepth, delay }) {
       const loc = (b.match(/<loc>([\s\S]*?)<\/loc>/i) || [])[1];
       if (!loc) continue;
       const clean = decode(loc);
-      if (isIndex) queue.push({ url: clean, depth: depth + 1 });
-      else if (!urls.has(clean)) {
+      if (isIndex) {
+        if (!excludeSitemaps.some((re) => re.test(clean))) queue.push({ url: clean, depth: depth + 1 });
+      } else if (!urls.has(clean)) {
         const lm = (b.match(/<lastmod>([\s\S]*?)<\/lastmod>/i) || [])[1];
         urls.set(clean, { lastmod: lm ? decode(lm) : '', sitemap: url });
       }
@@ -236,10 +238,12 @@ async function main() {
     if (!starts.length) die(`没找到 ${domain} 的 sitemap（robots.txt 里没有，常见路径也都不是）。用 --sitemap 手动指定。`);
   }
 
+  const excludeSitemaps = [].concat(args['exclude-sitemap'] ?? []).map((value) => new RegExp(String(value)));
   const { urls, sitemaps, errors, fallbacks, truncated } = await crawl(starts, {
     maxSitemaps: Number(args['max-sitemaps'] ?? 200),
     maxDepth: Number(args['max-depth'] ?? 4),
     delay: Number(args.delay ?? 300),
+    excludeSitemaps,
   });
   for (const e of errors) console.error(`抓取失败：${e}`);
   for (const f of fallbacks) console.error(`降级抓取：${f.url} → ${f.via}`);
