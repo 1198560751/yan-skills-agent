@@ -25,8 +25,9 @@ metadata:
 | 「这个方向做不做」「做哪个语种」「要不要上多语言」「做成工具还是内容站」 | 2 | [`lifecycle.md`](references/lifecycle.md) 段 2 |
 | 「我们做个网站吧」「新建个站」「想做个工具站」「帮我搭起来」 | 2→3 | 先过段 2 立项定位，再段 3 初始化；手上没有词树先回段 1，不许跳过 |
 | 「一步步来」「我们开始执行这个项目的计划」 | check | 先 `rankup check` 定位当前段与第一个没过的闸，然后按 [`checklists.md`](references/checklists.md) 逐环节推进，每过一闸记 `checks.md`；不要跳过 check 直接猜段 |
+| 「做个功能吧」「加个 X 功能」「把这个做出来」「实现一下这个」 | 3 | **红线先行：任何 UI 一律用脚手架自带的 shadcn 组件库**（`components/ui/`），缺的 `shadcn add` 或装同生态的现成组件，禁止手写下拉框 / 弹窗 / 日期选择 / 表格分页 / Toast；然后按段 3 硬规则与 `checklists.md` 段 3 做，做完段 4 全套体检 |
 | 开发时挂着当规范：「按 rankup 规范来」「这个页面这样写行不行」「这块要不要 SSR」 | 3–4 | 本文段 3、段 4 硬规则 + `checklists.md` 对应段 |
-| 「我们做个内页吧」「把这个关键词做成内页」「关键词没问题了，做成内页」 | 4 | **一个关键词对应一个内页**：目标词登记、TDK、独立 OG 含图、密度、无占位、体检全套；`lifecycle.md` 段 4 + `checklists.md` 段 4 |
+| 「我们做个内页吧」「把这个关键词做成内页」「关键词没问题了，做成内页」 | 4 | **一个关键词对应一个内页**：目标词登记、TDK、独立 OG 含图、密度、无占位、体检全套；页面上的控件同样只准来自组件库（红线，见 `discipline.md` 十六）；`lifecycle.md` 段 4 + `checklists.md` 段 4 |
 | 「看一下 SEO 有没有问题」「看一下 GEO 有没有问题」「GEO/SEO 有没有问题」 | 4 | 段 4 体检：`seo-audit.mjs`、`is-agentic.mjs`、`seo-webcafe.mjs audit`、哥飞 AI；分组见 [`playbooks/site-review.md`](references/playbooks/site-review.md) A / C / E 组 |
 | 「能不能上线了」「上线前还差什么」「TDK」「关键词密度」「标题描述怎么写」 | 4 | `checklists.md` 段 4 + [`seo-box.md`](references/seo-box.md) |
 | 「怎么被 AI 引用」「llms.txt」「对 AI 代理友好吗」「AEO/GEO」 | 4 | [`seo-growth.md`](references/seo-growth.md) 三-B |
@@ -180,6 +181,7 @@ metadata:
 | 需要登录态一律用户的浏览器，沙箱浏览器只能看公开 SERP | 五 |
 | 配额站（Semrush / Similarweb / Ahrefs）不传 `--session`；会话名不用 `$$` | 五、六 |
 | 任何页面不得有占位链接 / 文案 / 图片 | 十四 |
+| 做任何功能、任何页面，UI 只准来自脚手架的 shadcn 组件库或同生态现成组件；缺的先装，不许手写基础控件 | 十六 |
 | 漏了不会变红的收尾动作（IndexNow 等）焊进 ship 命令 | 九 |
 | 接入必须线上实测，不采信勾 | 十 |
 | 真实令牌只在 Skill 的 `.env`，不进回复 / 日志 / git | 十一 |
