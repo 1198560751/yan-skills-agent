@@ -55,6 +55,7 @@ Rankup 不照搬 Autopilot 的 loop、固定阶段或无人值守授权。是否
 | `hallucinated-assumption` | 实现建立在未验证假设上 | 回到调查并验证假设 |
 | `incomplete-output` | 当前方向正确但产出不完整 | 继续当前阶段，不从头重做 |
 | `external-blocker` | API、权限、供应商或人工决定阻塞 | 选择安全降级或停止并报告 |
+| `provider-drift` | 第三方面板/网站本身改版、口径或字段变了，且已按 `discipline.md` 十五的五层分诊确认 | 修 Skill 原文档与脚本；**未过五层的一律先记 `environment-issue`，不许直接改文档** |
 
 每次重试至少满足一项：
 
@@ -129,6 +130,7 @@ Rankup 不照搬 Autopilot 的 loop、固定阶段或无人值守授权。是否
 6. 找到唯一真相源并修改原规则，不在多个入口追加平行版本。
 7. 规则、验证和必要文档位于同一个交付 commit。
 8. 按语义化版本更新 `skill.json`、验证器和对外版本说明。
+9. **面板与网页操作口径的修订**（Semrush / Similarweb / seo.web.cafe / 哥飞论坛 / 站长工具 / OpenCLI 驱动的任何站）必须附 `discipline.md` 十五的五层分诊记录：同命令重跑、浏览器与会话、额度与配额、人眼截图对照、跨时段复现。缺任一层的修订退回项目 `journal/`，因为一次环境故障写成「功能没了」会让下一个人绕开一个其实好好的功能。
 
 任一条件不满足时，候选经验留在项目 `.rankup/topics/`，并记录需要什么后续证据。
 

@@ -210,6 +210,7 @@
 
 | 检查项 | 客观通过条件 | 证据落点 | 怎么做 | 复查 |
 |---|---|---|---|---|
+| **面板对不上的已分诊，只有确认漂移的回流** | 本轮每一处「脚本/文档与面板实际不符」都有分类：`environment-issue`（记 `journal/`，注明排除到了第几层）或 `provider-drift`（五层分诊记录齐全，已修 Skill 原文档并同步 JSON、脚本已验证日期已更新）。**没有「看到一次就改了文档」** | `.rankup/journal/<date>.md`「面板对不上」小节；漂移的另附 `.rankup/evidence/drift-<平台>-<date>/` 截图 | [`discipline.md`](discipline.md) 十五 | 每轮 |
 | **本轮否决的都进了否决清单** | 本轮 pass 掉的词、方向、功能、渠道、域名每个在 `.rankup/rejected.md` 有一行：对象 / 类型 / 日期 / 一句理由 / 复活条件 / 证据链接；只写「不做」不写理由的不算 | `.rankup/rejected.md` | 收尾时对照本轮 `journal/` 与 `iterations.md` 逐条补；被否决的建议同时在 `audit.md` 留理由 | 每轮 |
 | 变现路径按段 2 的裁定接了 | 段 2.2 定的变现方式（广告 / 单次付费 / 订阅 / 商店）至少一条在线上真实可用，有一笔真实交易或一次真实结算记录 | `.rankup/integrations.md` | 路由与判据见 [`monetization.md`](monetization.md) | 一次 |
 | 线上技术信号已核实 | 改了什么就在线上核过什么，不是本地看着对 | `.rankup/audit.md` | `seo-audit.mjs --sitemap <url>` | 每轮 |

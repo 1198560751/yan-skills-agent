@@ -183,6 +183,7 @@ metadata:
 | 接入必须线上实测，不采信勾 | 十 |
 | 真实令牌只在 Skill 的 `.env`，不进回复 / 日志 / git | 十一 |
 | `check` 轻量零配额；命中升级条件要明说「这已经不是 check，是 review」 | 十三 |
+| 面板 / 网页操作与文档对不上：先过五层分诊（重跑、浏览器与会话、额度配额、人眼截图、跨时段），确认是平台变了才改 Skill 原文档；环境问题只记项目 `journal/` | 十五 |
 
 ## 主线：维护 checklist，使用 checklist
 
@@ -261,7 +262,7 @@ npx skills update rankup -p -y                            # 项目级更新
 发布版本记录在 `skill.json`；项目的启用时间、已安装版本和最近检查状态记录在 `.rankup/skill-state.json`。`check-version.mjs` 最多每 24 小时访问一次远端，只更新本 Skill，不碰业务代码与 `.rankup/`；遇到源码检出（仓库根有 `.skill-source`）或工作区有未提交修改时拒绝更新并报告原因，链接被换成实体目录时在仓库里跑 `node scripts/link-skills.mjs` 恢复。
 版本号：patch 文字与小经验；minor 向后兼容的新工作流；major 目录协议或核心行为破坏性变化。发版同时更新 `metadata.version`、`skill.json`、验证脚本预期和 README。
 
-**经验回流**（用户说「把这个经验写进 rankup」「记下来更新到源码里」）：先按 [`experiences/INDEX.md`](references/experiences/INDEX.md) 收录规则定证据等级与归属层，再按 [`evolution.md`](references/evolution.md) 晋升门判它进 Skill 还是留项目侧；进 Skill 的写进**对应的现有文件**（选词进 `webcafe-topics.md` 一、外链进五、变现进 `monetization.md`……），不新建文件、不带站名与数字；改完跑 `node scripts/validate-rankup.mjs`，直接提 main。
+**经验回流**（用户说「把这个经验写进 rankup」「记下来更新到源码里」）：先按 [`experiences/INDEX.md`](references/experiences/INDEX.md) 收录规则定证据等级与归属层，再按 [`evolution.md`](references/evolution.md) 晋升门判它进 Skill 还是留项目侧；进 Skill 的写进**对应的现有文件**（选词进 `webcafe-topics.md` 一、外链进五、变现进 `monetization.md`……），不新建文件、不带站名与数字；改完跑 `node scripts/validate-rankup.mjs`，直接提 main。**面板与网页操作口径的修正**（Semrush、Similarweb、seo.web.cafe、哥飞论坛、站长工具、任何 OpenCLI 驱动的站）另有一道门：每轮跑完把「对不上」的地方按 [`discipline.md`](references/discipline.md) 十五分诊，五层全过才改原文档并同步 JSON 与脚本的已验证日期；没过的留在项目 `journal/`，一次环境故障写成「功能没了」比不回流更糟。
 
 ## 令牌与项目中立
 
