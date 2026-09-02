@@ -47,6 +47,8 @@
  *   * 报告页需要 ~12 秒渲染；固定短等待会拿到半张页面而**不报错**——
  *     这正是改成「长度稳定判据」的原因。
  *   * `/all-issues` 不是有效路由（返回站内 404 页面），正确的是 `/issues`。
+ *   * 2026-09-02：`report <id> data-explorer?...` 直接吃 `issues --json` 里 links 给的原始路径，
+ *     拿某条问题的逐 URL 清单（filterId 是动态的，登记不进 ROUTES）。在 4 类问题上跑通。
  */
 
 import { execFileSync } from "node:child_process";
@@ -244,8 +246,12 @@ async function cmdReport(pos, o) {
     console.error("用法：report <项目ID|域名片段> <报告>。报告清单跑 `routes`。");
     process.exit(1);
   }
-  if (!ROUTES[route]) {
-    console.error(`未知报告 ${route}。可用：${Object.keys(ROUTES).join(", ")}`);
+  // 2026-09-02：允许直接传 issues 页里抠出来的 data-explorer 相对路径
+  // （形如 `data-explorer?columns=...&issueId=...`），用来拿某个问题的逐 URL 清单。
+  // 这些路径带 filterId，只能从 `issues --json` 的 links 里取，没法预先登记进 ROUTES。
+  const isRawPath = /^data-explorer\?/.test(route);
+  if (!ROUTES[route] && !isRawPath) {
+    console.error(`未知报告 ${route}。可用：${Object.keys(ROUTES).join(", ")}，或 data-explorer?... 原始路径`);
     process.exit(1);
   }
 
