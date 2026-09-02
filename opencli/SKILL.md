@@ -89,8 +89,9 @@ opencli doctor
 
 ### 行为和这份文档对不上时，第一件事是查扩展版本
 
-**本 Skill 描述的默认行为全部住在扩展里**——后台默认、标签页开在用户当前窗口、
-不切走活动标签页、`--window isolated`、`sessions` 报 windowId。
+**本 Skill 描述的默认行为全部住在扩展里**——后台默认、`opencli browser` 与 adapter 命令
+都在用户当前窗口开标签页、不切走活动标签页、每个会话一个以会话名命名的标签页组、
+`--window isolated`、`sessions` 报 windowId / groupTitle / windowFallbackReason。
 装成 Chrome 应用商店那个版本的话，**每条命令都照样成功，只是行为回到上游**：
 默认前台、自己开一个窗口、抢走用户正在看的标签页、`isolated` 被忽略。
 
@@ -99,10 +100,12 @@ opencli doctor
 | 观察到 | 该做什么 |
 |---|---|
 | 命令成功但窗口/焦点行为与本文档不符 | 跑 `opencli doctor`，看 `Extension` 那行的版本 |
-| 版本 < 1.0.32 | **告诉用户他装的是应用商店版**，需要换成 [yan-labs 的 Release](https://github.com/yan-labs/OpenCLI/releases/latest) 里的 zip，并把商店版移除或停用 |
+| 版本 < 1.0.33 | **告诉用户他装的是应用商店版**，需要换成 [yan-labs 的 Release](https://github.com/yan-labs/OpenCLI/releases/latest) 里的 zip，并把商店版移除或停用 |
 | `doctor` 自己就报了这条 | 照它说的做——它会打印下载地址和加载步骤 |
 
-`doctor` 会在扩展低于 1.0.32 时主动报这个问题，**不要跳过它的输出**。
+`doctor` 会在扩展低于 1.0.33 时主动报这个问题，**不要跳过它的输出**。
+改过扩展源码（或刚拉了新构建）之后要在 chrome://extensions 里对 OpenCLI 点 **reload**——
+没 reload 时 Chrome 跑的仍是旧版，`doctor` 会提示已加载版本低于最低要求，那不是装错，是没 reload。
 
 红了先看 [`references/troubleshooting.md`](references/troubleshooting.md)。
 排障的第一步永远是 **`npm ls -g @jackwener/opencli` 确认 CLI 是发布版还是本地源码 link**——
@@ -262,9 +265,9 @@ await reconcileSessions(before, { prefix: 'tm-' });   // 只关自己那批
 
 | `--window` | 行为 | 什么时候用 |
 |---|---|---|
-| `background` | **默认**。在用户当前那个窗口里开标签页，不抬窗口、不切活动标签页 | 几乎所有情况 |
+| `background` | **默认**。在用户当前那个 normal 窗口里开标签页，不抬窗口、不切活动标签页。**`opencli browser` 与 adapter 命令（`opencli <site> …`）都是这样**——1.0.33 起 adapter 不再自己开窗口 | 几乎所有情况 |
 | `foreground` | 抬起窗口并选中标签页 | **只有**需要用户亲自完成验证码、或他明确说要看着的时候 |
-| `isolated` | 后台，且不在用户那个窗口里——**所有 isolated 会话共用一个自动化窗口** | 长时间批量作业，不想在用户标签栏里堆东西 |
+| `isolated` | 后台，但不在用户那个窗口里——自动化自己的独立窗口（多个 isolated 会话共用这一个独立窗口，各自仍是自己的标签页组） | 长时间批量作业，不想在用户标签栏里堆东西 |
 
 标志位置在**会话名和子命令之间**（放在子命令后面也能工作）：
 
@@ -274,16 +277,28 @@ opencli browser <session> --window isolated open "https://..."
 
 放在会话名**前面**会报 `unknown command: <你的会话名>`，读起来像装坏了，其实是语法错。
 
-**需要扩展 ≥ 1.0.32**（`opencli doctor` 那行就是判据）。旧扩展上默认仍是前台、
+**需要扩展 ≥ 1.0.33**（`opencli doctor` 那行就是判据）。旧扩展上默认仍是前台、
 `isolated` 会被静默忽略——那正是下面那张表里的坑。
+
+**`background` 只在借不到 normal 窗口时才新建窗口**，并把原因记下来：
+`opencli browser sessions` 那一行尾部显示 `[new window: <reason>]`（JSON 里是 `windowFallbackReason`）。
+
+| reason | 意思 |
+|---|---|
+| `no-normal-window` | Chrome 一个普通窗口都没开（只剩应用窗口、弹窗，或干脆没窗口） |
+| `all-incognito` | 有窗口，但全是无痕窗口——无痕的 cookie 不是用户的登录态，不借 |
+| `all-owned` | 有窗口，但全是我们自己建的（比如只剩一个 isolated 窗口） |
+| `query-failed` | 问 Chrome「有哪些窗口」这一步本身失败了 |
+
+browser 与 adapter 都借不到时只建**一个**替身窗口共用；用户之后开了自己的窗口，新会话会跟过去。
+这个字段为 null 就是落在用户自己的窗口里，或者是用户自己要的 `isolated`。
 
 #### `isolated` 曾经有两条限制，两条都已修好
 
 **当前行为（2026-08-24 复测于扩展 1.0.30 + CLI 1.8.7，两条都 PASS）**：
-两个 isolated 会话可以并存，`sessions` 里都在、都可读，
-且**共用同一个自动化窗口**（`win379222152`），与用户窗口（`win379220956`）分开。
-注意是「共用一个窗口」而不是「一人一个窗口」——它隔离的是**用户 vs 自动化**，
-不是会话之间。会话之间的隔离靠会话名，那是上面四条法律的事。
+两个 isolated 会话可以并存，`sessions` 里都在、都可读，且都落在自动化自己的独立窗口里
+（`win379222152`），与用户窗口（`win379220956`）分开。`isolated` 隔离的是**用户 vs 自动化**，
+不是会话之间——会话之间的隔离靠会话名（上面四条法律）和每会话一个的标签页组。
 
 <details>
 <summary>修好之前是什么样（留着，因为这两种失败形态会重复出现）</summary>
@@ -314,7 +329,7 @@ UA 不含 `Headless`、`plugins.length` 为 5。
 |---|---|---|
 | `--window foreground`（除非用户要亲自操作） | 什么都不加（默认就是 background） | 实测会把用户的**活动标签页切走**（从第 1 个跳到第 3 个）。注意最前端**应用**不变，所以只查应用焦点的测量看不见它 |
 | 调 adapter 时用前台「方便看页面」 | `--keep-tab true` + `screenshot` / `state` | 调试是高频动作，一轮能打断十几次。标签页留着，用户想看自己切过去 |
-| 在旧扩展（< 1.0.32）上省略 `--window background` | 先看 `doctor` 的扩展版本；旧版就每条命令都显式带 | 旧版两层默认都是前台，省略等于每条命令都抬一次窗口 |
+| 在旧扩展（< 1.0.33）上省略 `--window background` | 先看 `doctor` 的扩展版本；旧版就每条命令都显式带 | 旧版两层默认都是前台，省略等于每条命令都抬一次窗口 |
 | 给 `PUBLIC` / `LOCAL` 命令加 `--window` | 不加 | 它们不接受这个标志，会报 `unknown option '--window'`；这类命令本来也不开浏览器 |
 | 崩溃后不清理，留下一堆孤儿标签页 | `finally` 里 `close` | 泄漏的会话在用户窗口里就是一堆莫名其妙的标签页，比抢一次焦点更烦 |
 
@@ -327,7 +342,7 @@ UA 不含 `Headless`、`plugins.length` 为 5。
 旧测量只查了「最前端应用」（前台模式下它确实不变），漏掉了「活动标签页」这一轴。
 完整对照表见 [`references/session-laws.md`](references/session-laws.md)。
 
-> **这条曾经是坏的，2026-08-23 修好了**（扩展 1.0.32）。当时 `--window isolated`
+> **这条曾经是坏的，2026-08-23 修好了**。当时 `--window isolated`
 > 不新开窗口，行为与 `background` 一模一样，于是文档写下了「没办法把 agent 的标签页
 > 挪出用户窗口」。真因是四层各自静默地否决它：运行时白名单只认两个值把 `isolated`
 > 丢掉了；「这窗口是不是我的」靠猜（全是非 http 页面就算我的）而把用户随手开的空窗口
@@ -335,8 +350,9 @@ UA 不含 `Headless`、`plugins.length` 为 5。
 > 用了 `focused`，而 Chrome 不在最前面时所有窗口的 `focused` 都是 false。
 > **每一层都不报错**，所以每修一层都以为好了。
 
-**怎么确认自己拿到的是修好的版本**：`opencli browser <s> --window isolated open <url>`
-之后跑 `opencli browser sessions`，它那一行的 `windowId` 应该与默认模式会话的不同。
+**怎么确认自己拿到的是修好的版本**：`opencli doctor` 的 Extension 那行 ≥ 1.0.33；
+再跑 `opencli browser <s> --window isolated open <url>` 之后 `opencli browser sessions`，
+它那一行的 `windowId` 应该与默认模式会话的不同，且默认模式那行**没有** `[new window: …]`。
 
 ---
 
@@ -375,7 +391,7 @@ opencli <site> <command> --help    # 位置参数、专属标志、输出列
 | `--trace <mode>` | `off`（默认）· `on` · `retain-on-failure`。排障和写 adapter 时用 |
 | `-v, --verbose` | 调试日志 + 失败栈 |
 | `--window <mode>` | `background`（默认）/ `foreground` / `isolated`。**`PUBLIC` / `LOCAL` 策略的命令不接受它**——加了直接报 `unknown option '--window'`，读起来像装坏了，其实是这类命令根本不开浏览器（实测 342 个 public + 25 个 local 命令）。先看 `strategy` 再决定加不加 |
-| `--site-session <mode>` | `ephemeral`（默认）/ `persistent`，命令结束后是否留着会话标签页 |
+| `--site-session <mode>` | `ephemeral`（默认）/ `persistent`。**同一站点批量调用一律 `persistent`**：复用 `site:<x>` 一个标签页、已在域内就跳过站点根预导航；默认模式每次新开标签页并先导航站点根，看起来像「一直刷新首页」。见 [session-laws](references/session-laws.md#site-session) |
 | `--keep-tab <bool>` | 结束后是否保留标签页租约 |
 
 ---
@@ -478,7 +494,7 @@ opencli browser "$S" batch --commands '[
 
 **症状**：某个会话上的调用永不返回，日志里是 `opencli timed out after 60000ms`。
 
-**成因**（2026-08-28 实测跑通整条链，扩展 1.0.32）：
+**成因**（2026-08-28 实测跑通整条链）：
 
 ```
 站点弹一个原生 alert（Semrush 的设备上限就是 alert，不是页面元素）
@@ -629,12 +645,13 @@ npm i -g https://github.com/yan-labs/OpenCLI/releases/download/v1.8.7-yan.2/open
 #    chrome://extensions → 开启开发者模式 → 加载已解压的扩展程序
 #    ⚠️ 先移除或停用 Chrome 应用商店那个 OpenCLI
 
-# 3) 验证：三行都要 [OK]，Extension 那行的版本 ≥ 1.0.32
+# 3) 验证：三行都要 [OK]，Extension 那行的版本 ≥ 1.0.33
 opencli doctor
 ```
 
 **为什么不能用应用商店那个版本**：本 Skill 描述的默认行为——后台模式默认、
-在用户当前窗口开标签页、不切走活动标签页、`--window isolated`、`sessions` 报 windowId——
+browser 与 adapter 都在用户当前窗口开标签页、不切走活动标签页、每会话一个标签页组、
+`--window isolated`、`sessions` 报 windowId / groupTitle / windowFallbackReason——
 **全都只存在于我们的构建里**。商店版默认是前台，装了它本 Skill 的规则会与实际行为不符。
 两个同时装还会一起连上守护进程互相打架。
 

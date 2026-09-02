@@ -12,6 +12,7 @@ SKILL.md 里只有法律本身，这里是支撑它们的实测数据、边界�
 - [法律 4 —— 开工前先把 handle 全部拿到](#law-4)
 - [后台模式不是无头模式](#background)
 - [batch：一次调用跑多步](#batch)
+- [adapter 的 `--site-session persistent`](#site-session)
 - [「它到底开在哪个窗口」——直接问，别靠看](#which-window)
 - [诊断「有东西抢了我的标签页」](#diagnosing)
 
@@ -195,10 +196,15 @@ CLAUDE_CODE_HOST_SESSION_ID=local_55a8...  整个应用共享
 `recon-pricing-<后缀>` 胜过 `s1`。会话名是唯一存在的标识符，
 一个唯一但无意义的名字仍然回答不了「这是谁的标签页」。
 
-**Chrome 标签页分组标题现在会显示活跃会话名**（我们的 fork）：
-有会话时是 `"OpenCLI: session-a, session-b"`，没有时回落到 `"OpenCLI Browser"`，
-超过 5 个名字截断。这让人可以一眼看出哪个分组属于哪个任务。
-跑 Chrome Web Store 的官方扩展则始终是固定标题——这个特性需要重新构建的扩展。
+**每个会话一个 Chrome 标签页组，组名就是会话名**（我们的 fork，扩展 1.0.33 起）：
+`opencli browser recon-pricing …` 的标签页在 `OpenCLI: recon-pricing` 组里。adapter 会话也分组，
+运行时起的 `site:<x>` / `site:<x>:<uuid>` 显示为 `OpenCLI: <x>`（`opencli reddit …` → `OpenCLI: reddit`）。
+同一会话 `tab new` 出来的标签页进同一个组，别的会话永远不会被并进来。
+
+**用法：一个任务 = 一个会话 = 一个组。** 人看标签栏就知道哪一组是哪件事的，
+收工 `close` 整组一起消失。`opencli browser sessions` 每行还报 `groupId` / `groupTitle` /
+`windowFallbackReason`（`-f json` 同名字段），不用去浏览器里数。
+跑 Chrome Web Store 的官方扩展则没有分组——这个特性需要我们的扩展。
 
 ### 收工要还租约
 
@@ -247,7 +253,7 @@ opencli browser <session> <command>
 | `navigator.webdriver` | `false` |
 | UA 含 `Headless` | 否 |
 | `navigator.plugins.length` | 5 |
-| `document.visibilityState` | `hidden`，`document.hasFocus()` 为 `false`（2026-09-03 实测，扩展 1.0.32，background 模式在用户窗口里开的非活动标签页）。**页面按后台标签页被节流**：依赖 rAF / `visibilitychange` 的页面（PageSpeed 网页版、部分图表）在这种标签页里跑不完，见 rankup `pagespeed.mjs` 头注 |
+| `document.visibilityState` | `hidden`，`document.hasFocus()` 为 `false`（2026-09-03 实测，background 模式在用户窗口里开的非活动标签页）。**页面按后台标签页被节流**：依赖 rAF / `visibilitychange` 的页面（PageSpeed 网页版、部分图表）在这种标签页里跑不完，见 rankup `pagespeed.mjs` 头注 |
 | `window.outerWidth × outerHeight` | 1364 × 806 |
 
 所以「后台模式会触发站点的反爬」不是真问题——每一项无头特征都读负。
@@ -271,7 +277,7 @@ opencli browser <session> <command>
 用户正在看的那一页被换掉了，而 macOS 层面的应用焦点没动，所以只查前台应用的测量看不见它。
 
 **规矩：后台是默认值，不要去覆盖它。** 你不需要显式传 `--window background`，
-传了也只是噪音——从扩展 1.0.32 起 CLI 与扩展两层的默认都是后台。
+传了也只是噪音——我们的 fork 里 CLI 与扩展两层的默认都是后台。
 
 **`--window foreground` 只有一个正当用途：把一件必须由用户亲手做完的事交给他**
 （验证码、短信验证码、他明确说要看着）。那种时候你本来就是要他的注意力。
@@ -282,16 +288,22 @@ opencli browser <session> <command>
 **想让自动化完全离开用户的窗口用 `--window isolated`**（后台 + 独立窗口），
 不要为此去用前台。
 
-`isolated` 隔离的是**用户 vs 自动化**，不是会话之间：所有 isolated 会话
-**共用同一个自动化窗口**，不是一人一个。会话之间的隔离靠会话名，就是上面四条法律。
+`background` 对 `opencli browser` 与 adapter 命令（`opencli <site> …`）**都**复用用户当前的
+normal 窗口（扩展 1.0.33 起；此前 adapter 每次自己开一个窗口）。只有借不到 normal 窗口才新建，
+`sessions` 那行会带 `[new window: <reason>]`：`no-normal-window`（一个普通窗口都没开）、
+`all-incognito`（只有无痕窗口，登录态不是用户的，不借）、`all-owned`（只剩我们自己建的窗口）、
+`query-failed`（问 Chrome 有哪些窗口这步失败）。browser 与 adapter 都借不到时只建一个替身窗口共用。
+
+`isolated` 隔离的是**用户 vs 自动化**，不是会话之间：isolated 会话落在自动化自己的独立窗口里，
+多个 isolated 会话共用那一个独立窗口，各自仍是自己的标签页组。会话之间的隔离靠会话名，就是上面四条法律。
 （2026-08-24 复测于扩展 1.0.30：两个 isolated 会话并存、都可读、
-`windowId` 同为那个自动化窗口，与用户窗口不同。）
+`windowId` 同为那个独立窗口，与用户窗口不同。）
 
 后台模式本身是干净的：实测 `open` / `eval` / `screenshot` / `click` / `type` 全程，
 页面侧 `document.hasFocus()` 恒为 `false`、`visibilityState` 恒为 `hidden`，
 用户的活动标签页索引不变。
 
-**曾经的一个坑（2026-08-23 修好，扩展 1.0.32）**：`--window isolated` 当时**不新开窗口**，
+**曾经的一个坑（2026-08-23 修好）**：`--window isolated` 当时**不新开窗口**，
 行为与 `background` 一模一样，于是这里一度写着「没办法把 agent 的标签页挪出用户窗口」。
 
 它值得留在这里，因为坏法很典型——**四层各自静默地否决同一个功能**：
@@ -316,8 +328,8 @@ opencli browser <session> <command>
 而紧挨着的 help 文案却在宣传 isolated——同一个标志、两条代码路径、两套答案。
 
 **所以这个自查每次都值得做**：`--window isolated` 起的会话，
-它在 `opencli browser sessions` 里的 `windowId` 应该与默认模式会话的不同；
-并发场景下再确认一次**先开的那个还在 `sessions` 里**。
+它在 `opencli browser sessions` 里的 `windowId` 应该与默认模式会话的不同，
+默认模式那行**不该有** `[new window: …]`；并发场景下再确认一次**先开的那个还在 `sessions` 里**。
 
 如果有人报告屏幕「一直在跳」，先查有没有人用了前台；排除之后再怀疑
 几个任务在写同一个共享页面——那看起来像抖动，实际是法律 1 被违反了。
@@ -353,6 +365,26 @@ opencli browser <session> batch --commands '[
 - **持续交互**（调用方攥着会话，随时间发命令）：顺序调用。
 
 batch 跑在 CLI/守护进程层，**不需要**重新构建的扩展，官方商店版扩展也能用。
+
+---
+
+<a id="site-session"></a>
+## adapter 的 `--site-session persistent`
+
+adapter 命令（`opencli <site> <cmd>`）的会话名不是你起的，是运行时起的：
+
+| 模式 | 会话名 | 每次调用做什么 |
+|---|---|---|
+| `ephemeral`（默认） | `site:<x>:<uuid>`，每次一个新的 | 新开一个标签页，按 COOKIE 策略**先导航到站点根**再跑命令，结束后关掉（`--keep-tab true` 则留到 30s idle） |
+| `persistent` | `site:<x>`，固定 | 复用同一个标签页；**已在该域内就跳过站点根的预导航**（命令自己指定的路径仍会去），直接跑 |
+
+对同一站点连着调十次默认模式，用户看到的是标签栏里一个接一个冒出来又消失、
+每个都先刷一遍首页的标签页——像「一直在刷新首页」。**批量调用同一站点一律加
+`--site-session persistent`**：一个标签页、一个 `OpenCLI: <x>` 组、不重复导航。
+
+持久标签页**按设计保留**，不随命令结束关闭。`opencli browser site:<x> close` 关不掉它——
+那条关的是 browser surface 下同名的租约，adapter surface 的 `site:<x>` 是另一把钥匙
+（租约键 = surface + 会话名）。它留到用户自己关标签页，或主线收工时的 `cleanup`。
 
 ---
 

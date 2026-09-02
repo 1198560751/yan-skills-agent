@@ -27,7 +27,9 @@ npm i -g https://github.com/yan-labs/OpenCLI/releases/download/v1.8.7-yan.2/open
 ```
 
 **只装 CLI 不换扩展是最容易踩的坑**：命令全都能跑，行为却是上游的——
-默认前台、自己开窗口、抢走活动标签页。`opencli doctor` 会在扩展低于 1.0.32 时主动报这一条。
+默认前台、自己开窗口、抢走活动标签页。`opencli doctor` 会在扩展低于 1.0.33 时主动报这一条。
+改完扩展源码（或换了新构建）要在 chrome://extensions 里对 OpenCLI 点 **reload**——
+没 reload 时 `doctor` 同样会提示已加载版本低于最低要求，那是没 reload，不是装错。
 
 ## 先确认你在跑哪一个
 
@@ -55,14 +57,14 @@ git log --oneline origin/main..HEAD   # 我们领先上游的部分
 | 能力 | 在哪一侧 | 缺了它会怎样 |
 |---|---|---|
 | **后台是默认值** | 扩展 + CLI | 默认变成前台：每条命令抬窗口、抢走用户正在看的标签页 |
-| **在用户当前窗口开标签页** | 扩展 | 每次都新开一个 1280×900 的窗口砸在用户布局上 |
+| **在用户当前窗口开标签页——`browser` 与 adapter 都是**（1.0.33 起；此前 adapter 自己开窗口） | 扩展 | 每次都新开一个 1280×900 的窗口砸在用户布局上。借不到 normal 窗口才新建，且 `sessions` 报 `windowFallbackReason` |
+| **每会话一个标签页组**，组名 `OpenCLI: <会话名>`（adapter 显示站点名） | 扩展 | 所有会话挤一个组、adapter 标签页不分组，看不出哪个标签页是哪件事的 |
 | **`--window isolated`** | 扩展 + CLI | 标志被**静默忽略**，行为等同 `background` |
 | **自动化跟着用户换窗口** | 扩展 | 一直往用户早就离开的那个窗口里堆 |
-| **`sessions` 报 windowId** | 扩展 + CLI | 「谁占着哪个标签页」只能靠眯眼看浏览器猜 |
+| **`sessions` 报 windowId / groupId / groupTitle / windowFallbackReason** | 扩展 + CLI | 「谁占着哪个标签页」「新窗口为什么冒出来」只能靠眯眼看浏览器猜 |
 | **借来的窗口不留占位页** | 扩展 | 释放最后一个租约时在用户标签栏留一个 `about:blank` |
 | **批量执行** `browser batch` | CLI/守护进程 | 固定序列只能一条条调，每条各付一次连接开销 |
 | **`browser sessions` / `cleanup`** | CLI + 扩展 | 看不到当前有哪些租约，也没有一键释放 |
-| **动态标签页组标题** | 扩展 | 分组标题固定是 `OpenCLI Browser`，看不出哪个组属于哪个任务 |
 | **不存在会话的护栏** | 扩展 | 对不存在的会话跑 `state`/`eval` 会静默新建空白标签页，制造孤儿页 |
 
 **`batch` 是唯一一个纯 CLI/守护进程层的能力**，官方商店版扩展也能用。
