@@ -247,7 +247,7 @@ opencli browser <session> <command>
 | `navigator.webdriver` | `false` |
 | UA 含 `Headless` | 否 |
 | `navigator.plugins.length` | 5 |
-| `document.visibilityState` | `visible`（后台窗口不被节流） |
+| `document.visibilityState` | `hidden`，`document.hasFocus()` 为 `false`（2026-09-03 实测，扩展 1.0.32，background 模式在用户窗口里开的非活动标签页）。**页面按后台标签页被节流**：依赖 rAF / `visibilitychange` 的页面（PageSpeed 网页版、部分图表）在这种标签页里跑不完，见 rankup `pagespeed.mjs` 头注 |
 | `window.outerWidth × outerHeight` | 1364 × 806 |
 
 所以「后台模式会触发站点的反爬」不是真问题——每一项无头特征都读负。
