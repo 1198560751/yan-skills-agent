@@ -48,6 +48,10 @@ BACKLINK=~/.agents/skills/backlink    # 本仓库开发时 = <repo>/backlink
 **串行，主线自己跑，不派 agent。** 30 秒，决定后面整场调研的规模。
 
 ```bash
+# ⓪ 先读项目记忆，别把上一轮 pass 掉的东西当新点子（没有 .rankup/ 的裸调研跳过这步）
+grep -i "<词根>" .rankup/rejected.md .rankup/decisions.md .rankup/keywords.md 2>/dev/null
+ls .rankup/research/ 2>/dev/null | grep -i "<词根>"     # 同词根有旧报告先读结论，再决定重跑哪几步
+
 # ① seo.web.cafe 档位（脚本会自动把配额打在第一行；档位以脚本打印为准，不写死）
 node $RANKUP/scripts/seo-webcafe.mjs tools 2>&1 | head -3
 
@@ -58,6 +62,12 @@ cut -d= -f1 $RANKUP/.env 2>/dev/null; env | grep -oE 'SERPER_API_KEY|GITHUB_TOKE
 node $BACKLINK/scripts/tools-share-node.mjs list --tool semrush
 node $BACKLINK/scripts/tools-share-node.mjs list --tool similarweb
 ```
+
+**⓪ 命中否决清单怎么办（只有两种）**：直接跳过并在报告开头「已否决对照」段引用那一行；或者写明
+「复活：<rejected.md 里的复活条件> 已于 <日期> 满足，证据 <链接>」再继续。**不允许默默重跑一遍然后得出和上次相反的结论**——
+上次 pass 掉往往是因为意图撞词、量归了别的意思、或者商业上折不成钱，这些不会因为换了一天跑就变。
+调研结束时，本轮 pass 掉的每个词/方向都要进 `rejected.md`（对象 / 类型 / 日期 / 一句理由 / 复活条件 / 证据链接），
+只写「不做」不写理由的不算——下一轮的自己就是那个会重新捡起来的人。
 
 **为什么是第一个动作**：2026-08-22 真实事故——整场调研按「匿名 10 次/日」规划、省着用、
 少测 4 个词、报告写成「配额耗尽无法验证」，账号其实是 VIP 500/日、当天只用了 66 次。

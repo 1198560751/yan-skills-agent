@@ -69,6 +69,7 @@ metadata:
 | **社区验证是必走的一条腿**：Reddit / X / YouTube / B 站近 14 天讨论量。取数走兄弟 Skill：`/agent-reach`（先 `agent-reach doctor --json` 看各平台后端，再按 `research.md` 阶段 5 的命令组跑）、`/anysearch` 批量网页搜索、`/deep-research` 只做定性背景；rankup 自带的只有 `reddit-wishes.mjs` 与 `hn-signals.mjs` | 数据平台只有 28 天窗口，昨天火起来的看不到；论坛热度是第一手的，帖子一星期内炸开面板上还是 0 |
 | 亲眼看 SERP，用页面类型核实**真实意图** | 宠物诊断那次：词看着是工具需求，首页全是兽医内容，做工具就错了 |
 | 空结果先核 manifest：429 / CAPTCHA / 超时都产出 0 条 | 采集失败 ≠ 没需求，把失败读成结论是最贵的错 |
+| **开跑前先 grep 项目的 `.rankup/rejected.md` 与 `research/`**：上一轮 pass 掉的词或方向，命中就跳过并引用，或写明复活条件已满足再重开；本轮 pass 掉的带理由与复活条件写回 `rejected.md` | 换个会话就把否决过的东西当新点子重做一遍、再踩同一个坑，是项目记忆最常见的失效形态；理由留着，条件变了才能有据翻案 |
 | 结论要折成钱：查同类站真实流量，`seo-webcafe.mjs money` | 能排上去 ≠ 能赚钱，漏掉这道闸会得出 SEO 正确、商业错误的结论 |
 
 - **闸门**：[`checklists.md`](references/checklists.md) 段 1。
@@ -164,6 +165,7 @@ metadata:
 | 动页面之前先查上游流量意图 | 转化率低常常是词选错了，不是按钮颜色 |
 | 流量掉了先查 GSC 与 TDK / canonical 有没有被改坏；退款全退不部分退 | 被 K 与被拦是不同的死法，先分清再动手；部分退款制造争议 |
 | **监控读数触发回到段 1 开下一棵树** | 增长是循环不是终点，一棵树吃完就该扩下一棵 |
+| 每轮收尾：调研报告进 `research/`、pass 掉的进 `rejected.md`（带理由与复活条件）、做了什么进 `iterations.md`、功能与实现的调研也一样沉淀 | 项目记忆是下一轮的起点；写的是判据与理由不是禁令，条件变了后来者才有据翻案 |
 
 - **闸门**：[`checklists.md`](references/checklists.md) 段 7。
 
@@ -225,7 +227,7 @@ G 组那条线：`scripts/review.mjs --project-root .` 出五块报告；再挖�
 ## 启动协议
 
 1. 读同目录 `skill.json`，跑 `node "<rankup-skill-dir>/scripts/check-version.mjs" --project-root . --apply`；网络失败保留当前版本，不得伪称已更新。
-2. 读 `.rankup/INDEX.md` 与 `.rankup/skill-state.json`；不存在按 [`project-memory.md`](references/project-memory.md) 初始化，不重建技术栈。只读任务相关文件，不无差别加载日志目录。
+2. 读 `.rankup/INDEX.md` 与 `.rankup/skill-state.json`；不存在按 [`project-memory.md`](references/project-memory.md) 初始化，不重建技术栈。只读任务相关文件，不无差别加载日志目录。**本轮要碰的每个词、方向、功能、渠道、域名先 `grep -i` 一遍 `.rankup/rejected.md`**，命中的只有跳过并引用、或写明复活条件已满足两种处置。
 3. **三方对账门禁**：回答「接下来做什么」或宣称任何进度之前，交叉核对 `git log --oneline -25`、真实路由清单、线上 `sitemap.xml` 全量 `<loc>`。`plan.md` 的勾选、`progress.md`、autopilot 状态都是滞后指标；外部状态（Cloudflare、GSC、Stripe、索引、外链）以当前查询为准。不一致先回写 `.rankup/` 再继续。
 4. 读 [`references/checklists.md`](references/checklists.md) 与 `.rankup/checks.md` 定段，不凭印象；需要可复用操作先查跨项目登记表。
 5. 做完更新 `.rankup/` 事实、决策、计划；把本轮过掉的 check 逐条记进 `checks.md`，动过线上 URL 的把标「动了 URL」的打回 ⬜。

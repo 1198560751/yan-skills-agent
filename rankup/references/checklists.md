@@ -89,6 +89,7 @@
 
 | 检查项 | 客观通过条件 | 证据落点 | 怎么做 | 复查 |
 |---|---|---|---|---|
+| **否决清单已对过** | 本轮每个候选词/方向/功能开跑前都在 `.rankup/rejected.md` 里查过：命中的要么直接跳过并在报告里引用那一行，要么写明「复活：<复活条件> 已于 <日期> 满足，证据 <…>」再继续；**没有第三种** | `.rankup/research/<词根>-<date>.md` 开头的「已否决对照」段 | `grep -i "<词根或功能名>" .rankup/rejected.md .rankup/decisions.md`，再翻 `.rankup/research/` 有没有同词根旧报告 | 每轮 |
 | **多引擎首页实勘** | 目标词/方向在 **Google + Bing + 目标市场本地引擎**（做非英语市场时必看）各搜过一遍，**且是无痕/隔离窗口、显式指定了地区与语言**；每个引擎按 [`demand-sources.md`](demand-sources.md)「每个引擎记下这七样」一节逐样记全，带引擎+国家+日期（七样是什么以那一节为准，本表不复述）。**引擎之间不一致要写出来，不能只留一个「综合印象」** | `.rankup/keywords.md`（词级）或 `.rankup/decisions.md`（方向级） | 见 [`demand-sources.md`](demand-sources.md) 第一·五节。**这一步在任何取数之前**，不许拿 `serp-query.mjs` / `seo-webcafe.mjs serp` 这类二手接口代替——它们看不到版式、SERP 特性和 AI 答案。DuckDuckGo 用的是 Bing 索引，**和 Bing 不算两个独立样本** | 会过期 |
 | **词根已扩树且有停止条件** | 用户给的词按词根处理：先亲眼搜过，再扩成树（面板相关词 + Google/Bing/DDG 下拉联想）；**不超过两层**；每片停止扩的叶子写了停止原因（月量低于阈值 / KD 高于阈值 / 已到两层）；三引擎下拉的原始 manifest 落盘 | `.rankup/research/` + `.rankup/keywords.md` | `scripts/demand/suggest.mjs <词根> --engine google,bing,ddg --hl <语种> --gl <地区> --json --out`，顺序见 [`playbooks/research.md`](playbooks/research.md) 步骤 2。**0 条不等于没词**，先看 manifest 里的 status | 会过期 |
 | 需求证据 | 每个进入开发的机会都有两条来源不同的证据，至少一条是直接信号（GSC 曝光 / Suggest / 持续投放 / 可核验收入）。证据不足的仍标 `RESEARCH`，没有被写成已验证 | `.rankup/decisions.md` | `scripts/demand/` 取数 → [`demand-sources.md`](demand-sources.md) 第十节的候选验证链路 | 一次 |
@@ -209,6 +210,7 @@
 
 | 检查项 | 客观通过条件 | 证据落点 | 怎么做 | 复查 |
 |---|---|---|---|---|
+| **本轮否决的都进了否决清单** | 本轮 pass 掉的词、方向、功能、渠道、域名每个在 `.rankup/rejected.md` 有一行：对象 / 类型 / 日期 / 一句理由 / 复活条件 / 证据链接；只写「不做」不写理由的不算 | `.rankup/rejected.md` | 收尾时对照本轮 `journal/` 与 `iterations.md` 逐条补；被否决的建议同时在 `audit.md` 留理由 | 每轮 |
 | 变现路径按段 2 的裁定接了 | 段 2.2 定的变现方式（广告 / 单次付费 / 订阅 / 商店）至少一条在线上真实可用，有一笔真实交易或一次真实结算记录 | `.rankup/integrations.md` | 路由与判据见 [`monetization.md`](monetization.md) | 一次 |
 | 线上技术信号已核实 | 改了什么就在线上核过什么，不是本地看着对 | `.rankup/audit.md` | `seo-audit.mjs --sitemap <url>` | 每轮 |
 | **改动后段 4 全套重跑** | 本轮动过页面，段 4 八行闸门全部重跑并有本轮证据；**没有「只重跑某两行」** | `.rankup/experiments.md` | 回段 4 表逐行过 | 动了页面 |

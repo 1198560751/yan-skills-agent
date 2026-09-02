@@ -14,7 +14,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const REQUIRED = ["INDEX.md", "PROJECT.md", "plan.md", "decisions.md"];
-const RECOMMENDED = ["roadmap.md", "iterations.md", "experience.md", "baseline.md"];
+const RECOMMENDED = ["roadmap.md", "iterations.md", "experience.md", "baseline.md", "rejected.md"];
 
 // 生命周期检查点：review 不仅看文件有没有，还看关键环节有没有走过。
 // 已上线的站缺这些 = 应该做但没做；新引入 Skill 的老站靠这张表查漏补缺。
