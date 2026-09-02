@@ -493,6 +493,7 @@ AdSense/Ezoic，直接说明他赚谁的钱、怎么收。命令与信号清单�
 | 5 | 关键页面与交互有真实浏览器或等价 E2E 的验证记录，**不是只由 mock/fixture 证明** | `.rankup/audit.md` |
 | 6 | 真实输入回归集在仓库里，本轮动了核心逻辑就有一份全量跑的报告；新输入先进 fixture 再跑 | `.rankup/evidence/live-inputs-<date>/report.json` |
 | 7 | 本轮新增页面/区块过了无占位扫描，零命中 | grep 输出 |
+| 8 | 本轮新增的每一个 UI 控件都来自 `components/ui/`、`shadcn add` 或已安装的 shadcn / React 生态组件；**没有一个手写的下拉框、弹窗、日期选择、表格分页、Toast**。判据是 `grep -rn "role=\"dialog\"\|role=\"listbox\"\|<select" apps/` 命中的都在组件库内部，业务代码里没有 | 本轮 diff + `components/ui/` 清单 |
 
 ### 3.4 集成专项能力（原阶段 6）
 

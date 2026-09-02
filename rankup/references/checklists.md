@@ -119,6 +119,7 @@
 
 | 检查项 | 客观通过条件 | 证据落点 | 怎么做 | 复查 |
 |---|---|---|---|---|
+| **UI 只来自组件库** | 业务代码里没有手写的基础控件（下拉框 / 弹窗 / 日期选择 / 表格分页 / Toast / Tabs）；每个控件能指出它来自 `components/ui/` 的哪个文件或哪个已安装的 shadcn / React 生态包；库里没有的先 `shadcn add` 或安装再用 | 本轮 diff 与 `components/ui/` 目录清单 | `grep -rn 'role="dialog"\|role="listbox"\|role="combobox"\|<select' apps/` 逐条核来源；命中在业务目录的就是手写 | 每轮 |
 | **用的是 shadcn monorepo 命令** | journal 里有命令原文且就是 `pnpm dlx shadcn@latest init --preset … --template start --monorepo`；**没有 `create-next-app` / `create-vite` 或其他脚手架的痕迹** | 项目仓库 + journal | 命令原文在 [`lifecycle.md`](lifecycle.md) 段 3 · 3.1 第 1 条；任何规模都用它 | 一次 |
 | 脚手架真实可运行 | Monorepo 被包管理器识别，dev/build 脚本真实跑通，用户已有文件没被覆盖 | 项目仓库 | 真跑一遍，不看脚手架的成功输出 | 一次 |
 | 构建缓存生效 | 连续两次构建，第二次命中缓存 | 项目仓库 | 连跑两次比对耗时与缓存日志 | 一次 |
