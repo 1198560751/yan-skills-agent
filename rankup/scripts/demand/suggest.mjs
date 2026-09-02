@@ -44,7 +44,8 @@
  */
 
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { realpathSync } from 'node:fs';
 import {
   parseArgs, asList, get, initEvidence, recordSource, saveEvidence, writeManifest,
   sourceStatusSummary, evidenceDir, writeOut, die,
@@ -225,7 +226,14 @@ async function main() {
 }
 
 // 只有直接执行时才跑 main；被测试 import 时保持零副作用。
-const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+// 两边都取 realpath：通过 ~/.claude/skills/rankup 这类软链调用时 argv[1] 是链接路径、
+// import.meta.url 是真实路径，直接比会永远不相等 → 静默退出 0、什么都不跑（2026-09-03 实测踩坑）。
+const invokedDirectly = (() => {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(path.resolve(process.argv[1]));
+  } catch { return false; }
+})();
 if (invokedDirectly) main().catch((e) => die(e.message));
 
 /*
