@@ -19,6 +19,7 @@
 | **所有实际工作都派 sub agent**，主线只负责摸现状、分解任务、派发、收结果、回写 `.rankup/` | 主线上下文是全局视野，烧在一个站的构建日志里是浪费；sub agent 崩了不影响其他任务 | 在主线里跑 `pnpm run build`、`wrangler deploy`、逐行读源码改 key |
 | 独立任务**必须并行派发**（一条消息多个 Agent 调用） | 三个站各自接 Ahrefs WA 互不依赖，串行等于白扔 2/3 的时间 | 先派 A 站，等完成，再派 B 站 |
 | sub agent 的 prompt 必须**自包含**：改哪个文件、改成什么、怎么验证、验证完回写 `.rankup/` 哪里 | sub agent 看不到主线上下文，信息不全就会猜，猜就会错 | prompt 只写「给某站接 Ahrefs WA」，没给项目路径、没给 data-key |
+| 派它跑 playbook 的某一步时，**把那一步的「跑什么」命令块与产出格式原样贴进 prompt**，并要求按格式逐项交付；不许只写一句「做社区验证」 | 子代理读不到 playbook 的上下文，只能按 prompt 里的字面执行；写意图不写命令，它就自己发挥，少跑的那几步没人发现 | 2026-09-02：prompt 写「community demand signals」，子代理只跑了 Reddit 和 HN，X / YouTube / B 站一条没跑，报告照样交了 |
 
 ### 全量执行，不问不等
 

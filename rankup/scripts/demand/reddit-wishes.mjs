@@ -247,10 +247,17 @@ async function viaPullpush({ query, subreddit, limit, template, ua }) {
  * 走用户本机那个真实的、已登录的 Chrome 里的 reddit 会话（strategy=cookie），
  * 所以既不用注册 OAuth app，也不吃匿名 RSS 那套限流。
  * 一次查询实测 ~13s，返回 score / comments / selftext 全字段。
- * 纪律：命令必须带 `--window background`，绝不用 foreground，绝不跑 `browser cleanup`。
+ * 纪律：命令必须带 `--window background` 与 `--site-session persistent`，绝不用 foreground，
+ * 绝不跑 `browser cleanup`（那会关掉别的任务的标签页）；整批跑完只 close 自己的 `site:reddit` 会话。
  */
 async function viaOpencli({ query, subreddit, time, sort, limit, template, bin }) {
-  const args = ['reddit', 'search', query, '--window', 'background', '-f', 'json',
+  // --site-session persistent：整批查询复用同一个 site:reddit 标签页。默认的 ephemeral 会给
+  // 每一次调用新开一个 site:reddit:<uuid> 标签页并先导航到 reddit.com 首页（COOKIE 策略的
+  // navigateBefore），一批 4 词×5 子版×N 句式就是几十次首页导航——用户看到的是「一直在刷新首页、
+  // 从没搜索」（搜索其实是页内 fetch，看不见），而且 reddit.com 首页经常 15s 内加载不完，导航超时后
+  // 页内 fetch 拿到的不是 JSON，就是 2026-09-02 那次 `<anonymous>:50` 的报错。持久会话只导航一次，
+  // 后续调用检测到已在 reddit.com 域就跳过导航（execution.ts shouldRunPreNav）。跑完由本脚本显式 close。
+  const args = ['reddit', 'search', query, '--window', 'background', '--site-session', 'persistent', '-f', 'json',
     '--sort', sort, '--time', time, '--limit', String(Math.min(100, limit))];
   if (subreddit) args.push('--subreddit', subreddit);
   const { stdout } = await execFileP(bin, args, { maxBuffer: 64 * 1024 * 1024 });
@@ -372,6 +379,10 @@ async function main() {
       + '或配 REDDIT_CLIENT_ID/REDDIT_CLIENT_SECRET 走 --source oauth。'
       + '\n再不行用 --source pullpush（第三方历史镜像，数据有滞后）。');
   }
+
+  // 持久会话 `site:reddit` 那个标签页会留在用户浏览器里（adapter 持久会话按设计 keep-tab，
+  // 且 `opencli browser site:reddit close` 关的是 browser surface 的同名租约，碰不到它）。
+  // 留着是有意的：下一批查询直接复用、不再导航首页；它在会话组里、不抢焦点。用户想关随手关掉即可。
 
   emit(rows, args, source === 'oauth' || source === 'pullpush' || source === 'opencli'
     ? [
