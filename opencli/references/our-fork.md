@@ -20,7 +20,7 @@
 CLI 与扩展**两半都要装我们的**：
 
 ```bash
-npm i -g https://github.com/yan-labs/OpenCLI/releases/download/v1.8.7-yan.3/opencli-cli-1.8.7-yan.3.tgz
+npm i -g https://github.com/yan-labs/OpenCLI/releases/download/v1.8.7-yan.4/opencli-cli-1.8.7-yan.4.tgz
 # 扩展：下载 opencli-extension-v*.zip 解压 →
 #   chrome://extensions → 开发者模式 → 加载已解压的扩展程序
 #   并把 Chrome 应用商店那个 OpenCLI 移除或停用（两个都装会一起连守护进程互相打架）
