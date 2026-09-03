@@ -338,8 +338,9 @@ D1 / D4 的 `mineSearch`、E2 / E5、F5 的 `translateSearch`、F6 的 `worth` �
 
 | 阶段 | 并行/串行 | 跑什么 | 拿到什么 | 卡住了怎么办 |
 |---|---|---|---|---|
-| 1 | 串行 | 读 [`../checklists.md`](../checklists.md) + 项目 `.rankup/checks.md` | 12 个环节的判据 + 本项目的状态 | `checks.md` 不存在 → 按 `checklists.md` 的格式当场建，全部标 ⬜ |
-| 2 | 串行 | `node <rankup>/scripts/review.mjs --project-root .` | 文件层缺口（**只是线索，不是判定**） | `.rankup/` 不存在 → 脚本只说「先运行 `rankup init`」就退出，说明这是阶段 0，先补项目记忆 |
+| 0 | 串行 | `node <rankup>/scripts/check-version.mjs --project-root . --apply`；再 `grep -i` 本轮要碰的对象于 `.rankup/rejected.md` | 版本状态 + 否决清单命中 | 网络失败保留当前版本继续，不得伪称已更新（与 SKILL.md 启动协议第 1、2 步同一件事，这里不另存一份判据） |
+| 1 | 串行 | 读 [`../checklists.md`](../checklists.md) + 项目 `.rankup/checks.md` | 七段各一张闸门表（每段开头先对账）+ 本项目的状态；旧 `checks.md` 按 [`../lifecycle.md`](../lifecycle.md) 顶部映射表对照 | `checks.md` 不存在 → 按 `checklists.md` 的格式当场建，全部标 ⬜ |
+| 2 | 串行 | `node <rankup>/scripts/review.mjs --project-root .` | 文件层缺口（**只是线索，不是判定**） | `.rankup/` 不存在 → 脚本只说「先运行 `rankup init`」就退出，说明还没做过对账与 init，先补项目记忆 |
 | 3 | 串行 | 找到**第一个没过闸的环节**，逐项去真实代码 / 线上响应 / 后台读数核对 | 还差哪几项 | 一个 500 字节的 `audit.md` 能让脚本变绿，里面是不是全站逐 URL 只有你看得出来 |
 | 4 | 串行 | 是否要升级成全站体检 —— 判据见下表 | 一个明确的是/否 | 判「是」就直接转第一节的流水线，**不要回来问用户要不要跑** |
 | 5 | 串行 | 照着做，逐项在 `.rankup/checks.md` 记 ✅ + 证据 + 日期 | 本环节过闸 | 做不了的标 ⏸，写清卡在哪、**以及你已经自动化到了哪一步** |

@@ -53,7 +53,7 @@ const LIFECYCLE_CHECKS = [
   },
   {
     id: "audit",
-    name: "技术审计（上线前闸门 7 项）",
+    name: "技术审计（段 4 上线前闸门 8 行：0–6 + 4b）",
     group: "上线后",
     evidence: "audit.md",
     minBytes: 500,

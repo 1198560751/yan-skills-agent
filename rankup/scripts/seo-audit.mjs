@@ -15,6 +15,12 @@
  *   node seo-audit.mjs --sitemap https://example.com/sitemap.xml --pages quiz   # filter
  *   node seo-audit.mjs --sitemap https://example.com/sitemap.xml --density-only
  *   node seo-audit.mjs --sitemap http://localhost:3000/sitemap.xml   # dev server
+ *
+ * --json 的输出结构（2026-09-03 按实际输出补记，别再猜）：
+ *   顶层是**以 "0"、"1"… 为键的对象**，不是数组（历史原因，改成数组会破坏已有解析脚本）；
+ *   每个值是一页：{ url, title:{text,length}, description:{text,length}, h1:[…], canonical, robots,
+ *   og:{…}, twitter:{…}, images:{total, missingAlt}, links:{…}, density:{…}, issues:[…] } 或 { url, fetchError }。
+ *   读法：Object.values(JSON.parse(out))。title / description 是对象，取 .text 与 .length。
  */
 
 // ─── CLI ────────────────────────────────────────────────────────────────────
