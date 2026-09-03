@@ -37,8 +37,12 @@ GA4 在批 A：媒体资源的数据流 URL 只是展示用途，换域名不用
    不按你所在地填——报表的「昨天」按这个时区切。
 2. **建网站数据流**：填当前可访问的 URL（预览域也可以），拿到 **Measurement ID**（形如 `G-XXXXXXXXXX`）。
    这是公开值，会出现在页面 HTML 里，不是秘密；但**逐站不同，记到 `<project>/.rankup/integrations.md`**。
-3. **注入，二选一**：
-   - **gtag**：官方 snippet 原样放进 `<head>`，走同意门槛的统一加载入口（见
+3. **注入，三选一**：
+   - **gtag（延迟加载，推荐）**：用 `requestIdleCallback`（不支持的浏览器回退 `setTimeout 3500ms`）
+     在主线程空闲时动态插入 `gtag.js`。GA4 不需要在首屏之前加载——它采集的是会话级数据，
+     晚几秒加载不丢数据但 LCP 完全不受影响。**「GA 脚本拖 LCP」不是推迟接入的理由，
+     延迟加载就解决了。**【实测 2026-09-03，videocatch.org】
+   - **gtag（同步）**：官方 snippet 原样放进 `<head>`，走同意门槛的统一加载入口（见
      [`integrations.md`](integrations.md)「同意门槛：把不加载做成结构」）。snippet 里
      `function gtag(){dataLayer.push(arguments)}` 那个 `arguments` 是契约，别改写成箭头函数
      （同文件「第三方 snippet 里写法很旧的地方，往往是契约」）。
