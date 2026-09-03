@@ -143,6 +143,7 @@ opencli browser "$S" eval '(async()=>{ /* fetch(..., {credentials:"include"}) */
 2. **不要硬编码通用会话名，也不要在 Bash tool 里用 `$$`。** `$$` 在 Claude Code 的 Bash tool 里每次调用都变——`open` 和 `eval` 的会话名对不上，`eval` 对着空白页执行。实测 2026-08-28：一个探针产生 14 个会话、14 个标签页。用描述性字面常量，或把 `S=$(uuidgen | cut -c1-8)` 存进文件再读回。
 3. **不要加 `--window foreground`。** 后台是默认值：开在用户当前窗口里，不抬窗口、不切走他正在看的标签页，也不是无头模式。前台会把用户的活动标签页切走，只有需要他亲自过验证码时才用。要完全挪出用户窗口用 `--window isolated`。（需 OpenCLI 扩展 ≥ 1.0.32，`opencli doctor` 那行就是判据。）
 4. **用完 `opencli browser <session> close`；sub agent 退出前必须显式关。** 崩溃不会自动清理，残留会话在用户 Chrome 里看起来就是别人正在做的活儿。
+5. **社区采集（Reddit / X / 小红书）动用户浏览器之前先取得本轮同意；采集失败禁止循环回首页重来。** `agent-reach` 对这三个平台的 `active_backend` 就是 OpenCLI，「用 agent-reach」与「借用户的 Chrome」是同一件事，派 sub agent 时要把这一点说破。2026-09-03 实盘：一个采集脚本搜索步失败后反复导航回 reddit.com 首页，用户看到自己的标签页在刷新，两次叫停并要求全程不碰浏览器。零登录态替代路径：HN 与三引擎下拉是纯 HTTP；Reddit 公开内容走 Jina Reader 读 `old.reddit.com` 搜索页或 redlib 镜像（直读 reddit.com 会 403）；B 站 `bili-cli`、YouTube `yt-dlp`、V2EX 公开 API、GitHub `gh` 都不碰浏览器。用户明确不许碰浏览器时，报告里写「X 平台按用户指示跳过」，不许换个脚本再试。
 
 ### 抓到的数据不许留在下载目录
 
@@ -232,6 +233,10 @@ Skill 集合不一样，文档只保证「该用什么」；遇缺就跳过会�
 | Cloudflare Web Analytics 手嵌 beacon 时把 `site_tag` 填进 `token` | `token` 必须是 `site_token`；接完用 GraphQL `rumPageloadEventsAdaptiveGroups(filter:{siteTag})` 查 `count > 0` | 两者同形（32 位 hex），填错不报错、脚本照样 200，只是永远 0 数据——一个站这样空跑了 45 天 |
 | Lighthouse 单跑当性能基线 | `pagespeed.mjs plan --strategy both` 出链接后读网页版 | 单跑只有实验室一半；现场那块不存在 = CrUX 流量不足，不是 0、不等于通过 |
 | 页面有占位链接 / 占位文案 / 占位图片就上线 | 上线前全站扫一遍，占位一律清掉或整块删掉 | Google 会把它判成垃圾站，是段 3 的红线 |
+| 文案里手打由构建脚本生成的数字（兼容条数、目录规模、扫描总数） | 组件从生成的 JSON 注入，文案留槽位 | 实测同一个站同时挂着三套数字：每次重建目录数字就漂，而文案不会跟着变 |
+| 并行 sub agent 在共享 scratchpad 里用 `dump.json` / `edit.py` 这类无前缀文件名 | 文件名带自己的页面 slug 前缀 | 实测一个 agent 的中间产物被兄弟 agent 覆盖，脚本读到别人的数据且不报错 |
+| sub agent 撞 API 会话限额（429）死掉后从头重做 | 先看它已落盘的文件，限额重置后只补没做完的那半截 | 起稿类 agent 边写边落盘，死在改稿中途时文件往往已经改了一大半；重派前跑一次检查脚本定位剩余项 |
+| 关键词短语命中一个 KD 极低的词就当机会 | 先亲眼看 SERP 页面类型再判 | 实测一个「计算器」类短语 KD 0，首页全是舞台灯光计算器；一个换算类词根的下拉被地名与机器名淹没；同名歧义是低 KD 最常见的假信号 |
 
 ---
 
