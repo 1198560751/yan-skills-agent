@@ -352,3 +352,18 @@ python3 $GT compare "<新词>" --geo JP --time 1d   # 按国家看
 4. **别连着打。** 同一分钟内跑 5 条查询，第 5 条 `compare chatgpt --time 1h` 回了 `multiline_429`（Trends 接口限流）。批量时每条之间隔 10 秒以上，撞 429 等一分钟再来，不要换关键词硬试。
 5. **用法定位：它是社区验证那条腿的第三根手指。** 调研 playbook 阶段 5 的口径是「Reddit / X / YouTube / B 站近 14 天」，
    Trends 短时窗口补的是「近 24 小时到 7 天的搜索侧信号」；两边都起来才算新起话题，只有社区起来是讨论热，只有搜索起来要去看是谁在推。
+
+
+## explore 页上每一块与 `gt.py` 的对应（2026-09-03 逐块实跑）
+
+| explore 页上的块 | 命令 | 状态 |
+|---|---|---|
+| 热度曲线（Interest over time） | `compare KW…`，`--time` 全部档位含 1h/4h/1d | ✅ 实跑；now 区间分钟/8 分钟级 |
+| 地区分布（Interest by region） | `region KW…`，`--resolution country\|region\|city` | ✅ 实跑；`city` 对小词常为全 0（Google 就是没给），不是命令坏了 |
+| 相关查询（Search queries：Rising / Top） | `related KW` | ✅ 实跑 |
+| 相关主题（Search topics：Rising / Top） | `related KW` 的「相关主题」段 | ❌ **拿不到**：接口把脚本会话标为 `USER_TYPE_SCRAPER`，`RELATED_TOPICS` 恒回空 `rankedList`；把 userType 改成 LEGIT_USER 会 401（token 绑定）；后台标签页里 DOM 也不渲染。相关主题是 Google 的实体归并，`related` 的相关查询已覆盖绝大多数用法；确实要主题时让用户在前台标签页里看 |
+| 地区 / 时间 / 类目 / 搜索类型四个下拉 | `--geo`、`--time`、`--category N`、`--property web\|images\|news\|youtube\|shopping` | ✅ 实跑（`--property youtube`、`--category 5` 的 explore URL 与取数都对上） |
+| Trending Now（每日热搜） | `hot --region US` | ✅ 实跑 |
+| 多词对比（最多 5 个） | `compare A B C` | ✅ 实跑；标签页 URL 带全部关键词；**归一化按同框峰值**，大小词别同框 |
+
+标签页打开的是这次查询本身的 explore 页（带 q / date / geo / cat / gprop），取数走页内接口，证据落 `.rankup/evidence/gt-browser-<ts>/`（原始 JSON + 截图 + manifest）。

@@ -55,8 +55,20 @@ const OPENCLI = process.env.GT_OPENCLI ?? "opencli";
  * 取数仍走页内 fetch（同源带 cookie），但用户在浏览器里看到的必须是带关键词、时间范围、地区的
  * 真实趋势图——和 reddit search 那次一样：只在页内取数、页面停在空白首页，用户会以为它什么都没查。
  */
-function exploreUrlFor(keywords, geo, timeframe) {
+const PROPERTY_ALIASES = { web: "", "": "", images: "images", image: "images", news: "news", youtube: "youtube", yt: "youtube", shopping: "froogle", froogle: "froogle" };
+/** --property web|images|news|youtube|shopping → Trends 接口的 property 值（web 是空串） */
+function normalizeProperty(p) {
+  if (p === undefined || p === null) return "";
+  const key = String(p).toLowerCase();
+  if (!(key in PROPERTY_ALIASES)) die(`--property 只能是 web / images / news / youtube / shopping，收到：${p}`);
+  return PROPERTY_ALIASES[key];
+}
+
+function exploreUrlFor(keywords, geo, timeframe, opts = {}) {
   const u = new URL(EXPLORE_URL);
+  if (opts.category && Number(opts.category)) u.searchParams.set("cat", String(Number(opts.category)));
+  const gprop = normalizeProperty(opts.property);
+  if (gprop) u.searchParams.set("gprop", gprop);
   if (timeframe && timeframe !== "all") u.searchParams.set("date", timeframe);
   if (geo) u.searchParams.set("geo", geo);
   if (keywords?.length) u.searchParams.set("q", keywords.join(","));
@@ -130,7 +142,7 @@ function parseArgs(argv) {
 }
 
 /** 在 Trends 页面上下文里跑的取数器。返回三个 widget 的原始数据。 */
-function extractor({ keywords, geo, timeframe, resolution }) {
+function extractor({ keywords, geo, timeframe, resolution, category = 0, property = "" }) {
   return `(async () => {
   // Never throw. opencli reports a rejected promise as ok:true with an empty
   // result, which used to surface as "关键词太冷门" — Google answering with a
@@ -143,7 +155,7 @@ function extractor({ keywords, geo, timeframe, resolution }) {
   const tz = new Date().getTimezoneOffset();
   const kws = ${JSON.stringify(keywords)};
   if (location.hostname !== 'trends.google.com') return {error: 'wrong_page'};
-  const req = {comparisonItem: kws.map(k => ({keyword: k, geo: ${JSON.stringify(geo)}, time: ${JSON.stringify(timeframe)}})), category: 0, property: ""};
+  const req = {comparisonItem: kws.map(k => ({keyword: k, geo: ${JSON.stringify(geo)}, time: ${JSON.stringify(timeframe)}})), category: ${Number(category) || 0}, property: ${JSON.stringify(property || "")}};
   const eu = 'https://trends.google.com/trends/api/explore?hl=en-US&tz=' + tz + '&req=' + encodeURIComponent(JSON.stringify(req));
   const er = await fetch(eu, {credentials: 'include'});
   if (!er.ok) return {error: 'explore_' + er.status};
@@ -169,9 +181,12 @@ function extractor({ keywords, geo, timeframe, resolution }) {
   out.timeseries = await wd('multiline', pick('TIMESERIES'));
   out.geo = await wd('comparedgeo', geoWidget, ${resolution ? JSON.stringify({ resolution }) : "null"});
   out.related = [];
+  out.topics = [];
   for (let i = 0; i < kws.length; i++) {
     const w = pick('RELATED_QUERIES_' + i) || (kws.length === 1 ? pick('RELATED_QUERIES') : null);
     out.related.push(await wd('relatedsearches', w));
+    const t = pick('RELATED_TOPICS_' + i) || (kws.length === 1 ? pick('RELATED_TOPICS') : null);
+    out.topics.push(await wd('relatedsearches', t));
   }
   } catch (e) { return {error: 'extractor_threw', head: String(e && e.message || e).slice(0, 200)}; }
   return out;
@@ -315,12 +330,12 @@ function fetchTrends(keywords, opts, { resolution } = {}) {
   const session = opts.session ?? defaultSession();
   const dir = newEvidenceDir("gt-browser");
   runStats = { attempt: 1, emptyResultCount: 0 };
-  currentExploreUrl = exploreUrlFor(keywords, geo, timeframe);
+  currentExploreUrl = exploreUrlFor(keywords, geo, timeframe, opts);
   const kwSlug = keywords.join("_").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60) || "kw";
   let stopReason = "completed";
   let data = null;
   try {
-    data = runBatch(extractor({ keywords, geo, timeframe, resolution }), session);
+    data = runBatch(extractor({ keywords, geo, timeframe, resolution, category: opts.category, property: normalizeProperty(opts.property) }), session);
     try {
       writeFileSync(join(dir, `trends-${kwSlug}.json`), JSON.stringify(data, null, 2) + "\n");
     } catch (e) {
@@ -402,7 +417,8 @@ function cmdCompare(kws, opts) {
 
   let rows;
   let note = "";
-  if (!opts.raw && tl.length > 30 && !/^now /.test(timeframe)) {
+  // 只有超过两个月的日级数据才按月聚合；30 天的曲线聚成一个「月均值」等于什么都没看到
+  if (!opts.raw && tl.length > 62 && !/^now /.test(timeframe)) {
     // 按月聚合（now 区间不聚合：它本来就是为了看小时级形状）。formattedAxisTime 的粒度随 timeframe 变，用 time 时间戳更可靠。
     const buckets = new Map();
     for (const p of tl) {
@@ -443,7 +459,7 @@ function cmdRegion(kws, opts) {
   if (!kws.length) die("region 需要至少 1 个关键词");
   const list = kws.slice(0, 5);
   const { data, geo, timeframe, evidenceDir } = fetchTrends(list, opts, {
-    resolution: opts.geo ? "REGION" : "COUNTRY",
+    resolution: opts.resolution ? String(opts.resolution).toUpperCase() : (opts.geo ? "REGION" : "COUNTRY"),
   });
   const gm = data.geo?.default?.geoMapData;
   if (!gm?.length) widgetEmptyExit(evidenceDir, "地区分布", data.geo, widgetUnavailable(data.geo, "地区分布"));
@@ -483,6 +499,28 @@ function cmdRelated(kws, opts) {
       mdTable(
         ["query", "value"],
         items.slice(0, topN).map((k) => [k.query, k.formattedValue ?? String(k.value)]),
+      ),
+    );
+    console.log();
+  }
+  // 相关主题（explore 页左栏「Search topics」）：Google 的实体，不是查询串；title 后带类型
+  const topicRanked = data.topics?.[0]?.default?.rankedList;
+  console.log(`## 相关主题：${kws[0]}`);
+  const topicSections = [
+    ["飙升主题（value=增长百分比）", topicRanked?.[1]],
+    ["高频主题（value=相对热度）", topicRanked?.[0]],
+  ];
+  for (const [label, section] of topicSections) {
+    console.log(`### ${label}`);
+    const items = section?.rankedKeyword;
+    if (!items?.length) {
+      console.log("（无数据）\n");
+      continue;
+    }
+    console.log(
+      mdTable(
+        ["topic", "type", "value"],
+        items.slice(0, topN).map((k) => [k.topic?.title ?? "", k.topic?.type ?? "", k.formattedValue ?? String(k.value)]),
       ),
     );
     console.log();

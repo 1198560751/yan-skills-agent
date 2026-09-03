@@ -13,6 +13,9 @@
   --time RANGE   时间范围：1h/4h/1d/7d/28d/30d/1m/3m/12m/5y/all 或 2024-01-01:2025-01-01（默认 12m）
                  1h/4h/1d 是小时级曲线，专门验证「刚出现的新词」——面板类工具只有 28 天口径看不到
   --raw          compare 不做月度聚合，输出原始（周级）数据
+  --property P   搜索类型：web（默认）/images/news/youtube/shopping（对应 explore 页右上角那个下拉）
+  --category N   Trends 类目编号（explore 页「All categories」下拉；0=全部）
+  --resolution R region 的粒度：country / region（州省）/ city（仅 browser 路由）
   --top N        region/related 显示前 N 条（默认 15）
   --region CODE  hot 的地区（默认 US；不支持 CN）
   --limit N      hot 显示条数（默认 20）
