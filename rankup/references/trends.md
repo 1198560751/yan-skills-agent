@@ -335,6 +335,8 @@ python3 $GT related "<新词>" --time 1d            # 这 24 小时里跟它一�
 python3 $GT compare "<新词>" --geo JP --time 1d   # 按国家看
 ```
 
+标签页打开的就是这次查询的 explore 页（`explore?date=now 1-d&q=openclaw&geo=…`），趋势图和你肉眼看到的一致；取数走页内接口。
+
 2026-09-03 实跑：`compare openclaw --time 1d` 拿到 24 小时 180 个点（63、65、62…），`compare chatgpt --time 4h` 拿到分钟级点。
 时间戳是 UTC（列里带 `Z`），判读时换成目标市场的本地时区再看「几点起来的」。
 
@@ -347,5 +349,6 @@ python3 $GT compare "<新词>" --geo JP --time 1d   # 按国家看
    短时窗口回答的是「有没有在起来、什么时候起来的」；量的问题回到面板与 `seo-webcafe.mjs kd`。
 3. **全 0 先看证据目录再下结论。** `gt-browser` 每次都落 `.rankup/evidence/gt-browser-<ts>/`（JSON + 截图 + manifest）；
    consent 弹窗、限流插页、未登录都会给一条全 0 的曲线，与「真没人搜」在接口上同形。
-4. **用法定位：它是社区验证那条腿的第三根手指。** 调研 playbook 阶段 5 的口径是「Reddit / X / YouTube / B 站近 14 天」，
+4. **别连着打。** 同一分钟内跑 5 条查询，第 5 条 `compare chatgpt --time 1h` 回了 `multiline_429`（Trends 接口限流）。批量时每条之间隔 10 秒以上，撞 429 等一分钟再来，不要换关键词硬试。
+5. **用法定位：它是社区验证那条腿的第三根手指。** 调研 playbook 阶段 5 的口径是「Reddit / X / YouTube / B 站近 14 天」，
    Trends 短时窗口补的是「近 24 小时到 7 天的搜索侧信号」；两边都起来才算新起话题，只有社区起来是讨论热，只有搜索起来要去看是谁在推。

@@ -6,7 +6,7 @@
  * 进 `.rankup/evidence/gt-browser-<ts>/`；空结果不再被叙述成「太冷门」。
  *
  * pytrends 走的是没有凭据的匿名请求，Google 对它限流极狠（429 是常态）。
- * 这个脚本改走用户本机那个已登录的 Chrome：打开 trends.google.com，
+ * 这个脚本改走用户本机那个已登录的 Chrome：打开**这次查询本身**的 explore 页（带 q/date/geo），
  * 在页面上下文里 fetch Trends 自己的内部 widget 接口（同源 + 带 cookie），
  * 拿到的是和你肉眼在页面上看到的完全同一份数据。
  *
@@ -49,6 +49,19 @@ function defaultSession() {
 }
 const EXPLORE_URL = "https://trends.google.com/trends/explore?hl=en-US";
 const OPENCLI = process.env.GT_OPENCLI ?? "opencli";
+
+/**
+ * 标签页要打开的是「这次查询本身」的 explore 页，不是空白 explore 页。
+ * 取数仍走页内 fetch（同源带 cookie），但用户在浏览器里看到的必须是带关键词、时间范围、地区的
+ * 真实趋势图——和 reddit search 那次一样：只在页内取数、页面停在空白首页，用户会以为它什么都没查。
+ */
+function exploreUrlFor(keywords, geo, timeframe) {
+  const u = new URL(EXPLORE_URL);
+  if (timeframe && timeframe !== "all") u.searchParams.set("date", timeframe);
+  if (geo) u.searchParams.set("geo", geo);
+  if (keywords?.length) u.searchParams.set("q", keywords.join(","));
+  return u.toString();
+}
 // How long to let the Trends bundle boot before querying its APIs from the page.
 const SETTLE_MS = 5000;
 // The bridge intermittently drops a large eval result; reopening clears it.
@@ -88,6 +101,8 @@ function fail(stopReason, msg, extra) {
 
 /** 本次取数的统计，进 manifest。每次 fetchTrends 重置。 */
 let runStats = null;
+/** 本次查询对应的 explore 页 URL（带 q / date / geo），每次 fetchTrends 重置。 */
+let currentExploreUrl = EXPLORE_URL;
 
 function toTimeframe(t = "12m") {
   if (PRESETS[t]) return PRESETS[t];
@@ -173,7 +188,7 @@ function runBatch(js, session, { retry = true, open = false, attempt = 1 } = {})
   const settleMs = SETTLE_MS * attempt;
   const commands = JSON.stringify([
     ...(open ? [
-      { cmd: "open", args: { url: EXPLORE_URL } },
+      { cmd: "open", args: { url: currentExploreUrl } },
       // `wait time` is broken in opencli 1.8.7 — it returns in well under a second
       // whatever you ask for, so Trends got queried before its bundle had booted.
       // An in-page timer is accurate. See backlink/tests/opencli-wait.test.mjs.
@@ -300,6 +315,7 @@ function fetchTrends(keywords, opts, { resolution } = {}) {
   const session = opts.session ?? defaultSession();
   const dir = newEvidenceDir("gt-browser");
   runStats = { attempt: 1, emptyResultCount: 0 };
+  currentExploreUrl = exploreUrlFor(keywords, geo, timeframe);
   const kwSlug = keywords.join("_").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60) || "kw";
   let stopReason = "completed";
   let data = null;
