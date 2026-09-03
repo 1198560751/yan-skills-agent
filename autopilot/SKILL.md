@@ -36,11 +36,16 @@ npx skills update autopilot -g -y
 
 若使用项目级安装，去掉安装命令中的 `-g`；项目级更新使用 `npx skills update autopilot -p -y`。
 
-接收一句话，自动拆解成结构化执行计划，然后以无人值守模式完整执行到底。
+---
 
-用户调用 autopilot 意味着：**授权 AI 完全自主地完成整套流程**——
-调查、实现、部署、E2E 验证、代码 review、二次部署、二次验证、收尾。
-不需要中途确认，不允许跳过任何阶段，不允许半途而废。
+## 编排者角色（CRITICAL · 贯穿全程）
+
+**你的主要任务是分析、编排和验证，具体任务尽可能交给 subagent 去执行。**
+自己只做需求澄清、方案拆解、任务分发和结果验收；
+实现类工作（读大量代码、写代码、跑测试、批量修改）一律用 Agent 工具派给 subagent 执行。
+
+主循环是指挥，不是工兵——把上下文留给决策，把苦力留给 subagent。
+这条规则与下方 `<behavior id="main-context-execution">` 和 `<rule id="context-hygiene">` 是同一件事的三种表述，互相加强，不冲突。
 
 ---
 
@@ -792,22 +797,37 @@ loop-goal = <loop-goal> 定义的完成判定
 
   <rule id="model">
     根据当前宿主平台选择可用的原生 subagent 模型，不把某个外部 CLI 当作审查前提。
-    **`model` 参数必须每次显式传，绝不省略**——省略等于继承主线程模型，
-    而主线程往往是当前可用的最贵那一档，这是已经真实发生过的事故。
 
-    **Claude 环境：默认派最便宜的够用档，即 `sonnet`。**
-    只有在任务确实需要时（深层架构推理、对微妙逻辑的对抗性审查）才升到 `opus`，
-    并在同一条消息里说明为什么。调查、读文件、跑命令、量布局、查链接、汇报
-    这类阶段一律 `sonnet`。**不要把下面 Codex 那条的「高思考配置」平移过来**：
-    那是 Codex 侧的取值，不是「在任何平台都挑最贵的」。
+    **Claude 环境：默认使用自定义 agent `opus-medium`（Opus + medium effort）。**
+    已配置的基础设施：
+    - `~/.claude/agents/opus-medium.md`：frontmatter `model: opus` + `effort: medium`
+    - `~/.claude/settings.json` 的 `env.CLAUDE_CODE_SUBAGENT_MODEL = "opus"` 作为兜底
 
-    两条 Claude 侧的已知限制，说清楚免得误报：
+    **分派方式**：每次调 Agent 工具时传 `subagent_type: "opus-medium"`。
+    这同时锁定模型（Opus）和推理程度（medium），不需要再单独传 `model` 参数。
+    只有以下两种例外：
+    - 需要使用内置 agent 类型时（如 `Explore`、`Plan`），直接用内置类型，
+      它们会被 `CLAUDE_CODE_SUBAGENT_MODEL` 环境变量兜底到 Opus。
+    - 明确判断为轻量只读任务（单次 grep、读一个文件）时可传 `model: "sonnet"`，
+      并说明为什么降档。
+
+    **全局默认配置机制**：
+    - `CLAUDE_CODE_SUBAGENT_MODEL` 环境变量：设置 subagent 默认模型，
+      放在 `settings.json` 的 `env` 块或 shell 环境变量中均可。
+    - `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`：强制所有 subagent（含内置 Explore/Plan）
+      使用指定模型，覆盖 frontmatter 和 per-call 参数。需 v2.1.257+。
+    - 模型解析优先级：per-call `model` 参数 → frontmatter `model:` → 环境变量 → 主会话模型。
+
+    **reasoning effort**：Agent 工具调用时**不能**逐次指定 effort，
+    但自定义 agent 定义文件（`~/.claude/agents/*.md`）的 frontmatter 支持
+    `effort:` 字段（`low/medium/high/xhigh/max`），会覆盖会话级 effort。
+    这就是为什么用 `subagent_type: "opus-medium"` 而不是裸传 `model: "opus"`——
+    前者能同时控制 effort，后者不能。
+
+    Claude 侧的已知限制：
     - `model` 只接受 `sonnet` / `opus` / `haiku` / `fable` **四个档位别名，
       没有版本粒度**，所以「Opus 4.8」这种具体版本在工具调用里钉不住；
-      要把某个版本定成常驻默认，那是应用自己的模型配置，不在这里设。
-    - **`Agent` 工具根本没有 reasoning-effort 参数**（只有 `Workflow` 内层的
-      `agent()` 有 `effort`）。所以「所有 subagent 都开中等推理」无法逐次强制，
-      推理档是会话级设置。**不要声称给某个 subagent 设过 effort。**
+      要把某个版本定成常驻默认，用 `CLAUDE_CODE_SUBAGENT_MODEL` 传完整模型 ID。
 
     在 Codex 环境，默认派 Codex subagent；涉及 implement、E2E、review 或 quality audit
     的阶段必须使用 `model="gpt-5.6-terra"` + `reasoning_effort="high"`。

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-30",
+  "updatedAt": "2026-09-03",
   "note": "Submission routes observed to exist. NOT placements: no row here claims a published link, a rel value, or an index entry. A row graduates into free-channels.json only when a real anchor is seen on a live page. Relevance and authority rank these, they never gate them.",
   "targets": [
     {
@@ -18015,6 +18015,33 @@
         "source": "similarweb",
         "globalRank": 102217
       }
+    },
+    {
+      "domain": "tinyshelf.co",
+      "route": "https://www.tinyshelf.co/submit",
+      "name": "TinyShelf - A tiny, curated directory of good software",
+      "kind": "product-directory",
+      "gate": "account",
+      "gates": [
+        "google-oauth",
+        "manual-review"
+      ],
+      "cohort": "account-review",
+      "payment": "none-seen",
+      "price": null,
+      "priceCheckedAt": null,
+      "status": "gated",
+      "sourceList": "user-submitted",
+      "notes": "Curated software directory, ~500+ tools across 19 categories. Submit requires Google sign-in, listings are reviewed before going live. Categories include Developer Tools, AI & ML, Analytics & SEO, Productivity, etc.",
+      "lastProbedAt": "2026-09-03",
+      "evidence": {
+        "method": "anonymous-http",
+        "what": "Homepage 200, submit page redirects to Google OAuth. 24 pages of listings visible. Categories and tool cards render with dofollow tool page links.",
+        "httpStatus": 200,
+        "finalUrl": "https://www.tinyshelf.co/",
+        "title": "TinyShelf"
+      },
+      "traffic": null
     },
     {
       "domain": "tinystartups.com",
