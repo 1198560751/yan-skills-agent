@@ -67,7 +67,7 @@ metadata:
 |---|---|
 | 用户给的任何词都是**词根**：先直接搜，再扩成树（面板相关词 + Google/Bing/DDG 下拉；叶子再扩，最多两层；叶子月量低于阈值或 KD 高于阈值就停） | 用户给的是方向不是答案，一个词查完就下结论会漏掉整棵树 |
 | 筛子：月量太低且 CPC 低 = 否；KD 低好上手 | 量低又没人出价，说明没人为它付钱 |
-| **社区验证是必走的一条腿**：Reddit / X / YouTube / B 站近 14 天讨论量。取数走兄弟 Skill：`/agent-reach`（先 `agent-reach doctor --json` 看各平台后端，再按 `research.md` 阶段 5 的命令组跑）、`/anysearch` 批量网页搜索、`/deep-research` 只做定性背景；rankup 自带的只有 `reddit-wishes.mjs` 与 `hn-signals.mjs` | 数据平台只有 28 天窗口，昨天火起来的看不到；论坛热度是第一手的，帖子一星期内炸开面板上还是 0 |
+| **社区验证是必走的一条腿**：Reddit / X / YouTube / B 站近 14 天讨论量。取数走兄弟 Skill：`/agent-reach`（先 `agent-reach doctor --json` 看各平台后端，再按 `research.md` 阶段 5 的命令组跑）、`/anysearch` 批量网页搜索、`/deep-research` 只做定性背景；rankup 自带的只有 `reddit-wishes.mjs` 与 `hn-signals.mjs`；搜索侧用 `scripts/gt.py compare <词> --time 1d`（Trends 过去 1 小时 / 4 小时 / 1 天的小时级曲线，新词单独查不和大词同框） | 数据平台只有 28 天窗口，昨天火起来的看不到；Trends 的 now 区间是唯一能看到小时级的公开源；论坛热度是第一手的，帖子一星期内炸开面板上还是 0 |
 | 亲眼看 SERP，用页面类型核实**真实意图** | 宠物诊断那次：词看着是工具需求，首页全是兽医内容，做工具就错了 |
 | 空结果先核 manifest：429 / CAPTCHA / 超时都产出 0 条 | 采集失败 ≠ 没需求，把失败读成结论是最贵的错 |
 | **开跑前先 grep 项目的 `.rankup/rejected.md` 与 `research/`**：上一轮 pass 掉的词或方向，命中就跳过并引用，或写明复活条件已满足再重开；本轮 pass 掉的带理由与复活条件写回 `rejected.md` | 换个会话就把否决过的东西当新点子重做一遍、再踩同一个坑，是项目记忆最常见的失效形态；理由留着，条件变了才能有据翻案 |

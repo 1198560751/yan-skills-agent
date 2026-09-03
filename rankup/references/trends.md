@@ -123,7 +123,7 @@ python3 $GT related Claude --geo US
 python3 $GT hot --region JP --limit 10
 ```
 
-选项速查：`--geo`（US/JP/ID…，留空=全球，任意 ISO 国家码都行）、`--time`（7d/28d/30d/1m/3m/12m/5y/all 或 起:止 日期）、`--raw`（compare 不聚合）、`--top N`、`--region`/`--limit`（仅 hot）。
+选项速查：`--geo`（US/JP/ID…，留空=全球，任意 ISO 国家码都行）、`--time`（**1h/4h/1d**/7d/28d/30d/1m/3m/12m/5y/all 或 起:止 日期；1h/4h/1d 见下面「短时窗口」）、`--raw`（compare 不聚合）、`--top N`、`--region`/`--limit`（仅 hot）。
 
 连续查多个时间窗或国家时，给这批命令加 `--keep-session`，脚本会复用同一个 Trends 页面，不会每条命令重新打开；全部查完后释放会话：
 
@@ -318,3 +318,34 @@ node scripts/seo-webcafe.mjs kd --keyword "remove background" --gl JP
 3. KD 结果重点解读：难度等级 + 新站信号 + 链接预算 + 最弱竞争者是谁（用户的锚点）。
 4. 工作流产出优先用 W2 的决策表格式，让用户能直接行动。
 5. 用户要图表时，用已有输出数据画，不要重复查询。
+
+
+## 短时窗口：用 Trends 的「过去 1 小时 / 4 小时 / 1 天 / 7 天」验证刚出现的新词
+
+Semrush / Similarweb 这类面板只有最近 28 天口径，昨天才火的词在那里要么是 0 要么是上个月的老量。
+Google Trends 的 `now` 区间是唯一能看到**小时级**曲线的公开源，`gt.py` 从 3.1.1 起直接支持：
+
+```bash
+GT=<rankup-skill-dir>/scripts/gt.py
+python3 $GT compare "<新词>" --time 1d            # 过去 24 小时，8 分钟一个点
+python3 $GT compare "<新词>" --time 4h            # 过去 4 小时，1 分钟一个点
+python3 $GT compare "<新词>" --time 1h            # 过去 1 小时
+python3 $GT compare "<新词>" --time 7d --raw      # 过去 7 天，小时级
+python3 $GT related "<新词>" --time 1d            # 这 24 小时里跟它一起被搜的 rising 词
+python3 $GT compare "<新词>" --geo JP --time 1d   # 按国家看
+```
+
+2026-09-03 实跑：`compare openclaw --time 1d` 拿到 24 小时 180 个点（63、65、62…），`compare chatgpt --time 4h` 拿到分钟级点。
+时间戳是 UTC（列里带 `Z`），判读时换成目标市场的本地时区再看「几点起来的」。
+
+**四条判读纪律（都是实跑撞出来的）：**
+
+1. **新词单独查，或只和同量级的词同框。** 同一次 `compare` 里数值按区间内峰值归一化到 0–100，
+   `compare chatgpt openclaw --time 7d` 里 openclaw 全程是 0——不是没人搜，是被 chatgpt 压扁了；
+   单独 `compare openclaw --time 1d` 立刻看到 60 上下的曲线。要比规模用 `region` 或分别查再看绝对趋势形状。
+2. **`now` 区间的 100 只是「这几小时里的峰值」，不代表量大。** 一个日搜 50 次的词在 4h 窗口里也能画出漂亮的 100。
+   短时窗口回答的是「有没有在起来、什么时候起来的」；量的问题回到面板与 `seo-webcafe.mjs kd`。
+3. **全 0 先看证据目录再下结论。** `gt-browser` 每次都落 `.rankup/evidence/gt-browser-<ts>/`（JSON + 截图 + manifest）；
+   consent 弹窗、限流插页、未登录都会给一条全 0 的曲线，与「真没人搜」在接口上同形。
+4. **用法定位：它是社区验证那条腿的第三根手指。** 调研 playbook 阶段 5 的口径是「Reddit / X / YouTube / B 站近 14 天」，
+   Trends 短时窗口补的是「近 24 小时到 7 天的搜索侧信号」；两边都起来才算新起话题，只有社区起来是讨论热，只有搜索起来要去看是谁在推。

@@ -10,7 +10,8 @@
 
 通用选项：
   --geo CODE     地区代码，如 US/JP/GB；留空 "" = 全球（compare/region/related 默认全球）
-  --time RANGE   时间范围：7d/28d/30d/1m/3m/12m/5y/all 或 2024-01-01:2025-01-01（默认 12m）
+  --time RANGE   时间范围：1h/4h/1d/7d/28d/30d/1m/3m/12m/5y/all 或 2024-01-01:2025-01-01（默认 12m）
+                 1h/4h/1d 是小时级曲线，专门验证「刚出现的新词」——面板类工具只有 28 天口径看不到
   --raw          compare 不做月度聚合，输出原始（周级）数据
   --top N        region/related 显示前 N 条（默认 15）
   --region CODE  hot 的地区（默认 US；不支持 CN）
@@ -91,6 +92,10 @@ def die(msg, code=1):
 
 def to_timeframe(t):
     presets = {
+        "1h": "now 1-H",
+        "4h": "now 4-H",
+        "1d": "now 1-d",
+        "24h": "now 1-d",
         "7d": "now 7-d",
         "28d": "today 4-w",
         "30d": "today 1-m",
@@ -135,12 +140,13 @@ def cmd_compare(kws, opts):
     if df.empty:
         die("没有数据：关键词太冷门，或该地区/时间范围内无足够搜索量")
     df = df.drop(columns=["isPartial"], errors="ignore")
-    if not opts.get("raw") and len(df) > 30:
+    sub_daily = timeframe.startswith("now ")
+    if not opts.get("raw") and len(df) > 30 and not sub_daily:
         df = df.resample("ME").mean().round(1)
         df.index = df.index.strftime("%Y-%m")
         note = "（月均值；--raw 查看原始数据）"
     else:
-        df.index = df.index.strftime("%Y-%m-%d")
+        df.index = df.index.strftime("%Y-%m-%d %H:%MZ" if sub_daily else "%Y-%m-%d")
         note = ""
     print(f"## 热度对比：{' vs '.join(kws)} {note}")
     print(scope_line(geo, timeframe))

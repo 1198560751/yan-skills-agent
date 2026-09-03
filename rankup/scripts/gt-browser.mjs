@@ -55,6 +55,11 @@ const SETTLE_MS = 5000;
 const EMPTY_RESULT_ATTEMPTS = 3;
 
 const PRESETS = {
+  // 短时窗口：验证「刚出现的新词」用。面板类工具只有 28 天口径，Trends 的 now 区间能看到小时级曲线
+  "1h": "now 1-H",
+  "4h": "now 4-H",
+  "1d": "now 1-d",
+  "24h": "now 1-d",
   "7d": "now 7-d",
   "28d": "today 4-w",
   "30d": "today 1-m",
@@ -381,8 +386,8 @@ function cmdCompare(kws, opts) {
 
   let rows;
   let note = "";
-  if (!opts.raw && tl.length > 30) {
-    // 按月聚合。formattedAxisTime 的粒度随 timeframe 变，用 time 时间戳更可靠。
+  if (!opts.raw && tl.length > 30 && !/^now /.test(timeframe)) {
+    // 按月聚合（now 区间不聚合：它本来就是为了看小时级形状）。formattedAxisTime 的粒度随 timeframe 变，用 time 时间戳更可靠。
     const buckets = new Map();
     for (const p of tl) {
       const key = new Date(Number(p.time) * 1000).toISOString().slice(0, 7);
@@ -395,8 +400,13 @@ function cmdCompare(kws, opts) {
     ]);
     note = "（月均值；--raw 查看原始数据）";
   } else {
+    // now 区间（1h/4h/1d/7d）的点是分钟级或小时级，只打日期会把一整天的点印成同一个字符串；
+    // 保留到分钟（UTC），判读时按本地时区换算。
+    const subDaily = /^now /.test(timeframe);
     rows = tl.map((p) => [
-      new Date(Number(p.time) * 1000).toISOString().slice(0, 10),
+      subDaily
+        ? new Date(Number(p.time) * 1000).toISOString().slice(0, 16).replace("T", " ") + "Z"
+        : new Date(Number(p.time) * 1000).toISOString().slice(0, 10),
       ...p.value.map(String),
     ]);
   }
