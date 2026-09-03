@@ -138,6 +138,7 @@ SKILL.md 段 6 与取数纪律只一行指回本文件，改脚本入口时只�
 | 能力 | 一句话能干什么 | 入口 | 典型触发说法 |
 |---|---|---|---|
 | 默认建站栈 | TanStack Start Monorepo 脚手架（shadcn 初始化命令唯一）+ Cloudflare-first 资源选型 | [`references/cloudflare-stack.md`](cloudflare-stack.md) + [`references/lifecycle.md`](lifecycle.md) 段 3 | 「新建个站」「搭个工具站」 |
+| 设计组件库参考 | 外部 shadcn 生态组件库（21st.dev 等），做页面级设计（Hero / landing page / 动画动效）时先浏览找案例再实现 | [`references/design-references.md`](design-references.md) | 「做个好看的页面」「找设计参考」「Hero 怎么设计」 |
 | 脚手架四个坑 | 每一条都实际踩过的初始化陷阱 | [`references/lifecycle.md`](lifecycle.md) 段 3 · 3.1 | 「init 报错了」 |
 | 域名接入 Cloudflare | zone onboarding 并读回 NS 对（Wrangler 没有 zone 命令）；`status` 只读、`create` 建 | `scripts/cf-zone-setup.mjs` | 「把域名挂到 CF」 |
 | 支付 / 邮件 / 第三方接入 | 接入方式与边界；三方库与现成服务优先 | [`references/integrations.md`](integrations.md) | 「接个 Stripe」「这个功能有没有现成的」 |
