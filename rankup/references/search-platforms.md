@@ -98,8 +98,10 @@ if (path === `/${INDEXNOW_KEY}.txt`) {
 } }
 ```
 
-日常只改了几页时给脚本传路径，不要每次全量：
-`node scripts/indexnow-push.mjs /pricing /zh/pricing`。
+**默认行为是 diff 推送**：脚本维护一份上次成功推送的 URL 集合
+（`.rankup/indexnow-last.json`，本地状态，不进 git），每次只推 sitemap 里新出现的 URL。
+全量推送用 `--all` 显式触发（首次推送或密钥轮换后）。
+这个记录文件丢了不影响正确性——下次自动退化为全推一次。
 
 推送时机是**部署完成之后**，不是构建之后：脚本要校验线上的密钥文件与 sitemap，
 而它们在部署完成前还是旧的。脚本应当把「部署前就跑」这种情况**指名报错**——
