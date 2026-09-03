@@ -35,6 +35,20 @@ landing page 用什么布局——脚手架不管，组件库也不管**。
 | **什么时候不要去** | 只需要基础 UI 控件（button、input、dialog）时——那些直接 `shadcn add` |
 | **入口 URL** | 组件：`/community/components`；模板：`/community/templates`；主题：`/community/themes`；按分类：`/community/components/s/<分类>` |
 
+### Libraries.dev
+
+| | |
+|---|---|
+| **地址** | https://libraries.dev |
+| **定位** | React 视觉特效库集合——5 个独立 npm 包（border-beam、thinking-orbs、liquid-gooey、metal-fx、img-fx），专注动效和着色器效果 |
+| **与项目技术栈的关系** | **直接兼容**——React 18+，零运行时依赖（img-fx 除外需 three），MIT 开源；和 shadcn 组件库互不冲突，特效叠在组件上 |
+| **核心分类** | **Border beam**（彩虹光圈沿边框跑动）<br>**Thinking orbs**（AI 接口的思考态加载球）<br>**Gooey**（液态融合变形效果）<br>**Liquid Metal**（实时铬金属环，按钮和图标用）<br>**Image generation**（WebGL 图片生成加载器） |
+| **使用方式** | 每个库以 prompt 形式分发——复制 prompt 粘贴到 Claude Code / Cursor，agent 自动 `npm install` 并接入项目；Pro 版解锁 Studio 深度定制 |
+| **什么时候去看** | 需要**动画特效、加载态、边框光效、液态/金属质感**等视觉点缀时；给 AI 功能做 thinking 状态指示时；想给按钮、卡片、图标加微交互时 |
+| **什么时候不要去** | 需要页面级布局（Hero、定价页、页脚）时——那是 21st.dev 的覆盖范围；需要基础控件时——直接 `shadcn add` |
+| **与 21st.dev 的差异** | 21st.dev = 组件和页面模板（广度），Libraries.dev = 动效和着色器特效（深度）；两者互补，不重叠 |
+| **入口 URL** | 各库 playground：`/beam.html`、`/orbs.html`、`/gooey.html`、`/metal.html`、`/image.html`；使用说明：`/how-to-use.html` |
+
 ---
 
 ## 使用时机：什么场景触发浏览
@@ -43,7 +57,7 @@ landing page 用什么布局——脚手架不管，组件库也不管**。
 |---|---|
 | 用户要求做一个「好看的」「有设计感的」「精美的」页面 | **必须先浏览**至少一个收录站的相关分类，找 2–3 个参考案例再动手 |
 | 做 landing page / Hero / 定价页 / 关于页 | **建议浏览**——这些页面的视觉质量直接影响转化 |
-| 需要动画、动效、过渡效果、背景特效 | **建议浏览**——手写动画容易粗糙，参考现成实现省时间且质量高 |
+| 需要动画、动效、过渡效果、背景特效 | **建议浏览**——特效类先看 Libraries.dev（border beam / orbs / gooey / metal），页面级动效看 21st.dev 的 animated heroes 和 shaders 分类 |
 | 做内页、工具页、表单页等功能导向页面 | **不必浏览**——用 shadcn 组件库即可 |
 
 ## 浏览流程
